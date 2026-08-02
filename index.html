@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#141518" />
+  <title>Garage — 2016 Mazda 3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%97%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="ambient"></div>
+
+  <div id="app" class="app-shell">
+    <!-- Top bar -->
+    <header class="topbar">
+      <button class="topbar-car" id="openProfile" title="Edit car profile">
+        <div class="car-badge" id="carBadge">M3</div>
+        <div class="car-meta">
+          <h1 id="carTitle">Mazda 3</h1>
+          <p id="carSub">2.0 SkyActiv-G · Auto · Gray</p>
+        </div>
+      </button>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 110-4h.09A1.65 1.65 0 004.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V2a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.2.63.77 1.09 1.51 1.09H22a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+        <button class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+          <svg viewBox="0 0 24 24" class="i-sun"><path d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66 1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14-1.41-1.41M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
+          <svg viewBox="0 0 24 24" class="i-moon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Pages get injected here -->
+    <main id="view" class="view"></main>
+
+    <!-- Bottom nav -->
+    <nav class="tabbar" id="tabbar">
+      <button class="tab is-active" data-route="dashboard">
+        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="tab" data-route="maintenance">
+        <svg viewBox="0 0 24 24"><path d="M14.7 6.3a5 5 0 01-6.4 6.4l-4.6 4.6a2 2 0 102.8 2.8l4.6-4.6a5 5 0 006.4-6.4l-2.9 2.9-2.1-.4-.4-2.1 2.6-2.7z"/></svg>
+        <span>Maintenance</span>
+      </button>
+      <button class="tab" data-route="parts">
+        <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 00-2 2v.6a7.5 7.5 0 00-1.9 1.1l-.5-.3a2 2 0 10-2 3.5l.5.3a7.5 7.5 0 000 2.2l-.5.3a2 2 0 102 3.5l.5-.3c.6.5 1.2.8 1.9 1.1v.6a2 2 0 004 0v-.6c.7-.3 1.3-.6 1.9-1.1l.5.3a2 2 0 102-3.5l-.5-.3a7.5 7.5 0 000-2.2l.5-.3a2 2 0 10-2-3.5l-.5.3A7.5 7.5 0 0014 4.6V4a2 2 0 00-2-2zm0 6a4 4 0 110 8 4 4 0 010-8z"/></svg>
+        <span>Parts</span>
+      </button>
+      <button class="tab" data-route="budget">
+        <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm4 12h2v3H7v-3zm4-6h2v9h-2V9zm4 3h2v6h-2v-6zm4-8h2v14h-2V4z"/></svg>
+        <span>Budget</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Modal host -->
+  <div class="modal-host" id="modalHost" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card" role="dialog" aria-modal="true" id="modalCard"></div>
+  </div>
+
+  <!-- Toast host -->
+  <div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

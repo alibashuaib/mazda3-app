@@ -1,0 +1,6 @@
+# build artifacts
+mazda3-app.zip
+
+# OS files
+.DS_Store
+Thumbs.db
