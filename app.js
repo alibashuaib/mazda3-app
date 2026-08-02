@@ -35,52 +35,58 @@ function seed() {
   return {
     car: {
       nickname: '', make: 'Mazda', model: '3', year: 2016,
-      engine: '2.0 SkyActiv-G', transmission: 'Automatic',
-      color: 'Meteor Gray Mica', plate: '', vin: '', photo: '', odometer: 155000,
+      engine: '2.0L SkyActiv-G', transmission: 'Automatic',
+      color: 'Meteor Gray Mica (Code 42A)', plate: '', vin: '', photo: '', odometer: 316000,
       dailyKm: 40 // avg km/day, used to project date from km
     },
     budget: { annual: 6000 },
     // recurring services: intervals in km & months
     services: [
       { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', cat: 'Engine',
-        intervalKm: 7500, intervalMonths: 6, lastKm: 151200, lastDate: '2026-04-15', cost: 260,
+        intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 260,
         note: '5W-30 (API SP / ILSAC GF-6A) full synthetic + OEM filter, ~4.2 L. 7,500 km / 6 mo for Jeddah heat, dust & city driving.' },
       { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', cat: 'Tires',
-        intervalKm: 10000, intervalMonths: 12, lastKm: 148000, lastDate: '2026-03-01', cost: 80,
+        intervalKm: 10000, intervalMonths: 12, lastKm: 309000, lastDate: '2026-03-01', cost: 80,
         note: 'Rotate front/rear and rebalance to even out wear.' },
       { id: uid(), name: 'Cabin (A/C) Filter', icon: '❄️', cat: 'Interior',
-        intervalKm: 15000, intervalMonths: 6, lastKm: 145000, lastDate: '2026-01-20', cost: 70,
-        note: 'Dusty climate clogs it fast — check every 6 months.' },
+        intervalKm: 15000, intervalMonths: 12, lastKm: 306000, lastDate: '2026-01-20', cost: 70,
+        note: 'Jeddah dust clogs it fast — replace ~yearly / 15,000 km; check before summer A/C season.' },
       { id: uid(), name: 'Engine Air Filter', icon: '🌬️', cat: 'Engine',
-        intervalKm: 20000, intervalMonths: 24, lastKm: 140000, lastDate: '2025-08-10', cost: 90,
+        intervalKm: 20000, intervalMonths: 24, lastKm: 301000, lastDate: '2025-08-10', cost: 90,
         note: 'Inspect earlier in sandy conditions.' },
       { id: uid(), name: 'Wheel Alignment', icon: '🎯', cat: 'Tires',
-        intervalKm: 20000, intervalMonths: 24, lastKm: 140000, lastDate: '2025-08-10', cost: 120,
+        intervalKm: 20000, intervalMonths: 24, lastKm: 301000, lastDate: '2025-08-10', cost: 120,
         note: 'Also after any pothole hit or new tires.' },
       { id: uid(), name: 'Brake Fluid', icon: '🩸', cat: 'Brakes',
-        intervalKm: 40000, intervalMonths: 24, lastKm: 128000, lastDate: '2024-09-01', cost: 150,
+        intervalKm: 40000, intervalMonths: 24, lastKm: 289000, lastDate: '2024-09-01', cost: 150,
         note: 'DOT 3/4 (~1 L). Absorbs moisture over time — flush every 2 years.' },
       { id: uid(), name: 'Automatic Transmission Fluid', icon: '⚙️', cat: 'Drivetrain',
-        intervalKm: 60000, intervalMonths: 48, lastKm: 100000, lastDate: '2023-05-01', cost: 480,
+        intervalKm: 60000, intervalMonths: 48, lastKm: 261000, lastDate: '2023-05-01', cost: 480,
         note: 'Mazda Genuine ATF-FZ only — ~3.5 L per drain (7.8 L total). Every 60–80k km; dealer or specialist.' },
       { id: uid(), name: 'Engine Coolant (FL22)', icon: '🌡️', cat: 'Engine',
-        intervalKm: 120000, intervalMonths: 60, lastKm: 130000, lastDate: '2023-08-01', cost: 220,
+        intervalKm: 120000, intervalMonths: 60, lastKm: 291000, lastDate: '2023-08-01', cost: 220,
         note: 'Mazda FL22 long-life (HOAT), ~6.6 L. Replace every 5 years in KSA heat.' },
       { id: uid(), name: 'Throttle Body & MAF Cleaning', icon: '🧴', cat: 'Engine',
-        intervalKm: 15000, intervalMonths: 12, lastKm: 148000, lastDate: '2025-10-01', cost: 60,
+        intervalKm: 15000, intervalMonths: 12, lastKm: 309000, lastDate: '2025-10-01', cost: 60,
         note: 'Clean throttle body & MAF sensor — Jeddah dust fouls them; restores idle & economy. (Known BM Mazda 3 MAF failure point.)' },
       { id: uid(), name: 'Spark Plugs (x4)', icon: '⚡', cat: 'Engine',
-        intervalKm: 120000, intervalMonths: 72, lastKm: 96000, lastDate: '2022-06-01', cost: 340,
+        intervalKm: 120000, intervalMonths: 72, lastKm: 257000, lastDate: '2022-06-01', cost: 340,
         note: 'Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.' },
       { id: uid(), name: 'Fuel Filter', icon: '⛽', cat: 'Engine',
-        intervalKm: 80000, intervalMonths: 72, lastKm: 80000, lastDate: '2021-05-01', cost: 180,
+        intervalKm: 80000, intervalMonths: 72, lastKm: 241000, lastDate: '2021-05-01', cost: 180,
         note: 'In-tank filter; replace on high mileage.' },
       { id: uid(), name: 'Drive (Serpentine) Belt', icon: '🔗', cat: 'Engine',
-        intervalKm: 90000, intervalMonths: 72, lastKm: 90000, lastDate: '2021-11-01', cost: 200,
+        intervalKm: 90000, intervalMonths: 72, lastKm: 251000, lastDate: '2021-11-01', cost: 200,
         note: 'Inspect for cracks/squeal; replace before it fails.' },
       { id: uid(), name: 'Battery Check', icon: '🔋', cat: 'Electrical',
-        intervalKm: 30000, intervalMonths: 12, lastKm: 150000, lastDate: '2025-10-01', cost: 0,
-        note: 'Load-test yearly; heat shortens battery life in KSA.' }
+        intervalKm: 30000, intervalMonths: 12, lastKm: 311000, lastDate: '2025-10-01', cost: 0,
+        note: 'Load-test yearly; Jeddah heat shortens battery life — plan to replace every 2–3 years.' },
+      { id: uid(), name: 'Brake Inspection & Caliper Lube', icon: '🛑', cat: 'Brakes',
+        intervalKm: 10000, intervalMonths: 12, lastKm: 309000, lastDate: '2025-10-01', cost: 50,
+        note: 'Inspect pads/discs & lubricate caliper slide pins — part of the 5-year Jeddah routine; prevents sticking calipers in the heat.' },
+      { id: uid(), name: 'Suspension & Steering Inspection', icon: '🔧', cat: 'Suspension',
+        intervalKm: 20000, intervalMonths: 24, lastKm: 301000, lastDate: '2025-08-10', cost: 0,
+        note: 'Check shocks, control arms, ball joints, sway-bar links, tie rods & coil springs — known BM Mazda 3 wear points on rough roads.' }
     ],
     // parts catalog with OEM + alternatives
     parts: [
@@ -147,15 +153,25 @@ function seed() {
           { tag: 'ALT', brand: 'Gates Micro-V', partNo: '', price: 90, store: 'Amazon.sa' },
           { tag: 'ALT', brand: 'Dayco', partNo: '', price: 80, store: 'Local parts market' }
         ] },
-      { id: uid(), name: 'Coolant FL22 (concentrate)', icon: '🌡️', cat: 'Engine',
+      { id: uid(), name: 'Coolant FL22 (long-life)', icon: '🌡️', cat: 'Engine',
         options: [
-          { tag: 'OEM', brand: 'Mazda FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: 'Mazda Dealer (Alireza)' },
+          { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: 'Mazda Dealer (Alireza)', note: 'System holds ~6.6 L' },
+          { tag: 'ALT', brand: 'Total Glacelf Auto Supra', partNo: '', price: 85, store: 'Local parts market', note: 'KSA-available compatible coolant (per 5-yr plan)' },
           { tag: 'ALT', brand: 'Zerex Asian Blue (P-HOAT)', partNo: '', price: 85, store: 'Amazon.sa', note: 'Compatible chemistry' }
         ] },
       { id: uid(), name: 'ATF FZ (per liter)', icon: '⚙️', cat: 'Drivetrain',
         options: [
-          { tag: 'OEM', brand: 'Mazda ATF FZ', partNo: '0000-77-112E-01', price: 60, store: 'Mazda Dealer (Alireza)' },
-          { tag: 'ALT', brand: 'Idemitsu Type FZ', partNo: '', price: 42, store: 'Amazon.sa', note: 'OEM supplier equivalent' }
+          { tag: 'OEM', brand: 'Mazda Genuine ATF-FZ (only)', partNo: '0000-77-112E-01', price: 60, store: 'Mazda Dealer (Alireza)', note: '~3.5 L per drain, 7.8 L total' },
+          { tag: 'ALT', brand: 'Idemitsu Type FZ', partNo: '', price: 42, store: 'Amazon.sa', note: 'OE supplier equivalent' }
+        ] },
+      { id: uid(), name: 'Brake Fluid (DOT 4)', icon: '🩸', cat: 'Brakes',
+        options: [
+          { tag: 'OEM', brand: 'Motul DOT 3 & 4', partNo: '', price: 35, store: 'Amazon.sa', note: 'Need ~1 L for a full flush' },
+          { tag: 'ALT', brand: 'ACDelco DOT 4', partNo: '', price: 28, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Windshield Washer Fluid (~2L)', icon: '💦', cat: 'Exterior',
+        options: [
+          { tag: 'ALT', brand: 'Ready-mix washer fluid (anti-streak)', partNo: '', price: 15, store: 'noon', note: 'Top up as needed' }
         ] },
       /* ---- Suspension wear parts (verified for your VIN) ---- */
       { id: uid(), name: 'Front Shock Absorber (each)', icon: '🌀', cat: 'Suspension', partsouq: 'BHS234700A',
@@ -279,22 +295,22 @@ function seed() {
     ],
     // completed-service history (the "work log", newest first by date)
     history: [
-      { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', date: '2026-04-15', odometer: 151200, cost: 260, cat: 'Maintenance', note: '5W-30 full synthetic + OEM filter.' },
-      { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', date: '2026-03-01', odometer: 148000, cost: 80, cat: 'Tires', note: '' },
-      { id: uid(), name: 'Cabin (A/C) Filter', icon: '❄️', date: '2026-01-20', odometer: 145000, cost: 70, cat: 'Maintenance', note: 'Was very dusty.' },
-      { id: uid(), name: 'Battery Check', icon: '🔋', date: '2025-10-01', odometer: 150000, cost: 0, cat: 'Electrical', note: 'Load test OK.' },
-      { id: uid(), name: 'Engine Air Filter', icon: '🌬️', date: '2025-08-10', odometer: 140000, cost: 90, cat: 'Maintenance', note: '' },
-      { id: uid(), name: 'Wheel Alignment', icon: '🎯', date: '2025-08-10', odometer: 140000, cost: 120, cat: 'Tires', note: 'After new front tires.' },
-      { id: uid(), name: 'Front Brake Pads', icon: '🛑', date: '2024-11-12', odometer: 122000, cost: 210, cat: 'Parts', note: 'Akebono ceramic.' }
+      { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', date: '2026-04-15', odometer: 312200, cost: 260, cat: 'Maintenance', note: '5W-30 full synthetic + OEM filter.' },
+      { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', date: '2026-03-01', odometer: 309000, cost: 80, cat: 'Tires', note: '' },
+      { id: uid(), name: 'Cabin (A/C) Filter', icon: '❄️', date: '2026-01-20', odometer: 306000, cost: 70, cat: 'Maintenance', note: 'Was very dusty.' },
+      { id: uid(), name: 'Battery Check', icon: '🔋', date: '2025-10-01', odometer: 311000, cost: 0, cat: 'Electrical', note: 'Load test OK.' },
+      { id: uid(), name: 'Engine Air Filter', icon: '🌬️', date: '2025-08-10', odometer: 301000, cost: 90, cat: 'Maintenance', note: '' },
+      { id: uid(), name: 'Wheel Alignment', icon: '🎯', date: '2025-08-10', odometer: 301000, cost: 120, cat: 'Tires', note: 'After new front tires.' },
+      { id: uid(), name: 'Front Brake Pads', icon: '🛑', date: '2024-11-12', odometer: 283000, cost: 210, cat: 'Parts', note: 'Akebono ceramic.' }
     ],
     // spending log
     spending: [
-      { id: uid(), date: '2026-04-15', cat: 'Maintenance', desc: 'Oil & filter change', amount: 260, odometer: 151200 },
-      { id: uid(), date: '2026-03-01', cat: 'Tires', desc: 'Rotation & balance', amount: 80, odometer: 148000 },
-      { id: uid(), date: '2026-02-10', cat: 'Parts', desc: 'New wiper blades (Bosch)', amount: 95, odometer: 146500 },
-      { id: uid(), date: '2026-01-20', cat: 'Maintenance', desc: 'Cabin A/C filter', amount: 70, odometer: 145000 },
-      { id: uid(), date: '2025-11-05', cat: 'Fuel', desc: 'Full tank', amount: 130, odometer: 143200 },
-      { id: uid(), date: '2025-10-01', cat: 'Electrical', desc: 'Battery load test', amount: 0, odometer: 150000 }
+      { id: uid(), date: '2026-04-15', cat: 'Maintenance', desc: 'Oil & filter change', amount: 260, odometer: 312200 },
+      { id: uid(), date: '2026-03-01', cat: 'Tires', desc: 'Rotation & balance', amount: 80, odometer: 309000 },
+      { id: uid(), date: '2026-02-10', cat: 'Parts', desc: 'New wiper blades (Bosch)', amount: 95, odometer: 307500 },
+      { id: uid(), date: '2026-01-20', cat: 'Maintenance', desc: 'Cabin A/C filter', amount: 70, odometer: 306000 },
+      { id: uid(), date: '2025-11-05', cat: 'Fuel', desc: 'Full tank', amount: 130, odometer: 304200 },
+      { id: uid(), date: '2025-10-01', cat: 'Electrical', desc: 'Battery load test', amount: 0, odometer: 311000 }
     ]
   };
 }
@@ -354,10 +370,12 @@ function yearSpend(year) {
 /* ============================================================
    ROUTER
    ============================================================ */
-const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, parts: renderParts, budget: renderBudget };
+const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, parts: renderParts, budget: renderBudget, reports: renderReports };
 let current = 'dashboard';
-function go(route) {
+let navIntent = null; // cross-page link target, consumed by the destination page's render
+function go(route, intent) {
   current = route;
+  navIntent = intent || null;
   const view = $('#view');
   view.className = 'view ' + route;
   view.innerHTML = '';
@@ -367,6 +385,23 @@ function go(route) {
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.route)));
+
+/* ---------- cross-page links: which parts each service consumes ---------- */
+const SERVICE_PARTS = {
+  'Engine Oil & Filter': ['Engine Oil 5W-30 (4L)', 'Oil Filter'],
+  'Engine Air Filter': ['Engine Air Filter'],
+  'Cabin (A/C) Filter': ['Cabin A/C Filter'],
+  'Spark Plugs (x4)': ['Spark Plugs (each)'],
+  'Brake Fluid': ['Brake Fluid (DOT 4)'],
+  'Engine Coolant (FL22)': ['Coolant FL22 (long-life)'],
+  'Automatic Transmission Fluid': ['ATF FZ (per liter)'],
+  'Drive (Serpentine) Belt': ['Serpentine Belt'],
+  'Battery Check': ['12V Battery'],
+  'Brake Inspection & Caliper Lube': ['Front Brake Pads', 'Rear Brake Pads']
+};
+const partCheapest = p => Math.min(...p.options.map(o => o.price));
+function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => state.parts.find(p => p.name === n)).filter(Boolean); }
+function servicesForPart(p) { return state.services.filter(s => (SERVICE_PARTS[s.name] || []).includes(p.name)); }
 
 /* ============================================================
    PAGE 1 — DASHBOARD
@@ -379,6 +414,17 @@ function renderDashboard() {
   const hs = healthScore();
   const spent = yearSpend(2026);
   const budget = state.budget.annual;
+
+  // Car photo — its own container / banner
+  const carName = state.car.nickname || [state.car.year, state.car.make, state.car.model].filter(Boolean).join(' ');
+  const carCard = el('button', 'card car-card' + (state.car.photo ? '' : ' empty'));
+  carCard.title = state.car.photo ? 'Change car photo' : 'Add a photo of your car';
+  carCard.innerHTML = state.car.photo
+    ? `<img src="${state.car.photo}" alt="Your ${carName}"><div class="car-card-grad"></div><div class="car-card-cap">${carName}</div>`
+    : `<span class="cpb-ph"><span class="cpb-emoji">🚗</span><small>Add a photo of your car</small></span>`;
+  carCard.onclick = openSettings;
+  const topRow = el('div', 'top-row');
+  topRow.appendChild(carCard);
 
   // hero + ring
   const hero = el('div', 'card hero');
@@ -404,15 +450,19 @@ function renderDashboard() {
       </svg>
       <div class="ring-label"><div class="ring-num">${hs}</div><div class="ring-cap">Health</div></div>
     </div>`;
-  if (state.car.photo) hero.insertAdjacentHTML('afterbegin', `<div class="hero-bg" style="background-image:url(${state.car.photo})"></div>`);
-  v.appendChild(hero);
+  topRow.appendChild(hero);
+  v.appendChild(topRow);
 
-  // tiles
+  // tiles — each links to the page it summarizes
   const tiles = el('div', 'tiles');
   tiles.innerHTML = `
     <div class="tile ${overdue.length ? 'danger' : 'ok'}"><div class="t-num">${overdue.length}</div><div class="t-cap">Overdue</div></div>
     <div class="tile ${soon.length ? 'warn' : 'ok'}"><div class="t-num">${soon.length}</div><div class="t-cap">Due soon</div></div>
     <div class="tile"><div class="t-num">${sar(spent)}</div><div class="t-cap">SAR this year</div></div>`;
+  tiles.children[0].onclick = () => go('maintenance', { filter: 'Overdue' });
+  tiles.children[1].onclick = () => go('maintenance', { filter: 'Due soon' });
+  tiles.children[2].onclick = () => go('budget');
+  [...tiles.children].forEach(t => { t.style.cursor = 'pointer'; });
   v.appendChild(tiles);
 
   // Next up (top 4 services)
@@ -420,17 +470,6 @@ function renderDashboard() {
   const list = el('div', 'list');
   ranked.slice(0, 4).forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
   v.appendChild(list);
-
-  // Recommendations (dashboard only)
-  const recHead = sectionTitle('Recommendations', '', null);
-  const recSub = el('p', 'muted');
-  recSub.style.cssText = 'font-size:13px;margin:-2px 4px 8px;line-height:1.5';
-  recSub.textContent = 'Keep it in top condition';
-  v.appendChild(recHead);
-  v.appendChild(recSub);
-  const recs = el('div', 'list');
-  recommendations().forEach(r => recs.appendChild(r));
-  v.appendChild(recs);
 
   // quick actions
   const row = el('div', 'fab-row');
@@ -441,6 +480,12 @@ function renderDashboard() {
   row.append(bLog, bSpend);
   v.appendChild(row);
 
+  // Recommendations (dashboard only)
+  v.appendChild(sectionTitle('Recommendations', '', null));
+  const recs = el('div', 'list');
+  recommendations().forEach(r => recs.appendChild(r));
+  v.appendChild(recs);
+
   hero.querySelector('#editOdo').onclick = openEditOdo;
   return v;
 }
@@ -450,6 +495,7 @@ function renderDashboard() {
    ============================================================ */
 let maintMode = 'Schedule'; // remembered across renders in the session
 function renderMaintenance() {
+  if (navIntent && navIntent.filter) maintMode = 'Schedule'; // a cross-page link targets the schedule
   const v = el('div');
   v.appendChild(pageIntro('Maintenance', 'Your service schedule and full work history — tracked by distance and time.'));
 
@@ -471,7 +517,8 @@ function renderMaintenance() {
 function buildSchedule(v) {
   const seg = el('div', 'seg');
   const filters = ['All', 'Overdue', 'Due soon', 'OK'];
-  let active = 'All';
+  let active = (navIntent && filters.includes(navIntent.filter)) ? navIntent.filter : 'All';
+  navIntent = null; // consumed
   filters.forEach(f => {
     const b = el('button', f === active ? 'on' : '', f);
     b.onclick = () => { active = f; [...seg.children].forEach(c => c.classList.toggle('on', c === b)); paint(); };
@@ -580,6 +627,15 @@ function renderParts() {
   }
   paint();
 
+  // arriving via a "View part" link from Maintenance — open & scroll to it
+  if (navIntent && navIntent.openPart) {
+    const targetId = navIntent.openPart; navIntent = null;
+    setTimeout(() => {
+      const cardEl = list.querySelector(`[data-id="${targetId}"]`);
+      if (cardEl) { cardEl.classList.add('open'); cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }, 60);
+  }
+
   const add = el('button', 'btn block ghost', iconSvg('plus') + 'Add a part');
   add.style.marginTop = '16px';
   add.onclick = () => openEditPart(null);
@@ -588,8 +644,10 @@ function renderParts() {
 }
 
 function partCard(p) {
-  const cheapest = Math.min(...p.options.map(o => o.price));
+  const cheapest = partCheapest(p);
+  const usedIn = servicesForPart(p);
   const card = el('div', 'card part');
+  card.dataset.id = p.id;
   card.innerHTML = `
     <div class="part-head">
       <div class="item-ic">${p.icon || '🔩'}</div>
@@ -613,6 +671,10 @@ function partCard(p) {
             <div class="store">${o.store}</div>
           </div>
         </div>`).join('')}
+      ${usedIn.length ? `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <span class="muted" style="font-size:11px;font-weight:600">🔧 Used in:</span>
+        ${usedIn.map(s => `<button class="chip-link" data-svc="${s.id}">${s.name}</button>`).join('')}
+      </div>` : ''}
       ${p.partsouq ? `<a class="btn" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer" style="width:100%;margin-top:12px;font-size:12.5px;padding:11px;text-decoration:none;color:var(--accent-soft)">🔎 Live price &amp; alternatives on PartSouq ↗</a>` : ''}
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-edit>Edit</button>
@@ -622,6 +684,11 @@ function partCard(p) {
   card.querySelector('.part-head').onclick = e => { if (!e.target.closest('.part-toggle') && !e.target.closest('button')) toggle(); };
   card.querySelector('.part-toggle').onclick = toggle;
   card.querySelector('[data-edit]').onclick = e => { e.stopPropagation(); openEditPart(p); };
+  card.querySelectorAll('[data-svc]').forEach(btn => btn.onclick = e => {
+    e.stopPropagation();
+    const s = state.services.find(x => x.id === btn.dataset.svc);
+    if (s) { go('maintenance'); setTimeout(() => openServiceDetail(s), 0); }
+  });
   return card;
 }
 
@@ -665,6 +732,24 @@ function renderBudget() {
     </div>`;
   v.appendChild(ring);
 
+  // Upcoming maintenance cost — forecast pulled from the Maintenance schedule
+  const upcoming = servicesRanked().filter(r => r.st.level !== 'ok');
+  if (upcoming.length) {
+    const dueCost = upcoming.reduce((a, r) => a + (r.s.cost || 0), 0);
+    const odCount = upcoming.filter(r => r.st.level === 'danger').length;
+    const fc = el('div', 'card');
+    fc.style.cssText = 'padding:14px 16px;margin-top:12px;display:flex;align-items:center;gap:12px;cursor:pointer';
+    fc.innerHTML = `
+      <div class="item-ic">🔧</div>
+      <div style="flex:1">
+        <h3 style="font-size:13.5px;font-weight:650">Upcoming maintenance</h3>
+        <p class="muted" style="font-size:12px;margin-top:2px">${upcoming.length} service${upcoming.length > 1 ? 's' : ''} due${odCount ? ` · ${odCount} overdue` : ''} — plan ~${sar(dueCost)} SAR</p>
+      </div>
+      <span style="color:var(--accent-soft);font-size:12.5px;font-weight:600">View ›</span>`;
+    fc.onclick = () => go('maintenance', { filter: odCount ? 'Overdue' : 'Due soon' });
+    v.appendChild(fc);
+  }
+
   // monthly bars (last 6 months)
   v.appendChild(sectionTitle('Monthly spending', '', null));
   const bars = el('div', 'card');
@@ -703,6 +788,143 @@ function renderBudget() {
   return v;
 }
 
+/* ============================================================
+   PAGE 5 — REPORTS (printable A4)
+   ============================================================ */
+let reportType = 'service'; // remembered across renders in the session
+function renderReports() {
+  const v = el('div', 'rpt-view');
+  v.appendChild(pageIntro('Reports', 'Generate a clean, printable A4 report — then Print or Save as PDF.'));
+
+  const toolbar = el('div', 'rpt-toolbar');
+  const seg = el('div', 'seg');
+  seg.style.flexWrap = 'wrap';
+  const types = [['service', 'Service history'], ['purchases', 'Purchases'], ['summary', 'Full summary']];
+  types.forEach(([k, label]) => {
+    const b = el('button', k === reportType ? 'on' : '', label);
+    b.onclick = () => { reportType = k; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
+    seg.appendChild(b);
+  });
+  const printBtn = el('button', 'btn primary', `<svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>Print / Save PDF`);
+  printBtn.onclick = () => window.print();
+  toolbar.append(seg, printBtn);
+  v.appendChild(toolbar);
+
+  const wrap = el('div', 'rpt-paper-wrap');
+  const paper = el('div', 'rpt-paper');
+  wrap.appendChild(paper);
+  v.appendChild(wrap);
+  function paint() { paper.innerHTML = reportHTML(reportType); }
+  paint();
+  return v;
+}
+
+function reportHTML(type) {
+  return type === 'purchases' ? reportPurchases() : type === 'summary' ? reportSummary() : reportService();
+}
+function reportHeader(title) {
+  const c = state.car;
+  const name = c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle';
+  const initials = ((c.make ? c.make[0] : 'M') + (c.model ? c.model[0] : '3')).toUpperCase();
+  return `
+    <div class="rpt-head">
+      <div class="rpt-brand">
+        <div class="rpt-badge">${initials}</div>
+        <div><h2>${name}</h2><p>${[c.engine, c.transmission, c.color].filter(Boolean).join(' · ')}</p></div>
+      </div>
+      <div class="rpt-meta">
+        <div class="rpt-title">${title}</div>
+        <div>Generated ${TODAY.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        <div>Odometer ${fmt(c.odometer)} km${c.plate ? ` · ${c.plate}` : ''}</div>
+        ${c.vin ? `<div>VIN ${c.vin}</div>` : ''}
+      </div>
+    </div>`;
+}
+function reportFooter() {
+  return `<div class="rpt-foot"><span>Garage · Mazda 3 care app</span><span>Report generated ${TODAY.toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
+}
+function reportService() {
+  const hist = [...state.history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
+  const total = hist.reduce((a, e) => a + Number(e.cost || 0), 0);
+  const body = !hist.length
+    ? `<div class="rpt-empty">No service history recorded yet.</div>`
+    : `<div class="rpt-cards">
+        <div class="rpt-stat"><div class="n">${hist.length}</div><div class="l">Services logged</div></div>
+        <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">Total spent (SAR)</div></div>
+        <div class="rpt-stat"><div class="n">${fmt(state.car.odometer)}</div><div class="l">Current odometer (km)</div></div>
+      </div>
+      <div class="rpt-section-title">Work history</div>
+      <table class="rpt-table">
+        <thead><tr><th>Date</th><th>Service</th><th>Category</th><th class="num">Odometer</th><th class="num">Cost</th><th>Notes</th></tr></thead>
+        <tbody>${hist.map(e => `<tr>
+          <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+          <td>${e.name}</td><td>${e.cat || '—'}</td>
+          <td class="num">${fmt(e.odometer)} km</td>
+          <td class="num">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</td>
+          <td>${e.note || ''}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="4">Total</td><td class="num">${sar(total)} SAR</td><td></td></tr></tfoot>
+      </table>`;
+  return reportHeader('Service History Report') + body + reportFooter();
+}
+function reportPurchases() {
+  const sp = [...state.spending].sort((a, b) => b.date.localeCompare(a.date));
+  const total = sp.reduce((a, e) => a + Number(e.amount || 0), 0);
+  const byCat = {};
+  sp.forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount || 0); });
+  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const body = !sp.length
+    ? `<div class="rpt-empty">No purchases or spending recorded yet.</div>`
+    : `<div class="rpt-cards">
+        <div class="rpt-stat"><div class="n">${sp.length}</div><div class="l">Entries</div></div>
+        <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">Total spent (SAR)</div></div>
+        <div class="rpt-stat"><div class="n">${cats.length}</div><div class="l">Categories</div></div>
+      </div>
+      <div class="rpt-section-title">By category</div>
+      <table class="rpt-table"><thead><tr><th>Category</th><th class="num">Amount</th><th class="num">Share</th></tr></thead>
+        <tbody>${cats.map(([k, val]) => `<tr><td>${k}</td><td class="num">${sar(val)} SAR</td><td class="num">${Math.round(val / (total || 1) * 100)}%</td></tr>`).join('')}</tbody></table>
+      <div class="rpt-section-title">All purchases</div>
+      <table class="rpt-table">
+        <thead><tr><th>Date</th><th>Item</th><th>Category</th><th class="num">Odometer</th><th class="num">Amount</th></tr></thead>
+        <tbody>${sp.map(e => `<tr>
+          <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+          <td>${e.desc}</td><td>${e.cat}</td>
+          <td class="num">${e.odometer ? fmt(e.odometer) + ' km' : '—'}</td>
+          <td class="num">${sar(e.amount)} SAR</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="4">Total</td><td class="num">${sar(total)} SAR</td></tr></tfoot>
+      </table>`;
+  return reportHeader('Purchases & Spending Report') + body + reportFooter();
+}
+function reportSummary() {
+  const ranked = servicesRanked();
+  const overdue = ranked.filter(r => r.st.level === 'danger');
+  const soon = ranked.filter(r => r.st.level === 'warn');
+  const due = [...overdue, ...soon];
+  const dueCost = due.reduce((a, r) => a + (r.s.cost || 0), 0);
+  const hs = healthScore();
+  const spent = yearSpend(2026);
+  const histTotal = state.history.reduce((a, e) => a + Number(e.cost || 0), 0);
+  const dueRows = due.length
+    ? due.map(({ s, st }) => `<tr><td>${s.name}</td><td>${st.level === 'danger' ? 'Overdue' : 'Due soon'}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' km over' : fmt(st.kmLeft) + ' km left'}</td><td class="num">${sar(s.cost)} SAR</td></tr>`).join('')
+    : `<tr><td colspan="4" style="text-align:center;color:#8b93a3;padding:16px">Everything is up to date 🎉</td></tr>`;
+  return reportHeader('Vehicle Summary Report') + `
+    <div class="rpt-cards">
+      <div class="rpt-stat"><div class="n">${hs}</div><div class="l">Health score</div></div>
+      <div class="rpt-stat"><div class="n">${overdue.length}</div><div class="l">Overdue</div></div>
+      <div class="rpt-stat"><div class="n">${soon.length}</div><div class="l">Due soon</div></div>
+    </div>
+    <div class="rpt-cards" style="margin-top:12px">
+      <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">Spent in 2026 (SAR)</div></div>
+      <div class="rpt-stat"><div class="n">${sar(histTotal)}</div><div class="l">Lifetime service cost</div></div>
+      <div class="rpt-stat"><div class="n">${state.history.length}</div><div class="l">Services logged</div></div>
+    </div>
+    <div class="rpt-section-title">Upcoming &amp; overdue services</div>
+    <table class="rpt-table">
+      <thead><tr><th>Service</th><th>Status</th><th class="num">Distance</th><th class="num">Est. cost</th></tr></thead>
+      <tbody>${dueRows}</tbody>
+      ${due.length ? `<tfoot><tr><td colspan="3">Estimated total</td><td class="num">${sar(dueCost)} SAR</td></tr></tfoot>` : ''}
+    </table>` + reportFooter();
+}
+
 function monthlyBars() {
   const wrap = el('div', 'spend-bars');
   const months = [];
@@ -737,24 +959,15 @@ function spendEntry(e) {
 /* ---------- recommendations (Dashboard only) ---------- */
 function recommendations() {
   const out = [];
-  const ranked = servicesRanked();
-  const overdue = ranked.filter(r => r.st.level === 'danger');
-  const soon = ranked.filter(r => r.st.level === 'warn');
 
-  overdue.slice(0, 2).forEach(({ s, st }) => out.push(recCard('🚨', `${s.name} — overdue`,
-    `${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' km past due' : Math.abs(st.daysLeft) + ' days past due'}. Estimated ${sar(s.cost)} SAR. Do this first.`)));
-  soon.slice(0, 2).forEach(({ s, st }) => out.push(recCard('⏰', `${s.name} — coming up`,
-    `Due ${st.drivenByTime ? relDate(st.dueDate) : 'in ' + fmt(st.kmLeft) + ' km'}. Budget ~${sar(s.cost)} SAR.`)));
-
-  // evergreen tips
+  // evergreen tips — from the 5-year Jeddah maintenance plan (Usage & Climate Notes)
   const tips = [
-    ['🌡️', 'Beat the Saudi heat', 'Check coolant level and A/C performance before summer. Heat is the #1 killer of batteries and rubber hoses here.'],
-    ['🛞', 'Tire pressure weekly', 'Check pressures when cold (≈32 psi). Correct pressure saves fuel and prevents blowouts on hot asphalt.'],
-    ['🛢️', 'Stick to 7,500 km oil', 'Jeddah heat, dust & city driving = severe use. Fresh 5W-30 (API SP) every ~7,500 km keeps the SkyActiv engine clean.'],
-    ['💧', 'Wash off dust & salt', 'Regular washes protect paint and underbody from corrosion, especially near the coast.']
+    ['🛢️', 'Oil every ~7,500 km', "In Jeddah's heat, shorten oil changes to ~7,500 km if you mostly do city driving. Fresh 5W-30 (API SP) keeps the SkyActiv engine clean."],
+    ['🛞', 'Tire pressure 36 PSI', 'Keep tires at 36 PSI and check monthly (when cold). Correct pressure saves fuel and prevents blowouts on hot asphalt.'],
+    ['🔋', 'Battery every 2–3 years', 'Heat-related wear shortens battery life in Jeddah — plan to replace it every 2–3 years, and load-test it yearly.'],
+    ['💧', 'Wash the underbody', "Wash the underbody occasionally to protect against corrosion from Jeddah's coastal salt air."]
   ];
-  const need = Math.max(0, 3 - out.length);
-  tips.slice(0, need + 1).forEach(t => out.push(recCard(t[0], t[1], t[2])));
+  tips.forEach(t => out.push(recCard(t[0], t[1], t[2])));
   return out;
 }
 function recCard(ic, title, body) {
@@ -860,13 +1073,60 @@ function openSettings() {
     const r1 = el('div', 'field-row');
     r1.append(field('Make', `<input id="c_make" value="${c.make || ''}">`), field('Model', `<input id="c_model" value="${c.model || ''}">`));
     card.appendChild(r1);
+    const MAZDA3_COLORS = [
+      'Soul Red Metallic (Code 41V)',
+      'Snowflake White Pearl Mica (Code 25D)',
+      'Jet Black Mica (Code 41W)',
+      'Deep Crystal Blue Mica (Code 42M)',
+      'Blue Reflex Mica (Code 42B)',
+      'Meteor Gray Mica (Code 42A)',
+      'Liquid Silver Metallic (Code 38P)',
+      'Titanium Flash Mica (Code 42S)'
+    ];
+    const normColor = s => (s || '').toLowerCase().replace(/\s*\(code.*\)/, '').trim();
+    let colorOpts = MAZDA3_COLORS.slice();
+    let colorSel = MAZDA3_COLORS.find(x => normColor(x) === normColor(c.color));
+    if (c.color && !colorSel) { colorOpts = [c.color, ...MAZDA3_COLORS]; colorSel = c.color; }
     const r2 = el('div', 'field-row');
-    r2.append(field('Year', `<input id="c_year" type="number" value="${c.year || ''}">`), field('Color', `<input id="c_color" value="${c.color || ''}">`));
+    r2.append(field('Year', `<input id="c_year" type="number" value="${c.year || ''}">`),
+      field('Transmission', `<select id="c_trans">${['Automatic', 'Manual'].map(t => `<option ${c.transmission === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`));
     card.appendChild(r2);
-    const r3 = el('div', 'field-row');
-    r3.append(field('Engine', `<input id="c_engine" value="${c.engine || ''}">`),
-      field('Transmission', `<select id="c_trans">${['Automatic', 'Manual', 'CVT', 'Dual-clutch'].map(t => `<option ${c.transmission === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`));
-    card.appendChild(r3);
+
+    // Colour — custom dropdown with a colour sample beside each name (full width)
+    const colorField = field('Color', `
+      <div class="color-picker" id="c_colorPick">
+        <input type="hidden" id="c_color" value="${colorSel || ''}">
+        <button type="button" class="color-trigger">
+          <span class="sw" style="background:${swatchFor(colorSel)}"></span>
+          <span class="ct-name">${colorSel || 'Select colour'}</span>
+          <svg class="ct-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="color-menu" hidden>
+          ${colorOpts.map(x => `<button type="button" class="color-opt${x === colorSel ? ' sel' : ''}" data-val="${x}"><span class="sw" style="background:${swatchFor(x)}"></span><span>${x}</span></button>`).join('')}
+        </div>
+      </div>`);
+    card.appendChild(colorField);
+    (() => {
+      const pick = colorField.querySelector('#c_colorPick');
+      const trigger = pick.querySelector('.color-trigger');
+      const menu = pick.querySelector('.color-menu');
+      const hidden = pick.querySelector('#c_color');
+      trigger.onclick = () => { const open = pick.classList.toggle('open'); menu.hidden = !open; };
+      pick.querySelectorAll('.color-opt').forEach(opt => opt.onclick = () => {
+        const val = opt.dataset.val;
+        hidden.value = val;
+        trigger.querySelector('.ct-name').textContent = val;
+        trigger.querySelector('.sw').style.background = swatchFor(val);
+        pick.querySelectorAll('.color-opt').forEach(o => o.classList.toggle('sel', o === opt));
+        pick.classList.remove('open'); menu.hidden = true;
+      });
+    })();
+
+    const ENGINES = ['1.6L SkyActiv-G', '2.0L SkyActiv-G'];
+    let engOpts = ENGINES.slice();
+    let engSel = ENGINES.find(e => c.engine && ((c.engine.includes('1.6') && e.includes('1.6')) || (c.engine.includes('2.0') && e.includes('2.0'))));
+    if (c.engine && !engSel) { engOpts = [c.engine, ...ENGINES]; engSel = c.engine; }
+    card.appendChild(field('Engine', `<select id="c_engine">${engOpts.map(e => `<option ${e === engSel ? 'selected' : ''}>${e}</option>`).join('')}</select>`));
     const r4 = el('div', 'field-row');
     r4.append(field('Plate number', `<input id="c_plate" value="${c.plate || ''}" placeholder="e.g. ABC 1234">`),
       field('VIN', `<input id="c_vin" value="${c.vin || ''}" placeholder="17-char VIN">`));
@@ -882,7 +1142,7 @@ function openSettings() {
       });
       try { save(); } catch (e) {}
       // photo may exceed quota — verify it stuck
-      renderTopbar(); closeModal(); go(current); toast('Profile saved');
+      applyAccent(); renderTopbar(); closeModal(); go(current); toast('Profile saved');
     };
     card.appendChild(b);
   });
@@ -911,7 +1171,27 @@ function openServiceDetail(s) {
       <div class="detail-row"><span class="k">Est. cost</span><span class="v">${sar(s.cost)} SAR</span></div>
       ${s.note ? `<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${s.note}</p>` : ''}`;
     card.appendChild(box);
+
+    // Parts this service needs — pulled live from the Parts catalog
+    const rel = partsForService(s);
+    if (rel.length) {
+      const total = rel.reduce((a, p) => a + partCheapest(p), 0);
+      const pb = el('div');
+      pb.style.marginTop = '18px';
+      pb.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px">Parts for this service · ~${sar(total)} SAR</div>`;
+      const pl = el('div', 'list');
+      rel.forEach(p => {
+        const it = el('div', 'item');
+        it.innerHTML = `<div class="item-ic">${p.icon || '🔩'}</div><div class="item-main"><h3>${p.name}</h3><p>from ${sar(partCheapest(p))} SAR · ${p.options.length} options</p></div><div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">View ›</span></div>`;
+        it.onclick = () => { closeModal(); go('parts', { openPart: p.id }); };
+        pl.appendChild(it);
+      });
+      pb.appendChild(pl);
+      card.appendChild(pb);
+    }
+
     const row = el('div', 'fab-row');
+    row.style.marginTop = '18px';
     const done = el('button', 'btn primary', iconSvg('check') + 'Mark done now');
     done.style.flex = '1';
     done.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${s.name} logged ✓`); };
@@ -1037,6 +1317,11 @@ function openAddSpending(e) {
   const editing = !!e;
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
+    if (!editing) {
+      const partOpts = state.parts.map((p, i) => `<option value="part:${i}">${p.name} · ${sar(Math.min(...p.options.map(o => o.price)))} SAR</option>`).join('');
+      card.appendChild(field('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>',
+        `<select id="x_pick"><option value="">Start from scratch…</option>${partOpts}</select>`));
+    }
     card.appendChild(field('Description', `<input id="x_desc" value="${e ? e.desc : ''}" placeholder="e.g. New front brake pads">`));
     const row = el('div', 'field-row');
     row.append(field('Amount (SAR)', `<input id="x_amt" type="number" inputmode="numeric" value="${e ? e.amount : ''}">`),
@@ -1044,6 +1329,15 @@ function openAddSpending(e) {
     card.appendChild(row);
     card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option ${e && e.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`));
     card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${e ? e.odometer : state.car.odometer}">`));
+    if (!editing) {
+      $('#x_pick').onchange = function () {
+        if (!this.value) return;
+        const p = state.parts[+this.value.split(':')[1]];
+        $('#x_desc').value = p.name;
+        $('#x_amt').value = Math.min(...p.options.map(o => o.price));
+        $('#x_cat').value = p.cat === 'Tires' ? 'Tires' : p.cat === 'Electrical' ? 'Electrical' : 'Parts';
+      };
+    }
     const b = el('button', 'btn primary block', 'Save');
     b.onclick = () => {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
@@ -1068,8 +1362,10 @@ function openEditPart(p) {
   openModal(editing ? 'Edit part' : 'New part', 'Add the OEM option and any alternatives.', card => {
     card.appendChild(field('Part name', `<input id="p_name" value="${p ? p.name : ''}" placeholder="e.g. Front Brake Pads">`));
     const row = el('div', 'field-row');
+    const curCat = p ? p.cat : 'Engine';
+    const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...state.parts.map(x => x.cat), curCat])];
     row.append(field('Icon (emoji)', `<input id="p_icon" value="${p ? p.icon : '🔩'}" maxlength="2">`),
-      field('Category', `<input id="p_cat" value="${p ? p.cat : 'Engine'}">`));
+      field('Category', `<select id="p_cat">${catList.map(c => `<option ${c === curCat ? 'selected' : ''}>${c}</option>`).join('')}</select>`));
     card.appendChild(row);
     card.appendChild(field('PartSouq part no. (optional — enables live-price link)', `<input id="p_psq" value="${p && p.partsouq ? p.partsouq : ''}" placeholder="e.g. PE0114302A">`));
 
@@ -1175,8 +1471,51 @@ function applyTheme(t) {
 $('#themeToggle').onclick = () => applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
 applyTheme(localStorage.getItem('garage.theme') || 'dark');
 
+/* ---------- accent follows the car colour ---------- */
+const CAR_ACCENTS = [
+  [['soul red', 'red'], '#d6203c', '#ff5c6e'],
+  [['blue', 'crystal'], '#2f6df0', '#6fa8ff'],
+  [['green', 'olive'], '#1f9d6b', '#4be0a6'],
+  [['bronze', 'copper', 'brown', 'zircon'], '#b0702c', '#e0a860'],
+  [['silver', 'sonic', 'aluminium', 'aluminum'], '#7c879a', '#a8b3c6'],
+  [['white', 'snowflake', 'arctic', 'platinum', 'ceramic'], '#5f86b3', '#93b3d8'],
+  [['black', 'jet'], '#c0142c', '#ff5c6e'],
+  [['gray', 'grey', 'machine', 'meteor', 'titanium', 'polymetal', 'graphite', 'gunmetal'], '#5b6b82', '#8ea1bd']
+];
+function hexToRgb(h) { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+function rgbToHex(r, g, b) { return '#' + [r, g, b].map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join(''); }
+function darkenHex(hex, f) { const [r, g, b] = hexToRgb(hex); return rgbToHex(r * f, g * f, b * f); }
+function accentForColor(name) {
+  const c = (name || '').toLowerCase();
+  const hit = CAR_ACCENTS.find(([keys]) => keys.some(k => c.includes(k)));
+  return hit ? [hit[1], hit[2]] : ['#d6203c', '#ff5c6e'];
+}
+
+/* real-paint swatches for the colour dropdown */
+const COLOR_SWATCHES = {
+  'Soul Red Metallic (Code 41V)': '#a5141b',
+  'Snowflake White Pearl Mica (Code 25D)': '#eef0f2',
+  'Jet Black Mica (Code 41W)': '#15161a',
+  'Deep Crystal Blue Mica (Code 42M)': '#1e3a6e',
+  'Blue Reflex Mica (Code 42B)': '#2f6fae',
+  'Meteor Gray Mica (Code 42A)': '#59626e',
+  'Liquid Silver Metallic (Code 38P)': '#b9bec5',
+  'Titanium Flash Mica (Code 42S)': '#6d6e72'
+};
+function swatchFor(name) { return COLOR_SWATCHES[name] || accentForColor(name)[0]; }
+function applyAccent() {
+  const [acc, soft] = accentForColor(state.car && state.car.color);
+  const [r, g, b] = hexToRgb(acc);
+  const s = document.documentElement.style;
+  s.setProperty('--accent', acc);
+  s.setProperty('--accent-soft', soft);
+  s.setProperty('--accent-2', darkenHex(acc, 0.72));
+  s.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, .35)`);
+}
+
 /* ---------- boot ---------- */
 $('#settingsBtn').onclick = openSettings;
 $('#openProfile').onclick = openSettings;
+applyAccent();
 renderTopbar();
 go('dashboard');

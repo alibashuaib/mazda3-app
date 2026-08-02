@@ -4,9 +4,10 @@
    ============================================================ */
 
 :root {
-  /* accent */
+  /* accent — set at runtime from the car's colour (see applyAccent) */
   --accent: #d6203c;
   --accent-soft: #ff5c6e;
+  --accent-2: #a5152c;
   --accent-glow: rgba(214, 32, 60, .35);
 
   /* status */
@@ -25,6 +26,8 @@
   --surface-solid: #1c1f25;
   --stroke: rgba(255, 255, 255, .08);
   --stroke-2: rgba(255, 255, 255, .05);
+  --stroke-strong: rgba(255, 255, 255, .16);
+  --hi: rgba(255, 255, 255, .05);
   --text: #f3f4f6;
   --text-2: #a7adba;
   --text-3: #6f7686;
@@ -46,6 +49,8 @@
   --surface-solid: #ffffff;
   --stroke: rgba(15, 18, 26, .08);
   --stroke-2: rgba(15, 18, 26, .05);
+  --stroke-strong: rgba(15, 18, 26, .16);
+  --hi: rgba(255, 255, 255, .65);
   --text: #14161c;
   --text-2: #545c6b;
   --text-3: #8b93a3;
@@ -55,7 +60,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
 
 body {
   font-family: var(--font);
@@ -113,7 +118,7 @@ body {
   display: grid; place-items: center;
   font-weight: 800; font-size: 15px; letter-spacing: .5px;
   color: #fff;
-  background: linear-gradient(145deg, var(--accent), #93132a);
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
   box-shadow: 0 8px 20px -6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.25);
 }
 .car-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -168,6 +173,33 @@ body {
   position: relative;
   overflow: hidden;
 }
+
+/* top row: car photo card next to the odometer/health hero */
+.top-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+.top-row .car-card { flex: 1 1 150px; min-width: 132px; height: auto; margin-bottom: 0; }
+.top-row .hero { flex: 2 1 280px; }
+
+/* car photo — its own container */
+.car-card {
+  width: 100%; padding: 0; cursor: pointer; overflow: hidden;
+  position: relative; min-height: 150px; display: block;
+  border-radius: var(--radius); border: 1px solid var(--stroke);
+  background: var(--surface-2);
+  transition: transform .12s, border-color .2s;
+}
+.car-card:active { transform: scale(.99); }
+.car-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.car-card .car-card-grad { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,.55)); }
+.car-card .car-card-cap {
+  position: absolute; left: 16px; bottom: 14px; right: 16px;
+  color: #fff; font-weight: 750; font-size: 16px; letter-spacing: -.2px;
+  text-shadow: 0 2px 10px rgba(0,0,0,.55);
+}
+.car-card.empty { height: auto; }
+.cpb-ph { display: grid; place-items: center; gap: 6px; color: var(--text-3); }
+.car-card.empty .cpb-ph { padding: 30px 0; }
+.cpb-ph .cpb-emoji { font-size: 32px; line-height: 1; }
+.cpb-ph small { font-size: 11px; font-weight: 650; letter-spacing: .2px; }
 .hero::after {
   content: "";
   position: absolute; right: -40px; top: -50px;
@@ -197,11 +229,17 @@ body {
 .hero .odo-label { font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: .8px; }
 .hero .odo-value { font-size: 34px; font-weight: 800; letter-spacing: -1px; margin-top: 2px; }
 .hero .odo-value span { font-size: 15px; font-weight: 600; color: var(--text-2); margin-left: 4px; letter-spacing: 0; }
-.hero .odo-edit {
-  margin-top: 10px; font-size: 12.5px; font-weight: 600;
-  color: var(--accent-soft); background: none; border: 0; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 5px;
+/* shared "edit" pill chip — odometer & annual budget (unified, on-theme) */
+.odo-edit {
+  margin-top: 12px; font-size: 12px; font-weight: 650;
+  color: var(--text); cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--stroke);
+  border-radius: 999px; padding: 7px 13px;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: transform .12s, border-color .2s, background .2s;
 }
+.odo-edit svg { stroke: var(--accent-soft); }
+.odo-edit:active { transform: scale(.95); }
 
 /* health ring */
 .ring { position: relative; width: 92px; height: 92px; }
@@ -280,7 +318,7 @@ body {
   cursor: pointer; transition: transform .12s, filter .2s;
 }
 .btn:active { transform: scale(.96); }
-.btn.primary { background: linear-gradient(145deg, var(--accent), #a5152c); border-color: transparent; color: #fff; box-shadow: 0 10px 24px -10px var(--accent-glow); }
+.btn.primary { background: linear-gradient(145deg, var(--accent), var(--accent-2)); border-color: transparent; color: #fff; box-shadow: 0 10px 24px -10px var(--accent-glow); }
 .btn.ghost { background: transparent; }
 .btn.block { width: 100%; }
 .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
@@ -420,7 +458,7 @@ body {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px;
   width: min(calc(100% - 28px), calc(var(--maxw) - 4px));
   height: var(--tab-h);
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   background: var(--surface);
   border: 1px solid var(--stroke);
   border-radius: 24px;
@@ -517,8 +555,6 @@ body {
 
   /* generous multi-column content on big screens */
   .view .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tiles { max-width: 620px; }
-  .hero { max-width: 720px; }
 
   .toast-host { bottom: 34px; }
 }
@@ -541,3 +577,166 @@ body {
   .modal-grip { display: none; }
 }
 @keyframes pop { from { transform: scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ============================================================
+   2026 POLISH — unified depth, interaction & accessibility
+   Additive layer: refines the system above without changing
+   any layout, sizing or structure.
+   ============================================================ */
+
+/* Crisper, more modern type rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -.01em;
+}
+html { scroll-behavior: smooth; }
+
+/* Brand-tinted text selection */
+::selection { background: var(--accent-glow); color: #fff; }
+
+/* Refined, unobtrusive scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--stroke-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--stroke-strong); border-radius: 999px;
+  border: 3px solid transparent; background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Keyboard-only focus ring — accessible without touching mouse/touch look */
+:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: 10px; }
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible { outline: none; }
+
+/* Unified glassy depth: a hairline top highlight on every elevated surface */
+.card, .tabbar, .modal-card, .tile { box-shadow: var(--shadow), inset 0 1px 0 var(--hi); }
+.tile { --shadow: 0 10px 24px -20px rgba(0,0,0,.5); }
+.toast { box-shadow: var(--shadow), inset 0 1px 0 var(--hi); }
+
+/* Pointer devices only: cohesive, restrained hover feedback */
+@media (hover: hover) and (pointer: fine) {
+  .item, .card.part, .entry, .tl-card, .tile {
+    transition: transform .2s cubic-bezier(.22,1,.36,1), border-color .2s, box-shadow .2s;
+  }
+  .item:hover, .entry:hover, .tl-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--stroke-strong);
+    box-shadow: 0 16px 30px -20px rgba(0,0,0,.55), inset 0 1px 0 var(--hi);
+  }
+  .card.part:hover, .tile:hover { border-color: var(--stroke-strong); }
+  .btn:hover { filter: brightness(1.06); border-color: var(--stroke-strong); }
+  .btn.primary:hover { filter: brightness(1.04); box-shadow: 0 16px 32px -12px var(--accent-glow); }
+  .btn.ghost:hover { background: var(--surface-2); }
+  .icon-btn:hover { background: var(--surface-2); border-color: var(--stroke-strong); }
+  .odo-edit:hover { background: var(--surface); border-color: var(--stroke-strong); }
+  .car-card:hover { border-color: var(--stroke-strong); }
+  .topbar-car:hover { background: var(--surface-2); }
+  .seg button:not(.on):hover { color: var(--text); }
+  .section-title .link:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .part-toggle:hover { color: var(--text); }
+  .opt { transition: none; }
+}
+
+/* Colour picker — dropdown with a paint sample beside each name */
+.color-picker { position: relative; }
+.color-trigger {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  font-family: inherit; font-size: 15px; color: var(--text);
+  padding: 11px 13px; border-radius: 12px;
+  border: 1px solid var(--stroke); background: var(--surface-2);
+  cursor: pointer; text-align: left;
+  transition: border-color .2s;
+}
+.color-picker.open .color-trigger { border-color: var(--accent); }
+.color-trigger .ct-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.color-trigger .ct-chev { color: var(--text-3); flex: none; transition: transform .2s; }
+.color-picker.open .ct-chev { transform: rotate(180deg); }
+.sw {
+  width: 16px; height: 16px; border-radius: 5px; flex: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28), 0 1px 2px rgba(0, 0, 0, .35);
+}
+.color-menu {
+  margin-top: 6px; padding: 6px;
+  background: var(--surface-solid); border: 1px solid var(--stroke);
+  border-radius: 12px; box-shadow: var(--shadow), inset 0 1px 0 var(--hi);
+  max-height: 240px; overflow-y: auto;
+}
+.color-opt {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  font-family: inherit; font-size: 13.5px; color: var(--text);
+  padding: 9px 10px; border: 0; border-radius: 9px;
+  background: none; cursor: pointer; text-align: left;
+}
+.color-opt.sel { background: var(--surface-2); font-weight: 600; }
+@media (hover: hover) and (pointer: fine) { .color-opt:hover { background: var(--surface-2); } }
+
+/* Cross-link chips — "Used in <service>" on part cards */
+.chip-link {
+  font-family: inherit; font-size: 11.5px; font-weight: 650;
+  color: var(--accent-soft); background: var(--accent-glow);
+  border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer;
+  transition: filter .2s;
+}
+@media (hover: hover) and (pointer: fine) { .chip-link:hover { filter: brightness(1.12); } }
+
+/* keep the 5 bottom-bar labels tidy on phones */
+.tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 420px) { .tab { font-size: 9px; } .tabbar { padding: 6px 4px; } }
+
+/* ---- Reports (printable A4) ---- */
+.rpt-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 16px; }
+.rpt-toolbar .seg { margin: 0; flex: 1 1 240px; }
+.rpt-toolbar .btn.primary { flex: none; }
+.rpt-paper-wrap { display: flex; justify-content: center; }
+.rpt-paper {
+  width: 100%; max-width: 794px;              /* A4 width @96dpi */
+  background: #fff; color: #14161c;
+  border: 1px solid var(--stroke); border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 40px 44px; font-size: 13px; line-height: 1.5;
+}
+.rpt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 2px solid #14161c; padding-bottom: 16px; }
+.rpt-brand { display: flex; align-items: center; gap: 12px; }
+.rpt-badge { width: 46px; height: 46px; border-radius: 12px; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 15px; color: #fff; background: linear-gradient(145deg, var(--accent), var(--accent-2)); }
+.rpt-brand h2 { font-size: 18px; font-weight: 800; color: #14161c; letter-spacing: -.3px; }
+.rpt-brand p { font-size: 12px; color: #5b6470; margin-top: 2px; }
+.rpt-meta { text-align: right; font-size: 11.5px; color: #5b6470; line-height: 1.6; }
+.rpt-meta .rpt-title { font-size: 15px; font-weight: 800; color: #14161c; margin-bottom: 2px; }
+.rpt-section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: #5b6470; margin: 24px 0 8px; }
+.rpt-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+.rpt-stat { border: 1px solid #e3e6ea; border-radius: 10px; padding: 12px 14px; }
+.rpt-stat .n { font-size: 19px; font-weight: 800; color: #14161c; letter-spacing: -.4px; }
+.rpt-stat .l { font-size: 11px; color: #5b6470; margin-top: 2px; }
+.rpt-table { width: 100%; border-collapse: collapse; }
+.rpt-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: #5b6470; border-bottom: 1.5px solid #d9dde3; padding: 8px; }
+.rpt-table td { padding: 9px 8px; border-bottom: 1px solid #eceef1; vertical-align: top; color: #14161c; }
+.rpt-table th.num, .rpt-table td.num { text-align: right; white-space: nowrap; }
+.rpt-table tfoot td { font-weight: 800; border-top: 2px solid #14161c; border-bottom: 0; padding-top: 11px; }
+.rpt-foot { margin-top: 26px; padding-top: 12px; border-top: 1px solid #eceef1; display: flex; justify-content: space-between; font-size: 10.5px; color: #8b93a3; }
+.rpt-empty { padding: 34px; text-align: center; color: #8b93a3; }
+
+@media print {
+  @page { size: A4; margin: 14mm; }
+  html, body { background: #fff !important; }
+  html { scrollbar-gutter: auto; }
+  .ambient, .topbar, .tabbar, .toast-host, .modal-host { display: none !important; }
+  .rpt-view > *:not(.rpt-paper-wrap) { display: none !important; }
+  .app-shell { display: block !important; max-width: none; padding: 0; }
+  .view { animation: none !important; }
+  .rpt-paper-wrap { display: block; }
+  .rpt-paper { max-width: none; width: auto; border: 0; border-radius: 0; box-shadow: none; padding: 0; }
+}
+
+/* Honor reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
