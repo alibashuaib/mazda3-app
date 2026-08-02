@@ -458,7 +458,7 @@ body {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px;
   width: min(calc(100% - 28px), calc(var(--maxw) - 4px));
   height: var(--tab-h);
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   background: var(--surface);
   border: 1px solid var(--stroke);
   border-radius: 24px;
@@ -683,9 +683,12 @@ html { scroll-behavior: smooth; }
 }
 @media (hover: hover) and (pointer: fine) { .chip-link:hover { filter: brightness(1.12); } }
 
-/* keep the 5 bottom-bar labels tidy on phones */
+/* keep the 6 bottom-bar labels tidy on phones */
 .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 420px) { .tab { font-size: 9px; } .tabbar { padding: 6px 4px; } }
+.tab { gap: 3px; }
+.tab svg { width: 21px; height: 21px; }
+@media (max-width: 440px) { .tab { font-size: 8.5px; } .tab svg { width: 20px; height: 20px; } .tabbar { padding: 6px 3px; } }
+@media (max-width: 360px) { .tab { font-size: 8px; } }
 
 /* ---- Reports (printable A4) ---- */
 .rpt-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 16px; }
