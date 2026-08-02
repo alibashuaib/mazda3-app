@@ -711,7 +711,7 @@ function buildHistory(v) {
     item.innerHTML = `
       <div class="tl-dot">${e.icon || '🔧'}</div>
       <div class="card tl-card">
-        <div class="tl-top"><h3>${e.name}</h3><div class="tl-cost">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</div></div>
+        <div class="tl-top"><h3>${e.name}${e.photo ? ' 🧾' : ''}</h3><div class="tl-cost">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</div></div>
         <div class="tl-sub">${d.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km</div>
         ${e.note ? `<div class="tl-note">${e.note}</div>` : ''}
       </div>`;
@@ -1087,7 +1087,7 @@ function spendEntry(e) {
   const it = el('div', 'card entry');
   it.innerHTML = `
     <div class="e-ic">${emoji}</div>
-    <div class="e-main"><h3>${e.desc}</h3><p>${e.cat} · ${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
+    <div class="e-main"><h3>${e.desc}${e.photo ? ' 🧾' : ''}</h3><p>${e.cat} · ${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
     <div class="e-amt">${sar(e.amount)} <span class="muted" style="font-size:10px">SAR</span></div>`;
   it.onclick = () => openAddSpending(e);
   return it;
@@ -1351,6 +1351,33 @@ function readImageResized(file, cb) {
   reader.readAsDataURL(file);
 }
 
+/* reusable receipt/photo attachment field (resizes, tap thumbnail to enlarge) */
+function photoPicker(current, onChange, label) {
+  let photo = current || '';
+  const wrap = el('div', 'photo-picker');
+  wrap.style.marginBottom = '14px';
+  wrap.innerHTML = `
+    <div class="photo-preview" data-prev style="cursor:${photo ? 'zoom-in' : 'default'}">${photo ? `<img src="${photo}">` : '🧾'}</div>
+    <div class="photo-actions">
+      <button class="btn" type="button" data-pick>${photo ? 'Change receipt' : (label || 'Add receipt photo')}</button>
+      <button class="btn ghost" type="button" data-rm ${photo ? '' : 'hidden'} style="color:var(--danger)">Remove</button>
+      <input type="file" accept="image/*" data-file hidden>
+    </div>`;
+  const prev = wrap.querySelector('[data-prev]'), pick = wrap.querySelector('[data-pick]'), rm = wrap.querySelector('[data-rm]'), file = wrap.querySelector('[data-file]');
+  pick.onclick = () => file.click();
+  prev.onclick = () => { if (photo) openImage(photo); };
+  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = `<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = 'Change receipt'; rm.hidden = false; onChange(photo); }); };
+  rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || 'Add receipt photo'; rm.hidden = true; onChange(photo); };
+  return wrap;
+}
+function openImage(url) {
+  const host = el('div');
+  host.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:20px;cursor:zoom-out';
+  host.innerHTML = `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8)">`;
+  host.onclick = () => host.remove();
+  document.body.appendChild(host);
+}
+
 function openSettings() {
   openModal('Car profile', 'These details personalise the app and its badge.', card => {
     const c = state.car;
@@ -1531,6 +1558,9 @@ function openAddHistory(e) {
     card.appendChild(r1);
     card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${e ? e.cost : 0}">`));
     card.appendChild(field('Note', `<textarea id="h_note" rows="2">${e ? (e.note || '') : ''}</textarea>`));
+    let hphoto = e ? (e.photo || '') : '';
+    card.appendChild(field('Receipt / invoice', ''));
+    card.appendChild(photoPicker(hphoto, v => hphoto = v));
     if (!editing) {
       const chk = el('div', 'field');
       chk.innerHTML = `<label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);font-weight:500;cursor:pointer">
@@ -1544,7 +1574,7 @@ function openAddHistory(e) {
       const obj = {
         id: e ? e.id : uid(), name, icon: $('#h_icon').value.trim() || '🔧', cat: $('#h_cat').value,
         date: $('#h_date').value || isoDate(TODAY), odometer: +$('#h_odo').value || 0,
-        cost: +$('#h_cost').value || 0, note: $('#h_note').value.trim()
+        cost: +$('#h_cost').value || 0, note: $('#h_note').value.trim(), photo: hphoto
       };
       if (e) Object.assign(e, obj);
       else {
@@ -1633,6 +1663,9 @@ function openAddSpending(e) {
     card.appendChild(row);
     card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option ${e && e.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`));
     card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${e ? e.odometer : state.car.odometer}">`));
+    let xphoto = e ? (e.photo || '') : '';
+    card.appendChild(field('Receipt / invoice', ''));
+    card.appendChild(photoPicker(xphoto, v => xphoto = v));
     if (!editing) {
       $('#x_pick').onchange = function () {
         if (!this.value) return;
@@ -1647,7 +1680,7 @@ function openAddSpending(e) {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return toast('Description required', 'warn');
       if (isNaN(amt)) return toast('Amount required', 'warn');
-      const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(TODAY), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer };
+      const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(TODAY), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer, photo: xphoto };
       if (e) Object.assign(e, obj); else state.spending.push(obj);
       save(); closeModal(); go('budget'); toast(editing ? 'Expense updated' : 'Expense added');
     };
