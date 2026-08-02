@@ -1778,3 +1778,8 @@ $('#openProfile').onclick = openSettings;
 applyAccent();
 renderTopbar();
 go('dashboard');
+
+/* ---------- PWA: offline + installable ---------- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
