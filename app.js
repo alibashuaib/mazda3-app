@@ -32,7 +32,7 @@ const relDate = d => {
    Odometer baseline ~155,000 km. All values editable in-app.
    ============================================================ */
 function seed() {
-  return {
+  const s = {
     car: {
       nickname: '', make: 'Mazda', model: '3', year: 2016,
       engine: '2.0L SkyActiv-G', transmission: 'Automatic',
@@ -293,26 +293,16 @@ function seed() {
           { tag: 'ALT', brand: 'Aftermarket headlight unit', partNo: '', price: 450, store: 'Local parts market' }
         ] }
     ],
-    // completed-service history (the "work log", newest first by date)
-    history: [
-      { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', date: '2026-04-15', odometer: 312200, cost: 260, cat: 'Maintenance', note: '5W-30 full synthetic + OEM filter.' },
-      { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', date: '2026-03-01', odometer: 309000, cost: 80, cat: 'Tires', note: '' },
-      { id: uid(), name: 'Cabin (A/C) Filter', icon: '❄️', date: '2026-01-20', odometer: 306000, cost: 70, cat: 'Maintenance', note: 'Was very dusty.' },
-      { id: uid(), name: 'Battery Check', icon: '🔋', date: '2025-10-01', odometer: 311000, cost: 0, cat: 'Electrical', note: 'Load test OK.' },
-      { id: uid(), name: 'Engine Air Filter', icon: '🌬️', date: '2025-08-10', odometer: 301000, cost: 90, cat: 'Maintenance', note: '' },
-      { id: uid(), name: 'Wheel Alignment', icon: '🎯', date: '2025-08-10', odometer: 301000, cost: 120, cat: 'Tires', note: 'After new front tires.' },
-      { id: uid(), name: 'Front Brake Pads', icon: '🛑', date: '2024-11-12', odometer: 283000, cost: 210, cat: 'Parts', note: 'Akebono ceramic.' }
-    ],
-    // spending log
-    spending: [
-      { id: uid(), date: '2026-04-15', cat: 'Maintenance', desc: 'Oil & filter change', amount: 260, odometer: 312200 },
-      { id: uid(), date: '2026-03-01', cat: 'Tires', desc: 'Rotation & balance', amount: 80, odometer: 309000 },
-      { id: uid(), date: '2026-02-10', cat: 'Parts', desc: 'New wiper blades (Bosch)', amount: 95, odometer: 307500 },
-      { id: uid(), date: '2026-01-20', cat: 'Maintenance', desc: 'Cabin A/C filter', amount: 70, odometer: 306000 },
-      { id: uid(), date: '2025-11-05', cat: 'Fuel', desc: 'Full tank', amount: 130, odometer: 304200 },
-      { id: uid(), date: '2025-10-01', cat: 'Electrical', desc: 'Battery load test', amount: 0, odometer: 311000 }
-    ]
+    // completed-service history (the "work log") — starts empty for your own car
+    history: [],
+    // spending log — starts empty for your own car
+    spending: []
   };
+  // Fresh start for the owner's car: baseline every service at the current
+  // odometer / today, so the schedule tracks from now (edit each service to
+  // record its real last-done point as you go).
+  s.services.forEach(x => { x.lastKm = s.car.odometer; x.lastDate = isoDate(TODAY); });
+  return s;
 }
 
 /* ---------- state / storage ---------- */
