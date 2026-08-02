@@ -445,23 +445,50 @@ function seed() {
 }
 
 /* ---------- state / storage ---------- */
-let state = load();
-function load() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const s = JSON.parse(raw);
-      // migrate: ensure newer fields exist on data saved by older versions
-      s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
-      if (!Array.isArray(s.history)) s.history = [];
-      return s;
-    }
-  } catch (e) {}
-  const s = seed();
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
+/* ---------- multi-vehicle garage storage ----------
+   garage = { vehicles: [{ id, data }], activeId }; `state` is the active vehicle's data,
+   so the rest of the app keeps using state.car / state.services / … unchanged. */
+const GKEY = 'garage.mazda3.v2';
+let garage;
+function normalizeData(s) {
+  s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
+  ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   return s;
 }
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+function persistGarage() { try { localStorage.setItem(GKEY, JSON.stringify(garage)); } catch (e) {} }
+let state = load();
+function load() {
+  try { const g = localStorage.getItem(GKEY); if (g) garage = JSON.parse(g); } catch (e) {}
+  if (!garage || !Array.isArray(garage.vehicles) || !garage.vehicles.length) {
+    let data;
+    try { const old = localStorage.getItem(STORE_KEY); if (old) data = JSON.parse(old); } catch (e) {} // migrate old single-car data
+    garage = { vehicles: [{ id: uid(), data: normalizeData(data || seed()) }], activeId: null };
+    garage.activeId = garage.vehicles[0].id;
+    persistGarage();
+  }
+  garage.vehicles.forEach(v => normalizeData(v.data));
+  const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
+  garage.activeId = active.id;
+  return active.data;
+}
+function save() { const v = garage.vehicles.find(v => v.id === garage.activeId); if (v) v.data = state; persistGarage(); }
+function switchVehicle(id) {
+  const v = garage.vehicles.find(x => x.id === id); if (!v) return;
+  garage.activeId = id; state = v.data; persistGarage();
+  applyAccent(); renderTopbar(); go('dashboard');
+}
+function addVehicle() {
+  const v = { id: uid(), data: normalizeData(seed()) };
+  garage.vehicles.push(v); garage.activeId = v.id; state = v.data; persistGarage();
+  applyAccent(); renderTopbar(); go('dashboard'); openSettings();
+}
+function deleteVehicle(id) {
+  if (garage.vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
+  garage.vehicles = garage.vehicles.filter(v => v.id !== id);
+  if (garage.activeId === id) { garage.activeId = garage.vehicles[0].id; state = garage.vehicles[0].data; }
+  persistGarage(); applyAccent(); renderTopbar(); go('dashboard'); toast('Vehicle removed');
+}
+function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle'; }
 
 /* ---------- service status computation ---------- */
 function serviceStatus(s) {
@@ -1378,6 +1405,28 @@ function openImage(url) {
   document.body.appendChild(host);
 }
 
+function openGarage() {
+  openModal('Your garage', 'Switch between your vehicles or add another.', card => {
+    const list = el('div', 'list');
+    garage.vehicles.forEach(v => {
+      const c = v.data.car;
+      const active = v.id === garage.activeId;
+      const it = el('div', 'item');
+      it.innerHTML = `
+        <div class="item-ic" style="overflow:hidden">${c.photo ? `<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : '🚗'}</div>
+        <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
+        <div class="item-side">${active ? '<span class="pill ok">Active</span>' : '<span style="color:var(--accent-soft);font-size:12px;font-weight:600">Switch ›</span>'}</div>`;
+      it.onclick = () => { if (active) { closeModal(); openSettings(); } else switchVehicle(v.id); };
+      list.appendChild(it);
+    });
+    card.appendChild(list);
+    const add = el('button', 'btn primary block', iconSvg('plus') + 'Add a vehicle');
+    add.style.marginTop = '14px';
+    add.onclick = () => addVehicle();
+    card.appendChild(add);
+  });
+}
+
 function openSettings() {
   openModal('Car profile', 'These details personalise the app and its badge.', card => {
     const c = state.car;
@@ -1476,6 +1525,12 @@ function openSettings() {
       applyAccent(); renderTopbar(); closeModal(); go(current); toast('Profile saved');
     };
     card.appendChild(b);
+    if (garage.vehicles.length > 1) {
+      const del = el('button', 'btn block ghost', 'Remove this vehicle');
+      del.style.cssText = 'margin-top:8px;color:var(--danger)';
+      del.onclick = () => deleteVehicle(garage.activeId);
+      card.appendChild(del);
+    }
   });
 }
 
@@ -1866,6 +1921,7 @@ function applyAccent() {
 /* ---------- boot ---------- */
 $('#settingsBtn').onclick = openSettings;
 $('#openProfile').onclick = openSettings;
+$('#garageBtn').onclick = openGarage;
 applyAccent();
 renderTopbar();
 go('dashboard');
