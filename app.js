@@ -43,8 +43,8 @@ function seed() {
     // recurring services: intervals in km & months
     services: [
       { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', cat: 'Engine',
-        intervalKm: 5000, intervalMonths: 6, lastKm: 151200, lastDate: '2026-04-15', cost: 260,
-        note: '0W-20 full synthetic + OEM filter. 5,000 km for Saudi heat (severe schedule).' },
+        intervalKm: 7500, intervalMonths: 6, lastKm: 151200, lastDate: '2026-04-15', cost: 260,
+        note: '5W-30 (API SP / ILSAC GF-6A) full synthetic + OEM filter, ~4.2 L. 7,500 km / 6 mo for Jeddah heat, dust & city driving.' },
       { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', cat: 'Tires',
         intervalKm: 10000, intervalMonths: 12, lastKm: 148000, lastDate: '2026-03-01', cost: 80,
         note: 'Rotate front/rear and rebalance to even out wear.' },
@@ -59,16 +59,19 @@ function seed() {
         note: 'Also after any pothole hit or new tires.' },
       { id: uid(), name: 'Brake Fluid', icon: '🩸', cat: 'Brakes',
         intervalKm: 40000, intervalMonths: 24, lastKm: 128000, lastDate: '2024-09-01', cost: 150,
-        note: 'DOT 3/4. Absorbs moisture over time — flush on schedule.' },
+        note: 'DOT 3/4 (~1 L). Absorbs moisture over time — flush every 2 years.' },
       { id: uid(), name: 'Automatic Transmission Fluid', icon: '⚙️', cat: 'Drivetrain',
         intervalKm: 60000, intervalMonths: 48, lastKm: 100000, lastDate: '2023-05-01', cost: 480,
-        note: 'Mazda ATF FZ. Severe-use interval; dealer or specialist.' },
+        note: 'Mazda Genuine ATF-FZ only — ~3.5 L per drain (7.8 L total). Every 60–80k km; dealer or specialist.' },
       { id: uid(), name: 'Engine Coolant (FL22)', icon: '🌡️', cat: 'Engine',
-        intervalKm: 120000, intervalMonths: 48, lastKm: 130000, lastDate: '2023-08-01', cost: 220,
-        note: 'FL22 long-life. First change high, then every ~60k km.' },
+        intervalKm: 120000, intervalMonths: 60, lastKm: 130000, lastDate: '2023-08-01', cost: 220,
+        note: 'Mazda FL22 long-life (HOAT), ~6.6 L. Replace every 5 years in KSA heat.' },
+      { id: uid(), name: 'Throttle Body & MAF Cleaning', icon: '🧴', cat: 'Engine',
+        intervalKm: 15000, intervalMonths: 12, lastKm: 148000, lastDate: '2025-10-01', cost: 60,
+        note: 'Clean throttle body & MAF sensor — Jeddah dust fouls them; restores idle & economy. (Known BM Mazda 3 MAF failure point.)' },
       { id: uid(), name: 'Spark Plugs (x4)', icon: '⚡', cat: 'Engine',
-        intervalKm: 80000, intervalMonths: 72, lastKm: 96000, lastDate: '2022-06-01', cost: 340,
-        note: 'Iridium NGK ILKAR7L11. Restores smooth idle & economy.' },
+        intervalKm: 120000, intervalMonths: 72, lastKm: 96000, lastDate: '2022-06-01', cost: 340,
+        note: 'Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.' },
       { id: uid(), name: 'Fuel Filter', icon: '⛽', cat: 'Engine',
         intervalKm: 80000, intervalMonths: 72, lastKm: 80000, lastDate: '2021-05-01', cost: 180,
         note: 'In-tank filter; replace on high mileage.' },
@@ -81,11 +84,11 @@ function seed() {
     ],
     // parts catalog with OEM + alternatives
     parts: [
-      { id: uid(), name: 'Engine Oil 0W-20 (4L)', icon: '🛢️', cat: 'Engine',
+      { id: uid(), name: 'Engine Oil 5W-30 (4L)', icon: '🛢️', cat: 'Engine',
         options: [
-          { tag: 'OEM', brand: 'Mazda Genuine 0W-20', partNo: '0000-77-0W20-QT', price: 190, store: 'Mazda Dealer (Alireza)' },
-          { tag: 'ALT', brand: 'Mobil 1 0W-20 Full Synthetic', partNo: '', price: 150, store: 'Amazon.sa', note: 'Excellent value & protection' },
-          { tag: 'ALT', brand: 'Castrol EDGE 0W-20', partNo: '', price: 145, store: 'noon' }
+          { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic — need ~4.2 L' },
+          { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 Future FGC 5W-30', partNo: '', price: 150, store: 'noon', note: 'Widely stocked in KSA' },
+          { tag: 'ALT', brand: 'Fuchs Titan Supersyn D1 SAE 5W-30', partNo: '', price: 145, store: 'Local parts market' }
         ] },
       { id: uid(), name: 'Oil Filter', icon: '🧽', cat: 'Engine', partsouq: 'PE0114302A',
         options: [
@@ -276,7 +279,7 @@ function seed() {
     ],
     // completed-service history (the "work log", newest first by date)
     history: [
-      { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', date: '2026-04-15', odometer: 151200, cost: 260, cat: 'Maintenance', note: '0W-20 full synthetic + OEM filter.' },
+      { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', date: '2026-04-15', odometer: 151200, cost: 260, cat: 'Maintenance', note: '5W-30 full synthetic + OEM filter.' },
       { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', date: '2026-03-01', odometer: 148000, cost: 80, cat: 'Tires', note: '' },
       { id: uid(), name: 'Cabin (A/C) Filter', icon: '❄️', date: '2026-01-20', odometer: 145000, cost: 70, cat: 'Maintenance', note: 'Was very dusty.' },
       { id: uid(), name: 'Battery Check', icon: '🔋', date: '2025-10-01', odometer: 150000, cost: 0, cat: 'Electrical', note: 'Load test OK.' },
@@ -418,12 +421,16 @@ function renderDashboard() {
   ranked.slice(0, 4).forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
   v.appendChild(list);
 
-  // Top recommendation
-  const rec = topRecommendation(ranked);
-  if (rec) {
-    v.appendChild(sectionTitle('Recommendation', 'More', () => go('budget')));
-    v.appendChild(rec);
-  }
+  // Recommendations (dashboard only)
+  const recHead = sectionTitle('Recommendations', '', null);
+  const recSub = el('p', 'muted');
+  recSub.style.cssText = 'font-size:13px;margin:-2px 4px 8px;line-height:1.5';
+  recSub.textContent = 'Keep it in top condition';
+  v.appendChild(recHead);
+  v.appendChild(recSub);
+  const recs = el('div', 'list');
+  recommendations().forEach(r => recs.appendChild(r));
+  v.appendChild(recs);
 
   // quick actions
   const row = el('div', 'fab-row');
@@ -684,12 +691,6 @@ function renderBudget() {
     v.appendChild(cc);
   }
 
-  // recommendations
-  v.appendChild(sectionTitle('Keep it in top condition', '', null));
-  const recs = el('div', 'list');
-  recommendations().forEach(r => recs.appendChild(r));
-  v.appendChild(recs);
-
   // spending log
   v.appendChild(sectionTitle('Recent spending', 'Add', () => openAddSpending()));
   const log = el('div', 'list');
@@ -733,20 +734,7 @@ function spendEntry(e) {
   return it;
 }
 
-/* ---------- recommendations ---------- */
-function topRecommendation(ranked) {
-  const worst = ranked[0];
-  if (!worst) return null;
-  const { s, st } = worst;
-  let txt;
-  if (st.level === 'danger') txt = `${s.name} is overdue by ${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' km' : Math.abs(st.daysLeft) + ' days'}. Book it soon to avoid bigger repairs.`;
-  else if (st.level === 'warn') txt = `${s.name} is due ${st.drivenByTime ? relDate(st.dueDate) : 'in ' + fmt(st.kmLeft) + ' km'}. Plan it into this month's budget.`;
-  else txt = `You're on top of things — next up is ${s.name} in ${fmt(st.kmLeft)} km.`;
-  const c = el('div', 'card rec');
-  c.innerHTML = `<div class="r-ic">${st.level === 'danger' ? '🚨' : st.level === 'warn' ? '⏰' : '✅'}</div><div><h3>${s.name}</h3><p>${txt}</p></div>`;
-  return c;
-}
-
+/* ---------- recommendations (Dashboard only) ---------- */
 function recommendations() {
   const out = [];
   const ranked = servicesRanked();
@@ -762,7 +750,7 @@ function recommendations() {
   const tips = [
     ['🌡️', 'Beat the Saudi heat', 'Check coolant level and A/C performance before summer. Heat is the #1 killer of batteries and rubber hoses here.'],
     ['🛞', 'Tire pressure weekly', 'Check pressures when cold (≈32 psi). Correct pressure saves fuel and prevents blowouts on hot asphalt.'],
-    ['🛢️', 'Stick to 5,000 km oil', 'Short trips + heat + dust = severe conditions. Frequent 0W-20 changes keep the SkyActiv engine clean.'],
+    ['🛢️', 'Stick to 7,500 km oil', 'Jeddah heat, dust & city driving = severe use. Fresh 5W-30 (API SP) every ~7,500 km keeps the SkyActiv engine clean.'],
     ['💧', 'Wash off dust & salt', 'Regular washes protect paint and underbody from corrosion, especially near the coast.']
   ];
   const need = Math.max(0, 3 - out.length);
