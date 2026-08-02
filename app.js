@@ -433,7 +433,9 @@ function seed() {
     // spending log — starts empty for your own car
     spending: [],
     // fuel fill-up log — starts empty
-    fuel: []
+    fuel: [],
+    // documents & renewals (insurance, Istimara, license…) — starts empty
+    docs: []
   };
   // Fresh start for the owner's car: baseline every service at the current
   // odometer / today, so the schedule tracks from now (edit each service to
@@ -597,6 +599,14 @@ function renderDashboard() {
   const list = el('div', 'list');
   ranked.slice(0, 4).forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
   v.appendChild(list);
+
+  // Documents & renewals (insurance, Istimara, license…)
+  v.appendChild(sectionTitle('Documents & renewals', 'Add', () => openAddDoc(null)));
+  const docsList = el('div', 'list');
+  const docs = [...(state.docs || [])].sort((a, b) => (a.expiry ? +parseDate(a.expiry) : Infinity) - (b.expiry ? +parseDate(b.expiry) : Infinity));
+  if (!docs.length) docsList.appendChild(emptyState('📄', 'No documents yet.\nAdd insurance, Istimara or license expiry.'));
+  docs.forEach(d => docsList.appendChild(docItem(d)));
+  v.appendChild(docsList);
 
   // quick actions
   const row = el('div', 'fab-row');
@@ -1220,6 +1230,54 @@ function openAddFuel(e) {
       const del = el('button', 'btn block ghost', 'Delete fill-up');
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
       del.onclick = () => { state.fuel = state.fuel.filter(x => x.id !== e.id); save(); closeModal(); go('fuel'); toast('Fill-up deleted'); };
+      card.appendChild(del);
+    }
+  });
+}
+
+/* ---------- documents & renewals ---------- */
+const DOC_ICONS = { 'Insurance': '📄', 'Registration (Istimara)': '🪪', 'Vehicle Inspection (Fahes)': '✅', 'Driving License': '🚗', 'Warranty': '🛡️', 'Other': '📎' };
+function docStatus(expiry) {
+  if (!expiry) return { level: 'ok', txt: 'No date set' };
+  const days = Math.round((parseDate(expiry) - TODAY) / 86400000);
+  const level = days < 0 ? 'danger' : days <= 30 ? 'warn' : 'ok';
+  const txt = days < 0 ? `Expired ${Math.abs(days)}d ago` : days === 0 ? 'Due today' : days <= 60 ? `in ${days}d` : `in ${Math.round(days / 30)} mo`;
+  return { days, level, txt };
+}
+function docItem(d) {
+  const st = docStatus(d.expiry);
+  const it = el('div', 'item');
+  it.innerHTML = `
+    <div class="item-ic">${DOC_ICONS[d.type] || '📄'}</div>
+    <div class="item-main">
+      <h3>${d.name || d.type}</h3>
+      <p>${d.expiry ? 'Expires ' + new Date(d.expiry + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No expiry date'}${d.number ? ` · ${d.number}` : ''}</p>
+    </div>
+    <div class="item-side"><span class="pill ${st.level}">${st.txt}</span></div>`;
+  it.onclick = () => openAddDoc(d);
+  return it;
+}
+function openAddDoc(d) {
+  const editing = !!d;
+  const types = Object.keys(DOC_ICONS);
+  openModal(editing ? 'Edit document' : 'Add document', 'Track renewals so you never miss an expiry.', card => {
+    card.appendChild(field('Type', `<select id="d_type">${types.map(t => `<option ${d && d.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`));
+    card.appendChild(field('Label (optional)', `<input id="d_name" value="${d ? (d.name || '') : ''}" placeholder="e.g. Tawuniya comprehensive">`));
+    const r = el('div', 'field-row');
+    r.append(field('Expiry date', `<input id="d_exp" type="date" value="${d ? (d.expiry || '') : ''}">`),
+      field('Reference no. (optional)', `<input id="d_num" value="${d ? (d.number || '') : ''}">`));
+    card.appendChild(r);
+    const b = el('button', 'btn primary block', 'Save');
+    b.onclick = () => {
+      const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
+      if (d) Object.assign(d, obj); else { state.docs = state.docs || []; state.docs.push(obj); }
+      save(); closeModal(); go('dashboard'); toast(editing ? 'Document updated' : 'Document added');
+    };
+    card.appendChild(b);
+    if (editing) {
+      const del = el('button', 'btn block ghost', 'Delete document');
+      del.style.cssText = 'margin-top:8px;color:var(--danger)';
+      del.onclick = () => { state.docs = state.docs.filter(x => x.id !== d.id); save(); closeModal(); go('dashboard'); toast('Document deleted'); };
       card.appendChild(del);
     }
   });

@@ -1,5 +1,5 @@
-/* Garage — offline service worker (app-shell cache) */
-const CACHE = 'garage-v1';
+/* Garage — service worker: network-first (fresh online, cache offline) */
+const CACHE = 'garage-v2';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
@@ -16,11 +16,12 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  // Network-first: always try the latest, fall back to cache when offline.
   e.respondWith(
-    caches.match(req).then(cached => cached || fetch(req).then(res => {
+    fetch(req).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => { try { c.put(req, copy); } catch (_) {} });
       return res;
-    }).catch(() => cached))
+    }).catch(() => caches.match(req))
   );
 });
