@@ -235,9 +235,9 @@ function seed() {
           { tag: 'ALT', brand: 'GMB GWMZ79AH', partNo: 'GWMZ79AH', price: 198, store: 'PartSouq ↗', note: 'OE supplier · in stock' },
           { tag: 'ALT', brand: 'GMB (OE) PE01-15-010B', partNo: 'PE0115010B', price: 128, store: 'PartSouq ↗', note: 'OE supplier' }
         ] },
-      { id: uid(), name: 'Thermostat', icon: '🌡️', cat: 'Engine', partsouq: 'P50115171',
+      { id: uid(), name: 'Thermostat', icon: '🌡️', cat: 'Engine', partsouq: 'PE0115171',
         options: [
-          { tag: 'OEM', brand: 'Mazda Genuine (verified for your VIN)', partNo: 'P501-15-171', price: 55, store: 'Mazda Dealer (Alireza)', note: 'Overheating or slow warm-up = replace' }
+          { tag: 'OEM', brand: 'Mazda Genuine (2.0 SkyActiv-G)', partNo: 'PE01-15-171', price: 55, store: 'Mazda Dealer (Alireza)', note: 'Overheating or slow warm-up = replace' }
         ] },
       { id: uid(), name: 'A/F (Oxygen) Sensor — upstream', icon: '📡', cat: 'Engine', partsouq: 'PE01188G1A',
         options: [
@@ -367,6 +367,65 @@ function seed() {
         options: [
           { tag: 'OEM', brand: 'Philips / Osram halogen (H11 + 9005/HB3)', partNo: 'H11 · 9005', price: 60, store: 'Amazon.sa', note: 'Consumable — dim/burnt-out beam. Halogen trims; verify your housing.' },
           { tag: 'ALT', brand: 'LED conversion kit (H11 + 9005)', partNo: '', price: 120, store: 'noon' }
+        ] },
+      /* ---- High-mileage wear & service consumables (2016 BM · verify numbers on PartSouq) ---- */
+      { id: uid(), name: 'Timing Chain Kit', icon: '⛓️', cat: 'Engine', partsouq: 'PE0112500A',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine — chain PE01-12-201 · tensioner PE01-12-500A', partNo: 'PE01-12-500A', price: 850, store: 'Mazda Dealer (Alireza)', note: 'Rattle on cold start / stretched chain at high km = replace kit' },
+          { tag: 'ALT', brand: 'Aftermarket chain kit (chain, tensioner, guides)', partNo: '', price: 350, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Radiator Hoses (upper & lower)', icon: '💧', cat: 'Engine',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine upper + lower hose', partNo: '', price: 200, store: 'Mazda Dealer (Alireza)', note: 'Rubber hardens/cracks in Jeddah heat — verify exact numbers for 2.0 on PartSouq' },
+          { tag: 'ALT', brand: 'Gates / aftermarket hose', partNo: '', price: 90, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Oil Drain Plug Gasket (14mm crush washer)', icon: '⭕', cat: 'Engine', partsouq: '995641400',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine crush washer', partNo: '9956-41-400', price: 5, store: 'Mazda Dealer (Alireza)', note: 'Consumable — renew at every oil change to avoid seepage' }
+        ] },
+      { id: uid(), name: 'Front Sway Bar Bushing', icon: '🔘', cat: 'Suspension', partsouq: 'B60P34156',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'B60P-34-156', price: 30, store: 'Mazda Dealer (Alireza)', note: 'Clunk/rattle over bumps = worn bushing; replace in pairs' },
+          { tag: 'ALT', brand: 'Moog / polyurethane bushing', partNo: '', price: 20, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Blower Motor Resistor', icon: '🎛️', cat: 'A/C', partsouq: 'KD4561B15',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'KD45-61-B15', price: 180, store: 'Mazda Dealer (Alireza)', note: 'Fan works only on some speeds = failed resistor' },
+          { tag: 'ALT', brand: 'Aftermarket resistor', partNo: '', price: 70, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Tail / Brake Light Bulbs', icon: '💡', cat: 'Exterior',
+        options: [
+          { tag: 'OEM', brand: 'Philips / Osram (brake, tail, reverse, signal)', partNo: '', price: 25, store: 'Amazon.sa', note: 'Consumable — replace burnt-out bulbs; halogen trims' }
+        ] },
+      /* ---- More common-failure parts (2016 BM · verify numbers on PartSouq) ---- */
+      { id: uid(), name: 'EVAP Purge Valve (canister solenoid)', icon: '🫧', cat: 'Engine', partsouq: 'PE0118751',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'PE01-18-751', price: 130, store: 'Mazda Dealer (Alireza)', note: 'EVAP CEL (P0441/P0455) or rough idle = replace' },
+          { tag: 'ALT', brand: 'Aftermarket purge solenoid', partNo: '', price: 60, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Knock Sensor', icon: '📡', cat: 'Engine', partsouq: 'PE0118921',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'PE01-18-921', price: 160, store: 'Mazda Dealer (Alireza)', note: 'CEL / reduced power / pinging = check' }
+        ] },
+      { id: uid(), name: 'Front CV Axle (complete, each)', icon: '🦴', cat: 'Drivetrain', partsouq: 'FT0C2550X',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine — R: FT0C-25-50X', partNo: 'FT0C-25-50X', price: 780, store: 'Mazda Dealer (Alireza)', note: 'Clicking on turns / torn CV boot = worn axle' },
+          { tag: 'ALT', brand: 'Aftermarket complete axle', partNo: '', price: 260, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Front ABS Wheel Speed Sensor', icon: '📡', cat: 'Electrical', partsouq: 'BJS74370XA',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'BJS7-43-70XA', price: 220, store: 'Mazda Dealer (Alireza)', note: 'ABS / traction / brake warning light on = replace' },
+          { tag: 'ALT', brand: 'Aftermarket sensor', partNo: '', price: 90, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Engine Coolant Temp Sensor (ECT)', icon: '🌡️', cat: 'Engine', partsouq: 'SH0118840',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'SH01-18-840', price: 110, store: 'Mazda Dealer (Alireza)', note: 'CEL / wrong temp reading / fan or fuel-trim issues = replace' },
+          { tag: 'ALT', brand: 'Aftermarket sensor', partNo: '', price: 45, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Intake Manifold Gasket', icon: '🛢️', cat: 'Engine', partsouq: 'PE0113111',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine (per port)', partNo: 'PE01-13-111', price: 25, store: 'Mazda Dealer (Alireza)', note: 'Vacuum leak / rough idle — renew when servicing the intake' },
+          { tag: 'ALT', brand: 'Aftermarket gasket set', partNo: '', price: 15, store: 'Amazon.sa' }
         ] }
     ],
     // completed-service history (the "work log") — starts empty for your own car
