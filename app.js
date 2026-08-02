@@ -44,7 +44,7 @@ function seed() {
     services: [
       { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', cat: 'Engine',
         intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 260,
-        note: '5W-30 (API SP / ILSAC GF-6A) full synthetic + OEM filter, ~4.2 L. 7,500 km / 6 mo for Jeddah heat, dust & city driving.' },
+        note: '5W-30 (API SP / ILSAC GF-6A) full synthetic — 4.2 L with filter, 4.0 L without. Every 7,500 km / 6 mo for Jeddah heat, dust & city driving.' },
       { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', cat: 'Tires',
         intervalKm: 10000, intervalMonths: 12, lastKm: 309000, lastDate: '2026-03-01', cost: 80,
         note: 'Rotate front/rear and rebalance to even out wear.' },
@@ -92,7 +92,7 @@ function seed() {
     parts: [
       { id: uid(), name: 'Engine Oil 5W-30 (4L)', icon: '🛢️', cat: 'Engine',
         options: [
-          { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic — need ~4.2 L' },
+          { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic — 4.2 L with filter, 4.0 L without' },
           { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 Future FGC 5W-30', partNo: '', price: 150, store: 'noon', note: 'Widely stocked in KSA' },
           { tag: 'ALT', brand: 'Fuchs Titan Supersyn D1 SAE 5W-30', partNo: '', price: 145, store: 'Local parts market' }
         ] },
@@ -291,6 +291,82 @@ function seed() {
         options: [
           { tag: 'OEM', brand: 'Mazda Genuine — R: BHW3-51-0K0A · L: BHW3-51-0L0A', partNo: 'BHW3-51-0K0A', price: 902, store: 'Mazda Dealer (Alireza)', note: 'Cracked/fogged lens or dead unit' },
           { tag: 'ALT', brand: 'Aftermarket headlight unit', partNo: '', price: 450, store: 'Local parts market' }
+        ] },
+      /* ---- Added parts (2016 BM · 2.0 SkyActiv-G — OEM numbers via genuine catalogs; verify on PartSouq) ---- */
+      { id: uid(), name: 'A/C Compressor', icon: '❄️', cat: 'A/C', partsouq: 'BHS261450',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'BHS2-61-450', price: 1450, store: 'Mazda Dealer (Alireza)', note: 'Weak/no cold air or noisy clutch = replace' },
+          { tag: 'ALT', brand: 'Aftermarket / reman compressor', partNo: '', price: 620, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Rear Coil Spring (each)', icon: '🌀', cat: 'Suspension', partsouq: 'BHN528011A',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'BHN5-28-011A', price: 185, store: 'Mazda Dealer (Alireza)', note: 'Rear springs crack/sag on the BM Mazda 3 — replace in pairs' }
+        ] },
+      { id: uid(), name: 'Valve Cover Gasket', icon: '🛢️', cat: 'Engine', partsouq: 'PE0110235',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine (2.0 SkyActiv-G)', partNo: 'PE01-10-235', price: 90, store: 'Mazda Dealer (Alireza)', note: 'Oil seep around the valve cover = replace' },
+          { tag: 'ALT', brand: 'Aftermarket gasket', partNo: '', price: 45, store: 'Amazon.sa' }
+        ] },
+      /* ---- Wear & failure-prone + consumables (2016 BM · 2.0 SkyActiv-G — verify numbers on PartSouq) ---- */
+      { id: uid(), name: 'PCV Valve', icon: '🫧', cat: 'Engine', partsouq: 'PE0113890',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G)', partNo: 'PE01-13-890', price: 70, store: 'Mazda Dealer (Alireza)', note: 'Rough idle / oil consumption = replace' },
+          { tag: 'ALT', brand: 'Aftermarket PCV valve', partNo: '', price: 35, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Crankshaft Position Sensor', icon: '📡', cat: 'Electrical', partsouq: 'PE0118221',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'PE01-18-221', price: 150, store: 'Mazda Dealer (Alireza)', note: 'No-start / stalling / CEL = replace' },
+          { tag: 'ALT', brand: 'Denso / aftermarket', partNo: '', price: 80, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Camshaft Position Sensor', icon: '📡', cat: 'Electrical', partsouq: 'PE0118230',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'PE01-18-230', price: 150, store: 'Mazda Dealer (Alireza)', note: 'Rough running / CEL = replace' },
+          { tag: 'ALT', brand: 'Denso / aftermarket', partNo: '', price: 80, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Oxygen Sensor — downstream (rear)', icon: '📡', cat: 'Engine', partsouq: 'PEDE1886Z',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'PEDE-18-86Z', price: 360, store: 'Mazda Dealer (Alireza)', note: 'After the catalytic converter — emissions CEL = replace' },
+          { tag: 'ALT', brand: 'Denso / NTK O2 sensor', partNo: '', price: 170, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Fuel Pump Assembly (in-tank)', icon: '⛽', cat: 'Engine', partsouq: 'PE181335X',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine (incl. sender)', partNo: 'PE18-13-35X', price: 620, store: 'Mazda Dealer (Alireza)', note: 'Cranks-no-start / weak pressure = replace' },
+          { tag: 'ALT', brand: 'Aftermarket pump module', partNo: '', price: 280, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Drive Belt Tensioner', icon: '🔗', cat: 'Engine', partsouq: 'PE0315980A',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'PE03-15-980A', price: 180, store: 'Mazda Dealer (Alireza)', note: 'Belt squeal/rattle = worn tensioner; replace with the belt' },
+          { tag: 'ALT', brand: 'Gates / Dayco tensioner', partNo: '', price: 110, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Front Engine Mount', icon: '🧱', cat: 'Engine', partsouq: 'BCKA39060A',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'BCKA-39-060A', price: 240, store: 'Mazda Dealer (Alireza)', note: 'Vibration/clunk on start & accel = worn mount. Verify no. by transmission/build.' },
+          { tag: 'ALT', brand: 'Aftermarket mount', partNo: '', price: 120, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Transmission Mount', icon: '🧱', cat: 'Drivetrain', partsouq: 'BBR339070A',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'BBR3-39-070A', price: 300, store: 'Mazda Dealer (Alireza)', note: 'Clunk on gear engagement = worn mount. Verify no. by transmission/build.' },
+          { tag: 'ALT', brand: 'Aftermarket mount', partNo: '', price: 150, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Brake Master Cylinder', icon: '🛑', cat: 'Brakes', partsouq: 'BHY24340Z',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'BHY2-43-40Z', price: 520, store: 'Mazda Dealer (Alireza)', note: 'Sinking pedal / internal leak = replace' },
+          { tag: 'ALT', brand: 'Centric / aftermarket', partNo: '', price: 260, store: 'Amazon.sa' }
+        ] },
+      { id: uid(), name: 'Rear Brake Caliper (each)', icon: '🗜️', cat: 'Brakes', partsouq: 'B4Y72698ZC',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine — R: B4Y7-26-98ZC · L: BJY7-26-99Z', partNo: 'B4Y7-26-98ZC', price: 430, store: 'Mazda Dealer (Alireza)', note: 'Sticking/leaking = drag, pulling or uneven pad wear' },
+          { tag: 'ALT', brand: 'Caliper rebuild kit (seals)', partNo: '', price: 35, store: 'PartSouq ↗', note: 'Cheaper than a full caliper' }
+        ] },
+      { id: uid(), name: 'Outer Tie Rod End (each)', icon: '🔩', cat: 'Suspension', partsouq: 'GHT232290A',
+        options: [
+          { tag: 'OEM', brand: 'Mazda Genuine', partNo: 'GHT2-32-290A', price: 120, store: 'Mazda Dealer (Alireza)', note: 'Play/clunk in steering or uneven tire wear = replace' },
+          { tag: 'ALT', brand: '555 / CTR tie rod end', partNo: '', price: 45, store: 'Local parts market' }
+        ] },
+      { id: uid(), name: 'Headlight Bulbs (H11 low · 9005 high)', icon: '💡', cat: 'Exterior',
+        options: [
+          { tag: 'OEM', brand: 'Philips / Osram halogen (H11 + 9005/HB3)', partNo: 'H11 · 9005', price: 60, store: 'Amazon.sa', note: 'Consumable — dim/burnt-out beam. Halogen trims; verify your housing.' },
+          { tag: 'ALT', brand: 'LED conversion kit (H11 + 9005)', partNo: '', price: 120, store: 'noon' }
         ] }
     ],
     // completed-service history (the "work log") — starts empty for your own car
@@ -1453,13 +1529,26 @@ function toast(msg, kind) {
 }
 
 /* ---------- theme ---------- */
+function systemTheme() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
-  $('meta[name=theme-color]').setAttribute('content', t === 'light' ? '#eef0f4' : '#141518');
-  try { localStorage.setItem('garage.theme', t); } catch (e) {}
+  $('meta[name=theme-color]').setAttribute('content', t === 'light' ? '#eef0f4' : '#0f1013');
 }
-$('#themeToggle').onclick = () => applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
-applyTheme(localStorage.getItem('garage.theme') || 'dark');
+$('#themeToggle').onclick = () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { localStorage.setItem('garage.theme', next); } catch (e) {} // an explicit choice sticks
+};
+// default to the OS preference; a saved choice (if any) wins
+applyTheme(localStorage.getItem('garage.theme') || systemTheme());
+// keep following the OS until the user picks a theme manually
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+    if (!localStorage.getItem('garage.theme')) applyTheme(e.matches ? 'light' : 'dark');
+  });
+}
 
 /* ---------- accent follows the car colour ---------- */
 const CAR_ACCENTS = [
