@@ -1151,7 +1151,7 @@ function openPlanSetup() {
 
 function buildSchedule(v) {
   const seg = el('div', 'seg');
-  const filters = ['All', 'Overdue', 'Due soon', 'OK'];
+  const filters = ['Due soon', 'Overdue', 'OK', 'All'];
   let active = (navIntent && filters.includes(navIntent.filter)) ? navIntent.filter : 'All';
   navIntent = null; // consumed
   filters.forEach(f => {
