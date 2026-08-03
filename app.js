@@ -849,11 +849,11 @@ function renderDashboard() {
   // tiles — each links to the page it summarizes
   const tiles = el('div', 'tiles');
   tiles.innerHTML = `
-    <div class="tile ${overdue.length ? 'danger' : 'ok'}"><div class="t-num">${overdue.length}</div><div class="t-cap">${t('Overdue')}</div></div>
     <div class="tile ${soon.length ? 'warn' : 'ok'}"><div class="t-num">${soon.length}</div><div class="t-cap">${t('Due soon')}</div></div>
+    <div class="tile ${overdue.length ? 'danger' : 'ok'}"><div class="t-num">${overdue.length}</div><div class="t-cap">${t('Overdue')}</div></div>
     <div class="tile"><div class="t-num">${sar(spent)}</div><div class="t-cap">${t('SAR this year')}</div></div>`;
-  tiles.children[0].onclick = () => go('maintenance', { filter: 'Overdue' });
-  tiles.children[1].onclick = () => go('maintenance', { filter: 'Due soon' });
+  tiles.children[0].onclick = () => go('maintenance', { filter: 'Due soon' });
+  tiles.children[1].onclick = () => go('maintenance', { filter: 'Overdue' });
   tiles.children[2].onclick = () => go('budget');
   [...tiles.children].forEach(t => { t.style.cursor = 'pointer'; });
   v.appendChild(tiles);
@@ -1568,8 +1568,8 @@ function reportSummary() {
   return reportHeader(t('Vehicle Summary Report')) + `
     <div class="rpt-cards">
       <div class="rpt-stat"><div class="n">${hs}</div><div class="l">${t('Health score')}</div></div>
-      <div class="rpt-stat"><div class="n">${overdue.length}</div><div class="l">${t('Overdue')}</div></div>
       <div class="rpt-stat"><div class="n">${soon.length}</div><div class="l">${t('Due soon')}</div></div>
+      <div class="rpt-stat"><div class="n">${overdue.length}</div><div class="l">${t('Overdue')}</div></div>
     </div>
     <div class="rpt-cards" style="margin-top:12px">
       <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">${t('Spent in 2026 (SAR)')}</div></div>
