@@ -54,6 +54,7 @@ const AR = {
   // first-time plan setup — step-by-step wizard
   'Set up your plan': 'إعداد خطتك', 'Set up': 'إعداد', 'e.g. 316,000': 'مثال: 316,000',
   'Tell the plan which major services you’ve already done.': 'أخبر الخطة بالخدمات الرئيسية التي أنجزتها.',
+  'Update your plan': 'تحديث خطتك', 'Re-answer the setup questions if anything’s changed.': 'أعد الإجابة على أسئلة الإعداد إذا تغيّر أي شيء.',
   'No services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
   'km': 'كم', 'Step': 'خطوة', 'of': 'من', 'Back': 'رجوع', 'Next': 'التالي', 'Finish': 'إنهاء',
   'Current odometer': 'عداد السيارة الحالي', 'Keeps every due date and estimate accurate.': 'يحافظ على دقة كل تاريخ استحقاق وتقدير.',
@@ -963,14 +964,21 @@ let planPrompted = false;  // auto-open first-time setup at most once per sessio
 
 function buildPlan(v) {
   // first-time query — tell the plan the current odometer + what's already been serviced
+  const banner = el('div', 'card plan-setup-banner');
   if (!state.planSetupDone) {
-    const banner = el('div', 'card plan-setup-banner');
     banner.innerHTML = `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
     const b = el('button', 'btn', t('Set up'));
     b.onclick = openPlanSetup;
     banner.appendChild(b);
     v.appendChild(banner);
     if (!planPrompted) { planPrompted = true; setTimeout(openPlanSetup, 160); }
+  } else {
+    // always reachable afterwards — re-run the questions if service history changes
+    banner.innerHTML = `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`;
+    const b = el('button', 'btn ghost', t('Edit'));
+    b.onclick = openPlanSetup;
+    banner.appendChild(b);
+    v.appendChild(banner);
   }
 
   const intro = el('p');
