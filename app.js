@@ -118,18 +118,83 @@ const AR = {
   'Blower Motor Resistor': 'مقاومة مروحة المكيف', 'Tail / Brake Light Bulbs': 'لمبات الفرامل / الخلفية',
   'EVAP Purge Valve (canister solenoid)': 'صمام تنقية بخار الوقود (EVAP)', 'Knock Sensor': 'حساس الطرق (النوكينج)',
   'Front CV Axle (complete, each)': 'عكس أمامي كامل (للحبة)', 'Front ABS Wheel Speed Sensor': 'حساس سرعة عجلة ABS أمامي',
-  'Engine Coolant Temp Sensor (ECT)': 'حساس حرارة الماء (ECT)', 'Intake Manifold Gasket': 'جوان مجمع السحب'
+  'Engine Coolant Temp Sensor (ECT)': 'حساس حرارة الماء (ECT)', 'Intake Manifold Gasket': 'جوان مجمع السحب',
+  // dashboard chrome
+  'Odometer': 'العداد', 'Change car photo': 'تغيير صورة السيارة', 'Add a photo of your car': 'أضف صورة لسيارتك',
+  'No documents yet.\nAdd insurance, Istimara or license expiry.': 'لا توجد وثائق بعد.\nأضف تاريخ انتهاء التأمين أو الاستمارة أو الرخصة.',
+  // maintenance chrome
+  'Nothing here — all good!': 'لا شيء هنا — كل شيء بخير!', 'No service history yet.\nLog your first one above.': 'لا يوجد سجل صيانة بعد.\nسجّل أول خدمة بالأعلى.',
+  // budget chrome
+  'Upcoming maintenance': 'صيانة قادمة', 'View ›': 'عرض ›', 'services due': 'خدمة مستحقة', 'overdue': 'متأخرة', 'plan ~': 'خطط لـ ~',
+  'By category (2026)': 'حسب الفئة (2026)', 'No spending logged yet.': 'لا توجد مصروفات مسجلة بعد.',
+  // fuel chrome
+  'Fuel economy has dropped': 'انخفض توفير الوقود', 'partial': 'جزئي',
+  'Last fill-up was': 'كانت آخر تعبئة', 'vs your': 'مقابل متوسطك', 'average.': 'المتوسط.',
+  'Common causes: low tire pressure (keep 36 PSI), dirty air filter, worn MAF/O2 sensor, tired spark plugs, or a dragging brake.': 'الأسباب الشائعة: ضغط إطارات منخفض (حافظ على 36 رطل)، فلتر هواء متسخ، حساس هواء/أكسجين مستهلك، بواجي ضعيفة، أو فرامل عالقة.',
+  'No fill-ups logged yet.\nTap "Add fill-up" after your next refuel.': 'لا توجد تعبئات مسجلة بعد.\nاضغط "إضافة تعبئة" بعد التعبئة القادمة.',
+  // service detail
+  'Distance left': 'المسافة المتبقية', 'Parts for this service': 'قطع هذه الخدمة',
+  // garage / vehicle names
+  'Vehicle': 'مركبة', 'My car': 'سيارتي', 'Select colour': 'اختر اللون',
+  // modal subs
+  'Record a refuel to track economy & cost.': 'سجّل التعبئة لتتبع الاستهلاك والتكلفة.',
+  'Track renewals so you never miss an expiry.': 'تابع التجديدات حتى لا يفوتك أي انتهاء.',
+  'Keep this current so due dates stay accurate.': 'حدّثه باستمرار لتبقى مواعيد الاستحقاق دقيقة.',
+  'These details personalise the app and its badge.': 'هذه التفاصيل تخصص التطبيق وشعاره.',
+  'Your target spend on the car for the year.': 'هدف إنفاقك على السيارة خلال العام.',
+  'Record work already done on your car.': 'سجّل عملاً تم إنجازه على سيارتك.',
+  'Set the interval and last service point.': 'حدد الفترة وآخر نقطة صيانة.',
+  'Pick what you just had done — it resets the clock and adds the cost.': 'اختر ما تم إنجازه — يعيد ضبط العداد ويضيف التكلفة.',
+  'Log money spent on the car.': 'سجّل المال المصروف على السيارة.',
+  'Add the OEM option and any alternatives.': 'أضف الخيار الأصلي وأي بدائل.',
+  // modal titles
+  'Edit service record': 'تعديل سجل الخدمة', 'Edit service': 'تعديل الخدمة', 'New service': 'خدمة جديدة',
+  'Edit part': 'تعديل القطعة', 'New part': 'قطعة جديدة',
+  // field labels
+  'Average driving (km / day)': 'متوسط القيادة (كم/يوم)', 'Label (optional)': 'التسمية (اختياري)', 'Reference no. (optional)': 'رقم المرجع (اختياري)',
+  'Icon (emoji)': 'الأيقونة (إيموجي)', 'Name': 'الاسم', 'Interval (km)': 'الفترة (كم)', 'Interval (months)': 'الفترة (أشهر)',
+  'Last done (km)': 'آخر مرة (كم)', 'Last done (date)': 'آخر مرة (تاريخ)', 'Est. cost (SAR)': 'التكلفة التقديرية (ريال)',
+  'Odometer at time (km)': 'العداد وقتها (كم)', 'Part name': 'اسم القطعة',
+  'PartSouq part no. (optional — enables live-price link)': 'رقم قطعة PartSouq (اختياري — يفعّل رابط السعر المباشر)',
+  'Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>': 'اختيار سريع <span class="muted" style="font-weight:500">— تعبئة تلقائية من قطعة</span>',
+  'Price (SAR)': 'السعر (ريال)', 'Brand / product': 'الماركة / المنتج', 'Part no.': 'رقم القطعة', 'Store': 'المتجر',
+  'Options': 'الخيارات', 'Options (OEM & alternatives)': 'الخيارات (الأصلي والبدائل)', 'Also add this cost to Budget': 'أضف هذه التكلفة إلى الميزانية أيضاً',
+  // select options / pickers
+  'Automatic': 'أوتوماتيك', 'Manual': 'عادي (مانيوال)', 'Start from scratch…': 'ابدأ من الصفر…',
+  'Change receipt': 'تغيير الإيصال', 'Change photo': 'تغيير الصورة', 'Add photo': 'إضافة صورة',
+  // buttons
+  'Save service': 'حفظ الخدمة', 'Delete fill-up': 'حذف التعبئة', 'Delete document': 'حذف الوثيقة', 'Delete record': 'حذف السجل',
+  'Delete service': 'حذف الخدمة', 'Delete expense': 'حذف المصروف', 'Delete part': 'حذف القطعة', 'Remove option': 'حذف الخيار',
+  // toasts
+  'Keep at least one vehicle': 'احتفظ بمركبة واحدة على الأقل', 'Vehicle removed': 'تمت إزالة المركبة',
+  'Fill-up updated': 'تم تحديث التعبئة', 'Fill-up added': 'تمت إضافة التعبئة', 'Fill-up deleted': 'تم حذف التعبئة',
+  'Litres required': 'اللترات مطلوبة', 'Odometer required': 'العداد مطلوب',
+  'Document updated': 'تم تحديث الوثيقة', 'Document added': 'تمت إضافة الوثيقة', 'Document deleted': 'تم حذف الوثيقة',
+  'Mileage updated': 'تم تحديث العداد', 'Could not read that image': 'تعذّر قراءة الصورة', 'Profile saved': 'تم حفظ الملف', 'Budget updated': 'تم تحديث الميزانية',
+  'Service name required': 'اسم الخدمة مطلوب', 'Record updated': 'تم تحديث السجل', 'Service logged ✓': 'تم تسجيل الخدمة ✓', 'Record deleted': 'تم حذف السجل',
+  'Name is required': 'الاسم مطلوب', 'Service updated': 'تم تحديث الخدمة', 'Service added': 'تمت إضافة الخدمة', 'Service deleted': 'تم حذف الخدمة',
+  'Description required': 'الوصف مطلوب', 'Amount required': 'المبلغ مطلوب', 'Expense updated': 'تم تحديث المصروف', 'Expense added': 'تمت إضافة المصروف', 'Expense deleted': 'تم حذف المصروف',
+  'Part name required': 'اسم القطعة مطلوب', 'Add at least one option': 'أضف خياراً واحداً على الأقل', 'Part updated': 'تم تحديث القطعة', 'Part added': 'تمت إضافة القطعة', 'Part deleted': 'تم حذف القطعة',
+  'logged ✓': 'تم تسجيلها ✓',
+  // date/status helpers
+  'today': 'اليوم', 'No date set': 'لا يوجد تاريخ', 'Due today': 'تنتهي اليوم', 'No expiry date': 'لا يوجد تاريخ انتهاء', 'Expires': 'تنتهي في',
+  // placeholders
+  'e.g. 42': 'مثال: 42', 'e.g. 95': 'مثال: 95', 'e.g. The Gray Ghost': 'مثال: الشبح الرمادي', 'e.g. Tawuniya comprehensive': 'مثال: التعاونية شامل',
+  'e.g. New front brake pads': 'مثال: فحمات فرامل أمامية جديدة', 'e.g. Timing chain inspection': 'مثال: فحص جنزير التوقيت',
+  'e.g. Timing chain check': 'مثال: فحص جنزير التوقيت', 'e.g. Front Brake Pads': 'مثال: فحمات الفرامل الأمامية',
+  'e.g. ABC 1234': 'مثال: أ ب ج 1234', '17-char VIN': 'رقم هيكل من 17 خانة'
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
 const addMonths = (d, m) => { const x = new Date(d); x.setMonth(x.getMonth() + Math.round(m)); return x; };
 const relDate = d => {
   const days = Math.round((d - TODAY) / 86400000);
-  if (days === 0) return 'today';
-  if (days < 0) return `${Math.abs(days)}d ago`;
-  if (days < 45) return `in ${days}d`;
+  const ar = lang === 'ar';
+  if (days === 0) return t('today');
+  if (days < 0) return ar ? `قبل ${Math.abs(days)} يوم` : `${Math.abs(days)}d ago`;
+  if (days < 45) return ar ? `خلال ${days} يوم` : `in ${days}d`;
   const mo = Math.round(days / 30);
-  return `in ${mo} mo`;
+  return ar ? `خلال ${mo} شهر` : `in ${mo} mo`;
 };
 
 /* ============================================================
@@ -679,10 +744,10 @@ function renderDashboard() {
   // Car photo — its own container / banner
   const carName = state.car.nickname || [state.car.year, state.car.make, state.car.model].filter(Boolean).join(' ');
   const carCard = el('button', 'card car-card' + (state.car.photo ? '' : ' empty'));
-  carCard.title = state.car.photo ? 'Change car photo' : 'Add a photo of your car';
+  carCard.title = state.car.photo ? t('Change car photo') : t('Add a photo of your car');
   carCard.innerHTML = state.car.photo
     ? `<img src="${state.car.photo}" alt="Your ${carName}"><div class="car-card-grad"></div><div class="car-card-cap">${carName}</div>`
-    : `<span class="cpb-ph"><span class="cpb-emoji">🚗</span><small>Add a photo of your car</small></span>`;
+    : `<span class="cpb-ph"><span class="cpb-emoji">🚗</span><small>${t('Add a photo of your car')}</small></span>`;
   carCard.onclick = openSettings;
   const topRow = el('div', 'top-row');
   topRow.appendChild(carCard);
@@ -692,7 +757,7 @@ function renderDashboard() {
   const dash = 2 * Math.PI * 40;
   hero.innerHTML = `
     <div>
-      <div class="odo-label">Odometer</div>
+      <div class="odo-label">${t('Odometer')}</div>
       <div class="odo-value">${fmt(state.car.odometer)}<span>km</span></div>
       <button class="odo-edit" id="editOdo">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
@@ -821,9 +886,9 @@ function buildHistory(v) {
 
   const tiles = el('div', 'tiles');
   tiles.innerHTML = `
-    <div class="tile"><div class="t-num">${hist.length}</div><div class="t-cap">Services logged</div></div>
-    <div class="tile"><div class="t-num">${sar(totalCost)}</div><div class="t-cap">SAR total</div></div>
-    <div class="tile"><div class="t-num" style="font-size:15px;line-height:1.9">${last ? new Date(last.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'}</div><div class="t-cap">Last service</div></div>`;
+    <div class="tile"><div class="t-num">${hist.length}</div><div class="t-cap">${t('Services logged')}</div></div>
+    <div class="tile"><div class="t-num">${sar(totalCost)}</div><div class="t-cap">${t('SAR total')}</div></div>
+    <div class="tile"><div class="t-num" style="font-size:15px;line-height:1.9">${last ? new Date(last.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'}</div><div class="t-cap">${t('Last service')}</div></div>`;
   v.appendChild(tiles);
 
   const add = el('button', 'btn block primary', iconSvg('plus') + t('Log a past service'));
@@ -843,7 +908,7 @@ function buildHistory(v) {
     item.innerHTML = `
       <div class="tl-dot">${e.icon || '🔧'}</div>
       <div class="card tl-card">
-        <div class="tl-top"><h3>${e.name}${e.photo ? ' 🧾' : ''}</h3><div class="tl-cost">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</div></div>
+        <div class="tl-top"><h3>${t(e.name)}${e.photo ? ' 🧾' : ''}</h3><div class="tl-cost">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</div></div>
         <div class="tl-sub">${d.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km</div>
         ${e.note ? `<div class="tl-note">${e.note}</div>` : ''}
       </div>`;
@@ -1011,10 +1076,10 @@ function renderBudget() {
     fc.innerHTML = `
       <div class="item-ic">🔧</div>
       <div style="flex:1">
-        <h3 style="font-size:13.5px;font-weight:650">Upcoming maintenance</h3>
-        <p class="muted" style="font-size:12px;margin-top:2px">${upcoming.length} service${upcoming.length > 1 ? 's' : ''} due${odCount ? ` · ${odCount} overdue` : ''} — plan ~${sar(dueCost)} SAR</p>
+        <h3 style="font-size:13.5px;font-weight:650">${t('Upcoming maintenance')}</h3>
+        <p class="muted" style="font-size:12px;margin-top:2px">${upcoming.length} ${t('services due')}${odCount ? ` · ${odCount} ${t('overdue')}` : ''} — ${t('plan ~')}${sar(dueCost)} SAR</p>
       </div>
-      <span style="color:var(--accent-soft);font-size:12.5px;font-weight:600">View ›</span>`;
+      <span style="color:var(--accent-soft);font-size:12.5px;font-weight:600">${t('View ›')}</span>`;
     fc.onclick = () => go('maintenance', { filter: odCount ? 'Overdue' : 'Due soon' });
     v.appendChild(fc);
   }
@@ -1032,13 +1097,14 @@ function renderBudget() {
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   if (cats.length) {
     v.appendChild(sectionTitle('By category (2026)', '', null));
+    // (category names translated below)
     const cc = el('div', 'card');
     cc.style.padding = '14px 16px';
     const total = cats.reduce((a, c) => a + c[1], 0) || 1;
     cc.innerHTML = cats.map(([k, val]) => `
       <div style="margin:10px 0 12px">
         <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
-          <span>${k}</span><span style="font-weight:700">${sar(val)} SAR</span>
+          <span>${t(k)}</span><span style="font-weight:700">${sar(val)} SAR</span>
         </div>
         <div class="bar"><span style="width:${(val / total) * 100}%"></span></div>
       </div>`).join('');
@@ -1219,7 +1285,7 @@ function spendEntry(e) {
   const it = el('div', 'card entry');
   it.innerHTML = `
     <div class="e-ic">${emoji}</div>
-    <div class="e-main"><h3>${e.desc}${e.photo ? ' 🧾' : ''}</h3><p>${e.cat} · ${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
+    <div class="e-main"><h3>${e.desc}${e.photo ? ' 🧾' : ''}</h3><p>${t(e.cat)} · ${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
     <div class="e-amt">${sar(e.amount)} <span class="muted" style="font-size:10px">SAR</span></div>`;
   it.onclick = () => openAddSpending(e);
   return it;
@@ -1287,7 +1353,7 @@ function renderFuel() {
   if (last != null && avg != null && last > avg * 1.15) {
     const warn = el('div', 'card rec');
     warn.style.borderLeftColor = 'var(--warn)';
-    warn.innerHTML = `<div class="r-ic">⚠️</div><div><h3>Fuel economy has dropped</h3><p>Last fill-up was ${last.toFixed(1)} L/100km vs your ${avg.toFixed(1)} average. Common causes: low tire pressure (keep 36 PSI), dirty air filter, worn MAF/O2 sensor, tired spark plugs, or a dragging brake.</p></div>`;
+    warn.innerHTML = `<div class="r-ic">⚠️</div><div><h3>${t('Fuel economy has dropped')}</h3><p>${t('Last fill-up was')} ${last.toFixed(1)} L/100km ${t('vs your')} ${avg.toFixed(1)} ${t('average.')} ${t('Common causes: low tire pressure (keep 36 PSI), dirty air filter, worn MAF/O2 sensor, tired spark plugs, or a dragging brake.')}</p></div>`;
     v.appendChild(warn);
   }
 
@@ -1312,7 +1378,7 @@ function renderFuel() {
     it.innerHTML = `
       <div class="e-ic">⛽</div>
       <div class="e-main">
-        <h3>${e.litres} L${e.full === false ? ' · partial' : ''}${l100 != null ? ` · ${l100.toFixed(1)} L/100km` : ''}</h3>
+        <h3>${e.litres} L${e.full === false ? ' · ' + t('partial') : ''}${l100 != null ? ` · ${l100.toFixed(1)} L/100km` : ''}</h3>
         <p>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km${km ? ` · +${fmt(km)} km` : ''}</p>
       </div>
       <div class="e-amt">${sar(e.cost)} <span class="muted" style="font-size:10px">SAR</span></div>`;
@@ -1343,11 +1409,11 @@ function openAddFuel(e) {
       field('Odometer (km)', `<input id="f_odo" type="number" inputmode="numeric" value="${e ? e.odometer : state.car.odometer}">`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
-    r1.append(field('Litres', `<input id="f_l" type="number" inputmode="decimal" step="0.01" value="${e ? e.litres : ''}" placeholder="e.g. 42">`),
-      field('Cost (SAR)', `<input id="f_cost" type="number" inputmode="decimal" value="${e ? e.cost : ''}" placeholder="e.g. 95">`));
+    r1.append(field('Litres', `<input id="f_l" type="number" inputmode="decimal" step="0.01" value="${e ? e.litres : ''}" placeholder="${t('e.g. 42')}">`),
+      field('Cost (SAR)', `<input id="f_cost" type="number" inputmode="decimal" value="${e ? e.cost : ''}" placeholder="${t('e.g. 95')}">`));
     card.appendChild(r1);
-    card.appendChild(field('Tank', `<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>Full tank</option><option value="no"${e && e.full === false ? ' selected' : ''}>Partial fill</option></select>`));
-    const b = el('button', 'btn primary block', 'Save');
+    card.appendChild(field('Tank', `<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
+    const b = el('button', 'btn primary block', t('Save'));
     b.onclick = () => {
       const litres = +$('#f_l').value, odo = +$('#f_odo').value;
       if (!litres) return toast('Litres required', 'warn');
@@ -1359,7 +1425,7 @@ function openAddFuel(e) {
     };
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', 'Delete fill-up');
+      const del = el('button', 'btn block ghost', t('Delete fill-up'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
       del.onclick = () => { state.fuel = state.fuel.filter(x => x.id !== e.id); save(); closeModal(); go('fuel'); toast('Fill-up deleted'); };
       card.appendChild(del);
@@ -1370,10 +1436,14 @@ function openAddFuel(e) {
 /* ---------- documents & renewals ---------- */
 const DOC_ICONS = { 'Insurance': '📄', 'Registration (Istimara)': '🪪', 'Vehicle Inspection (Fahes)': '✅', 'Driving License': '🚗', 'Warranty': '🛡️', 'Other': '📎' };
 function docStatus(expiry) {
-  if (!expiry) return { level: 'ok', txt: 'No date set' };
+  if (!expiry) return { level: 'ok', txt: t('No date set') };
   const days = Math.round((parseDate(expiry) - TODAY) / 86400000);
+  const ar = lang === 'ar';
   const level = days < 0 ? 'danger' : days <= 30 ? 'warn' : 'ok';
-  const txt = days < 0 ? `Expired ${Math.abs(days)}d ago` : days === 0 ? 'Due today' : days <= 60 ? `in ${days}d` : `in ${Math.round(days / 30)} mo`;
+  const txt = days < 0 ? (ar ? `منتهية منذ ${Math.abs(days)} يوم` : `Expired ${Math.abs(days)}d ago`)
+    : days === 0 ? t('Due today')
+    : days <= 60 ? (ar ? `خلال ${days} يوم` : `in ${days}d`)
+    : (ar ? `خلال ${Math.round(days / 30)} شهر` : `in ${Math.round(days / 30)} mo`);
   return { days, level, txt };
 }
 function docItem(d) {
@@ -1382,8 +1452,8 @@ function docItem(d) {
   it.innerHTML = `
     <div class="item-ic">${DOC_ICONS[d.type] || '📄'}</div>
     <div class="item-main">
-      <h3>${d.name || d.type}</h3>
-      <p>${d.expiry ? 'Expires ' + new Date(d.expiry + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No expiry date'}${d.number ? ` · ${d.number}` : ''}</p>
+      <h3>${d.name ? d.name : t(d.type)}</h3>
+      <p>${d.expiry ? t('Expires') + ' ' + new Date(d.expiry + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : t('No expiry date')}${d.number ? ` · ${d.number}` : ''}</p>
     </div>
     <div class="item-side"><span class="pill ${st.level}">${st.txt}</span></div>`;
   it.onclick = () => openAddDoc(d);
@@ -1393,13 +1463,13 @@ function openAddDoc(d) {
   const editing = !!d;
   const types = Object.keys(DOC_ICONS);
   openModal(editing ? 'Edit document' : 'Add document', 'Track renewals so you never miss an expiry.', card => {
-    card.appendChild(field('Type', `<select id="d_type">${types.map(t => `<option ${d && d.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`));
-    card.appendChild(field('Label (optional)', `<input id="d_name" value="${d ? (d.name || '') : ''}" placeholder="e.g. Tawuniya comprehensive">`));
+    card.appendChild(field('Type', `<select id="d_type">${types.map(ty => `<option value="${ty}" ${d && d.type === ty ? 'selected' : ''}>${t(ty)}</option>`).join('')}</select>`));
+    card.appendChild(field('Label (optional)', `<input id="d_name" value="${d ? (d.name || '') : ''}" placeholder="${t('e.g. Tawuniya comprehensive')}">`));
     const r = el('div', 'field-row');
     r.append(field('Expiry date', `<input id="d_exp" type="date" value="${d ? (d.expiry || '') : ''}">`),
       field('Reference no. (optional)', `<input id="d_num" value="${d ? (d.number || '') : ''}">`));
     card.appendChild(r);
-    const b = el('button', 'btn primary block', 'Save');
+    const b = el('button', 'btn primary block', t('Save'));
     b.onclick = () => {
       const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
       if (d) Object.assign(d, obj); else { state.docs = state.docs || []; state.docs.push(obj); }
@@ -1407,7 +1477,7 @@ function openAddDoc(d) {
     };
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', 'Delete document');
+      const del = el('button', 'btn block ghost', t('Delete document'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
       del.onclick = () => { state.docs = state.docs.filter(x => x.id !== d.id); save(); closeModal(); go('dashboard'); toast('Document deleted'); };
       card.appendChild(del);
@@ -1435,7 +1505,7 @@ function openEditOdo() {
   openModal('Update mileage', 'Keep this current so due dates stay accurate.', card => {
     card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${state.car.odometer}">`));
     card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${state.car.dailyKm}">`));
-    const b = el('button', 'btn primary block', 'Save');
+    const b = el('button', 'btn primary block', t('Save'));
     b.onclick = () => {
       const val = parseInt($('#m_odo').value, 10);
       if (!isNaN(val)) state.car.odometer = val;
@@ -1491,15 +1561,15 @@ function photoPicker(current, onChange, label) {
   wrap.innerHTML = `
     <div class="photo-preview" data-prev style="cursor:${photo ? 'zoom-in' : 'default'}">${photo ? `<img src="${photo}">` : '🧾'}</div>
     <div class="photo-actions">
-      <button class="btn" type="button" data-pick>${photo ? 'Change receipt' : (label || 'Add receipt photo')}</button>
-      <button class="btn ghost" type="button" data-rm ${photo ? '' : 'hidden'} style="color:var(--danger)">Remove</button>
+      <button class="btn" type="button" data-pick>${photo ? t('Change receipt') : (label || t('Add receipt photo'))}</button>
+      <button class="btn ghost" type="button" data-rm ${photo ? '' : 'hidden'} style="color:var(--danger)">${t('Remove')}</button>
       <input type="file" accept="image/*" data-file hidden>
     </div>`;
   const prev = wrap.querySelector('[data-prev]'), pick = wrap.querySelector('[data-pick]'), rm = wrap.querySelector('[data-rm]'), file = wrap.querySelector('[data-file]');
   pick.onclick = () => file.click();
   prev.onclick = () => { if (photo) openImage(photo); };
-  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = `<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = 'Change receipt'; rm.hidden = false; onChange(photo); }); };
-  rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || 'Add receipt photo'; rm.hidden = true; onChange(photo); };
+  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = `<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); }); };
+  rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); };
   return wrap;
 }
 function openImage(url) {
@@ -1520,7 +1590,7 @@ function openGarage() {
       it.innerHTML = `
         <div class="item-ic" style="overflow:hidden">${c.photo ? `<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : '🚗'}</div>
         <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
-        <div class="item-side">${active ? '<span class="pill ok">Active</span>' : '<span style="color:var(--accent-soft);font-size:12px;font-weight:600">Switch ›</span>'}</div>`;
+        <div class="item-side">${active ? `<span class="pill ok">${t('Active')}</span>` : `<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
       it.onclick = () => { if (active) { closeModal(); openSettings(); } else switchVehicle(v.id); };
       list.appendChild(it);
     });
@@ -1551,8 +1621,8 @@ function openSettings() {
     picker.innerHTML = `
       <div class="photo-preview" id="s_prev">${photo ? `<img src="${photo}">` : '🚗'}</div>
       <div class="photo-actions">
-        <button class="btn" id="s_pick">${photo ? 'Change photo' : 'Add photo'}</button>
-        <button class="btn ghost" id="s_rm" ${photo ? '' : 'hidden'} style="color:var(--danger)">Remove</button>
+        <button class="btn" id="s_pick">${photo ? t('Change photo') : t('Add photo')}</button>
+        <button class="btn ghost" id="s_rm" ${photo ? '' : 'hidden'} style="color:var(--danger)">${t('Remove')}</button>
         <input type="file" accept="image/*" id="s_file" hidden>
       </div>`;
     card.appendChild(picker);
@@ -1560,11 +1630,11 @@ function openSettings() {
     picker.querySelector('#s_pick').onclick = () => picker.querySelector('#s_file').click();
     picker.querySelector('#s_file').onchange = e => {
       const f = e.target.files[0]; if (!f) return;
-      readImageResized(f, url => { photo = url; prev.innerHTML = `<img src="${url}">`; picker.querySelector('#s_pick').textContent = 'Change photo'; picker.querySelector('#s_rm').hidden = false; });
+      readImageResized(f, url => { photo = url; prev.innerHTML = `<img src="${url}">`; picker.querySelector('#s_pick').textContent = t('Change photo'); picker.querySelector('#s_rm').hidden = false; });
     };
-    picker.querySelector('#s_rm').onclick = () => { photo = ''; prev.innerHTML = '🚗'; picker.querySelector('#s_pick').textContent = 'Add photo'; picker.querySelector('#s_rm').hidden = true; };
+    picker.querySelector('#s_rm').onclick = () => { photo = ''; prev.innerHTML = '🚗'; picker.querySelector('#s_pick').textContent = t('Add photo'); picker.querySelector('#s_rm').hidden = true; };
 
-    card.appendChild(field('Nickname (optional)', `<input id="c_nick" value="${c.nickname || ''}" placeholder="e.g. The Gray Ghost">`));
+    card.appendChild(field('Nickname (optional)', `<input id="c_nick" value="${c.nickname || ''}" placeholder="${t('e.g. The Gray Ghost')}">`));
     const r1 = el('div', 'field-row');
     r1.append(field('Make', `<input id="c_make" value="${c.make || ''}">`), field('Model', `<input id="c_model" value="${c.model || ''}">`));
     card.appendChild(r1);
@@ -1584,7 +1654,7 @@ function openSettings() {
     if (c.color && !colorSel) { colorOpts = [c.color, ...MAZDA3_COLORS]; colorSel = c.color; }
     const r2 = el('div', 'field-row');
     r2.append(field('Year', `<input id="c_year" type="number" value="${c.year || ''}">`),
-      field('Transmission', `<select id="c_trans">${['Automatic', 'Manual'].map(t => `<option ${c.transmission === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`));
+      field('Transmission', `<select id="c_trans">${['Automatic', 'Manual'].map(tr => `<option value="${tr}" ${c.transmission === tr ? 'selected' : ''}>${t(tr)}</option>`).join('')}</select>`));
     card.appendChild(r2);
 
     // Colour — custom dropdown with a colour sample beside each name (full width)
@@ -1593,7 +1663,7 @@ function openSettings() {
         <input type="hidden" id="c_color" value="${colorSel || ''}">
         <button type="button" class="color-trigger">
           <span class="sw" style="background:${swatchFor(colorSel)}"></span>
-          <span class="ct-name">${colorSel || 'Select colour'}</span>
+          <span class="ct-name">${colorSel || t('Select colour')}</span>
           <svg class="ct-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="color-menu" hidden>
@@ -1623,11 +1693,11 @@ function openSettings() {
     if (c.engine && !engSel) { engOpts = [c.engine, ...ENGINES]; engSel = c.engine; }
     card.appendChild(field('Engine', `<select id="c_engine">${engOpts.map(e => `<option ${e === engSel ? 'selected' : ''}>${e}</option>`).join('')}</select>`));
     const r4 = el('div', 'field-row');
-    r4.append(field('Plate number', `<input id="c_plate" value="${c.plate || ''}" placeholder="e.g. ABC 1234">`),
-      field('VIN', `<input id="c_vin" value="${c.vin || ''}" placeholder="17-char VIN">`));
+    r4.append(field('Plate number', `<input id="c_plate" value="${c.plate || ''}" placeholder="${t('e.g. ABC 1234')}">`),
+      field('VIN', `<input id="c_vin" value="${c.vin || ''}" placeholder="${t('17-char VIN')}">`));
     card.appendChild(r4);
 
-    const b = el('button', 'btn primary block', 'Save profile');
+    const b = el('button', 'btn primary block', t('Save profile'));
     b.onclick = () => {
       Object.assign(state.car, {
         nickname: $('#c_nick').value.trim(), make: $('#c_make').value.trim(), model: $('#c_model').value.trim(),
@@ -1641,7 +1711,7 @@ function openSettings() {
     };
     card.appendChild(b);
     if (garage.vehicles.length > 1) {
-      const del = el('button', 'btn block ghost', 'Remove this vehicle');
+      const del = el('button', 'btn block ghost', t('Remove this vehicle'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
       del.onclick = () => deleteVehicle(garage.activeId);
       card.appendChild(del);
@@ -1652,7 +1722,7 @@ function openSettings() {
 function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
     card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${state.budget.annual}">`));
-    const b = el('button', 'btn primary block', 'Save');
+    const b = el('button', 'btn primary block', t('Save'));
     b.onclick = () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; save(); closeModal(); go('budget'); toast('Budget updated'); };
     card.appendChild(b);
   });
@@ -1668,8 +1738,8 @@ function openServiceDetail(s) {
       <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(s.intervalKm)} km / ${s.intervalMonths} mo</span></div>
       <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${new Date(s.lastDate + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
-      <div class="detail-row"><span class="k">Distance left</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' km over' : fmt(st.kmLeft) + ' km'}</span></div>
-      <div class="detail-row"><span class="k">Est. cost</span><span class="v">${sar(s.cost)} SAR</span></div>
+      <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
+      <div class="detail-row"><span class="k">${t('Est. cost')}</span><span class="v">${sar(s.cost)} SAR</span></div>
       ${s.note ? `<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${s.note}</p>` : ''}`;
     card.appendChild(box);
 
@@ -1679,11 +1749,11 @@ function openServiceDetail(s) {
       const total = rel.reduce((a, p) => a + partCheapest(p), 0);
       const pb = el('div');
       pb.style.marginTop = '18px';
-      pb.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px">Parts for this service · ~${sar(total)} SAR</div>`;
+      pb.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px">${t('Parts for this service')} · ~${sar(total)} SAR</div>`;
       const pl = el('div', 'list');
       rel.forEach(p => {
         const it = el('div', 'item');
-        it.innerHTML = `<div class="item-ic">${p.icon || '🔩'}</div><div class="item-main"><h3>${p.name}</h3><p>from ${sar(partCheapest(p))} SAR · ${p.options.length} options</p></div><div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">View ›</span></div>`;
+        it.innerHTML = `<div class="item-ic">${p.icon || '🔩'}</div><div class="item-main"><h3>${t(p.name)}</h3><p>${t('from')} ${sar(partCheapest(p))} SAR · ${p.options.length} ${t('options')}</p></div><div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('View ›')}</span></div>`;
         it.onclick = () => { closeModal(); go('parts', { openPart: p.id }); };
         pl.appendChild(it);
       });
@@ -1695,8 +1765,8 @@ function openServiceDetail(s) {
     row.style.marginTop = '18px';
     const done = el('button', 'btn primary', iconSvg('check') + t('Mark done now'));
     done.style.flex = '1';
-    done.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${s.name} logged ✓`); };
-    const edit = el('button', 'btn', 'Edit');
+    done.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${t(s.name)} ${t('logged ✓')}`); };
+    const edit = el('button', 'btn', t('Edit'));
     edit.onclick = () => openEditService(s);
     row.append(done, edit);
     card.appendChild(row);
@@ -1717,10 +1787,10 @@ function openAddHistory(e) {
   const editing = !!e;
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Other'];
   openModal(editing ? 'Edit service record' : 'Log a past service', editing ? '' : 'Record work already done on your car.', card => {
-    card.appendChild(field('Service', `<input id="h_name" value="${e ? e.name : ''}" placeholder="e.g. Timing chain inspection">`));
+    card.appendChild(field('Service', `<input id="h_name" value="${e ? e.name : ''}" placeholder="${t('e.g. Timing chain inspection')}">`));
     const r0 = el('div', 'field-row');
     r0.append(field('Icon (emoji)', `<input id="h_icon" value="${e ? e.icon : '🔧'}" maxlength="2">`),
-      field('Category', `<select id="h_cat">${cats.map(c => `<option ${e && e.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`));
+      field('Category', `<select id="h_cat">${cats.map(c => `<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
     r1.append(field('Date', `<input id="h_date" type="date" value="${e ? e.date : isoDate(TODAY)}">`),
@@ -1734,10 +1804,10 @@ function openAddHistory(e) {
     if (!editing) {
       const chk = el('div', 'field');
       chk.innerHTML = `<label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);font-weight:500;cursor:pointer">
-        <input type="checkbox" id="h_spend" checked style="width:auto;accent-color:var(--accent)"> Also add this cost to Budget</label>`;
+        <input type="checkbox" id="h_spend" checked style="width:auto;accent-color:var(--accent)"> ${t('Also add this cost to Budget')}</label>`;
       card.appendChild(chk);
     }
-    const b = el('button', 'btn primary block', editing ? 'Save changes' : 'Add to history');
+    const b = el('button', 'btn primary block', editing ? t('Save changes') : t('Add to history'));
     b.onclick = () => {
       const name = $('#h_name').value.trim();
       if (!name) return toast('Service name required', 'warn');
@@ -1755,7 +1825,7 @@ function openAddHistory(e) {
     };
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', 'Delete record');
+      const del = el('button', 'btn block ghost', t('Delete record'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       del.onclick = () => { state.history = state.history.filter(x => x.id !== e.id); save(); closeModal(); go('maintenance'); toast('Record deleted'); };
       card.appendChild(del);
@@ -1766,7 +1836,7 @@ function openAddHistory(e) {
 function openEditService(s) {
   const editing = !!s;
   openModal(editing ? 'Edit service' : 'New service', 'Set the interval and last service point.', card => {
-    card.appendChild(field('Name', `<input id="s_name" value="${s ? s.name : ''}" placeholder="e.g. Timing chain check">`));
+    card.appendChild(field('Name', `<input id="s_name" value="${s ? s.name : ''}" placeholder="${t('e.g. Timing chain check')}">`));
     card.appendChild(field('Icon (emoji)', `<input id="s_icon" value="${s ? s.icon : '🔧'}" maxlength="2">`));
     const row1 = el('div', 'field-row');
     row1.append(field('Interval (km)', `<input id="s_ikm" type="number" value="${s ? s.intervalKm : 10000}">`),
@@ -1781,7 +1851,7 @@ function openEditService(s) {
       field('Est. cost (SAR)', `<input id="s_cost" type="number" value="${s ? s.cost : 0}">`));
     card.appendChild(row3);
     card.appendChild(field('Note', `<textarea id="s_note" rows="2">${s ? (s.note || '') : ''}</textarea>`));
-    const b = el('button', 'btn primary block', 'Save service');
+    const b = el('button', 'btn primary block', t('Save service'));
     b.onclick = () => {
       const name = $('#s_name').value.trim();
       if (!name) return toast('Name is required', 'warn');
@@ -1797,7 +1867,7 @@ function openEditService(s) {
     };
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', 'Delete service');
+      const del = el('button', 'btn block ghost', t('Delete service'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       del.onclick = () => { state.services = state.services.filter(x => x.id !== s.id); save(); closeModal(); go('maintenance'); toast('Service deleted'); };
       card.appendChild(del);
@@ -1810,7 +1880,7 @@ function openLogService() {
     const list = el('div', 'list');
     servicesRanked().forEach(({ s, st }) => {
       const it = serviceItem(s, st);
-      it.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${s.name} logged ✓`); };
+      it.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${t(s.name)} ${t('logged ✓')}`); };
       list.appendChild(it);
     });
     card.appendChild(list);
@@ -1822,16 +1892,16 @@ function openAddSpending(e) {
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
-      const partOpts = state.parts.map((p, i) => `<option value="part:${i}">${p.name} · ${sar(Math.min(...p.options.map(o => o.price)))} SAR</option>`).join('');
+      const partOpts = state.parts.map((p, i) => `<option value="part:${i}">${t(p.name)} · ${sar(Math.min(...p.options.map(o => o.price)))} SAR</option>`).join('');
       card.appendChild(field('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>',
-        `<select id="x_pick"><option value="">Start from scratch…</option>${partOpts}</select>`));
+        `<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
     }
-    card.appendChild(field('Description', `<input id="x_desc" value="${e ? e.desc : ''}" placeholder="e.g. New front brake pads">`));
+    card.appendChild(field('Description', `<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
     const row = el('div', 'field-row');
     row.append(field('Amount (SAR)', `<input id="x_amt" type="number" inputmode="numeric" value="${e ? e.amount : ''}">`),
       field('Date', `<input id="x_date" type="date" value="${e ? e.date : isoDate(TODAY)}">`));
     card.appendChild(row);
-    card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option ${e && e.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`));
+    card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${e ? e.odometer : state.car.odometer}">`));
     let xphoto = e ? (e.photo || '') : '';
     card.appendChild(field('Receipt / invoice', ''));
@@ -1845,7 +1915,7 @@ function openAddSpending(e) {
         $('#x_cat').value = p.cat === 'Tires' ? 'Tires' : p.cat === 'Electrical' ? 'Electrical' : 'Parts';
       };
     }
-    const b = el('button', 'btn primary block', 'Save');
+    const b = el('button', 'btn primary block', t('Save'));
     b.onclick = () => {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return toast('Description required', 'warn');
@@ -1856,7 +1926,7 @@ function openAddSpending(e) {
     };
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', 'Delete expense');
+      const del = el('button', 'btn block ghost', t('Delete expense'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       del.onclick = () => { state.spending = state.spending.filter(x => x.id !== e.id); save(); closeModal(); go('budget'); toast('Expense deleted'); };
       card.appendChild(del);
@@ -1867,19 +1937,18 @@ function openAddSpending(e) {
 function openEditPart(p) {
   const editing = !!p;
   openModal(editing ? 'Edit part' : 'New part', 'Add the OEM option and any alternatives.', card => {
-    card.appendChild(field('Part name', `<input id="p_name" value="${p ? p.name : ''}" placeholder="e.g. Front Brake Pads">`));
+    card.appendChild(field('Part name', `<input id="p_name" value="${p ? p.name : ''}" placeholder="${t('e.g. Front Brake Pads')}">`));
     const row = el('div', 'field-row');
     const curCat = p ? p.cat : 'Engine';
     const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...state.parts.map(x => x.cat), curCat])];
     row.append(field('Icon (emoji)', `<input id="p_icon" value="${p ? p.icon : '🔩'}" maxlength="2">`),
-      field('Category', `<select id="p_cat">${catList.map(c => `<option ${c === curCat ? 'selected' : ''}>${c}</option>`).join('')}</select>`));
+      field('Category', `<select id="p_cat">${catList.map(c => `<option value="${c}" ${c === curCat ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(row);
     card.appendChild(field('PartSouq part no. (optional — enables live-price link)', `<input id="p_psq" value="${p && p.partsouq ? p.partsouq : ''}" placeholder="e.g. PE0114302A">`));
 
     const optsWrap = el('div');
-    card.appendChild(el('label', null, 'Options').cloneNode(true));
     const lbl = el('div'); lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-2);margin:6px 0';
-    lbl.textContent = 'Options (OEM & alternatives)';
+    lbl.textContent = t('Options (OEM & alternatives)');
     card.appendChild(lbl);
     card.appendChild(optsWrap);
 
@@ -1891,18 +1960,18 @@ function openEditPart(p) {
         box.style.cssText = 'padding:12px;margin-bottom:10px';
         box.innerHTML = `
           <div class="field-row" style="margin-bottom:8px">
-            <div class="field" style="margin:0"><label>Type</label><select data-k="tag"><option ${o.tag === 'OEM' ? 'selected' : ''}>OEM</option><option ${o.tag !== 'OEM' ? 'selected' : ''}>ALT</option></select></div>
-            <div class="field" style="margin:0"><label>Price (SAR)</label><input type="number" data-k="price" value="${o.price}"></div>
+            <div class="field" style="margin:0"><label>${t('Type')}</label><select data-k="tag"><option ${o.tag === 'OEM' ? 'selected' : ''}>OEM</option><option ${o.tag !== 'OEM' ? 'selected' : ''}>ALT</option></select></div>
+            <div class="field" style="margin:0"><label>${t('Price (SAR)')}</label><input type="number" data-k="price" value="${o.price}"></div>
           </div>
-          <div class="field" style="margin:0 0 8px"><label>Brand / product</label><input data-k="brand" value="${o.brand || ''}"></div>
+          <div class="field" style="margin:0 0 8px"><label>${t('Brand / product')}</label><input data-k="brand" value="${o.brand || ''}"></div>
           <div class="field-row" style="margin-bottom:8px">
-            <div class="field" style="margin:0"><label>Part no.</label><input data-k="partNo" value="${o.partNo || ''}"></div>
-            <div class="field" style="margin:0"><label>Store</label><input data-k="store" value="${o.store || ''}"></div>
+            <div class="field" style="margin:0"><label>${t('Part no.')}</label><input data-k="partNo" value="${o.partNo || ''}"></div>
+            <div class="field" style="margin:0"><label>${t('Store')}</label><input data-k="store" value="${o.store || ''}"></div>
           </div>
-          <div class="field" style="margin:0"><label>Note</label><input data-k="note" value="${o.note || ''}"></div>`;
+          <div class="field" style="margin:0"><label>${t('Note')}</label><input data-k="note" value="${o.note || ''}"></div>`;
         box.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { o[inp.dataset.k] = inp.type === 'number' ? +inp.value : inp.value; });
         if (opts.length > 1) {
-          const rm = el('button', 'btn ghost', 'Remove option'); rm.style.cssText = 'margin-top:8px;font-size:12px;padding:7px;color:var(--danger)';
+          const rm = el('button', 'btn ghost', t('Remove option')); rm.style.cssText = 'margin-top:8px;font-size:12px;padding:7px;color:var(--danger)';
           rm.onclick = () => { opts.splice(i, 1); drawOpts(); };
           box.appendChild(rm);
         }
@@ -1910,12 +1979,12 @@ function openEditPart(p) {
       });
     }
     drawOpts();
-    const addOpt = el('button', 'btn block ghost', iconSvg('plus') + 'Add option');
+    const addOpt = el('button', 'btn block ghost', iconSvg('plus') + t('Add option'));
     addOpt.style.marginBottom = '14px';
     addOpt.onclick = () => { opts.push({ tag: 'ALT', brand: '', partNo: '', price: 0, store: '', note: '' }); drawOpts(); };
     card.appendChild(addOpt);
 
-    const b = el('button', 'btn primary block', 'Save part');
+    const b = el('button', 'btn primary block', t('Save part'));
     b.onclick = () => {
       const name = $('#p_name').value.trim();
       if (!name) return toast('Part name required', 'warn');
@@ -1927,7 +1996,7 @@ function openEditPart(p) {
     };
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', 'Delete part');
+      const del = el('button', 'btn block ghost', t('Delete part'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       del.onclick = () => { state.parts = state.parts.filter(x => x.id !== p.id); save(); closeModal(); go('parts'); toast('Part deleted'); };
       card.appendChild(del);
