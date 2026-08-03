@@ -42,6 +42,9 @@ const AR = {
   // schedule basis (severe vs dealer)
   'Jeddah (severe)': 'جدة (مكثّف)', 'Dealer (normal)': 'الوكيل (عادي)', 'dealer': 'الوكيل', 'severe': 'مكثّف',
   'Dealer interval (km)': 'فترة الوكيل (كم)', 'Dealer interval (mo)': 'فترة الوكيل (شهر)', 'same as above': 'كما بالأعلى',
+  // community gearbox (ATF) parts + note
+  'Transmission Fluid Filter': 'فلتر زيت القير', 'Transmission Pan Sealant': 'غراء كارتر القير (سيليكون)',
+  'Community rec. (Mazda CX-5 group + info guide): renew ATF every 60–80k km per gearbox condition. Mazda Genuine ATF-FZ only (K020-W0-052E4), ~4.5–4.7 L per drain — buy 5×1 L. Replace the pan filter (FZ01-21-500) and reseal the pan with silicone (Dirko HT / Reinzosil / Mopar — better than dealer sealant), applied cleanly. Go easy on the gearbox for the first ~800 km. Check the fluid level to spec. No additives.': 'توصية المجتمع (قروب مازدا CX-5 + دليل المعلومات): جدّد زيت القير كل 60–80 ألف كم حسب حالة القير. زيت مازدا الأصلي ATF-FZ فقط (K020-W0-052E4)، ~4.5–4.7 لتر لكل تغيير — اشترِ 5×1 لتر. استبدل فلتر الكارتر (FZ01-21-500) وأعد غلق الكارتر بالسيليكون (Dirko HT / Reinzosil / Mopar — أفضل من غراء الوكالة) بطريقة نظيفة. لا تُجهد القير أول ~800 كم. تأكد من معيار الزيت. لا تستخدم معالجات.',
   // milestone plan
   'Plan': 'الخطة', 'Major service': 'صيانة رئيسية', 'mo': 'شهر', 'yr': 'سنة', 'Next up': 'التالي',
   'What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.': 'ما هو قادم، مبني من خدماتك ومتى أُجريت كل منها آخر مرة. اضغط على مهمة لتسجيلها، أو سجّل زيارة كاملة.',
@@ -644,6 +647,21 @@ const NORMAL_SCHED = {
   'Engine Air Filter': [40000, 24],
   'Fuel Filter': [120000, 72]
 };
+/* Community gearbox (ATF) guidance — the dealer sheet omits transmission service.
+   Source: Mazda CX-5 group + info guide. */
+const ATF_NOTE = 'Community rec. (Mazda CX-5 group + info guide): renew ATF every 60–80k km per gearbox condition. Mazda Genuine ATF-FZ only (K020-W0-052E4), ~4.5–4.7 L per drain — buy 5×1 L. Replace the pan filter (FZ01-21-500) and reseal the pan with silicone (Dirko HT / Reinzosil / Mopar — better than dealer sealant), applied cleanly. Go easy on the gearbox for the first ~800 km. Check the fluid level to spec. No additives.';
+function atfFilterPart() {
+  return { id: uid(), name: 'Transmission Fluid Filter', icon: '🧽', cat: 'Drivetrain', partsouq: 'FZ0121500', options: [
+    { tag: 'OEM', brand: 'Mazda Genuine ATF pan filter', partNo: 'FZ01-21-500', price: 138, store: 'Mazda Dealer (Alireza)', note: 'Renew with every ATF change (community rec.)' }
+  ] };
+}
+function atfSealantPart() {
+  return { id: uid(), name: 'Transmission Pan Sealant', icon: '🧴', cat: 'Drivetrain', options: [
+    { tag: 'ALT', brand: 'Elring Dirko HT (+315°C)', partNo: '', price: 55, store: 'Amazon.sa', note: 'Community pick — better than dealer sealant' },
+    { tag: 'ALT', brand: 'Victor Reinz Reinzosil', partNo: '', price: 50, store: 'Amazon.sa' },
+    { tag: 'ALT', brand: 'Mopar RTV Engine Sealant', partNo: '', price: 45, store: 'Local parts market' }
+  ] };
+}
 function normalizeData(s) {
   s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
   ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
@@ -652,6 +670,14 @@ function normalizeData(s) {
   s.services.forEach(sv => { // seed dealer intervals where they differ from severe
     if (sv.normalKm == null && NORMAL_SCHED[sv.name]) { sv.normalKm = NORMAL_SCHED[sv.name][0]; sv.normalMonths = NORMAL_SCHED[sv.name][1]; }
   });
+  // community gearbox (ATF) guidance — idempotent, reaches existing vehicles too
+  const atf = s.services.find(sv => sv.name === 'Automatic Transmission Fluid');
+  if (atf) {
+    if (atf.normalKm == null) { atf.normalKm = 80000; atf.normalMonths = 72; } // 60k severe → 80k community max
+    if (!/4\.5/.test(atf.note || '')) atf.note = ATF_NOTE;
+  }
+  if (!s.parts.some(p => p.name === 'Transmission Fluid Filter')) s.parts.push(atfFilterPart());
+  if (!s.parts.some(p => p.name === 'Transmission Pan Sealant')) s.parts.push(atfSealantPart());
   return s;
 }
 /* active interval for the current schedule basis (severe = the app's own values;
@@ -754,7 +780,7 @@ const SERVICE_PARTS = {
   'Spark Plugs (x4)': ['Spark Plugs (each)'],
   'Brake Fluid': ['Brake Fluid (DOT 4)'],
   'Engine Coolant (FL22)': ['Coolant FL22 (long-life)'],
-  'Automatic Transmission Fluid': ['ATF FZ (per liter)'],
+  'Automatic Transmission Fluid': ['ATF FZ (per liter)', 'Transmission Fluid Filter', 'Transmission Pan Sealant'],
   'Drive (Serpentine) Belt': ['Serpentine Belt'],
   'Battery Check': ['12V Battery'],
   'Brake Inspection & Caliper Lube': ['Front Brake Pads', 'Rear Brake Pads']
@@ -1944,7 +1970,7 @@ function openServiceDetail(s) {
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
       <div class="detail-row"><span class="k">${t('Est. cost')}</span><span class="v">${sar(s.cost)} SAR</span></div>
-      ${s.note ? `<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${s.note}</p>` : ''}`;
+      ${s.note ? `<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${t(s.note)}</p>` : ''}`;
     card.appendChild(box);
 
     // Parts this service needs — pulled live from the Parts catalog
