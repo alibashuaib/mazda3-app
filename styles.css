@@ -150,7 +150,13 @@ body {
   display: flex; align-items: baseline; justify-content: space-between;
   margin: 22px 4px 12px;
 }
+.section-title-left { display: flex; align-items: baseline; gap: 7px; }
 .section-title h2 { font-size: 15px; font-weight: 700; letter-spacing: -.1px; }
+.section-title-badge {
+  font-size: 10.5px; font-weight: 700; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--stroke);
+  padding: 2px 8px; border-radius: 999px; letter-spacing: .2px;
+}
 .section-title .link { font-size: 12.5px; color: var(--accent-soft); font-weight: 600; cursor: pointer; background: none; border: 0; }
 
 /* ---- Cards ---- */

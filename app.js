@@ -859,8 +859,8 @@ function renderDashboard() {
   v.appendChild(tiles);
 
   // Next up — top services due this year (overdue/due-soon always count, regardless of year)
-  v.appendChild(sectionTitle('Next up', 'See all', () => go('maintenance')));
   const thisYear = TODAY.getFullYear();
+  v.appendChild(sectionTitle('Next up', 'See all', () => go('maintenance'), String(thisYear)));
   const dueThisYear = ranked.filter(r => r.st.level !== 'ok' || r.st.dueDate.getFullYear() <= thisYear);
   const list = el('div', 'list');
   dueThisYear.slice(0, 4).forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
@@ -2365,9 +2365,12 @@ function openEditPart(p) {
 /* ============================================================
    SHARED UI BITS
    ============================================================ */
-function sectionTitle(title, linkTxt, onLink) {
+function sectionTitle(title, linkTxt, onLink, badge) {
   const s = el('div', 'section-title');
-  s.appendChild(el('h2', null, t(title)));
+  const left = el('div', 'section-title-left');
+  left.appendChild(el('h2', null, t(title)));
+  if (badge) left.appendChild(el('span', 'section-title-badge', badge));
+  s.appendChild(left);
   if (linkTxt && onLink) { const b = el('button', 'link', t(linkTxt)); b.onclick = onLink; s.appendChild(b); }
   return s;
 }
