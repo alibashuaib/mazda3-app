@@ -57,6 +57,8 @@ const AR = {
   'Update your plan': 'تحديث خطتك', 'Re-answer the setup questions if anything’s changed.': 'أعد الإجابة على أسئلة الإعداد إذا تغيّر أي شيء.',
   'No services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
   'km': 'كم', 'Step': 'خطوة', 'of': 'من', 'Back': 'رجوع', 'Next': 'التالي', 'Finish': 'إنهاء',
+  'Which schedule fits your car?': 'ما الجدول الأنسب لسيارتك؟',
+  'Jeddah heat & dust call for shorter intervals; the dealer sheet is the standard Mazda schedule.': 'حرارة وغبار جدة يتطلبان فترات أقصر؛ جدول الوكيل هو الجدول القياسي لمازدا.',
   'Current odometer': 'عداد السيارة الحالي', 'Keeps every due date and estimate accurate.': 'يحافظ على دقة كل تاريخ استحقاق وتقدير.',
   'Have you had this done?': 'هل أُنجزت هذه الخدمة من قبل؟', 'Yes, done': 'نعم، أُنجزت', 'Not sure / skip': 'غير متأكد / تخطّي',
   'At what km (roughly)?': 'عند أي كم تقريباً؟', 'Enter your current odometer': 'أدخل عداد سيارتك الحالي',
@@ -938,21 +940,13 @@ function renderMaintenance() {
   });
   v.appendChild(modeSeg);
 
-  // schedule basis: Jeddah "severe" vs Mazda dealer "normal" (Haji Husein Alireza)
-  const basisSeg = el('div', 'seg basis-seg');
-  [['severe', 'Jeddah (severe)'], ['normal', 'Dealer (normal)']].forEach(([code, label]) => {
-    const b = el('button', state.severity === code ? 'on' : '', t(label));
-    b.onclick = () => { if (state.severity === code) return; state.severity = code; save(); [...basisSeg.children].forEach(c => c.classList.toggle('on', c === b)); paintMode(); };
-    basisSeg.appendChild(b);
-  });
-
+  // schedule basis (Jeddah severe vs. dealer normal) is chosen once in the
+  // plan setup wizard, not toggled here — see openPlanSetup().
   const body = el('div');
   function paintMode() {
-    basisSeg.style.display = maintMode === 'History' ? 'none' : '';
     body.innerHTML = '';
     (maintMode === 'History' ? buildHistory : maintMode === 'Plan' ? buildPlan : buildSchedule)(body);
   }
-  v.appendChild(basisSeg);
   v.appendChild(body);
   paintMode();
   return v;
@@ -1049,29 +1043,25 @@ function logVisit(ms) {
   save();
 }
 
-/* Step-by-step wizard: one question at a time (odometer, then every
-   service — majors first) instead of one long form. Each service asks
-   "have you done this, and at what km" so the plan can be built from
-   real answers rather than the seed defaults. */
+/* Step-by-step wizard: one question at a time — schedule basis, odometer,
+   then every service (majors first) — instead of one long form. Each
+   service asks "have you done this, and at what km" so the plan can be
+   built from real answers rather than the seed defaults. The dealer vs.
+   Jeddah-severe schedule basis is decided here only; it's not shown as a
+   toggle on the Maintenance page anymore. Major/regular grouping uses the
+   base (severe) interval so it doesn't shift depending on the basis answer. */
 function openPlanSetup() {
-  const eligible = state.services.filter(s => svKm(s) > 0);
-  const majors = eligible.filter(s => svKm(s) >= 40000).sort((a, b) => svKm(a) - svKm(b));
-  const regulars = eligible.filter(s => svKm(s) < 40000).sort((a, b) => svKm(a) - svKm(b));
+  const eligible = state.services.filter(s => s.intervalKm > 0);
+  const majors = eligible.filter(s => s.intervalKm >= 40000).sort((a, b) => a.intervalKm - b.intervalKm);
+  const regulars = eligible.filter(s => s.intervalKm < 40000).sort((a, b) => a.intervalKm - b.intervalKm);
   const services = [...majors, ...regulars];
   const answers = services.map(s => ({ s, choice: s.lastKm > 0 ? 'yes' : null, km: s.lastKm || '' }));
+  let basis = state.severity === 'normal' ? 'normal' : 'severe';
   let odo = state.car.odometer || '';
   let step = 0;
-  const totalSteps = 1 + services.length;
+  const totalSteps = 2 + services.length; // basis + odometer + one per service
 
   openModal('Set up your plan', null, card => {
-    if (!services.length) {
-      card.appendChild(emptyState('🧭', 'No services in your list yet.\nAdd some under Schedule first.'));
-      const skip0 = el('button', 'btn block ghost', t('Skip for now'));
-      skip0.onclick = () => { state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
-      card.appendChild(skip0);
-      return;
-    }
-
     const progress = el('div', 'wiz-progress');
     const bar = el('div', 'wiz-bar', '<span></span>');
     const body = el('div', 'wiz-card');
@@ -1091,6 +1081,19 @@ function openPlanSetup() {
 
       if (step === 0) {
         body.innerHTML = `
+          <div class="item-ic">📍</div>
+          <h3>${t('Which schedule fits your car?')}</h3>
+          <p>${t('Jeddah heat & dust call for shorter intervals; the dealer sheet is the standard Mazda schedule.')}</p>
+          <div class="wiz-choice">
+            <button class="wiz-opt ${basis === 'severe' ? 'on' : ''}" data-v="severe">${t('Jeddah (severe)')}</button>
+            <button class="wiz-opt ${basis === 'normal' ? 'on' : ''}" data-v="normal">${t('Dealer (normal)')}</button>
+          </div>`;
+        body.querySelectorAll('.wiz-opt').forEach(btn => btn.onclick = () => {
+          basis = btn.dataset.v;
+          body.querySelectorAll('.wiz-opt').forEach(b => b.classList.toggle('on', b === btn));
+        });
+      } else if (step === 1) {
+        body.innerHTML = `
           <div class="item-ic">🧭</div>
           <h3>${t('Current odometer')}</h3>
           <p>${t('Keeps every due date and estimate accurate.')}</p>
@@ -1099,7 +1102,7 @@ function openPlanSetup() {
         odoInput.oninput = () => { odo = odoInput.value; odoInput.classList.remove('err'); };
         setTimeout(() => odoInput.focus(), 30);
       } else {
-        const a = answers[step - 1];
+        const a = answers[step - 2];
         const s = a.s;
         body.innerHTML = `
           <div class="item-ic">${s.icon || '🔧'}</div>
@@ -1127,6 +1130,7 @@ function openPlanSetup() {
 
     function finish() {
       const dpk = state.car.dailyKm || 40;
+      state.severity = basis;
       const finalOdo = parseInt(odo, 10);
       if (!isNaN(finalOdo) && finalOdo > 0) state.car.odometer = finalOdo;
       answers.forEach(a => {
@@ -1143,20 +1147,20 @@ function openPlanSetup() {
 
     backBtn.onclick = () => { if (step > 0) { step--; renderStep(); } };
     nextBtn.onclick = () => {
-      if (step === 0) {
+      if (step === 1) {
         const od = parseInt(odo, 10);
         if (isNaN(od) || od <= 0) { $('#wiz_odo', body).classList.add('err'); toast(t('Enter your current odometer'), 'warn'); return; }
-        step++; renderStep(); return;
-      }
-      const a = answers[step - 1];
-      if (a.choice === 'yes') {
-        const val = parseInt(a.km, 10);
-        if (isNaN(val) || val <= 0) { body.querySelector('.wiz-km input').classList.add('err'); toast(t('Enter a km for this service'), 'warn'); return; }
+      } else if (step >= 2) {
+        const a = answers[step - 2];
+        if (a.choice === 'yes') {
+          const val = parseInt(a.km, 10);
+          if (isNaN(val) || val <= 0) { body.querySelector('.wiz-km input').classList.add('err'); toast(t('Enter a km for this service'), 'warn'); return; }
+        }
       }
       if (step === totalSteps - 1) { finish(); return; }
       step++; renderStep();
     };
-    skipAll.onclick = () => { state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
+    skipAll.onclick = () => { state.severity = basis; state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
 
     renderStep();
   });
