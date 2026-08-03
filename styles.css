@@ -684,6 +684,8 @@ html { scroll-behavior: smooth; }
 @media (hover: hover) and (pointer: fine) { .chip-link:hover { filter: brightness(1.12); } }
 
 /* ---- manufacturer milestone plan ---- */
+.basis-seg { margin-top: 8px; }
+.basis-seg button { font-size: 12px; }
 .plan-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .plan-year { font-size: 12px; font-weight: 800; color: var(--text-2); letter-spacing: .4px; margin: 8px 2px 2px; }
 .plan-year:first-child { margin-top: 0; }

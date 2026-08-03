@@ -39,6 +39,9 @@ const AR = {
   'Next up': 'التالي', 'Recommendations': 'التوصيات', 'Documents & renewals': 'الوثائق والتجديدات', 'Monthly spending': 'المصروف الشهري',
   'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
+  // schedule basis (severe vs dealer)
+  'Jeddah (severe)': 'جدة (مكثّف)', 'Dealer (normal)': 'الوكيل (عادي)', 'dealer': 'الوكيل', 'severe': 'مكثّف',
+  'Dealer interval (km)': 'فترة الوكيل (كم)', 'Dealer interval (mo)': 'فترة الوكيل (شهر)', 'same as above': 'كما بالأعلى',
   // milestone plan
   'Plan': 'الخطة', 'Major service': 'صيانة رئيسية', 'mo': 'شهر', 'yr': 'سنة', 'Next up': 'التالي',
   'What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.': 'ما هو قادم، مبني من خدماتك ومتى أُجريت كل منها آخر مرة. اضغط على مهمة لتسجيلها، أو سجّل زيارة كاملة.',
@@ -632,12 +635,29 @@ function seed() {
    so the rest of the app keeps using state.car / state.services / … unchanged. */
 const GKEY = 'garage.mazda3.v2';
 let garage;
+/* Dealer "normal" intervals from the Haji Husein Alireza (Mazda KSA) sheet —
+   the shorter values already in the app are the Jeddah "severe" schedule.
+   [normalKm, normalMonths] keyed by built-in service name. */
+const NORMAL_SCHED = {
+  'Engine Oil & Filter': [10000, 12],
+  'Cabin (A/C) Filter': [20000, 12],
+  'Engine Air Filter': [40000, 24],
+  'Fuel Filter': [120000, 72]
+};
 function normalizeData(s) {
   s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
   ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (typeof s.planSetupDone !== 'boolean') s.planSetupDone = false;
+  if (s.severity !== 'normal' && s.severity !== 'severe') s.severity = 'severe'; // Jeddah default
+  s.services.forEach(sv => { // seed dealer intervals where they differ from severe
+    if (sv.normalKm == null && NORMAL_SCHED[sv.name]) { sv.normalKm = NORMAL_SCHED[sv.name][0]; sv.normalMonths = NORMAL_SCHED[sv.name][1]; }
+  });
   return s;
 }
+/* active interval for the current schedule basis (severe = the app's own values;
+   normal = the dealer values where a service defines them, else the same) */
+function svKm(s) { return (state.severity === 'normal' && s.normalKm) ? s.normalKm : s.intervalKm; }
+function svMo(s) { return (state.severity === 'normal' && s.normalMonths) ? s.normalMonths : s.intervalMonths; }
 function persistGarage() { try { localStorage.setItem(GKEY, JSON.stringify(garage)); } catch (e) {} }
 let state = load();
 function load() {
@@ -676,13 +696,14 @@ function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(
 /* ---------- service status computation ---------- */
 function serviceStatus(s) {
   const odo = state.car.odometer;
-  const dueKm = s.lastKm + s.intervalKm;
+  const ikm = svKm(s), imo = svMo(s);
+  const dueKm = s.lastKm + ikm;
   const kmLeft = dueKm - odo;
-  const dueDate = addMonths(parseDate(s.lastDate), s.intervalMonths);
+  const dueDate = addMonths(parseDate(s.lastDate), imo);
   const daysLeft = Math.round((dueDate - TODAY) / 86400000);
   // progress through the interval (0..1+), take the more advanced of km/time
-  const kmProg = (odo - s.lastKm) / s.intervalKm;
-  const timeProg = monthsBetween(parseDate(s.lastDate), TODAY) / s.intervalMonths;
+  const kmProg = (odo - s.lastKm) / ikm;
+  const timeProg = monthsBetween(parseDate(s.lastDate), TODAY) / imo;
   const prog = Math.max(kmProg, timeProg);
   // which dimension is driving the due?
   const drivenByTime = timeProg >= kmProg;
@@ -854,19 +875,20 @@ function planForward() {
   const horizon = odo + 160000; // ~one full major cycle ahead
   const buckets = {};
   const add = (km, s) => { (buckets[km] = buckets[km] || []); if (!buckets[km].includes(s)) buckets[km].push(s); };
-  state.services.filter(s => s.intervalKm > 0).forEach(s => {
+  state.services.filter(s => svKm(s) > 0).forEach(s => {
+    const ikm = svKm(s);
     const st = serviceStatus(s);
     let k = st.dueKm;                       // first upcoming due (lastKm + interval)
     if (k < odo) {                          // overdue → show at the very next milestone, then continue
       add(firstGrid, s);
-      k += Math.ceil((odo - k) / s.intervalKm) * s.intervalKm;
+      k += Math.ceil((odo - k) / ikm) * ikm;
     }
-    for (; k <= horizon; k += s.intervalKm) add(Math.max(firstGrid, Math.round(k / step) * step), s);
+    for (; k <= horizon; k += ikm) add(Math.max(firstGrid, Math.round(k / step) * step), s);
   });
   return Object.keys(buckets).map(Number).sort((a, b) => a - b).map(km => ({
     km,
     items: buckets[km],
-    major: buckets[km].some(s => s.intervalKm >= 60000),
+    major: buckets[km].some(s => svKm(s) >= 60000),
     date: new Date(TODAY.getTime() + Math.max(0, (km - odo) / dpk) * 86400000)
   }));
 }
@@ -885,9 +907,22 @@ function renderMaintenance() {
   });
   v.appendChild(modeSeg);
 
+  // schedule basis: Jeddah "severe" vs Mazda dealer "normal" (Haji Husein Alireza)
+  const basisSeg = el('div', 'seg basis-seg');
+  [['severe', 'Jeddah (severe)'], ['normal', 'Dealer (normal)']].forEach(([code, label]) => {
+    const b = el('button', state.severity === code ? 'on' : '', t(label));
+    b.onclick = () => { if (state.severity === code) return; state.severity = code; save(); [...basisSeg.children].forEach(c => c.classList.toggle('on', c === b)); paintMode(); };
+    basisSeg.appendChild(b);
+  });
+
   const body = el('div');
+  function paintMode() {
+    basisSeg.style.display = maintMode === 'History' ? 'none' : '';
+    body.innerHTML = '';
+    (maintMode === 'History' ? buildHistory : maintMode === 'Plan' ? buildPlan : buildSchedule)(body);
+  }
+  v.appendChild(basisSeg);
   v.appendChild(body);
-  function paintMode() { body.innerHTML = ''; (maintMode === 'History' ? buildHistory : maintMode === 'Plan' ? buildPlan : buildSchedule)(body); }
   paintMode();
   return v;
 }
@@ -976,7 +1011,7 @@ function logVisit(ms) {
 }
 
 function openPlanSetup() {
-  const majors = state.services.filter(s => s.intervalKm >= 40000).sort((a, b) => a.intervalKm - b.intervalKm);
+  const majors = state.services.filter(s => svKm(s) >= 40000).sort((a, b) => svKm(a) - svKm(b));
   openModal('Set up your plan', 'Confirm your current odometer, then tick the important services already done and roughly at what km — the plan adjusts to fit your car.', card => {
     card.appendChild(field('Current odometer (km)', `<input id="ps_odo" type="number" inputmode="numeric" value="${state.car.odometer || ''}" placeholder="${t('e.g. 316,000')}">`));
     if (!majors.length) card.appendChild(emptyState('🧭', 'No major services in your list yet.\nAdd some under Schedule first.'));
@@ -1904,7 +1939,7 @@ function openServiceDetail(s) {
     const box = el('div');
     box.innerHTML = `
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
-      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(s.intervalKm)} km / ${s.intervalMonths} mo</span></div>
+      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? ` <span class="muted" style="font-size:11px">· ${t(state.severity === 'severe' ? 'dealer' : 'severe')} ${fmt(state.severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
       <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${new Date(s.lastDate + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
@@ -2017,6 +2052,10 @@ function openEditService(s) {
     row1.append(field('Interval (km)', `<input id="s_ikm" type="number" value="${s ? s.intervalKm : 10000}">`),
       field('Interval (months)', `<input id="s_imo" type="number" value="${s ? s.intervalMonths : 12}">`));
     card.appendChild(row1);
+    const row1b = el('div', 'field-row');
+    row1b.append(field('Dealer interval (km)', `<input id="s_nkm" type="number" value="${s && s.normalKm ? s.normalKm : ''}" placeholder="${t('same as above')}">`),
+      field('Dealer interval (mo)', `<input id="s_nmo" type="number" value="${s && s.normalMonths ? s.normalMonths : ''}" placeholder="${t('same as above')}">`));
+    card.appendChild(row1b);
     const row2 = el('div', 'field-row');
     row2.append(field('Last done (km)', `<input id="s_lkm" type="number" value="${s ? s.lastKm : state.car.odometer}">`),
       field('Last done (date)', `<input id="s_ldate" type="date" value="${s ? s.lastDate : isoDate(TODAY)}">`));
@@ -2034,6 +2073,7 @@ function openEditService(s) {
         id: s ? s.id : uid(), name, icon: $('#s_icon').value.trim() || '🔧',
         cat: $('#s_cat').value.trim() || 'General',
         intervalKm: +$('#s_ikm').value || 10000, intervalMonths: +$('#s_imo').value || 12,
+        normalKm: +$('#s_nkm').value || null, normalMonths: +$('#s_nmo').value || null,
         lastKm: +$('#s_lkm').value || 0, lastDate: $('#s_ldate').value || isoDate(TODAY),
         cost: +$('#s_cost').value || 0, note: $('#s_note').value.trim()
       };
