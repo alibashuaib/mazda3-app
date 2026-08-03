@@ -954,27 +954,8 @@ function renderMaintenance() {
 
 let planShowAll = false;   // reveal milestones beyond the current year
 let scheduleShowAll = false; // reveal Schedule items due beyond the current year
-let planPrompted = false;  // auto-open first-time setup at most once per session
 
 function buildPlan(v) {
-  // first-time query — tell the plan the current odometer + what's already been serviced
-  const banner = el('div', 'card plan-setup-banner');
-  if (!state.planSetupDone) {
-    banner.innerHTML = `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
-    const b = el('button', 'btn', t('Set up'));
-    b.onclick = openPlanSetup;
-    banner.appendChild(b);
-    v.appendChild(banner);
-    if (!planPrompted) { planPrompted = true; setTimeout(openPlanSetup, 160); }
-  } else {
-    // always reachable afterwards — re-run the questions if service history changes
-    banner.innerHTML = `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`;
-    const b = el('button', 'btn ghost', t('Edit'));
-    b.onclick = openPlanSetup;
-    banner.appendChild(b);
-    v.appendChild(banner);
-  }
-
   const intro = el('p');
   intro.style.cssText = 'font-size:12.5px;line-height:1.55;color:var(--text-2);margin:2px 4px 14px';
   intro.textContent = t('What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.');
@@ -1944,6 +1925,18 @@ function openSettings() {
       langSeg.appendChild(b);
     });
     card.appendChild(langSeg);
+
+    // plan setup wizard — schedule basis, odometer & service history
+    const planRow = el('div', 'card plan-setup-banner');
+    planRow.style.margin = '0 0 16px';
+    planRow.innerHTML = state.planSetupDone
+      ? `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`
+      : `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
+    const planBtn = el('button', state.planSetupDone ? 'btn ghost' : 'btn', t(state.planSetupDone ? 'Edit' : 'Set up'));
+    planBtn.onclick = () => { closeModal(); openPlanSetup(); };
+    planRow.appendChild(planBtn);
+    card.appendChild(planRow);
+
     let photo = c.photo || '';
 
     const picker = el('div', 'photo-picker');
