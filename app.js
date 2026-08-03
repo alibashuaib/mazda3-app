@@ -1159,15 +1159,15 @@ function buildSchedule(v) {
   });
   v.appendChild(seg);
 
-  const list = el('div', 'list');
-  v.appendChild(list);
+  const tl = el('div', 'timeline');
+  v.appendChild(tl);
   const more = el('button', 'btn block ghost');
   more.style.marginTop = '12px';
   more.onclick = () => { scheduleShowAll = true; paint(); };
   v.appendChild(more);
 
   function paint() {
-    list.innerHTML = '';
+    tl.innerHTML = '';
     const thisYear = TODAY.getFullYear();
     let items = servicesRanked();
     if (active === 'Overdue') items = items.filter(r => r.st.level === 'danger');
@@ -1178,8 +1178,16 @@ function buildSchedule(v) {
     if (!scheduleShowAll) items = items.filter(r => r.st.level !== 'ok' || r.st.dueDate.getFullYear() <= thisYear);
     more.style.display = (!scheduleShowAll && laterCount) ? '' : 'none';
     more.textContent = `${t('Show later years')} (${laterCount}) ›`;
-    if (!items.length) { list.appendChild(emptyState('🎉', 'Nothing here — all good!')); return; }
-    items.forEach(({ s, st }) => list.appendChild(serviceItem(s, st, true)));
+    if (!items.length) { tl.appendChild(emptyState('🎉', 'Nothing here — all good!')); return; }
+
+    // chronological — soonest due first, which naturally leads with overdue items (their due date already passed)
+    items = items.slice().sort((a, b) => a.st.dueDate - b.st.dueDate);
+    let lastYear = null;
+    items.forEach(({ s, st }, i) => {
+      const yr = st.dueDate.getFullYear();
+      if (yr !== lastYear) { tl.appendChild(el('div', 'tl-year', String(yr))); lastYear = yr; }
+      tl.appendChild(scheduleTimelineItem(s, st, i === items.length - 1));
+    });
   }
   paint();
 
@@ -1187,6 +1195,20 @@ function buildSchedule(v) {
   add.style.marginTop = '16px';
   add.onclick = () => openEditService(null);
   v.appendChild(add);
+}
+
+function scheduleTimelineItem(s, st, isLast) {
+  const item = el('div', 'tl-item' + (isLast ? ' last' : ''));
+  const pillTxt = t(st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track');
+  const kmTxt = st.kmLeft <= 0 ? `${fmt(-st.kmLeft)} ${t('km over')}` : `${fmt(st.kmLeft)} ${t('km left')}`;
+  item.innerHTML = `
+    <div class="tl-dot ${st.level}">${s.icon || '🔧'}</div>
+    <div class="card tl-card">
+      <div class="tl-top"><h3>${t(s.name)}</h3><span class="pill ${st.level}">${pillTxt}</span></div>
+      <div class="tl-sub">${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })} · ${kmTxt}</div>
+    </div>`;
+  item.querySelector('.tl-card').onclick = () => openServiceDetail(s);
+  return item;
 }
 
 function buildHistory(v) {

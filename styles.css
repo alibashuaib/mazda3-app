@@ -403,6 +403,8 @@ body {
   background: var(--surface-2); border: 1px solid var(--stroke);
   display: grid; place-items: center; font-size: 18px; z-index: 1;
 }
+.tl-dot.warn { background: var(--warn-soft); border-color: var(--warn); }
+.tl-dot.danger { background: var(--danger-soft); border-color: var(--danger); }
 .tl-card { padding: 12px 14px; cursor: pointer; }
 .tl-card .tl-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .tl-card h3 { font-size: 14px; font-weight: 650; }
