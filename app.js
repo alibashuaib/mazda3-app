@@ -76,7 +76,49 @@ const AR = {
   'Note': 'ملاحظة', 'Description': 'الوصف', 'Amount (SAR)': 'المبلغ (ريال)', 'Make': 'الصنع', 'Model': 'الطراز', 'Year': 'السنة',
   'Color': 'اللون', 'Transmission': 'ناقل الحركة', 'Plate number': 'رقم اللوحة', 'Type': 'النوع', 'Tank': 'الخزان',
   'Receipt / invoice': 'الإيصال / الفاتورة', 'Nickname (optional)': 'الاسم المختصر (اختياري)', 'Expiry date': 'تاريخ الانتهاء',
-  'Budget (SAR / year)': 'الميزانية (ريال / سنة)', 'Full tank': 'خزان ممتلئ', 'Partial fill': 'تعبئة جزئية', 'Add receipt photo': 'إضافة صورة إيصال'
+  'Budget (SAR / year)': 'الميزانية (ريال / سنة)', 'Full tank': 'خزان ممتلئ', 'Partial fill': 'تعبئة جزئية', 'Add receipt photo': 'إضافة صورة إيصال',
+  // parts-page chrome
+  'from': 'من', 'options': 'خيارات', '🔧 Used in:': '🔧 مستخدمة في:',
+  '🔎 Live price &amp; alternatives on PartSouq ↗': '🔎 السعر والبدائل المباشرة على PartSouq ↗',
+  // service-detail rows
+  'Interval': 'الفترة', 'Last done': 'آخر مرة', 'Next due': 'الاستحقاق التالي',
+  // budget ring
+  'over budget': 'فوق الميزانية', 'SAR remaining of': 'ريال متبقية من',
+  // report internals
+  'Total spent (SAR)': 'إجمالي المصروف (ريال)', 'Total': 'الإجمالي', 'Service': 'الخدمة', 'Odometer': 'العداد',
+  'Cost': 'التكلفة', 'Notes': 'ملاحظات', 'Everything is up to date 🎉': 'كل شيء محدّث 🎉', 'Spent in 2026 (SAR)': 'المصروف في 2026 (ريال)',
+  'Generated': 'أُنشئ في', 'Odometer ': 'العداد ', 'Current odometer (km)': 'العداد الحالي (كم)', 'No service history recorded yet.': 'لا يوجد سجل صيانة بعد.',
+  'Service History Report': 'تقرير سجل الصيانة', 'No purchases or spending recorded yet.': 'لا توجد مشتريات أو مصروفات بعد.', 'Entries': 'إدخالات', 'Categories': 'الفئات',
+  'By category': 'حسب الفئة', 'Amount': 'المبلغ', 'Share': 'النسبة', 'All purchases': 'كل المشتريات', 'Item': 'البند', 'Purchases & Spending Report': 'تقرير المشتريات والمصروفات',
+  'Health score': 'درجة الحالة', 'Lifetime service cost': 'تكلفة الصيانة الإجمالية', 'Upcoming &amp; overdue services': 'الخدمات القادمة والمتأخرة',
+  'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
+  'Garage · Mazda 3 care app': 'Garage · تطبيق العناية بمازدا 3', 'Report generated': 'صدر التقرير',
+  // part names
+  'Engine Oil 5W-30 (4L)': 'زيت محرك 5W-30 (4 لتر)', 'Oil Filter': 'فلتر الزيت', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
+  'Spark Plugs (each)': 'بواجي الإشعال (للحبة)', 'Front Brake Pads': 'فحمات الفرامل الأمامية', 'Rear Brake Pads': 'فحمات الفرامل الخلفية',
+  'Wiper Blades (pair)': 'مساحات الزجاج (زوج)', '12V Battery': 'بطارية 12 فولت', 'Serpentine Belt': 'سير المولد (السربنتين)',
+  'Coolant FL22 (long-life)': 'سائل تبريد FL22 (طويل العمر)', 'ATF FZ (per liter)': 'زيت ناقل ATF FZ (للتر)', 'Brake Fluid (DOT 4)': 'زيت فرامل (DOT 4)',
+  'Windshield Washer Fluid (~2L)': 'سائل غسيل الزجاج (~2 لتر)', 'Front Shock Absorber (each)': 'مساعد أمامي (للحبة)',
+  'Rear Shock Absorber (each)': 'مساعد خلفي (للحبة)', 'Front Lower Control Arm (each)': 'مقص أمامي سفلي (للحبة)',
+  'Front Strut Mount Bearing (each)': 'رمان بلي حاملة المساعد الأمامي (للحبة)', 'Rear Wheel Hub Bearing (each)': 'رمان بلي عجلة خلفية (للحبة)',
+  'Stabilizer (Sway Bar) Link': 'وصلة موازن (الاستبلايزر)', 'Ignition Coil (each)': 'بوبينة إشعال (للحبة)', 'Alternator': 'الدينمو (المولد)',
+  'Starter Motor': 'السلف (محرك البدء)', 'Front Brake Disc (each)': 'ديسك فرامل أمامي (للحبة)', 'Rear Brake Disc (each)': 'ديسك فرامل خلفي (للحبة)',
+  'Water Pump': 'طرمبة الماء', 'Thermostat': 'الثرموستات', 'A/F (Oxygen) Sensor — upstream': 'حساس الأكسجين — أمامي',
+  'Front CV Axle Joint (outer)': 'جوزة عكس أمامية (خارجية)', 'MAF (Mass Air Flow) Sensor': 'حساس تدفق الهواء (MAF)',
+  'A/C Condenser': 'مكثف التكييف (الكندنسر)', 'Front Coil Spring (each)': 'ياي أمامي (للحبة)', 'Front Wheel Hub Bearing (each)': 'رمان بلي عجلة أمامية (للحبة)',
+  'Radiator': 'الردياتير', 'Engine Mount (No.4, right)': 'كرسي محرك (رقم 4، يمين)', 'Front Brake Caliper (each)': 'كاليبر فرامل أمامي (للحبة)',
+  'Blower Motor (A/C fan)': 'مروحة المكيف (البلور)', 'Headlight Unit (each)': 'وحدة المصباح الأمامي (للحبة)', 'A/C Compressor': 'كمبروسر التكييف',
+  'Rear Coil Spring (each)': 'ياي خلفي (للحبة)', 'Valve Cover Gasket': 'جوان غطاء الصمامات', 'PCV Valve': 'صمام PCV',
+  'Crankshaft Position Sensor': 'حساس عمود الكرنك', 'Camshaft Position Sensor': 'حساس عمود الكامات', 'Oxygen Sensor — downstream (rear)': 'حساس الأكسجين — خلفي',
+  'Fuel Pump Assembly (in-tank)': 'طرمبة البنزين (داخل الخزان)', 'Drive Belt Tensioner': 'شداد السير', 'Front Engine Mount': 'كرسي محرك أمامي',
+  'Transmission Mount': 'كرسي ناقل الحركة', 'Brake Master Cylinder': 'علبة الفرامل الرئيسية', 'Rear Brake Caliper (each)': 'كاليبر فرامل خلفي (للحبة)',
+  'Outer Tie Rod End (each)': 'طرف عرق ربط خارجي (للحبة)', 'Headlight Bulbs (H11 low · 9005 high)': 'لمبات المصابيح الأمامية (H11 منخفض · 9005 عالي)',
+  'Timing Chain Kit': 'طقم جنزير التوقيت', 'Radiator Hoses (upper & lower)': 'خراطيم الردياتير (علوي وسفلي)',
+  'Oil Drain Plug Gasket (14mm crush washer)': 'جوان صامولة تصريف الزيت (وردة 14مم)', 'Front Sway Bar Bushing': 'جلبة موازن أمامي',
+  'Blower Motor Resistor': 'مقاومة مروحة المكيف', 'Tail / Brake Light Bulbs': 'لمبات الفرامل / الخلفية',
+  'EVAP Purge Valve (canister solenoid)': 'صمام تنقية بخار الوقود (EVAP)', 'Knock Sensor': 'حساس الطرق (النوكينج)',
+  'Front CV Axle (complete, each)': 'عكس أمامي كامل (للحبة)', 'Front ABS Wheel Speed Sensor': 'حساس سرعة عجلة ABS أمامي',
+  'Engine Coolant Temp Sensor (ECT)': 'حساس حرارة الماء (ECT)', 'Intake Manifold Gasket': 'جوان مجمع السحب'
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -878,10 +920,10 @@ function partCard(p) {
   card.innerHTML = `
     <div class="part-head">
       <div class="item-ic">${p.icon || '🔩'}</div>
-      <h3>${p.name}</h3>
+      <h3>${t(p.name)}</h3>
       <div style="text-align:right">
-        <div style="font-weight:750;font-size:14px">from ${sar(cheapest)} <span class="muted" style="font-size:11px">SAR</span></div>
-        <div class="muted" style="font-size:11px">${p.options.length} options</div>
+        <div style="font-weight:750;font-size:14px">${t('from')} ${sar(cheapest)} <span class="muted" style="font-size:11px">SAR</span></div>
+        <div class="muted" style="font-size:11px">${p.options.length} ${t('options')}</div>
       </div>
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
@@ -899,12 +941,12 @@ function partCard(p) {
           </div>
         </div>`).join('')}
       ${usedIn.length ? `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-        <span class="muted" style="font-size:11px;font-weight:600">🔧 Used in:</span>
-        ${usedIn.map(s => `<button class="chip-link" data-svc="${s.id}">${s.name}</button>`).join('')}
+        <span class="muted" style="font-size:11px;font-weight:600">${t('🔧 Used in:')}</span>
+        ${usedIn.map(s => `<button class="chip-link" data-svc="${s.id}">${t(s.name)}</button>`).join('')}
       </div>` : ''}
-      ${p.partsouq ? `<a class="btn" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer" style="width:100%;margin-top:12px;font-size:12.5px;padding:11px;text-decoration:none;color:var(--accent-soft)">🔎 Live price &amp; alternatives on PartSouq ↗</a>` : ''}
+      ${p.partsouq ? `<a class="btn" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer" style="width:100%;margin-top:12px;font-size:12.5px;padding:11px;text-decoration:none;color:var(--accent-soft)">${t('🔎 Live price &amp; alternatives on PartSouq ↗')}</a>` : ''}
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-edit>Edit</button>
+        <button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-edit>${t('Edit')}</button>
       </div>
     </div>`;
   const toggle = () => card.classList.toggle('open');
@@ -944,13 +986,13 @@ function renderBudget() {
         <circle class="prog" cx="46" cy="46" r="40" fill="none" stroke-width="8"
           stroke-dasharray="${dash}" stroke-dashoffset="${dash * (1 - clamp(pct, 0, 1))}"/>
       </svg>
-      <div class="ring-label"><div class="ring-num" style="font-size:19px">${Math.round(pct * 100)}%</div><div class="ring-cap">of budget</div></div>
+      <div class="ring-label"><div class="ring-num" style="font-size:19px">${Math.round(pct * 100)}%</div><div class="ring-cap">${t('of budget')}</div></div>
     </div>
     <div style="flex:1">
-      <div class="muted" style="font-size:12px">Spent in 2026</div>
+      <div class="muted" style="font-size:12px">${t('Spent in 2026')}</div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-.5px">${sar(spent)} <span class="muted" style="font-size:13px;font-weight:600">SAR</span></div>
       <div style="font-size:12.5px;margin-top:4px" class="${overBudget ? '' : 'muted'}">
-        ${overBudget ? `⚠️ ${sar(spent - budget)} over budget` : `${sar(budget - spent)} SAR remaining of ${sar(budget)}`}
+        ${overBudget ? `⚠️ ${sar(spent - budget)} ${t('over budget')}` : `${sar(budget - spent)} ${t('SAR remaining of')} ${sar(budget)}`}
       </div>
       <button class="odo-edit" id="editBudget" style="margin-top:8px">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
@@ -1061,37 +1103,37 @@ function reportHeader(title) {
       </div>
       <div class="rpt-meta">
         <div class="rpt-title">${title}</div>
-        <div>Generated ${TODAY.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-        <div>Odometer ${fmt(c.odometer)} km${c.plate ? ` · ${c.plate}` : ''}</div>
+        <div>${t('Generated')} ${TODAY.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        <div>${t('Odometer ')}${fmt(c.odometer)} km${c.plate ? ` · ${c.plate}` : ''}</div>
         ${c.vin ? `<div>VIN ${c.vin}</div>` : ''}
       </div>
     </div>`;
 }
 function reportFooter() {
-  return `<div class="rpt-foot"><span>Garage · Mazda 3 care app</span><span>Report generated ${TODAY.toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
+  return `<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${TODAY.toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
 }
 function reportService() {
   const hist = [...state.history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
   const total = hist.reduce((a, e) => a + Number(e.cost || 0), 0);
   const body = !hist.length
-    ? `<div class="rpt-empty">No service history recorded yet.</div>`
+    ? `<div class="rpt-empty">${t('No service history recorded yet.')}</div>`
     : `<div class="rpt-cards">
-        <div class="rpt-stat"><div class="n">${hist.length}</div><div class="l">Services logged</div></div>
-        <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">Total spent (SAR)</div></div>
-        <div class="rpt-stat"><div class="n">${fmt(state.car.odometer)}</div><div class="l">Current odometer (km)</div></div>
+        <div class="rpt-stat"><div class="n">${hist.length}</div><div class="l">${t('Services logged')}</div></div>
+        <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">${t('Total spent (SAR)')}</div></div>
+        <div class="rpt-stat"><div class="n">${fmt(state.car.odometer)}</div><div class="l">${t('Current odometer (km)')}</div></div>
       </div>
-      <div class="rpt-section-title">Work history</div>
+      <div class="rpt-section-title">${t('Work history')}</div>
       <table class="rpt-table">
-        <thead><tr><th>Date</th><th>Service</th><th>Category</th><th class="num">Odometer</th><th class="num">Cost</th><th>Notes</th></tr></thead>
+        <thead><tr><th>${t('Date')}</th><th>${t('Service')}</th><th>${t('Category')}</th><th class="num">${t('Odometer')}</th><th class="num">${t('Cost')}</th><th>${t('Notes')}</th></tr></thead>
         <tbody>${hist.map(e => `<tr>
           <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-          <td>${e.name}</td><td>${e.cat || '—'}</td>
+          <td>${t(e.name)}</td><td>${e.cat ? t(e.cat) : '—'}</td>
           <td class="num">${fmt(e.odometer)} km</td>
           <td class="num">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</td>
           <td>${e.note || ''}</td></tr>`).join('')}</tbody>
-        <tfoot><tr><td colspan="4">Total</td><td class="num">${sar(total)} SAR</td><td></td></tr></tfoot>
+        <tfoot><tr><td colspan="4">${t('Total')}</td><td class="num">${sar(total)} SAR</td><td></td></tr></tfoot>
       </table>`;
-  return reportHeader('Service History Report') + body + reportFooter();
+  return reportHeader(t('Service History Report')) + body + reportFooter();
 }
 function reportPurchases() {
   const sp = [...state.spending].sort((a, b) => b.date.localeCompare(a.date));
@@ -1100,26 +1142,26 @@ function reportPurchases() {
   sp.forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount || 0); });
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const body = !sp.length
-    ? `<div class="rpt-empty">No purchases or spending recorded yet.</div>`
+    ? `<div class="rpt-empty">${t('No purchases or spending recorded yet.')}</div>`
     : `<div class="rpt-cards">
-        <div class="rpt-stat"><div class="n">${sp.length}</div><div class="l">Entries</div></div>
-        <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">Total spent (SAR)</div></div>
-        <div class="rpt-stat"><div class="n">${cats.length}</div><div class="l">Categories</div></div>
+        <div class="rpt-stat"><div class="n">${sp.length}</div><div class="l">${t('Entries')}</div></div>
+        <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">${t('Total spent (SAR)')}</div></div>
+        <div class="rpt-stat"><div class="n">${cats.length}</div><div class="l">${t('Categories')}</div></div>
       </div>
-      <div class="rpt-section-title">By category</div>
-      <table class="rpt-table"><thead><tr><th>Category</th><th class="num">Amount</th><th class="num">Share</th></tr></thead>
-        <tbody>${cats.map(([k, val]) => `<tr><td>${k}</td><td class="num">${sar(val)} SAR</td><td class="num">${Math.round(val / (total || 1) * 100)}%</td></tr>`).join('')}</tbody></table>
-      <div class="rpt-section-title">All purchases</div>
+      <div class="rpt-section-title">${t('By category')}</div>
+      <table class="rpt-table"><thead><tr><th>${t('Category')}</th><th class="num">${t('Amount')}</th><th class="num">${t('Share')}</th></tr></thead>
+        <tbody>${cats.map(([k, val]) => `<tr><td>${t(k)}</td><td class="num">${sar(val)} SAR</td><td class="num">${Math.round(val / (total || 1) * 100)}%</td></tr>`).join('')}</tbody></table>
+      <div class="rpt-section-title">${t('All purchases')}</div>
       <table class="rpt-table">
-        <thead><tr><th>Date</th><th>Item</th><th>Category</th><th class="num">Odometer</th><th class="num">Amount</th></tr></thead>
+        <thead><tr><th>${t('Date')}</th><th>${t('Item')}</th><th>${t('Category')}</th><th class="num">${t('Odometer')}</th><th class="num">${t('Amount')}</th></tr></thead>
         <tbody>${sp.map(e => `<tr>
           <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-          <td>${e.desc}</td><td>${e.cat}</td>
+          <td>${e.desc}</td><td>${t(e.cat)}</td>
           <td class="num">${e.odometer ? fmt(e.odometer) + ' km' : '—'}</td>
           <td class="num">${sar(e.amount)} SAR</td></tr>`).join('')}</tbody>
-        <tfoot><tr><td colspan="4">Total</td><td class="num">${sar(total)} SAR</td></tr></tfoot>
+        <tfoot><tr><td colspan="4">${t('Total')}</td><td class="num">${sar(total)} SAR</td></tr></tfoot>
       </table>`;
-  return reportHeader('Purchases & Spending Report') + body + reportFooter();
+  return reportHeader(t('Purchases & Spending Report')) + body + reportFooter();
 }
 function reportSummary() {
   const ranked = servicesRanked();
@@ -1131,24 +1173,24 @@ function reportSummary() {
   const spent = yearSpend(2026);
   const histTotal = state.history.reduce((a, e) => a + Number(e.cost || 0), 0);
   const dueRows = due.length
-    ? due.map(({ s, st }) => `<tr><td>${s.name}</td><td>${st.level === 'danger' ? 'Overdue' : 'Due soon'}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' km over' : fmt(st.kmLeft) + ' km left'}</td><td class="num">${sar(s.cost)} SAR</td></tr>`).join('')
-    : `<tr><td colspan="4" style="text-align:center;color:#8b93a3;padding:16px">Everything is up to date 🎉</td></tr>`;
-  return reportHeader('Vehicle Summary Report') + `
+    ? due.map(({ s, st }) => `<tr><td>${t(s.name)}</td><td>${st.level === 'danger' ? t('Overdue') : t('Due soon')}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' ' + t('km left')}</td><td class="num">${sar(s.cost)} SAR</td></tr>`).join('')
+    : `<tr><td colspan="4" style="text-align:center;color:#8b93a3;padding:16px">${t('Everything is up to date 🎉')}</td></tr>`;
+  return reportHeader(t('Vehicle Summary Report')) + `
     <div class="rpt-cards">
-      <div class="rpt-stat"><div class="n">${hs}</div><div class="l">Health score</div></div>
-      <div class="rpt-stat"><div class="n">${overdue.length}</div><div class="l">Overdue</div></div>
-      <div class="rpt-stat"><div class="n">${soon.length}</div><div class="l">Due soon</div></div>
+      <div class="rpt-stat"><div class="n">${hs}</div><div class="l">${t('Health score')}</div></div>
+      <div class="rpt-stat"><div class="n">${overdue.length}</div><div class="l">${t('Overdue')}</div></div>
+      <div class="rpt-stat"><div class="n">${soon.length}</div><div class="l">${t('Due soon')}</div></div>
     </div>
     <div class="rpt-cards" style="margin-top:12px">
-      <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">Spent in 2026 (SAR)</div></div>
-      <div class="rpt-stat"><div class="n">${sar(histTotal)}</div><div class="l">Lifetime service cost</div></div>
-      <div class="rpt-stat"><div class="n">${state.history.length}</div><div class="l">Services logged</div></div>
+      <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">${t('Spent in 2026 (SAR)')}</div></div>
+      <div class="rpt-stat"><div class="n">${sar(histTotal)}</div><div class="l">${t('Lifetime service cost')}</div></div>
+      <div class="rpt-stat"><div class="n">${state.history.length}</div><div class="l">${t('Services logged')}</div></div>
     </div>
-    <div class="rpt-section-title">Upcoming &amp; overdue services</div>
+    <div class="rpt-section-title">${t('Upcoming &amp; overdue services')}</div>
     <table class="rpt-table">
-      <thead><tr><th>Service</th><th>Status</th><th class="num">Distance</th><th class="num">Est. cost</th></tr></thead>
+      <thead><tr><th>${t('Service')}</th><th>${t('Status')}</th><th class="num">${t('Distance')}</th><th class="num">${t('Est. cost')}</th></tr></thead>
       <tbody>${dueRows}</tbody>
-      ${due.length ? `<tfoot><tr><td colspan="3">Estimated total</td><td class="num">${sar(dueCost)} SAR</td></tr></tfoot>` : ''}
+      ${due.length ? `<tfoot><tr><td colspan="3">${t('Estimated total')}</td><td class="num">${sar(dueCost)} SAR</td></tr></tfoot>` : ''}
     </table>` + reportFooter();
 }
 
@@ -1623,9 +1665,9 @@ function openServiceDetail(s) {
     const box = el('div');
     box.innerHTML = `
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
-      <div class="detail-row"><span class="k">Interval</span><span class="v">${fmt(s.intervalKm)} km / ${s.intervalMonths} mo</span></div>
-      <div class="detail-row"><span class="k">Last done</span><span class="v">${fmt(s.lastKm)} km · ${new Date(s.lastDate + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
-      <div class="detail-row"><span class="k">Next due</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(s.intervalKm)} km / ${s.intervalMonths} mo</span></div>
+      <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${new Date(s.lastDate + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+      <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">Distance left</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' km over' : fmt(st.kmLeft) + ' km'}</span></div>
       <div class="detail-row"><span class="k">Est. cost</span><span class="v">${sar(s.cost)} SAR</span></div>
       ${s.note ? `<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${s.note}</p>` : ''}`;
