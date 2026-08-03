@@ -54,8 +54,10 @@ const AR = {
   // first-time plan setup
   'Set up your plan': 'إعداد خطتك', 'Set up': 'إعداد', 'Already done?': 'أُنجزت من قبل؟', 'e.g. 316,000': 'مثال: 316,000',
   'Tell the plan which major services you’ve already done.': 'أخبر الخطة بالخدمات الرئيسية التي أنجزتها.',
-  'Confirm your current odometer, then tick the important services already done and roughly at what km — the plan adjusts to fit your car.': 'أكّد عداد سيارتك الحالي، ثم حدّد الخدمات المهمة المنجزة وعند أي كم تقريباً — تتكيّف الخطة مع سيارتك.',
-  'No major services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات رئيسية في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
+  'Confirm your current odometer, then tick each service you’ve already done and roughly at what km — the plan adjusts to fit your car.': 'أكّد عداد سيارتك الحالي، ثم حدّد كل خدمة أنجزتها وعند أي كم تقريباً — تتكيّف الخطة مع سيارتك.',
+  'No services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
+  'Major services': 'الخدمات الرئيسية', 'Regular services': 'الخدمات الدورية', 'Show all': 'عرض الكل', 'Hide': 'إخفاء',
+  'km': 'كم', 'Enter a km for each checked service': 'أدخل قراءة الكم لكل خدمة محدّدة',
   'Skip for now': 'تخطّي الآن', 'Plan updated': 'تم تحديث الخطة',
   // tiles (fuel / history / budget)
   'Last L/100km': 'آخر ل/100كم', 'Avg L/100km': 'متوسط ل/100كم', 'SAR / km': 'ريال/كم', 'Services logged': 'خدمات مسجلة',
@@ -1037,36 +1039,70 @@ function logVisit(ms) {
 }
 
 function openPlanSetup() {
-  const majors = state.services.filter(s => svKm(s) >= 40000).sort((a, b) => svKm(a) - svKm(b));
-  openModal('Set up your plan', 'Confirm your current odometer, then tick the important services already done and roughly at what km — the plan adjusts to fit your car.', card => {
+  const eligible = state.services.filter(s => svKm(s) > 0);
+  const majors = eligible.filter(s => svKm(s) >= 40000).sort((a, b) => svKm(a) - svKm(b));
+  const regulars = eligible.filter(s => svKm(s) < 40000).sort((a, b) => svKm(a) - svKm(b));
+
+  openModal('Set up your plan', 'Confirm your current odometer, then tick each service you’ve already done and roughly at what km — the plan adjusts to fit your car.', card => {
     card.appendChild(field('Current odometer (km)', `<input id="ps_odo" type="number" inputmode="numeric" value="${state.car.odometer || ''}" placeholder="${t('e.g. 316,000')}">`));
-    if (!majors.length) card.appendChild(emptyState('🧭', 'No major services in your list yet.\nAdd some under Schedule first.'));
-    const lbl = el('div'); lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-2);margin:4px 0 8px';
-    lbl.textContent = t('Already done?');
-    if (majors.length) card.appendChild(lbl);
-    const rows = el('div', 'plan-setup');
-    majors.forEach(s => {
+    if (!eligible.length) card.appendChild(emptyState('🧭', 'No services in your list yet.\nAdd some under Schedule first.'));
+
+    const entries = []; // { s, chk, km }
+    function buildRow(container, s) {
       const row = el('div', 'ps-row');
+      const done = s.lastKm > 0;
       row.innerHTML = `
-        <label class="ps-check"><input type="checkbox" data-id="${s.id}" ${s.lastKm > 0 ? 'checked' : ''}><span>${s.icon || '🔧'} ${t(s.name)}</span></label>
-        <input class="ps-km" type="number" inputmode="numeric" data-km="${s.id}" placeholder="km" value="${s.lastKm || ''}">`;
-      rows.appendChild(row);
-    });
-    card.appendChild(rows);
+        <div class="item-ic">${s.icon || '🔧'}</div>
+        <div class="ps-main"><h4>${t(s.name)}</h4></div>
+        <div class="ps-km-wrap">
+          <input class="ps-km" type="number" inputmode="numeric" placeholder="${t('km')}" value="${s.lastKm || ''}" ${done ? '' : 'disabled'}>
+          <label class="ps-check"><input type="checkbox" ${done ? 'checked' : ''}><span class="track"></span></label>
+        </div>`;
+      const chk = row.querySelector('input[type="checkbox"]');
+      const km = row.querySelector('.ps-km');
+      chk.onchange = () => { km.disabled = !chk.checked; km.classList.remove('err'); if (chk.checked) km.focus(); };
+      container.appendChild(row);
+      entries.push({ s, chk, km });
+    }
+
+    if (majors.length) {
+      card.appendChild(el('div', 'plan-setup-label', t('Major services')));
+      const majorRows = el('div', 'plan-setup');
+      majors.forEach(s => buildRow(majorRows, s));
+      card.appendChild(majorRows);
+    }
+    if (regulars.length) {
+      card.appendChild(el('div', 'plan-setup-label', t('Regular services')));
+      const regRows = el('div', 'plan-setup');
+      regRows.style.display = 'none';
+      regulars.forEach(s => buildRow(regRows, s));
+      card.appendChild(regRows);
+      const more = el('button', 'btn block ghost plan-setup-more', `${t('Show all')} (${regulars.length}) ›`);
+      more.onclick = () => {
+        const open = regRows.style.display === 'none';
+        regRows.style.display = open ? '' : 'none';
+        more.textContent = open ? t('Hide') : `${t('Show all')} (${regulars.length}) ›`;
+      };
+      card.appendChild(more);
+    }
+
     const b = el('button', 'btn primary block', t('Save'));
+    b.style.marginTop = '16px';
     b.onclick = () => {
       const od = parseInt($('#ps_odo').value, 10);
       if (!isNaN(od) && od > 0) state.car.odometer = od;
       const dpk = state.car.dailyKm || 40;
-      majors.forEach(s => {
-        const chk = card.querySelector(`input[data-id="${s.id}"]`).checked;
-        const km = parseInt(card.querySelector(`input[data-km="${s.id}"]`).value, 10);
-        if (chk && !isNaN(km) && km > 0) {
-          s.lastKm = km;
-          const days = Math.max(0, ((state.car.odometer || km) - km) / dpk);
-          s.lastDate = isoDate(new Date(TODAY.getTime() - days * 86400000));
-        }
+      let invalid = 0;
+      entries.forEach(({ s, chk, km }) => {
+        if (!chk.checked) return;
+        const val = parseInt(km.value, 10);
+        if (isNaN(val) || val <= 0) { km.classList.add('err'); invalid++; return; }
+        km.classList.remove('err');
+        s.lastKm = val;
+        const days = Math.max(0, ((state.car.odometer || val) - val) / dpk);
+        s.lastDate = isoDate(new Date(TODAY.getTime() - days * 86400000));
       });
+      if (invalid) { toast(t('Enter a km for each checked service'), 'warn'); return; }
       state.planSetupDone = true;
       save(); closeModal(); go('maintenance'); toast(t('Plan updated'));
     };
