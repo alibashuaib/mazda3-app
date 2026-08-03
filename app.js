@@ -39,6 +39,10 @@ const AR = {
   'Next up': 'التالي', 'Recommendations': 'التوصيات', 'Documents & renewals': 'الوثائق والتجديدات', 'Monthly spending': 'المصروف الشهري',
   'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
+  // milestone plan
+  'Plan': 'الخطة', 'Major service': 'صيانة رئيسية', 'mo': 'شهر', 'yr': 'سنة', 'Multi-point Inspection': 'فحص شامل متعدد النقاط',
+  "Manufacturer's scheduled maintenance for a new Mazda 3 (2.0 SkyActiv-G) — what to service at each 10,000 km. Times are estimated from your average driving.": 'جدول الصيانة الدوري من المصنّع لمازدا 3 جديدة (2.0 SkyActiv-G) — ما يجب صيانته عند كل 10,000 كم. الأوقات تقديرية حسب متوسط قيادتك.',
+  'In Jeddah heat & dust, your dealer may shorten oil to ~5,000–7,500 km and check filters and brakes more often. The cycle repeats after 120,000 km.': 'في حرّ وغبار جدة، قد يقصّر وكيلك تغيير الزيت إلى ~5,000–7,500 كم ويفحص الفلاتر والفرامل أكثر. تتكرر الدورة بعد 120,000 كم.',
   // tiles (fuel / history / budget)
   'Last L/100km': 'آخر ل/100كم', 'Avg L/100km': 'متوسط ل/100كم', 'SAR / km': 'ريال/كم', 'Services logged': 'خدمات مسجلة',
   'SAR total': 'إجمالي الريال', 'Last service': 'آخر خدمة', 'OF BUDGET': 'من الميزانية', 'of budget': 'من الميزانية', 'Spent in 2026': 'المصروف في 2026',
@@ -827,6 +831,37 @@ function renderDashboard() {
 /* ============================================================
    PAGE 2 — MAINTENANCE
    ============================================================ */
+/* ---------- manufacturer "new-car" milestone plan (per 10,000 km) ----------
+   Mazda 3 2.0 SkyActiv-G scheduled maintenance, expressed on a 10,000 km cadence.
+   Item `km` = how often it recurs; a milestone lists every item whose interval
+   divides it. Reuses the built-in service names so translations carry over. */
+const PLAN_ITEMS = [
+  { name: 'Engine Oil & Filter', icon: '🛢️', km: 10000 },
+  { name: 'Tire Rotation & Balance', icon: '🔄', km: 10000 },
+  { name: 'Brake Inspection & Caliper Lube', icon: '🛑', km: 10000 },
+  { name: 'Multi-point Inspection', icon: '🔍', km: 10000 },
+  { name: 'Cabin (A/C) Filter', icon: '❄️', km: 20000 },
+  { name: 'Wheel Alignment', icon: '🎯', km: 20000 },
+  { name: 'Battery Check', icon: '🔋', km: 20000 },
+  { name: 'Throttle Body & MAF Cleaning', icon: '🧴', km: 30000 },
+  { name: 'Engine Air Filter', icon: '🌬️', km: 40000 },
+  { name: 'Brake Fluid', icon: '🩸', km: 40000 },
+  { name: 'Automatic Transmission Fluid', icon: '⚙️', km: 60000 },
+  { name: 'Fuel Filter', icon: '⛽', km: 80000 },
+  { name: 'Drive (Serpentine) Belt', icon: '🔗', km: 90000 },
+  { name: 'Spark Plugs (x4)', icon: '⚡', km: 120000 },
+  { name: 'Engine Coolant (FL22)', icon: '🌡️', km: 120000 }
+];
+function planMilestones() {
+  const perMonthKm = (state.car.dailyKm || 0) * 30.44;
+  const out = [];
+  for (let km = 10000; km <= 160000; km += 10000) {
+    const items = PLAN_ITEMS.filter(it => km % it.km === 0);
+    out.push({ km, items, major: items.some(it => it.km >= 60000), months: perMonthKm ? Math.round(km / perMonthKm) : null });
+  }
+  return out;
+}
+
 let maintMode = 'Schedule'; // remembered across renders in the session
 function renderMaintenance() {
   if (navIntent && navIntent.filter) maintMode = 'Schedule'; // a cross-page link targets the schedule
@@ -834,7 +869,7 @@ function renderMaintenance() {
   v.appendChild(pageIntro('Maintenance', 'Your service schedule and full work history — tracked by distance and time.'));
 
   const modeSeg = el('div', 'seg');
-  ['Schedule', 'History'].forEach(m => {
+  ['Schedule', 'Plan', 'History'].forEach(m => {
     const b = el('button', m === maintMode ? 'on' : '', t(m));
     b.onclick = () => { if (maintMode === m) return; maintMode = m; [...modeSeg.children].forEach(c => c.classList.toggle('on', c === b)); paintMode(); };
     modeSeg.appendChild(b);
@@ -843,9 +878,40 @@ function renderMaintenance() {
 
   const body = el('div');
   v.appendChild(body);
-  function paintMode() { body.innerHTML = ''; (maintMode === 'History' ? buildHistory : buildSchedule)(body); }
+  function paintMode() { body.innerHTML = ''; (maintMode === 'History' ? buildHistory : maintMode === 'Plan' ? buildPlan : buildSchedule)(body); }
   paintMode();
   return v;
+}
+
+function buildPlan(v) {
+  const intro = el('p');
+  intro.style.cssText = 'font-size:12.5px;line-height:1.55;color:var(--text-2);margin:2px 4px 14px';
+  intro.textContent = t("Manufacturer's scheduled maintenance for a new Mazda 3 (2.0 SkyActiv-G) — what to service at each 10,000 km. Times are estimated from your average driving.");
+  v.appendChild(intro);
+
+  const wrap = el('div', 'plan-list');
+  planMilestones().forEach(ms => {
+    const card = el('div', 'card plan-ms' + (ms.major ? ' major' : ''));
+    const when = ms.months == null ? '' : ms.months < 24 ? `≈ ${ms.months} ${t('mo')}` : `≈ ${Math.round(ms.months / 12)} ${t('yr')}`;
+    card.innerHTML = `
+      <div class="plan-ms-head">
+        <div class="plan-km">${fmt(ms.km)}<span>km</span></div>
+        <div class="plan-meta">
+          ${ms.major ? `<span class="plan-badge">${t('Major service')}</span>` : ''}
+          ${when ? `<span class="plan-when">${when}</span>` : ''}
+        </div>
+      </div>
+      <div class="plan-items">
+        ${ms.items.map(it => `<span class="plan-chip"><i>${it.icon}</i>${t(it.name)}</span>`).join('')}
+      </div>`;
+    wrap.appendChild(card);
+  });
+  v.appendChild(wrap);
+
+  const note = el('div', 'card');
+  note.style.cssText = 'padding:13px 15px;margin-top:12px;font-size:12px;line-height:1.55;color:var(--text-2)';
+  note.innerHTML = `💡 ${t('In Jeddah heat & dust, your dealer may shorten oil to ~5,000–7,500 km and check filters and brakes more often. The cycle repeats after 120,000 km.')}`;
+  v.appendChild(note);
 }
 
 function buildSchedule(v) {

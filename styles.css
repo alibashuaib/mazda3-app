@@ -683,6 +683,21 @@ html { scroll-behavior: smooth; }
 }
 @media (hover: hover) and (pointer: fine) { .chip-link:hover { filter: brightness(1.12); } }
 
+/* ---- manufacturer milestone plan ---- */
+.plan-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.plan-ms { padding: 14px 16px; }
+.plan-ms.major { box-shadow: var(--shadow), inset 3px 0 0 var(--accent); }
+[dir="rtl"] .plan-ms.major { box-shadow: var(--shadow), inset -3px 0 0 var(--accent); }
+.plan-ms-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; }
+.plan-km { font-size: 17px; font-weight: 800; letter-spacing: -.3px; color: var(--accent-soft); display: flex; align-items: baseline; gap: 4px; }
+.plan-km span { font-size: 11px; font-weight: 600; color: var(--text-2); letter-spacing: 0; }
+.plan-meta { display: flex; align-items: center; gap: 8px; }
+.plan-when { font-size: 12px; color: var(--text-2); }
+.plan-badge { font-size: 10px; font-weight: 700; color: var(--warn); background: var(--warn-soft); padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .4px; }
+.plan-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid var(--stroke); padding: 5px 11px 5px 8px; border-radius: 999px; }
+.plan-chip i { font-style: normal; font-size: 13px; line-height: 1; }
+
 /* keep the 6 bottom-bar labels tidy on phones */
 .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab { gap: 3px; }
