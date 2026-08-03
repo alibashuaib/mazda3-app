@@ -858,10 +858,13 @@ function renderDashboard() {
   [...tiles.children].forEach(t => { t.style.cursor = 'pointer'; });
   v.appendChild(tiles);
 
-  // Next up (top 4 services)
+  // Next up — top services due this year (overdue/due-soon always count, regardless of year)
   v.appendChild(sectionTitle('Next up', 'See all', () => go('maintenance')));
+  const thisYear = TODAY.getFullYear();
+  const dueThisYear = ranked.filter(r => r.st.level !== 'ok' || r.st.dueDate.getFullYear() <= thisYear);
   const list = el('div', 'list');
-  ranked.slice(0, 4).forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
+  dueThisYear.slice(0, 4).forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
+  if (!dueThisYear.length) list.appendChild(emptyState('🎉', 'Nothing here — all good!'));
   v.appendChild(list);
 
   // Documents & renewals (insurance, Istimara, license…)
