@@ -695,8 +695,24 @@ html { scroll-behavior: smooth; }
 .plan-when { font-size: 12px; color: var(--text-2); }
 .plan-badge { font-size: 10px; font-weight: 700; color: var(--warn); background: var(--warn-soft); padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .4px; }
 .plan-items { display: flex; flex-wrap: wrap; gap: 6px; }
-.plan-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid var(--stroke); padding: 5px 11px 5px 8px; border-radius: 999px; }
+.plan-chip { display: inline-flex; align-items: center; gap: 5px; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid var(--stroke); padding: 5px 11px 5px 8px; border-radius: 999px; cursor: pointer; transition: filter .15s, opacity .15s; }
 .plan-chip i { font-style: normal; font-size: 13px; line-height: 1; }
+@media (hover: hover) and (pointer: fine) { .plan-chip:hover { filter: brightness(1.14); border-color: var(--stroke-strong); } }
+.plan-chip.done { opacity: .5; }
+.plan-chip.done span, .plan-chip.done { text-decoration: line-through; }
+.plan-chip.done i { text-decoration: none; }
+.plan-ms.next { border-color: var(--accent); box-shadow: var(--shadow), 0 0 0 1px var(--accent); }
+.plan-badge.next { color: var(--accent-soft); background: var(--accent-glow); }
+.plan-log { margin-top: 11px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: inherit; font-size: 12px; font-weight: 650; color: var(--accent-soft); background: transparent; border: 1px dashed var(--stroke); border-radius: 10px; padding: 8px; cursor: pointer; transition: background .15s, border-color .15s; }
+.plan-log svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) and (pointer: fine) { .plan-log:hover { background: var(--accent-glow); border-color: var(--accent-soft); } }
+.plan-setup-banner { display: flex; align-items: center; gap: 12px; padding: 13px 15px; margin-bottom: 12px; }
+.plan-setup-banner .r-ic { font-size: 20px; line-height: 1; }
+.plan-setup-banner h3 { font-size: 13.5px; font-weight: 700; }
+.plan-setup .ps-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.ps-check { display: flex; align-items: center; gap: 8px; flex: 1; font-size: 13px; cursor: pointer; }
+.ps-check input { width: auto; accent-color: var(--accent); }
+.ps-km { width: 100px; flex: none; }
 
 /* keep the 6 bottom-bar labels tidy on phones */
 .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

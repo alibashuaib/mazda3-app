@@ -40,9 +40,16 @@ const AR = {
   'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
   // milestone plan
-  'Plan': 'الخطة', 'Major service': 'صيانة رئيسية', 'mo': 'شهر', 'yr': 'سنة', 'Multi-point Inspection': 'فحص شامل متعدد النقاط',
-  "Manufacturer's scheduled maintenance for a new Mazda 3 (2.0 SkyActiv-G) — what to service at each 10,000 km. Times are estimated from your average driving.": 'جدول الصيانة الدوري من المصنّع لمازدا 3 جديدة (2.0 SkyActiv-G) — ما يجب صيانته عند كل 10,000 كم. الأوقات تقديرية حسب متوسط قيادتك.',
-  'In Jeddah heat & dust, your dealer may shorten oil to ~5,000–7,500 km and check filters and brakes more often. The cycle repeats after 120,000 km.': 'في حرّ وغبار جدة، قد يقصّر وكيلك تغيير الزيت إلى ~5,000–7,500 كم ويفحص الفلاتر والفرامل أكثر. تتكرر الدورة بعد 120,000 كم.',
+  'Plan': 'الخطة', 'Major service': 'صيانة رئيسية', 'mo': 'شهر', 'yr': 'سنة', 'Next up': 'التالي',
+  'Your maintenance plan by distance, built from your service list. Tap a task to log it, or log a whole milestone.': 'خطة الصيانة حسب المسافة، مبنية من قائمة خدماتك. اضغط على مهمة لتسجيلها، أو سجّل محطة كاملة.',
+  'Log this service': 'سجّل هذه الخدمة', 'Milestone logged ✓': 'تم تسجيل المحطة ✓', 'Milestone service': 'صيانة محطة',
+  'Show beyond': 'عرض ما بعد', 'Show your position': 'اعرض موضع سيارتك',
+  'Milestones come from your own service intervals — edit them under Schedule. In Jeddah heat, your dealer may service more often.': 'المحطات تأتي من فترات خدماتك — عدّلها من الجدول. في حرّ جدة، قد يخدم وكيلك بوتيرة أعلى.',
+  // first-time plan setup
+  'Set up your plan': 'إعداد خطتك', 'Set up': 'إعداد', 'Tell the plan which major services you’ve already done.': 'أخبر الخطة بالخدمات الرئيسية التي أنجزتها.',
+  'Tick the important services already done and roughly at what odometer — the plan adjusts to fit your car.': 'حدّد الخدمات المهمة المنجزة وعند أي عداد تقريباً — تتكيّف الخطة مع سيارتك.',
+  'No major services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات رئيسية في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
+  'Skip for now': 'تخطّي الآن', 'Plan updated': 'تم تحديث الخطة',
   // tiles (fuel / history / budget)
   'Last L/100km': 'آخر ل/100كم', 'Avg L/100km': 'متوسط ل/100كم', 'SAR / km': 'ريال/كم', 'Services logged': 'خدمات مسجلة',
   'SAR total': 'إجمالي الريال', 'Last service': 'آخر خدمة', 'OF BUDGET': 'من الميزانية', 'of budget': 'من الميزانية', 'Spent in 2026': 'المصروف في 2026',
@@ -627,6 +634,7 @@ let garage;
 function normalizeData(s) {
   s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
   ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+  if (typeof s.planSetupDone !== 'boolean') s.planSetupDone = false;
   return s;
 }
 function persistGarage() { try { localStorage.setItem(GKEY, JSON.stringify(garage)); } catch (e) {} }
@@ -831,33 +839,19 @@ function renderDashboard() {
 /* ============================================================
    PAGE 2 — MAINTENANCE
    ============================================================ */
-/* ---------- manufacturer "new-car" milestone plan (per 10,000 km) ----------
-   Mazda 3 2.0 SkyActiv-G scheduled maintenance, expressed on a 10,000 km cadence.
-   Item `km` = how often it recurs; a milestone lists every item whose interval
-   divides it. Reuses the built-in service names so translations carry over. */
-const PLAN_ITEMS = [
-  { name: 'Engine Oil & Filter', icon: '🛢️', km: 10000 },
-  { name: 'Tire Rotation & Balance', icon: '🔄', km: 10000 },
-  { name: 'Brake Inspection & Caliper Lube', icon: '🛑', km: 10000 },
-  { name: 'Multi-point Inspection', icon: '🔍', km: 10000 },
-  { name: 'Cabin (A/C) Filter', icon: '❄️', km: 20000 },
-  { name: 'Wheel Alignment', icon: '🎯', km: 20000 },
-  { name: 'Battery Check', icon: '🔋', km: 20000 },
-  { name: 'Throttle Body & MAF Cleaning', icon: '🧴', km: 30000 },
-  { name: 'Engine Air Filter', icon: '🌬️', km: 40000 },
-  { name: 'Brake Fluid', icon: '🩸', km: 40000 },
-  { name: 'Automatic Transmission Fluid', icon: '⚙️', km: 60000 },
-  { name: 'Fuel Filter', icon: '⛽', km: 80000 },
-  { name: 'Drive (Serpentine) Belt', icon: '🔗', km: 90000 },
-  { name: 'Spark Plugs (x4)', icon: '⚡', km: 120000 },
-  { name: 'Engine Coolant (FL22)', icon: '🌡️', km: 120000 }
-];
-function planMilestones() {
+/* ---------- service plan (milestones by distance) ----------
+   Built from THIS vehicle's own service list, so it fits any car and adapts
+   as the user edits their services (their "service manual"). A service appears
+   at each 10,000 km milestone in whose window (M-10000, M] it next comes due. */
+function planMilestones(maxKm) {
+  const step = 10000;
   const perMonthKm = (state.car.dailyKm || 0) * 30.44;
+  const svc = state.services.filter(s => s.intervalKm > 0);
   const out = [];
-  for (let km = 10000; km <= 160000; km += 10000) {
-    const items = PLAN_ITEMS.filter(it => km % it.km === 0);
-    out.push({ km, items, major: items.some(it => it.km >= 60000), months: perMonthKm ? Math.round(km / perMonthKm) : null });
+  for (let km = step; km <= maxKm; km += step) {
+    const items = svc.filter(s => Math.floor(km / s.intervalKm) * s.intervalKm > km - step);
+    if (!items.length) continue;
+    out.push({ km, items, major: items.some(s => s.intervalKm >= 60000), months: perMonthKm ? Math.round(km / perMonthKm) : null });
   }
   return out;
 }
@@ -883,35 +877,124 @@ function renderMaintenance() {
   return v;
 }
 
+let planShowAll = false;   // reveal milestones beyond the visible cap
+let planPrompted = false;  // auto-open first-time setup at most once per session
+const PLAN_VISIBLE_KM = 160000;
+
 function buildPlan(v) {
+  const odo = state.car.odometer || 0;
+
+  // first-time query — tell the plan what's already been serviced
+  if (!state.planSetupDone) {
+    const banner = el('div', 'card plan-setup-banner');
+    banner.innerHTML = `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
+    const b = el('button', 'btn', t('Set up'));
+    b.onclick = openPlanSetup;
+    banner.appendChild(b);
+    v.appendChild(banner);
+    if (!planPrompted) { planPrompted = true; setTimeout(openPlanSetup, 160); }
+  }
+
   const intro = el('p');
   intro.style.cssText = 'font-size:12.5px;line-height:1.55;color:var(--text-2);margin:2px 4px 14px';
-  intro.textContent = t("Manufacturer's scheduled maintenance for a new Mazda 3 (2.0 SkyActiv-G) — what to service at each 10,000 km. Times are estimated from your average driving.");
+  intro.textContent = t('Your maintenance plan by distance, built from your service list. Tap a task to log it, or log a whole milestone.');
   v.appendChild(intro);
 
+  const genMax = Math.min(500000, Math.max(PLAN_VISIBLE_KM, Math.ceil((odo + 40000) / 10000) * 10000));
+  const all = planMilestones(genMax);
+  const nextKm = Math.ceil((odo + 1) / 10000) * 10000;
+  const hasBeyond = all.some(m => m.km > PLAN_VISIBLE_KM);
+
   const wrap = el('div', 'plan-list');
-  planMilestones().forEach(ms => {
-    const card = el('div', 'card plan-ms' + (ms.major ? ' major' : ''));
+  all.forEach(ms => {
+    if (!planShowAll && ms.km > PLAN_VISIBLE_KM) return;
     const when = ms.months == null ? '' : ms.months < 24 ? `≈ ${ms.months} ${t('mo')}` : `≈ ${Math.round(ms.months / 12)} ${t('yr')}`;
+    const isNext = ms.km === nextKm;
+    const card = el('div', 'card plan-ms' + (ms.major ? ' major' : '') + (isNext ? ' next' : ''));
     card.innerHTML = `
       <div class="plan-ms-head">
         <div class="plan-km">${fmt(ms.km)}<span>km</span></div>
         <div class="plan-meta">
+          ${isNext ? `<span class="plan-badge next">${t('Next up')}</span>` : ''}
           ${ms.major ? `<span class="plan-badge">${t('Major service')}</span>` : ''}
           ${when ? `<span class="plan-when">${when}</span>` : ''}
         </div>
       </div>
       <div class="plan-items">
-        ${ms.items.map(it => `<span class="plan-chip"><i>${it.icon}</i>${t(it.name)}</span>`).join('')}
-      </div>`;
+        ${ms.items.map((s, i) => `<button class="plan-chip${(s.lastKm || 0) >= ms.km ? ' done' : ''}" data-i="${i}"><i>${s.icon || '🔧'}</i>${t(s.name)}</button>`).join('')}
+      </div>
+      <button class="plan-log">${iconSvg('check')}${t('Log this service')}</button>`;
+    card.querySelectorAll('.plan-chip').forEach(btn => btn.onclick = () => {
+      const s = ms.items[+btn.dataset.i];
+      openAddHistory(null, { name: s.name, icon: s.icon, cat: 'Maintenance', odometer: ms.km, cost: s.cost });
+    });
+    card.querySelector('.plan-log').onclick = () => { logMilestone(ms); go('maintenance'); toast(t('Milestone logged ✓')); };
     wrap.appendChild(card);
   });
   v.appendChild(wrap);
 
+  if (hasBeyond && !planShowAll) {
+    const more = el('button', 'btn block ghost',
+      odo > PLAN_VISIBLE_KM ? `${t('Show your position')} (${fmt(odo)} km) ›` : `${t('Show beyond')} ${fmt(PLAN_VISIBLE_KM)} km ›`);
+    more.style.marginTop = '12px';
+    more.onclick = () => { planShowAll = true; go('maintenance'); setTimeout(() => { const n = document.querySelector('.plan-ms.next'); if (n) n.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); };
+    v.appendChild(more);
+  }
+
   const note = el('div', 'card');
   note.style.cssText = 'padding:13px 15px;margin-top:12px;font-size:12px;line-height:1.55;color:var(--text-2)';
-  note.innerHTML = `💡 ${t('In Jeddah heat & dust, your dealer may shorten oil to ~5,000–7,500 km and check filters and brakes more often. The cycle repeats after 120,000 km.')}`;
+  note.innerHTML = `💡 ${t('Milestones come from your own service intervals — edit them under Schedule. In Jeddah heat, your dealer may service more often.')}`;
   v.appendChild(note);
+}
+
+function logMilestone(ms) {
+  const date = isoDate(TODAY);
+  let total = 0;
+  ms.items.forEach(s => {
+    s.lastKm = Math.max(s.lastKm || 0, ms.km);
+    s.lastDate = date;
+    state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date, odometer: ms.km, cost: s.cost || 0, cat: 'Maintenance', note: '' });
+    total += Number(s.cost || 0);
+  });
+  if (ms.km > (state.car.odometer || 0)) state.car.odometer = ms.km;
+  if (total > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Milestone service')} · ${fmt(ms.km)} km`, amount: total, odometer: ms.km });
+  save();
+}
+
+function openPlanSetup() {
+  const majors = state.services.filter(s => s.intervalKm >= 40000).sort((a, b) => a.intervalKm - b.intervalKm);
+  openModal('Set up your plan', 'Tick the important services already done and roughly at what odometer — the plan adjusts to fit your car.', card => {
+    if (!majors.length) card.appendChild(emptyState('🧭', 'No major services in your list yet.\nAdd some under Schedule first.'));
+    const rows = el('div', 'plan-setup');
+    majors.forEach(s => {
+      const row = el('div', 'ps-row');
+      row.innerHTML = `
+        <label class="ps-check"><input type="checkbox" data-id="${s.id}" ${s.lastKm > 0 ? 'checked' : ''}><span>${s.icon || '🔧'} ${t(s.name)}</span></label>
+        <input class="ps-km" type="number" inputmode="numeric" data-km="${s.id}" placeholder="km" value="${s.lastKm || ''}">`;
+      rows.appendChild(row);
+    });
+    card.appendChild(rows);
+    const b = el('button', 'btn primary block', t('Save'));
+    b.onclick = () => {
+      const dpk = state.car.dailyKm || 40;
+      majors.forEach(s => {
+        const chk = card.querySelector(`input[data-id="${s.id}"]`).checked;
+        const km = parseInt(card.querySelector(`input[data-km="${s.id}"]`).value, 10);
+        if (chk && !isNaN(km) && km > 0) {
+          s.lastKm = km;
+          const days = Math.max(0, ((state.car.odometer || km) - km) / dpk);
+          s.lastDate = isoDate(new Date(TODAY.getTime() - days * 86400000));
+        }
+      });
+      state.planSetupDone = true;
+      save(); closeModal(); go('maintenance'); toast(t('Plan updated'));
+    };
+    card.appendChild(b);
+    const skip = el('button', 'btn block ghost', t('Skip for now'));
+    skip.style.marginTop = '8px';
+    skip.onclick = () => { state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
+    card.appendChild(skip);
+  });
 }
 
 function buildSchedule(v) {
@@ -1849,20 +1932,21 @@ function markServiceDone(s) {
   save();
 }
 
-function openAddHistory(e) {
+function openAddHistory(e, prefill) {
   const editing = !!e;
+  const p = e || prefill || {}; // prefill = { name, icon, cat, odometer, cost } from the plan
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Other'];
   openModal(editing ? 'Edit service record' : 'Log a past service', editing ? '' : 'Record work already done on your car.', card => {
-    card.appendChild(field('Service', `<input id="h_name" value="${e ? e.name : ''}" placeholder="${t('e.g. Timing chain inspection')}">`));
+    card.appendChild(field('Service', `<input id="h_name" value="${p.name || ''}" placeholder="${t('e.g. Timing chain inspection')}">`));
     const r0 = el('div', 'field-row');
-    r0.append(field('Icon (emoji)', `<input id="h_icon" value="${e ? e.icon : '🔧'}" maxlength="2">`),
-      field('Category', `<select id="h_cat">${cats.map(c => `<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
+    r0.append(field('Icon (emoji)', `<input id="h_icon" value="${p.icon || '🔧'}" maxlength="2">`),
+      field('Category', `<select id="h_cat">${cats.map(c => `<option value="${c}" ${p.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
     r1.append(field('Date', `<input id="h_date" type="date" value="${e ? e.date : isoDate(TODAY)}">`),
-      field('Odometer (km)', `<input id="h_odo" type="number" value="${e ? e.odometer : state.car.odometer}">`));
+      field('Odometer (km)', `<input id="h_odo" type="number" value="${p.odometer != null ? p.odometer : state.car.odometer}">`));
     card.appendChild(r1);
-    card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${e ? e.cost : 0}">`));
+    card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${p.cost != null ? p.cost : 0}">`));
     card.appendChild(field('Note', `<textarea id="h_note" rows="2">${e ? (e.note || '') : ''}</textarea>`));
     let hphoto = e ? (e.photo || '') : '';
     card.appendChild(field('Receipt / invoice', ''));
