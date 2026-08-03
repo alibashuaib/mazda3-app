@@ -60,6 +60,10 @@ const AR = {
   'Which schedule fits your car?': 'ما الجدول الأنسب لسيارتك؟',
   'Jeddah heat & dust call for shorter intervals; the dealer sheet is the standard Mazda schedule.': 'حرارة وغبار جدة يتطلبان فترات أقصر؛ جدول الوكيل هو الجدول القياسي لمازدا.',
   'Current odometer': 'عداد السيارة الحالي', 'Keeps every due date and estimate accurate.': 'يحافظ على دقة كل تاريخ استحقاق وتقدير.',
+  'How much do you drive?': 'كم تقود يومياً؟',
+  'Used to turn km into calendar dates, and to adjust the plan to your driving style — a rough average is fine.': 'يُستخدم لتحويل الكيلومترات إلى تواريخ، ولتكييف الخطة مع أسلوب قيادتك — تقدير تقريبي يكفي.',
+  'Per day': 'باليوم', 'Per month': 'بالشهر', 'Average km': 'متوسط الكيلومترات', 'e.g. 40': 'مثال: 40',
+  'Enter your average driving distance': 'أدخل متوسط مسافة القيادة',
   'Have you had this done?': 'هل أُنجزت هذه الخدمة من قبل؟', 'Yes, done': 'نعم، أُنجزت', 'Not sure / skip': 'غير متأكد / تخطّي',
   'At what km (roughly)?': 'عند أي كم تقريباً؟', 'Enter your current odometer': 'أدخل عداد سيارتك الحالي',
   'Enter a km for this service': 'أدخل قراءة الكم لهذه الخدمة',
@@ -1041,8 +1045,10 @@ function openPlanSetup() {
   const answers = services.map(s => ({ s, choice: s.lastKm > 0 ? 'yes' : null, km: s.lastKm || '' }));
   let basis = state.severity === 'normal' ? 'normal' : 'severe';
   let odo = state.car.odometer || '';
+  let driveUnit = 'day';
+  let dailyKm = state.car.dailyKm || 40;
   let step = 0;
-  const totalSteps = 2 + services.length; // basis + odometer + one per service
+  const totalSteps = 3 + services.length; // basis + odometer + driving style + one per service
 
   openModal('Set up your plan', null, card => {
     const progress = el('div', 'wiz-progress');
@@ -1084,8 +1090,30 @@ function openPlanSetup() {
         const odoInput = $('#wiz_odo', body);
         odoInput.oninput = () => { odo = odoInput.value; odoInput.classList.remove('err'); };
         setTimeout(() => odoInput.focus(), 30);
+      } else if (step === 2) {
+        const displayVal = driveUnit === 'day' ? Math.round(dailyKm) : Math.round(dailyKm * 30);
+        body.innerHTML = `
+          <div class="item-ic">🛣️</div>
+          <h3>${t('How much do you drive?')}</h3>
+          <p>${t('Used to turn km into calendar dates, and to adjust the plan to your driving style — a rough average is fine.')}</p>
+          <div class="wiz-choice">
+            <button class="wiz-opt ${driveUnit === 'day' ? 'on' : ''}" data-v="day">${t('Per day')}</button>
+            <button class="wiz-opt ${driveUnit === 'month' ? 'on' : ''}" data-v="month">${t('Per month')}</button>
+          </div>
+          <div class="wiz-km">
+            <label>${t('Average km')}</label>
+            <input id="wiz_drive" type="number" inputmode="numeric" placeholder="${t('e.g. 40')}" value="${displayVal}">
+          </div>`;
+        const driveInput = $('#wiz_drive', body);
+        driveInput.oninput = () => {
+          driveInput.classList.remove('err');
+          const val = parseFloat(driveInput.value);
+          if (!isNaN(val) && val > 0) dailyKm = driveUnit === 'day' ? val : val / 30;
+        };
+        body.querySelectorAll('.wiz-opt').forEach(btn => btn.onclick = () => { driveUnit = btn.dataset.v; renderStep(); });
+        setTimeout(() => driveInput.focus(), 30);
       } else {
-        const a = answers[step - 2];
+        const a = answers[step - 3];
         const s = a.s;
         body.innerHTML = `
           <div class="item-ic">${s.icon || '🔧'}</div>
@@ -1111,11 +1139,16 @@ function openPlanSetup() {
       }
     }
 
-    function finish() {
-      const dpk = state.car.dailyKm || 40;
+    function applyGeneralSettings() {
       state.severity = basis;
       const finalOdo = parseInt(odo, 10);
       if (!isNaN(finalOdo) && finalOdo > 0) state.car.odometer = finalOdo;
+      if (dailyKm > 0) state.car.dailyKm = dailyKm;
+    }
+
+    function finish() {
+      applyGeneralSettings();
+      const dpk = state.car.dailyKm || 40;
       answers.forEach(a => {
         if (a.choice !== 'yes') return;
         const val = parseInt(a.km, 10);
@@ -1133,8 +1166,11 @@ function openPlanSetup() {
       if (step === 1) {
         const od = parseInt(odo, 10);
         if (isNaN(od) || od <= 0) { $('#wiz_odo', body).classList.add('err'); toast(t('Enter your current odometer'), 'warn'); return; }
-      } else if (step >= 2) {
-        const a = answers[step - 2];
+      } else if (step === 2) {
+        const val = parseFloat($('#wiz_drive', body).value);
+        if (isNaN(val) || val <= 0) { $('#wiz_drive', body).classList.add('err'); toast(t('Enter your average driving distance'), 'warn'); return; }
+      } else if (step >= 3) {
+        const a = answers[step - 3];
         if (a.choice === 'yes') {
           const val = parseInt(a.km, 10);
           if (isNaN(val) || val <= 0) { body.querySelector('.wiz-km input').classList.add('err'); toast(t('Enter a km for this service'), 'warn'); return; }
@@ -1143,7 +1179,7 @@ function openPlanSetup() {
       if (step === totalSteps - 1) { finish(); return; }
       step++; renderStep();
     };
-    skipAll.onclick = () => { state.severity = basis; state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
+    skipAll.onclick = () => { applyGeneralSettings(); state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
 
     renderStep();
   });
