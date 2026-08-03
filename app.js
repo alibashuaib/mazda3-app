@@ -16,6 +16,69 @@ const sar = n => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 })
 const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
 const parseDate = s => new Date(s + 'T00:00:00');
 const isoDate = d => d.toISOString().slice(0, 10);
+
+/* ============================================================
+   i18n — Arabic / English. t() keys on the English string, so any
+   string not yet in the dictionary safely falls back to English.
+   ============================================================ */
+let lang = 'en';
+const AR = {
+  // nav
+  'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Parts': 'القطع', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
+  // statuses / pills
+  'Overdue': 'متأخرة', 'Due soon': 'قريبة الاستحقاق', 'On track': 'على المسار', 'Active': 'الحالية', 'Switch ›': 'تبديل ›',
+  // dashboard tiles / labels
+  'SAR this year': 'ريال هذا العام', 'Health': 'الحالة', 'km left': 'كم متبقية', 'km over': 'كم تجاوز',
+  // page intros
+  'Your service schedule and full work history — tracked by distance and time.': 'جدول الصيانة وسجل الأعمال الكامل — حسب المسافة والوقت.',
+  'Car Parts': 'قطع السيارة', 'OEM parts with cheaper alternatives, prices and where to buy. Tap a part to compare.': 'قطع أصلية مع بدائل أرخص، الأسعار وأماكن الشراء. اضغط على قطعة للمقارنة.',
+  'Log fill-ups to track economy (L/100 km) and running cost.': 'سجّل التعبئة لتتبع الاستهلاك (ل/100كم) وتكلفة التشغيل.',
+  'Budget & Spending': 'الميزانية والمصروفات', 'Track what your Mazda costs to run and keep it in top shape.': 'تابع تكلفة تشغيل سيارتك وحافظ عليها بأفضل حال.',
+  'Generate a clean, printable A4 report — then Print or Save as PDF.': 'أنشئ تقرير A4 واضح للطباعة — ثم اطبعه أو احفظه PDF.',
+  // section titles + links
+  'Next up': 'التالي', 'Recommendations': 'التوصيات', 'Documents & renewals': 'الوثائق والتجديدات', 'Monthly spending': 'المصروف الشهري',
+  'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
+  'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
+  // tiles (fuel / history / budget)
+  'Last L/100km': 'آخر ل/100كم', 'Avg L/100km': 'متوسط ل/100كم', 'SAR / km': 'ريال/كم', 'Services logged': 'خدمات مسجلة',
+  'SAR total': 'إجمالي الريال', 'Last service': 'آخر خدمة', 'OF BUDGET': 'من الميزانية', 'of budget': 'من الميزانية', 'Spent in 2026': 'المصروف في 2026',
+  // filters / segments
+  'All': 'الكل', 'OK': 'سليمة',
+  // buttons
+  'Log a service': 'تسجيل خدمة', 'Add spending': 'إضافة مصروف', 'Add fill-up': 'إضافة تعبئة', 'Mark done now': 'تحديد كمنجز',
+  'Edit': 'تعديل', 'Save': 'حفظ', 'Add a part': 'إضافة قطعة', 'Add a custom service': 'إضافة خدمة مخصصة', 'Print / Save PDF': 'طباعة / حفظ PDF',
+  'Update mileage': 'تحديث العداد', 'Set annual budget': 'تعيين الميزانية السنوية', 'Add a vehicle': 'إضافة مركبة', 'Add option': 'إضافة خيار',
+  'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save changes': 'حفظ التغييرات', 'Save profile': 'حفظ الملف',
+  'Save part': 'حفظ القطعة', 'Remove': 'إزالة', 'Remove this vehicle': 'إزالة هذه المركبة', 'Delete': 'حذف',
+  // report types
+  'Service history': 'سجل الصيانة', 'Purchases': 'المشتريات', 'Full summary': 'ملخص كامل',
+  // built-in service names
+  'Engine Oil & Filter': 'زيت المحرك والفلتر', 'Tire Rotation & Balance': 'تدوير وموازنة الإطارات', 'Cabin (A/C) Filter': 'فلتر المكيف (المقصورة)',
+  'Engine Air Filter': 'فلتر هواء المحرك', 'Wheel Alignment': 'ضبط زوايا العجلات', 'Brake Fluid': 'زيت الفرامل',
+  'Automatic Transmission Fluid': 'زيت ناقل الحركة الأوتوماتيكي', 'Engine Coolant (FL22)': 'سائل تبريد المحرك (FL22)',
+  'Throttle Body & MAF Cleaning': 'تنظيف بوابة الخانق وحساس الهواء', 'Spark Plugs (x4)': 'بواجي الإشعال (×4)', 'Fuel Filter': 'فلتر الوقود',
+  'Drive (Serpentine) Belt': 'سير الإدارة', 'Battery Check': 'فحص البطارية', 'Brake Inspection & Caliper Lube': 'فحص الفرامل وتزييت الكاليبر',
+  'Suspension & Steering Inspection': 'فحص التعليق والتوجيه',
+  // care tips
+  'Oil every ~7,500 km': 'الزيت كل ~7,500 كم', 'Tire pressure 36 PSI': 'ضغط الإطارات 36 رطل', 'Battery every 2–3 years': 'البطارية كل 2–3 سنوات', 'Wash the underbody': 'اغسل أسفل السيارة',
+  // categories
+  'Engine': 'المحرك', 'Interior': 'الداخلية', 'Brakes': 'الفرامل', 'Exterior': 'الخارجية', 'Electrical': 'الكهرباء',
+  'Drivetrain': 'نقل الحركة', 'Suspension': 'التعليق', 'A/C': 'التكييف', 'Tires': 'الإطارات', 'General': 'عام',
+  // spending categories / doc types
+  'Insurance': 'التأمين', 'Registration (Istimara)': 'الاستمارة', 'Vehicle Inspection (Fahes)': 'الفحص الدوري',
+  'Driving License': 'رخصة القيادة', 'Warranty': 'الضمان', 'Other': 'أخرى',
+  // modal titles / subs
+  'Your garage': 'مرآبك', 'Switch between your vehicles or add another.': 'بدّل بين مركباتك أو أضف أخرى.',
+  'Car profile': 'ملف السيارة', 'Add fill-up ': 'إضافة تعبئة', 'Edit fill-up': 'تعديل التعبئة', 'Add document': 'إضافة وثيقة', 'Edit document': 'تعديل الوثيقة',
+  'Add spending ': 'إضافة مصروف', 'Edit expense': 'تعديل المصروف', 'Log a service ': 'تسجيل خدمة', 'Annual budget': 'الميزانية السنوية',
+  // common field labels
+  'Date': 'التاريخ', 'Odometer (km)': 'العداد (كم)', 'Litres': 'اللترات', 'Cost (SAR)': 'التكلفة (ريال)', 'Category': 'الفئة',
+  'Note': 'ملاحظة', 'Description': 'الوصف', 'Amount (SAR)': 'المبلغ (ريال)', 'Make': 'الصنع', 'Model': 'الطراز', 'Year': 'السنة',
+  'Color': 'اللون', 'Transmission': 'ناقل الحركة', 'Plate number': 'رقم اللوحة', 'Type': 'النوع', 'Tank': 'الخزان',
+  'Receipt / invoice': 'الإيصال / الفاتورة', 'Nickname (optional)': 'الاسم المختصر (اختياري)', 'Expiry date': 'تاريخ الانتهاء',
+  'Budget (SAR / year)': 'الميزانية (ريال / سنة)', 'Full tank': 'خزان ممتلئ', 'Partial fill': 'تعبئة جزئية', 'Add receipt photo': 'إضافة صورة إيصال'
+};
+function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
 const addMonths = (d, m) => { const x = new Date(d); x.setMonth(x.getMonth() + Math.round(m)); return x; };
 const relDate = d => {
@@ -591,7 +654,7 @@ function renderDashboard() {
       <div class="odo-value">${fmt(state.car.odometer)}<span>km</span></div>
       <button class="odo-edit" id="editOdo">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
-        Update mileage
+        ${t('Update mileage')}
       </button>
     </div>
     <div class="ring">
@@ -604,7 +667,7 @@ function renderDashboard() {
         <circle class="prog" cx="46" cy="46" r="40" fill="none" stroke-width="8"
           stroke-dasharray="${dash}" stroke-dashoffset="${dash * (1 - hs / 100)}"/>
       </svg>
-      <div class="ring-label"><div class="ring-num">${hs}</div><div class="ring-cap">Health</div></div>
+      <div class="ring-label"><div class="ring-num">${hs}</div><div class="ring-cap">${t('Health')}</div></div>
     </div>`;
   topRow.appendChild(hero);
   v.appendChild(topRow);
@@ -612,9 +675,9 @@ function renderDashboard() {
   // tiles — each links to the page it summarizes
   const tiles = el('div', 'tiles');
   tiles.innerHTML = `
-    <div class="tile ${overdue.length ? 'danger' : 'ok'}"><div class="t-num">${overdue.length}</div><div class="t-cap">Overdue</div></div>
-    <div class="tile ${soon.length ? 'warn' : 'ok'}"><div class="t-num">${soon.length}</div><div class="t-cap">Due soon</div></div>
-    <div class="tile"><div class="t-num">${sar(spent)}</div><div class="t-cap">SAR this year</div></div>`;
+    <div class="tile ${overdue.length ? 'danger' : 'ok'}"><div class="t-num">${overdue.length}</div><div class="t-cap">${t('Overdue')}</div></div>
+    <div class="tile ${soon.length ? 'warn' : 'ok'}"><div class="t-num">${soon.length}</div><div class="t-cap">${t('Due soon')}</div></div>
+    <div class="tile"><div class="t-num">${sar(spent)}</div><div class="t-cap">${t('SAR this year')}</div></div>`;
   tiles.children[0].onclick = () => go('maintenance', { filter: 'Overdue' });
   tiles.children[1].onclick = () => go('maintenance', { filter: 'Due soon' });
   tiles.children[2].onclick = () => go('budget');
@@ -637,9 +700,9 @@ function renderDashboard() {
 
   // quick actions
   const row = el('div', 'fab-row');
-  const bLog = el('button', 'btn primary block', iconSvg('check') + 'Log a service');
+  const bLog = el('button', 'btn primary block', iconSvg('check') + t('Log a service'));
   bLog.onclick = () => openLogService();
-  const bSpend = el('button', 'btn block', iconSvg('plus') + 'Add spending');
+  const bSpend = el('button', 'btn block', iconSvg('plus') + t('Add spending'));
   bSpend.onclick = () => openAddSpending();
   row.append(bLog, bSpend);
   v.appendChild(row);
@@ -665,7 +728,7 @@ function renderMaintenance() {
 
   const modeSeg = el('div', 'seg');
   ['Schedule', 'History'].forEach(m => {
-    const b = el('button', m === maintMode ? 'on' : '', m);
+    const b = el('button', m === maintMode ? 'on' : '', t(m));
     b.onclick = () => { if (maintMode === m) return; maintMode = m; [...modeSeg.children].forEach(c => c.classList.toggle('on', c === b)); paintMode(); };
     modeSeg.appendChild(b);
   });
@@ -684,7 +747,7 @@ function buildSchedule(v) {
   let active = (navIntent && filters.includes(navIntent.filter)) ? navIntent.filter : 'All';
   navIntent = null; // consumed
   filters.forEach(f => {
-    const b = el('button', f === active ? 'on' : '', f);
+    const b = el('button', f === active ? 'on' : '', t(f));
     b.onclick = () => { active = f; [...seg.children].forEach(c => c.classList.toggle('on', c === b)); paint(); };
     seg.appendChild(b);
   });
@@ -703,7 +766,7 @@ function buildSchedule(v) {
   }
   paint();
 
-  const add = el('button', 'btn block ghost', iconSvg('plus') + 'Add a custom service');
+  const add = el('button', 'btn block ghost', iconSvg('plus') + t('Add a custom service'));
   add.style.marginTop = '16px';
   add.onclick = () => openEditService(null);
   v.appendChild(add);
@@ -721,7 +784,7 @@ function buildHistory(v) {
     <div class="tile"><div class="t-num" style="font-size:15px;line-height:1.9">${last ? new Date(last.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'}</div><div class="t-cap">Last service</div></div>`;
   v.appendChild(tiles);
 
-  const add = el('button', 'btn block primary', iconSvg('plus') + 'Log a past service');
+  const add = el('button', 'btn block primary', iconSvg('plus') + t('Log a past service'));
   add.style.margin = '14px 0 6px';
   add.onclick = () => openAddHistory(null);
   v.appendChild(add);
@@ -750,12 +813,12 @@ function buildHistory(v) {
 
 function serviceItem(s, st, withBar) {
   const item = el('div', 'item');
-  const pillTxt = st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track';
-  const kmTxt = st.kmLeft <= 0 ? `${fmt(-st.kmLeft)} km over` : `${fmt(st.kmLeft)} km left`;
+  const pillTxt = t(st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track');
+  const kmTxt = st.kmLeft <= 0 ? `${fmt(-st.kmLeft)} ${t('km over')}` : `${fmt(st.kmLeft)} ${t('km left')}`;
   item.innerHTML = `
     <div class="item-ic">${s.icon || '🔧'}</div>
     <div class="item-main">
-      <h3>${s.name}</h3>
+      <h3>${t(s.name)}</h3>
       <p>${st.drivenByTime ? relDate(st.dueDate) + ' · ' : ''}${kmTxt}</p>
       ${withBar ? `<div class="bar ${st.level}"><span style="width:${clamp(st.prog, 0, 1) * 100}%"></span></div>` : ''}
     </div>
@@ -776,7 +839,7 @@ function renderParts() {
   const seg = el('div', 'seg');
   seg.style.flexWrap = 'wrap';
   cats.forEach(c => {
-    const b = el('button', c === active ? 'on' : '', c);
+    const b = el('button', c === active ? 'on' : '', t(c));
     b.onclick = () => { active = c; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
     seg.appendChild(b);
   });
@@ -800,7 +863,7 @@ function renderParts() {
     }, 60);
   }
 
-  const add = el('button', 'btn block ghost', iconSvg('plus') + 'Add a part');
+  const add = el('button', 'btn block ghost', iconSvg('plus') + t('Add a part'));
   add.style.marginTop = '16px';
   add.onclick = () => openEditPart(null);
   v.appendChild(add);
@@ -891,7 +954,7 @@ function renderBudget() {
       </div>
       <button class="odo-edit" id="editBudget" style="margin-top:8px">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
-        Set annual budget
+        ${t('Set annual budget')}
       </button>
     </div>`;
   v.appendChild(ring);
@@ -965,11 +1028,11 @@ function renderReports() {
   seg.style.flexWrap = 'wrap';
   const types = [['service', 'Service history'], ['purchases', 'Purchases'], ['summary', 'Full summary']];
   types.forEach(([k, label]) => {
-    const b = el('button', k === reportType ? 'on' : '', label);
+    const b = el('button', k === reportType ? 'on' : '', t(label));
     b.onclick = () => { reportType = k; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
     seg.appendChild(b);
   });
-  const printBtn = el('button', 'btn primary', `<svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>Print / Save PDF`);
+  const printBtn = el('button', 'btn primary', `<svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>${t('Print / Save PDF')}`);
   printBtn.onclick = () => window.print();
   toolbar.append(seg, printBtn);
   v.appendChild(toolbar);
@@ -1131,7 +1194,7 @@ function recommendations() {
     ['🔋', 'Battery every 2–3 years', 'Heat-related wear shortens battery life in Jeddah — plan to replace it every 2–3 years, and load-test it yearly.'],
     ['💧', 'Wash the underbody', "Wash the underbody occasionally to protect against corrosion from Jeddah's coastal salt air."]
   ];
-  tips.forEach(t => out.push(recCard(t[0], t[1], t[2])));
+  tips.forEach(tip => out.push(recCard(tip[0], t(tip[1]), t(tip[2]))));
   return out;
 }
 function recCard(ic, title, body) {
@@ -1173,9 +1236,9 @@ function renderFuel() {
 
   const tiles = el('div', 'tiles');
   tiles.innerHTML = `
-    <div class="tile"><div class="t-num">${last != null ? last.toFixed(1) : '—'}</div><div class="t-cap">Last L/100km</div></div>
-    <div class="tile"><div class="t-num">${avg != null ? avg.toFixed(1) : '—'}</div><div class="t-cap">Avg L/100km</div></div>
-    <div class="tile"><div class="t-num">${lastCPK != null ? lastCPK.toFixed(2) : '—'}</div><div class="t-cap">SAR / km</div></div>`;
+    <div class="tile"><div class="t-num">${last != null ? last.toFixed(1) : '—'}</div><div class="t-cap">${t('Last L/100km')}</div></div>
+    <div class="tile"><div class="t-num">${avg != null ? avg.toFixed(1) : '—'}</div><div class="t-cap">${t('Avg L/100km')}</div></div>
+    <div class="tile"><div class="t-num">${lastCPK != null ? lastCPK.toFixed(2) : '—'}</div><div class="t-cap">${t('SAR / km')}</div></div>`;
   v.appendChild(tiles);
 
   // economy-drop early warning → points to culprits already in the app
@@ -1186,7 +1249,7 @@ function renderFuel() {
     v.appendChild(warn);
   }
 
-  const add = el('button', 'btn primary block', iconSvg('plus') + 'Add fill-up');
+  const add = el('button', 'btn primary block', iconSvg('plus') + t('Add fill-up'));
   add.style.margin = '14px 0 4px';
   add.onclick = () => openAddFuel(null);
   v.appendChild(add);
@@ -1313,8 +1376,8 @@ function openAddDoc(d) {
 function openModal(title, sub, bodyBuilder) {
   const host = $('#modalHost'), card = $('#modalCard');
   card.innerHTML = '<div class="modal-grip"></div>';
-  const h = el('h2', null, title); card.appendChild(h);
-  if (sub) card.appendChild(el('p', 'sub', sub));
+  const h = el('h2', null, t(title)); card.appendChild(h);
+  if (sub) card.appendChild(el('p', 'sub', t(sub)));
   bodyBuilder(card);
   host.hidden = false;
   host.querySelector('[data-close]').onclick = closeModal;
@@ -1322,7 +1385,7 @@ function openModal(title, sub, bodyBuilder) {
 function closeModal() { $('#modalHost').hidden = true; }
 function field(label, inputHtml) {
   const f = el('div', 'field');
-  f.innerHTML = `<label>${label}</label>${inputHtml}`;
+  f.innerHTML = `<label>${t(label)}</label>${inputHtml}`;
   return f;
 }
 
@@ -1420,7 +1483,7 @@ function openGarage() {
       list.appendChild(it);
     });
     card.appendChild(list);
-    const add = el('button', 'btn primary block', iconSvg('plus') + 'Add a vehicle');
+    const add = el('button', 'btn primary block', iconSvg('plus') + t('Add a vehicle'));
     add.style.marginTop = '14px';
     add.onclick = () => addVehicle();
     card.appendChild(add);
@@ -1430,6 +1493,16 @@ function openGarage() {
 function openSettings() {
   openModal('Car profile', 'These details personalise the app and its badge.', card => {
     const c = state.car;
+    // language switch
+    card.appendChild(field('Language / اللغة', ''));
+    const langSeg = el('div', 'seg');
+    langSeg.style.margin = '0 0 16px';
+    [['en', 'English'], ['ar', 'العربية']].forEach(([code, label]) => {
+      const b = el('button', lang === code ? 'on' : '', label);
+      b.onclick = () => { if (lang !== code) { applyLang(code); closeModal(); openSettings(); } };
+      langSeg.appendChild(b);
+    });
+    card.appendChild(langSeg);
     let photo = c.photo || '';
 
     const picker = el('div', 'photo-picker');
@@ -1546,7 +1619,7 @@ function openEditBudget() {
 function openServiceDetail(s) {
   const st = serviceStatus(s);
   openModal(s.name, s.cat, card => {
-    const pillTxt = st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track';
+    const pillTxt = t(st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track');
     const box = el('div');
     box.innerHTML = `
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
@@ -1578,7 +1651,7 @@ function openServiceDetail(s) {
 
     const row = el('div', 'fab-row');
     row.style.marginTop = '18px';
-    const done = el('button', 'btn primary', iconSvg('check') + 'Mark done now');
+    const done = el('button', 'btn primary', iconSvg('check') + t('Mark done now'));
     done.style.flex = '1';
     done.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${s.name} logged ✓`); };
     const edit = el('button', 'btn', 'Edit');
@@ -1825,19 +1898,19 @@ function openEditPart(p) {
    ============================================================ */
 function sectionTitle(title, linkTxt, onLink) {
   const s = el('div', 'section-title');
-  s.appendChild(el('h2', null, title));
-  if (linkTxt && onLink) { const b = el('button', 'link', linkTxt); b.onclick = onLink; s.appendChild(b); }
+  s.appendChild(el('h2', null, t(title)));
+  if (linkTxt && onLink) { const b = el('button', 'link', t(linkTxt)); b.onclick = onLink; s.appendChild(b); }
   return s;
 }
 function pageIntro(title, sub) {
   const d = el('div');
   d.style.margin = '6px 4px 8px';
-  d.innerHTML = `<h2 style="font-size:22px;font-weight:800;letter-spacing:-.4px">${title}</h2><p class="muted" style="font-size:13px;margin-top:4px;line-height:1.5">${sub}</p>`;
+  d.innerHTML = `<h2 style="font-size:22px;font-weight:800;letter-spacing:-.4px">${t(title)}</h2><p class="muted" style="font-size:13px;margin-top:4px;line-height:1.5">${t(sub)}</p>`;
   return d;
 }
 function emptyState(emoji, txt) {
   const e = el('div', 'empty');
-  e.innerHTML = `<div class="e-emoji">${emoji}</div><p>${txt}</p>`;
+  e.innerHTML = `<div class="e-emoji">${emoji}</div><p>${t(txt)}</p>`;
   return e;
 }
 function iconSvg(name) {
@@ -1849,9 +1922,9 @@ function iconSvg(name) {
 }
 function toast(msg, kind) {
   const host = $('#toastHost');
-  const t = el('div', 'toast', `<span class="dot" style="background:${kind === 'warn' ? 'var(--warn)' : 'var(--ok)'}"></span>${msg}`);
-  host.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(10px)'; t.style.transition = '.3s'; setTimeout(() => t.remove(), 300); }, 2200);
+  const node = el('div', 'toast', `<span class="dot" style="background:${kind === 'warn' ? 'var(--warn)' : 'var(--ok)'}"></span>${t(msg)}`);
+  host.appendChild(node);
+  setTimeout(() => { node.style.opacity = '0'; node.style.transform = 'translateY(10px)'; node.style.transition = '.3s'; setTimeout(() => node.remove(), 300); }, 2200);
 }
 
 /* ---------- theme ---------- */
@@ -1867,6 +1940,25 @@ $('#themeToggle').onclick = () => {
   applyTheme(next);
   try { localStorage.setItem('garage.theme', next); } catch (e) {} // an explicit choice sticks
 };
+
+/* ---------- language (Arabic / English + RTL) ---------- */
+const NAV_KEYS = { dashboard: 'Dashboard', maintenance: 'Maintenance', parts: 'Parts', fuel: 'Fuel', budget: 'Budget', reports: 'Reports' };
+function applyNavLabels() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    const span = tab.querySelector('span'); const k = NAV_KEYS[tab.dataset.route];
+    if (span && k) span.textContent = t(k);
+  });
+}
+function applyLang(l) {
+  lang = l;
+  const root = document.documentElement;
+  root.setAttribute('lang', l);
+  root.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr');
+  try { localStorage.setItem('garage.lang', l); } catch (e) {}
+  applyNavLabels();
+  renderTopbar();
+  go(current);
+}
 // default to the OS preference; a saved choice (if any) wins
 applyTheme(localStorage.getItem('garage.theme') || systemTheme());
 // keep following the OS until the user picks a theme manually
@@ -1922,6 +2014,10 @@ function applyAccent() {
 $('#settingsBtn').onclick = openSettings;
 $('#openProfile').onclick = openSettings;
 $('#garageBtn').onclick = openGarage;
+lang = localStorage.getItem('garage.lang') || 'en';
+document.documentElement.setAttribute('lang', lang);
+document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+applyNavLabels();
 applyAccent();
 renderTopbar();
 go('dashboard');

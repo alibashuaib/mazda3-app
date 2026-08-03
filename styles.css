@@ -734,6 +734,17 @@ html { scroll-behavior: smooth; }
   .rpt-paper { max-width: none; width: auto; border: 0; border-radius: 0; box-shadow: none; padding: 0; }
 }
 
+/* ---- RTL (Arabic) — layout mostly mirrors via dir=rtl; fix the directional bits ---- */
+[dir="rtl"] .rec { border-left: 0; border-right: 3px solid var(--accent); }
+[dir="rtl"] .item-side { text-align: left; }
+[dir="rtl"] .tl-item::before { left: auto; right: 19px; }
+[dir="rtl"] .tl-year { margin-left: 0; margin-right: 54px; }
+[dir="rtl"] .odo-value span { margin-left: 0; margin-right: 4px; }
+[dir="rtl"] .cpb-ph small,
+[dir="rtl"] .car-card-cap { text-align: right; }
+/* keep the printable A4 report left-to-right regardless of UI language */
+[dir="rtl"] .rpt-paper { direction: ltr; text-align: left; }
+
 /* Honor reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
