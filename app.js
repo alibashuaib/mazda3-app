@@ -41,13 +41,14 @@ const AR = {
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
   // milestone plan
   'Plan': 'الخطة', 'Major service': 'صيانة رئيسية', 'mo': 'شهر', 'yr': 'سنة', 'Next up': 'التالي',
-  'Your maintenance plan by distance, built from your service list. Tap a task to log it, or log a whole milestone.': 'خطة الصيانة حسب المسافة، مبنية من قائمة خدماتك. اضغط على مهمة لتسجيلها، أو سجّل محطة كاملة.',
-  'Log this service': 'سجّل هذه الخدمة', 'Milestone logged ✓': 'تم تسجيل المحطة ✓', 'Milestone service': 'صيانة محطة',
-  'Show beyond': 'عرض ما بعد', 'Show your position': 'اعرض موضع سيارتك',
-  'Milestones come from your own service intervals — edit them under Schedule. In Jeddah heat, your dealer may service more often.': 'المحطات تأتي من فترات خدماتك — عدّلها من الجدول. في حرّ جدة، قد يخدم وكيلك بوتيرة أعلى.',
+  'What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.': 'ما هو قادم، مبني من خدماتك ومتى أُجريت كل منها آخر مرة. اضغط على مهمة لتسجيلها، أو سجّل زيارة كاملة.',
+  'Log this visit': 'سجّل هذه الزيارة', 'Visit logged ✓': 'تم تسجيل الزيارة ✓', 'Service visit': 'زيارة صيانة',
+  'Show later years': 'عرض السنوات القادمة', 'Nothing scheduled — you’re all caught up!': 'لا شيء مجدول — أنت محدّث بالكامل!',
+  'This adapts to when you actually service the car — log a task off its usual interval and the plan re-times itself. Edit intervals under Schedule.': 'يتكيّف هذا مع وقت صيانتك الفعلي للسيارة — سجّل مهمة خارج فترتها المعتادة وتعيد الخطة ضبط توقيتها. عدّل الفترات من الجدول.',
   // first-time plan setup
-  'Set up your plan': 'إعداد خطتك', 'Set up': 'إعداد', 'Tell the plan which major services you’ve already done.': 'أخبر الخطة بالخدمات الرئيسية التي أنجزتها.',
-  'Tick the important services already done and roughly at what odometer — the plan adjusts to fit your car.': 'حدّد الخدمات المهمة المنجزة وعند أي عداد تقريباً — تتكيّف الخطة مع سيارتك.',
+  'Set up your plan': 'إعداد خطتك', 'Set up': 'إعداد', 'Already done?': 'أُنجزت من قبل؟', 'e.g. 316,000': 'مثال: 316,000',
+  'Tell the plan which major services you’ve already done.': 'أخبر الخطة بالخدمات الرئيسية التي أنجزتها.',
+  'Confirm your current odometer, then tick the important services already done and roughly at what km — the plan adjusts to fit your car.': 'أكّد عداد سيارتك الحالي، ثم حدّد الخدمات المهمة المنجزة وعند أي كم تقريباً — تتكيّف الخطة مع سيارتك.',
   'No major services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات رئيسية في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
   'Skip for now': 'تخطّي الآن', 'Plan updated': 'تم تحديث الخطة',
   // tiles (fuel / history / budget)
@@ -839,21 +840,35 @@ function renderDashboard() {
 /* ============================================================
    PAGE 2 — MAINTENANCE
    ============================================================ */
-/* ---------- service plan (milestones by distance) ----------
-   Built from THIS vehicle's own service list, so it fits any car and adapts
-   as the user edits their services (their "service manual"). A service appears
-   at each 10,000 km milestone in whose window (M-10000, M] it next comes due. */
-function planMilestones(maxKm) {
+/* ---------- forward service plan (upcoming milestones, adapted to the car) ----------
+   Built from THIS vehicle's own services and their ACTUAL last-done point, so it
+   fits any car, projects forward from the current odometer, and self-adjusts when
+   a service was done off its recommended interval. Each service's future due points
+   (lastKm + n·interval) are grouped onto the nearest 10,000 km milestone, and every
+   milestone carries a projected calendar date from the car's average driving. */
+function planForward() {
   const step = 10000;
-  const perMonthKm = (state.car.dailyKm || 0) * 30.44;
-  const svc = state.services.filter(s => s.intervalKm > 0);
-  const out = [];
-  for (let km = step; km <= maxKm; km += step) {
-    const items = svc.filter(s => Math.floor(km / s.intervalKm) * s.intervalKm > km - step);
-    if (!items.length) continue;
-    out.push({ km, items, major: items.some(s => s.intervalKm >= 60000), months: perMonthKm ? Math.round(km / perMonthKm) : null });
-  }
-  return out;
+  const odo = state.car.odometer || 0;
+  const dpk = state.car.dailyKm || 40;
+  const firstGrid = Math.ceil((odo + 1) / step) * step;
+  const horizon = odo + 160000; // ~one full major cycle ahead
+  const buckets = {};
+  const add = (km, s) => { (buckets[km] = buckets[km] || []); if (!buckets[km].includes(s)) buckets[km].push(s); };
+  state.services.filter(s => s.intervalKm > 0).forEach(s => {
+    const st = serviceStatus(s);
+    let k = st.dueKm;                       // first upcoming due (lastKm + interval)
+    if (k < odo) {                          // overdue → show at the very next milestone, then continue
+      add(firstGrid, s);
+      k += Math.ceil((odo - k) / s.intervalKm) * s.intervalKm;
+    }
+    for (; k <= horizon; k += s.intervalKm) add(Math.max(firstGrid, Math.round(k / step) * step), s);
+  });
+  return Object.keys(buckets).map(Number).sort((a, b) => a - b).map(km => ({
+    km,
+    items: buckets[km],
+    major: buckets[km].some(s => s.intervalKm >= 60000),
+    date: new Date(TODAY.getTime() + Math.max(0, (km - odo) / dpk) * 86400000)
+  }));
 }
 
 let maintMode = 'Schedule'; // remembered across renders in the session
@@ -877,14 +892,11 @@ function renderMaintenance() {
   return v;
 }
 
-let planShowAll = false;   // reveal milestones beyond the visible cap
+let planShowAll = false;   // reveal milestones beyond the current year
 let planPrompted = false;  // auto-open first-time setup at most once per session
-const PLAN_VISIBLE_KM = 160000;
 
 function buildPlan(v) {
-  const odo = state.car.odometer || 0;
-
-  // first-time query — tell the plan what's already been serviced
+  // first-time query — tell the plan the current odometer + what's already been serviced
   if (!state.planSetupDone) {
     const banner = el('div', 'card plan-setup-banner');
     banner.innerHTML = `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
@@ -897,19 +909,20 @@ function buildPlan(v) {
 
   const intro = el('p');
   intro.style.cssText = 'font-size:12.5px;line-height:1.55;color:var(--text-2);margin:2px 4px 14px';
-  intro.textContent = t('Your maintenance plan by distance, built from your service list. Tap a task to log it, or log a whole milestone.');
+  intro.textContent = t('What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.');
   v.appendChild(intro);
 
-  const genMax = Math.min(500000, Math.max(PLAN_VISIBLE_KM, Math.ceil((odo + 40000) / 10000) * 10000));
-  const all = planMilestones(genMax);
-  const nextKm = Math.ceil((odo + 1) / 10000) * 10000;
-  const hasBeyond = all.some(m => m.km > PLAN_VISIBLE_KM);
+  const thisYear = TODAY.getFullYear();
+  const all = planForward();
+  // Default: only what's due within the current year (plus always the next one up).
+  const shown = planShowAll ? all : all.filter((m, i) => i === 0 || m.date.getFullYear() <= thisYear);
 
   const wrap = el('div', 'plan-list');
-  all.forEach(ms => {
-    if (!planShowAll && ms.km > PLAN_VISIBLE_KM) return;
-    const when = ms.months == null ? '' : ms.months < 24 ? `≈ ${ms.months} ${t('mo')}` : `≈ ${Math.round(ms.months / 12)} ${t('yr')}`;
-    const isNext = ms.km === nextKm;
+  let lastYear = null;
+  shown.forEach((ms, idx) => {
+    const yr = ms.date.getFullYear();
+    if (yr !== lastYear) { wrap.appendChild(el('div', 'plan-year', String(yr))); lastYear = yr; }
+    const isNext = idx === 0;
     const card = el('div', 'card plan-ms' + (ms.major ? ' major' : '') + (isNext ? ' next' : ''));
     card.innerHTML = `
       <div class="plan-ms-head">
@@ -917,54 +930,59 @@ function buildPlan(v) {
         <div class="plan-meta">
           ${isNext ? `<span class="plan-badge next">${t('Next up')}</span>` : ''}
           ${ms.major ? `<span class="plan-badge">${t('Major service')}</span>` : ''}
-          ${when ? `<span class="plan-when">${when}</span>` : ''}
+          <span class="plan-when">≈ ${ms.date.toLocaleDateString('en', { month: 'short', year: 'numeric' })}</span>
         </div>
       </div>
       <div class="plan-items">
-        ${ms.items.map((s, i) => `<button class="plan-chip${(s.lastKm || 0) >= ms.km ? ' done' : ''}" data-i="${i}"><i>${s.icon || '🔧'}</i>${t(s.name)}</button>`).join('')}
+        ${ms.items.map((s, i) => `<button class="plan-chip" data-i="${i}"><i>${s.icon || '🔧'}</i>${t(s.name)}</button>`).join('')}
       </div>
-      <button class="plan-log">${iconSvg('check')}${t('Log this service')}</button>`;
+      <button class="plan-log">${iconSvg('check')}${t('Log this visit')}</button>`;
     card.querySelectorAll('.plan-chip').forEach(btn => btn.onclick = () => {
       const s = ms.items[+btn.dataset.i];
-      openAddHistory(null, { name: s.name, icon: s.icon, cat: 'Maintenance', odometer: ms.km, cost: s.cost });
+      openAddHistory(null, { serviceId: s.id, name: s.name, icon: s.icon, cat: 'Maintenance', odometer: state.car.odometer, cost: s.cost });
     });
-    card.querySelector('.plan-log').onclick = () => { logMilestone(ms); go('maintenance'); toast(t('Milestone logged ✓')); };
+    card.querySelector('.plan-log').onclick = () => { logVisit(ms); go('maintenance'); toast(t('Visit logged ✓')); };
     wrap.appendChild(card);
   });
+  if (!shown.length) wrap.appendChild(emptyState('🗓️', 'Nothing scheduled — you’re all caught up!'));
   v.appendChild(wrap);
 
-  if (hasBeyond && !planShowAll) {
-    const more = el('button', 'btn block ghost',
-      odo > PLAN_VISIBLE_KM ? `${t('Show your position')} (${fmt(odo)} km) ›` : `${t('Show beyond')} ${fmt(PLAN_VISIBLE_KM)} km ›`);
+  if (!planShowAll && all.length > shown.length) {
+    const more = el('button', 'btn block ghost', `${t('Show later years')} ›`);
     more.style.marginTop = '12px';
-    more.onclick = () => { planShowAll = true; go('maintenance'); setTimeout(() => { const n = document.querySelector('.plan-ms.next'); if (n) n.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); };
+    more.onclick = () => { planShowAll = true; go('maintenance'); };
     v.appendChild(more);
   }
 
   const note = el('div', 'card');
   note.style.cssText = 'padding:13px 15px;margin-top:12px;font-size:12px;line-height:1.55;color:var(--text-2)';
-  note.innerHTML = `💡 ${t('Milestones come from your own service intervals — edit them under Schedule. In Jeddah heat, your dealer may service more often.')}`;
+  note.innerHTML = `💡 ${t('This adapts to when you actually service the car — log a task off its usual interval and the plan re-times itself. Edit intervals under Schedule.')}`;
   v.appendChild(note);
 }
 
-function logMilestone(ms) {
+// Log a whole visit as done NOW (at the current odometer) — resets those services' clocks.
+function logVisit(ms) {
   const date = isoDate(TODAY);
+  const odo = state.car.odometer || 0;
   let total = 0;
   ms.items.forEach(s => {
-    s.lastKm = Math.max(s.lastKm || 0, ms.km);
+    s.lastKm = odo;
     s.lastDate = date;
-    state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date, odometer: ms.km, cost: s.cost || 0, cat: 'Maintenance', note: '' });
+    state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date, odometer: odo, cost: s.cost || 0, cat: 'Maintenance', note: '' });
     total += Number(s.cost || 0);
   });
-  if (ms.km > (state.car.odometer || 0)) state.car.odometer = ms.km;
-  if (total > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Milestone service')} · ${fmt(ms.km)} km`, amount: total, odometer: ms.km });
+  if (total > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Service visit')} · ${fmt(odo)} km`, amount: total, odometer: odo });
   save();
 }
 
 function openPlanSetup() {
   const majors = state.services.filter(s => s.intervalKm >= 40000).sort((a, b) => a.intervalKm - b.intervalKm);
-  openModal('Set up your plan', 'Tick the important services already done and roughly at what odometer — the plan adjusts to fit your car.', card => {
+  openModal('Set up your plan', 'Confirm your current odometer, then tick the important services already done and roughly at what km — the plan adjusts to fit your car.', card => {
+    card.appendChild(field('Current odometer (km)', `<input id="ps_odo" type="number" inputmode="numeric" value="${state.car.odometer || ''}" placeholder="${t('e.g. 316,000')}">`));
     if (!majors.length) card.appendChild(emptyState('🧭', 'No major services in your list yet.\nAdd some under Schedule first.'));
+    const lbl = el('div'); lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-2);margin:4px 0 8px';
+    lbl.textContent = t('Already done?');
+    if (majors.length) card.appendChild(lbl);
     const rows = el('div', 'plan-setup');
     majors.forEach(s => {
       const row = el('div', 'ps-row');
@@ -976,6 +994,8 @@ function openPlanSetup() {
     card.appendChild(rows);
     const b = el('button', 'btn primary block', t('Save'));
     b.onclick = () => {
+      const od = parseInt($('#ps_odo').value, 10);
+      if (!isNaN(od) && od > 0) state.car.odometer = od;
       const dpk = state.car.dailyKm || 40;
       majors.forEach(s => {
         const chk = card.querySelector(`input[data-id="${s.id}"]`).checked;
@@ -1970,6 +1990,11 @@ function openAddHistory(e, prefill) {
       else {
         state.history.push(obj);
         if ($('#h_spend').checked && obj.cost > 0) state.spending.push({ id: uid(), date: obj.date, cat: obj.cat, desc: obj.name, amount: obj.cost, odometer: obj.odometer });
+        // logged from the plan → re-baseline that service so the plan re-times itself
+        if (prefill && prefill.serviceId) {
+          const sv = state.services.find(x => x.id === prefill.serviceId);
+          if (sv && obj.odometer > 0) { sv.lastKm = obj.odometer; sv.lastDate = obj.date; }
+        }
       }
       save(); closeModal(); go('maintenance'); toast(editing ? 'Record updated' : 'Service logged ✓');
     };

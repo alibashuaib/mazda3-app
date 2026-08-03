@@ -685,6 +685,8 @@ html { scroll-behavior: smooth; }
 
 /* ---- manufacturer milestone plan ---- */
 .plan-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.plan-year { font-size: 12px; font-weight: 800; color: var(--text-2); letter-spacing: .4px; margin: 8px 2px 2px; }
+.plan-year:first-child { margin-top: 0; }
 .plan-ms { padding: 14px 16px; }
 .plan-ms.major { box-shadow: var(--shadow), inset 3px 0 0 var(--accent); }
 [dir="rtl"] .plan-ms.major { box-shadow: var(--shadow), inset -3px 0 0 var(--accent); }
