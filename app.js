@@ -51,13 +51,15 @@ const AR = {
   'Log this visit': 'سجّل هذه الزيارة', 'Visit logged ✓': 'تم تسجيل الزيارة ✓', 'Service visit': 'زيارة صيانة',
   'Show later years': 'عرض السنوات القادمة', 'Nothing scheduled — you’re all caught up!': 'لا شيء مجدول — أنت محدّث بالكامل!',
   'This adapts to when you actually service the car — log a task off its usual interval and the plan re-times itself. Edit intervals under Schedule.': 'يتكيّف هذا مع وقت صيانتك الفعلي للسيارة — سجّل مهمة خارج فترتها المعتادة وتعيد الخطة ضبط توقيتها. عدّل الفترات من الجدول.',
-  // first-time plan setup
-  'Set up your plan': 'إعداد خطتك', 'Set up': 'إعداد', 'Already done?': 'أُنجزت من قبل؟', 'e.g. 316,000': 'مثال: 316,000',
+  // first-time plan setup — step-by-step wizard
+  'Set up your plan': 'إعداد خطتك', 'Set up': 'إعداد', 'e.g. 316,000': 'مثال: 316,000',
   'Tell the plan which major services you’ve already done.': 'أخبر الخطة بالخدمات الرئيسية التي أنجزتها.',
-  'Confirm your current odometer, then tick each service you’ve already done and roughly at what km — the plan adjusts to fit your car.': 'أكّد عداد سيارتك الحالي، ثم حدّد كل خدمة أنجزتها وعند أي كم تقريباً — تتكيّف الخطة مع سيارتك.',
   'No services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
-  'Major services': 'الخدمات الرئيسية', 'Regular services': 'الخدمات الدورية', 'Show all': 'عرض الكل', 'Hide': 'إخفاء',
-  'km': 'كم', 'Enter a km for each checked service': 'أدخل قراءة الكم لكل خدمة محدّدة',
+  'km': 'كم', 'Step': 'خطوة', 'of': 'من', 'Back': 'رجوع', 'Next': 'التالي', 'Finish': 'إنهاء',
+  'Current odometer': 'عداد السيارة الحالي', 'Keeps every due date and estimate accurate.': 'يحافظ على دقة كل تاريخ استحقاق وتقدير.',
+  'Have you had this done?': 'هل أُنجزت هذه الخدمة من قبل؟', 'Yes, done': 'نعم، أُنجزت', 'Not sure / skip': 'غير متأكد / تخطّي',
+  'At what km (roughly)?': 'عند أي كم تقريباً؟', 'Enter your current odometer': 'أدخل عداد سيارتك الحالي',
+  'Enter a km for this service': 'أدخل قراءة الكم لهذه الخدمة',
   'Skip for now': 'تخطّي الآن', 'Plan updated': 'تم تحديث الخطة',
   // tiles (fuel / history / budget)
   'Last L/100km': 'آخر ل/100كم', 'Avg L/100km': 'متوسط ل/100كم', 'SAR / km': 'ريال/كم', 'Services logged': 'خدمات مسجلة',
@@ -1038,79 +1040,116 @@ function logVisit(ms) {
   save();
 }
 
+/* Step-by-step wizard: one question at a time (odometer, then every
+   service — majors first) instead of one long form. Each service asks
+   "have you done this, and at what km" so the plan can be built from
+   real answers rather than the seed defaults. */
 function openPlanSetup() {
   const eligible = state.services.filter(s => svKm(s) > 0);
   const majors = eligible.filter(s => svKm(s) >= 40000).sort((a, b) => svKm(a) - svKm(b));
   const regulars = eligible.filter(s => svKm(s) < 40000).sort((a, b) => svKm(a) - svKm(b));
+  const services = [...majors, ...regulars];
+  const answers = services.map(s => ({ s, choice: s.lastKm > 0 ? 'yes' : null, km: s.lastKm || '' }));
+  let odo = state.car.odometer || '';
+  let step = 0;
+  const totalSteps = 1 + services.length;
 
-  openModal('Set up your plan', 'Confirm your current odometer, then tick each service you’ve already done and roughly at what km — the plan adjusts to fit your car.', card => {
-    card.appendChild(field('Current odometer (km)', `<input id="ps_odo" type="number" inputmode="numeric" value="${state.car.odometer || ''}" placeholder="${t('e.g. 316,000')}">`));
-    if (!eligible.length) card.appendChild(emptyState('🧭', 'No services in your list yet.\nAdd some under Schedule first.'));
-
-    const entries = []; // { s, chk, km }
-    function buildRow(container, s) {
-      const row = el('div', 'ps-row');
-      const done = s.lastKm > 0;
-      row.innerHTML = `
-        <div class="item-ic">${s.icon || '🔧'}</div>
-        <div class="ps-main"><h4>${t(s.name)}</h4></div>
-        <div class="ps-km-wrap">
-          <input class="ps-km" type="number" inputmode="numeric" placeholder="${t('km')}" value="${s.lastKm || ''}" ${done ? '' : 'disabled'}>
-          <label class="ps-check"><input type="checkbox" ${done ? 'checked' : ''}><span class="track"></span></label>
-        </div>`;
-      const chk = row.querySelector('input[type="checkbox"]');
-      const km = row.querySelector('.ps-km');
-      chk.onchange = () => { km.disabled = !chk.checked; km.classList.remove('err'); if (chk.checked) km.focus(); };
-      container.appendChild(row);
-      entries.push({ s, chk, km });
+  openModal('Set up your plan', null, card => {
+    if (!services.length) {
+      card.appendChild(emptyState('🧭', 'No services in your list yet.\nAdd some under Schedule first.'));
+      const skip0 = el('button', 'btn block ghost', t('Skip for now'));
+      skip0.onclick = () => { state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
+      card.appendChild(skip0);
+      return;
     }
 
-    if (majors.length) {
-      card.appendChild(el('div', 'plan-setup-label', t('Major services')));
-      const majorRows = el('div', 'plan-setup');
-      majors.forEach(s => buildRow(majorRows, s));
-      card.appendChild(majorRows);
-    }
-    if (regulars.length) {
-      card.appendChild(el('div', 'plan-setup-label', t('Regular services')));
-      const regRows = el('div', 'plan-setup');
-      regRows.style.display = 'none';
-      regulars.forEach(s => buildRow(regRows, s));
-      card.appendChild(regRows);
-      const more = el('button', 'btn block ghost plan-setup-more', `${t('Show all')} (${regulars.length}) ›`);
-      more.onclick = () => {
-        const open = regRows.style.display === 'none';
-        regRows.style.display = open ? '' : 'none';
-        more.textContent = open ? t('Hide') : `${t('Show all')} (${regulars.length}) ›`;
-      };
-      card.appendChild(more);
+    const progress = el('div', 'wiz-progress');
+    const bar = el('div', 'wiz-bar', '<span></span>');
+    const body = el('div', 'wiz-card');
+    const nav = el('div', 'wiz-nav');
+    const backBtn = el('button', 'btn ghost', t('Back'));
+    const nextBtn = el('button', 'btn primary', t('Next'));
+    nav.appendChild(backBtn); nav.appendChild(nextBtn);
+    const skipAll = el('button', 'btn block ghost wiz-skip', t('Skip for now'));
+    card.appendChild(progress); card.appendChild(bar); card.appendChild(body); card.appendChild(nav); card.appendChild(skipAll);
+
+    function renderStep() {
+      progress.textContent = `${t('Step')} ${step + 1} ${t('of')} ${totalSteps}`;
+      bar.firstElementChild.style.width = `${(step / (totalSteps - 1)) * 100}%`;
+      backBtn.style.visibility = step === 0 ? 'hidden' : '';
+      nextBtn.textContent = step === totalSteps - 1 ? t('Finish') : t('Next');
+      body.innerHTML = '';
+
+      if (step === 0) {
+        body.innerHTML = `
+          <div class="item-ic">🧭</div>
+          <h3>${t('Current odometer')}</h3>
+          <p>${t('Keeps every due date and estimate accurate.')}</p>
+          <div class="wiz-km"><input id="wiz_odo" type="number" inputmode="numeric" placeholder="${t('e.g. 316,000')}" value="${odo}"></div>`;
+        const odoInput = $('#wiz_odo', body);
+        odoInput.oninput = () => { odo = odoInput.value; odoInput.classList.remove('err'); };
+        setTimeout(() => odoInput.focus(), 30);
+      } else {
+        const a = answers[step - 1];
+        const s = a.s;
+        body.innerHTML = `
+          <div class="item-ic">${s.icon || '🔧'}</div>
+          <h3>${t(s.name)}</h3>
+          <p>${t('Have you had this done?')}</p>
+          <div class="wiz-choice">
+            <button class="wiz-opt ${a.choice === 'yes' ? 'on' : ''}" data-v="yes">${t('Yes, done')}</button>
+            <button class="wiz-opt ${a.choice === 'skip' ? 'on' : ''}" data-v="skip">${t('Not sure / skip')}</button>
+          </div>
+          <div class="wiz-km"${a.choice === 'yes' ? '' : ' hidden'}>
+            <label>${t('At what km (roughly)?')}</label>
+            <input type="number" inputmode="numeric" placeholder="${t('km')}" value="${a.km}">
+          </div>`;
+        const kmWrap = body.querySelector('.wiz-km');
+        const kmInput = kmWrap.querySelector('input');
+        kmInput.oninput = () => { a.km = kmInput.value; kmInput.classList.remove('err'); };
+        body.querySelectorAll('.wiz-opt').forEach(btn => btn.onclick = () => {
+          a.choice = btn.dataset.v;
+          body.querySelectorAll('.wiz-opt').forEach(b => b.classList.toggle('on', b === btn));
+          kmWrap.hidden = a.choice !== 'yes';
+          if (a.choice === 'yes') kmInput.focus();
+        });
+      }
     }
 
-    const b = el('button', 'btn primary block', t('Save'));
-    b.style.marginTop = '16px';
-    b.onclick = () => {
-      const od = parseInt($('#ps_odo').value, 10);
-      if (!isNaN(od) && od > 0) state.car.odometer = od;
+    function finish() {
       const dpk = state.car.dailyKm || 40;
-      let invalid = 0;
-      entries.forEach(({ s, chk, km }) => {
-        if (!chk.checked) return;
-        const val = parseInt(km.value, 10);
-        if (isNaN(val) || val <= 0) { km.classList.add('err'); invalid++; return; }
-        km.classList.remove('err');
-        s.lastKm = val;
+      const finalOdo = parseInt(odo, 10);
+      if (!isNaN(finalOdo) && finalOdo > 0) state.car.odometer = finalOdo;
+      answers.forEach(a => {
+        if (a.choice !== 'yes') return;
+        const val = parseInt(a.km, 10);
+        if (isNaN(val) || val <= 0) return;
+        a.s.lastKm = val;
         const days = Math.max(0, ((state.car.odometer || val) - val) / dpk);
-        s.lastDate = isoDate(new Date(TODAY.getTime() - days * 86400000));
+        a.s.lastDate = isoDate(new Date(TODAY.getTime() - days * 86400000));
       });
-      if (invalid) { toast(t('Enter a km for each checked service'), 'warn'); return; }
       state.planSetupDone = true;
       save(); closeModal(); go('maintenance'); toast(t('Plan updated'));
+    }
+
+    backBtn.onclick = () => { if (step > 0) { step--; renderStep(); } };
+    nextBtn.onclick = () => {
+      if (step === 0) {
+        const od = parseInt(odo, 10);
+        if (isNaN(od) || od <= 0) { $('#wiz_odo', body).classList.add('err'); toast(t('Enter your current odometer'), 'warn'); return; }
+        step++; renderStep(); return;
+      }
+      const a = answers[step - 1];
+      if (a.choice === 'yes') {
+        const val = parseInt(a.km, 10);
+        if (isNaN(val) || val <= 0) { body.querySelector('.wiz-km input').classList.add('err'); toast(t('Enter a km for this service'), 'warn'); return; }
+      }
+      if (step === totalSteps - 1) { finish(); return; }
+      step++; renderStep();
     };
-    card.appendChild(b);
-    const skip = el('button', 'btn block ghost', t('Skip for now'));
-    skip.style.marginTop = '8px';
-    skip.onclick = () => { state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
-    card.appendChild(skip);
+    skipAll.onclick = () => { state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
+
+    renderStep();
   });
 }
 
