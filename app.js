@@ -956,7 +956,6 @@ function renderMaintenance() {
 }
 
 let planShowAll = false;   // reveal milestones beyond the current year
-let scheduleShowAll = false; // reveal Schedule items due beyond the current year
 
 function buildPlan(v) {
   const intro = el('p');
@@ -1164,23 +1163,13 @@ function buildSchedule(v) {
 
   const tl = el('div', 'timeline');
   v.appendChild(tl);
-  const more = el('button', 'btn block ghost');
-  more.style.marginTop = '12px';
-  more.onclick = () => { scheduleShowAll = true; paint(); };
-  v.appendChild(more);
 
   function paint() {
     tl.innerHTML = '';
-    const thisYear = TODAY.getFullYear();
     let items = servicesRanked();
     if (active === 'Overdue') items = items.filter(r => r.st.level === 'danger');
     else if (active === 'Due soon') items = items.filter(r => r.st.level === 'warn');
     else if (active === 'OK') items = items.filter(r => r.st.level === 'ok');
-    // by default, only surface what's due this year — overdue/due-soon items always show regardless of year
-    const laterCount = items.filter(r => r.st.level === 'ok' && r.st.dueDate.getFullYear() > thisYear).length;
-    if (!scheduleShowAll) items = items.filter(r => r.st.level !== 'ok' || r.st.dueDate.getFullYear() <= thisYear);
-    more.style.display = (!scheduleShowAll && laterCount) ? '' : 'none';
-    more.textContent = `${t('Show later years')} (${laterCount}) ›`;
     if (!items.length) { tl.appendChild(emptyState('🎉', 'Nothing here — all good!')); return; }
 
     // chronological — soonest due first, which naturally leads with overdue items (their due date already passed)
