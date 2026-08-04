@@ -1046,7 +1046,7 @@ function planForward() {
   const odo = state.car.odometer || 0;
   const dpk = state.car.dailyKm || 40;
   const firstGrid = Math.ceil((odo + 1) / step) * step;
-  const horizon = odo + 160000; // ~one full major cycle ahead
+  const horizon = odo + 300000; // far enough that recurring services (ATF 60–80k, etc.) repeat for years
   const buckets = {};
   const add = (km, s) => { (buckets[km] = buckets[km] || []); if (!buckets[km].includes(s)) buckets[km].push(s); };
   state.services.filter(s => svKm(s) > 0).forEach(s => {
