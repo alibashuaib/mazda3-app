@@ -79,6 +79,8 @@ const AR = {
   'Single service': 'خدمة واحدة', 'Pick one thing you just had done.': 'اختر شيئاً واحداً أنجزته للتو.', 'Choose': 'اختيار',
   'Plan visit': 'زيارة الخطة', 'A group of services from your plan, done together.': 'مجموعة خدمات من خطتك، أُنجزت معاً.',
   'Log a plan visit': 'تسجيل زيارة الخطة', 'Pick an upcoming group of services — logs everything in it at once.': 'اختر مجموعة خدمات قادمة — يسجّل كل ما فيها دفعة واحدة.',
+  'Log it': 'سجّلها', 'No linked parts': 'لا توجد قطع مرتبطة',
+  'Pick the parts you used (OEM or alternative), then log it.': 'اختر القطع التي استخدمتها (أصلية أو بديلة)، ثم سجّلها.',
   'Log ›': 'تسجيل ›',
   'Edit': 'تعديل', 'Save': 'حفظ', 'Add a part': 'إضافة قطعة', 'Add a custom service': 'إضافة خدمة مخصصة', 'Print / Save PDF': 'طباعة / حفظ PDF',
   'Update mileage': 'تحديث العداد', 'Set annual budget': 'تعيين الميزانية السنوية', 'Add a vehicle': 'إضافة مركبة', 'Add option': 'إضافة خيار',
@@ -1128,9 +1130,9 @@ function buildPlan(v) {
       <button class="plan-log">${iconSvg('check')}${t('Log this visit')}</button>`;
     card.querySelectorAll('.plan-chip').forEach(btn => btn.onclick = () => {
       const s = ms.items[+btn.dataset.i];
-      openAddHistory(null, { serviceId: s.id, name: s.name, icon: s.icon, cat: 'Maintenance', odometer: state.car.odometer, cost: s.cost });
+      openLogConfirm([s], { onDone: () => { go('maintenance'); toast(`${t(s.name)} ${t('logged ✓')}`); } });
     });
-    card.querySelector('.plan-log').onclick = () => { logVisit(ms); go('maintenance'); toast(t('Visit logged ✓')); };
+    card.querySelector('.plan-log').onclick = () => openLogConfirm(ms.items, { onDone: () => { go('maintenance'); toast(t('Visit logged ✓')); } });
     wrap.appendChild(card);
   });
   if (!shown.length) wrap.appendChild(emptyState('🗓️', 'Nothing scheduled — you’re all caught up!'));
@@ -1162,6 +1164,75 @@ function logVisit(ms) {
   });
   if (total > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Service visit')} · ${fmt(odo)} km`, amount: total, odometer: odo });
   save();
+}
+
+/* Confirm-and-log a service or a whole plan visit, letting the user choose which
+   catalogue part (OEM or Alternative) they actually used for each linked part.
+   The picked option's price drives the cost; any labour baked into the service's
+   estimate (est. cost − default parts) is preserved. */
+function openLogConfirm(services, opts) {
+  opts = opts || {};
+  const defIdx = p => { const i = p.options.findIndex(o => o.tag === 'OEM'); return i >= 0 ? i : 0; };
+  const laborShare = svc => { const lp = partsForService(svc); if (!lp.length) return 0; const dflt = lp.reduce((a, p) => a + Number(p.options[defIdx(p)].price || 0), 0); return Math.max(0, Number(svc.cost || 0) - dflt); };
+  openModal(opts.title || (services.length > 1 ? 'Log a plan visit' : services[0].name),
+    opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
+      const r = el('div', 'field-row');
+      r.append(field('Odometer (km)', `<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : state.car.odometer}">`),
+        field('Date', `<input id="lc_date" type="date" value="${isoDate(TODAY)}">`));
+      card.appendChild(r);
+
+      const picks = new Map(); // `${part.id}:${svc.id}` -> <select>
+      services.forEach(svc => {
+        const lp = partsForService(svc);
+        const block = el('div');
+        block.innerHTML = `<div style="font-size:12.5px;font-weight:700;margin:12px 2px 6px">${svc.icon || '🔧'} ${t(svc.name)}</div>`;
+        if (!lp.length) {
+          const d = el('div', 'muted'); d.style.cssText = 'font-size:12px;margin:0 2px 4px';
+          d.textContent = `${t('No linked parts')} · ${sar(svc.cost || 0)} SAR`;
+          block.appendChild(d);
+        }
+        lp.forEach(p => {
+          const optsHtml = p.options.map((o, i) => `<option value="${i}">${o.tag} · ${o.brand} · ${sar(o.price)} SAR</option>`).join('');
+          const f = field(t(p.name), `<select>${optsHtml}</select>`);
+          const sel = f.querySelector('select');
+          sel.value = String(defIdx(p));
+          sel.onchange = recalc;
+          picks.set(p.id + ':' + svc.id, { svc, part: p, sel });
+          block.appendChild(f);
+        });
+        card.appendChild(block);
+      });
+
+      const totalEl = el('div');
+      totalEl.style.cssText = 'font-weight:750;font-size:14px;margin:12px 2px 2px';
+      function svcCost(svc) {
+        const lp = partsForService(svc);
+        if (!lp.length) return Number(svc.cost || 0);
+        let sum = 0; lp.forEach(p => { sum += Number(p.options[+picks.get(p.id + ':' + svc.id).sel.value].price || 0); });
+        return sum + laborShare(svc);
+      }
+      function recalc() { totalEl.textContent = `${t('Total')}: ${sar(services.reduce((a, svc) => a + svcCost(svc), 0))} SAR`; }
+      recalc();
+      card.appendChild(totalEl);
+
+      const b = el('button', 'btn primary block', iconSvg('check') + t('Log it'));
+      b.onclick = () => {
+        const odo = +$('#lc_odo').value || state.car.odometer;
+        const date = $('#lc_date').value || isoDate(TODAY);
+        let grand = 0;
+        services.forEach(svc => {
+          svc.lastKm = odo; svc.lastDate = date;
+          const chosen = partsForService(svc).map(p => { const o = p.options[+picks.get(p.id + ':' + svc.id).sel.value]; return { part: p.name, tag: o.tag, brand: o.brand, price: o.price }; });
+          const cost = svcCost(svc); grand += cost;
+          state.history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
+        });
+        if (grand > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: services.length > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : services[0].name, amount: grand, odometer: odo });
+        if (odo > (state.car.odometer || 0)) state.car.odometer = odo;
+        save(); closeModal();
+        (opts.onDone || (() => { go('maintenance'); toast(t(services.length > 1 ? 'Visit logged ✓' : 'Service logged ✓')); }))();
+      };
+      card.appendChild(b);
+    });
 }
 
 /* Step-by-step wizard: one question at a time — schedule basis, odometer,
@@ -2273,7 +2344,7 @@ function openServiceDetail(s) {
     row.style.marginTop = '18px';
     const done = el('button', 'btn primary', iconSvg('check') + t('Mark done now'));
     done.style.flex = '1';
-    done.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${t(s.name)} ${t('logged ✓')}`); };
+    done.onclick = () => { closeModal(); openLogConfirm([s], { onDone: () => { go(current); toast(`${t(s.name)} ${t('logged ✓')}`); } }); };
     const edit = el('button', 'btn', t('Edit'));
     edit.onclick = () => openEditService(s);
     row.append(done, edit);
@@ -2417,7 +2488,7 @@ function openLogSingleService() {
     const list = el('div', 'list');
     servicesRanked().forEach(({ s, st }) => {
       const it = serviceItem(s, st);
-      it.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${t(s.name)} ${t('logged ✓')}`); };
+      it.onclick = () => { closeModal(); openLogConfirm([s], { onDone: () => { go(current); toast(`${t(s.name)} ${t('logged ✓')}`); } }); };
       list.appendChild(it);
     });
     card.appendChild(list);
@@ -2435,7 +2506,7 @@ function openLogPlanVisit() {
         <div class="item-ic">${ms.major ? '🛠️' : '🗓️'}</div>
         <div class="item-main"><h3>${fmt(ms.km)} km${ms.major ? ' · ' + t('Major service') : ''}</h3><p>${ms.items.map(s => t(s.name)).join(', ')}</p></div>
         <div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Log ›')}</span></div>`;
-      it.onclick = () => { logVisit(ms); closeModal(); go('maintenance'); toast(t('Visit logged ✓')); };
+      it.onclick = () => { closeModal(); openLogConfirm(ms.items, { onDone: () => { go('maintenance'); toast(t('Visit logged ✓')); } }); };
       list.appendChild(it);
     });
     card.appendChild(list);
