@@ -361,11 +361,8 @@ function seed() {
     // recurring services: intervals in km & months
     services: [
       { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', cat: 'Engine',
-        intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 260,
-        note: '5W-30 (API SP / ILSAC GF-6A) full synthetic — 4.2 L with filter, 4.0 L without. Every 7,500 km / 6 mo for Jeddah heat, dust & city driving.' },
-      { id: uid(), name: 'Fuel System Cleaner', icon: '🧪', cat: 'Engine',
-        intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 45,
-        note: 'Added to the tank at every oil change (dealer sheet) — keeps injectors and intake valves clean against Jeddah\'s dust and short city trips.' },
+        intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 305,
+        note: '5W-30 (API SP / ILSAC GF-6A) full synthetic — 4.2 L with filter, 4.0 L without. Every 7,500 km / 6 mo for Jeddah heat, dust & city driving. Add a fuel-system cleaner to the tank each change — mandatory for the direct-injection SkyActiv-G to keep injectors/intake valves clean.' },
       { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', cat: 'Tires',
         intervalKm: 10000, intervalMonths: 12, lastKm: 309000, lastDate: '2026-03-01', cost: 80,
         note: 'Rotate front/rear and rebalance to even out wear.' },
@@ -776,7 +773,6 @@ let garage;
    [normalKm, normalMonths] keyed by built-in service name. */
 const NORMAL_SCHED = {
   'Engine Oil & Filter': [10000, 12],
-  'Fuel System Cleaner': [10000, 12], // added at every oil change, so it tracks the same dealer interval
   'Cabin (A/C) Filter': [20000, 12],
   'Engine Air Filter': [40000, 24],
   'Fuel Filter': [120000, 72]
@@ -803,18 +799,20 @@ function fuelSystemCleanerPart() {
     { tag: 'ALT', brand: 'Liqui Moly Fuel System Cleaner', partNo: '', price: 40, store: 'noon' }
   ] };
 }
-function fuelSystemCleanerService(odo) {
-  return { id: uid(), name: 'Fuel System Cleaner', icon: '🧪', cat: 'Engine',
-    intervalKm: 7500, intervalMonths: 6, lastKm: odo || 0, lastDate: isoDate(TODAY), cost: 45,
-    note: 'Added to the tank at every oil change (dealer sheet) — keeps injectors and intake valves clean against Jeddah\'s dust and short city trips.' };
-}
 function normalizeData(s) {
   s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
   ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (typeof s.planSetupDone !== 'boolean') s.planSetupDone = false;
   if (s.severity !== 'normal' && s.severity !== 'severe') s.severity = 'severe'; // Jeddah default
-  // Fuel System Cleaner — added at every oil change per the dealer sheet; idempotent, reaches existing vehicles too
-  if (!s.services.some(sv => sv.name === 'Fuel System Cleaner')) s.services.push(fuelSystemCleanerService(s.car.odometer));
+  // Fuel System Cleaner is now a PART of every oil change (mandatory for the direct-injection
+  // SkyActiv-G), not a standalone service. Retire the old standalone line and fold its cost
+  // into the oil change. Idempotent — only fires while the standalone still exists.
+  const fscIdx = s.services.findIndex(sv => sv.name === 'Fuel System Cleaner');
+  if (fscIdx >= 0) {
+    s.services.splice(fscIdx, 1);
+    const oil = s.services.find(sv => sv.name === 'Engine Oil & Filter');
+    if (oil) oil.cost = Number(oil.cost || 0) + 45;
+  }
   if (!s.parts.some(p => p.name === 'Fuel System Cleaner (additive)')) s.parts.push(fuelSystemCleanerPart());
   s.services.forEach(sv => { // seed dealer intervals where they differ from severe
     if (sv.normalKm == null && NORMAL_SCHED[sv.name]) { sv.normalKm = NORMAL_SCHED[sv.name][0]; sv.normalMonths = NORMAL_SCHED[sv.name][1]; }
@@ -923,8 +921,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
 
 /* ---------- cross-page links: which parts each service consumes ---------- */
 const SERVICE_PARTS = {
-  'Engine Oil & Filter': ['Engine Oil 5W-30 (4L)', 'Oil Filter'],
-  'Fuel System Cleaner': ['Fuel System Cleaner (additive)'],
+  'Engine Oil & Filter': ['Engine Oil 5W-30 (4L)', 'Oil Filter', 'Fuel System Cleaner (additive)'],
   'Engine Air Filter': ['Engine Air Filter'],
   'Cabin (A/C) Filter': ['Cabin A/C Filter'],
   'Spark Plugs (x4)': ['Spark Plugs (each)'],
