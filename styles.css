@@ -821,7 +821,6 @@ html { scroll-behavior: smooth; }
 .rpt-table td { padding: 9px 8px; border-bottom: 1px solid #eceef1; vertical-align: top; color: #14161c; }
 .rpt-table th.num, .rpt-table td.num { text-align: right; white-space: nowrap; }
 .rpt-table tfoot td { font-weight: 800; border-top: 2px solid #14161c; border-bottom: 0; padding-top: 11px; }
-.rpt-table tr.rpt-group td { font-weight: 800; font-size: 12px; color: #14161c; background: #f1f3f6; border-bottom: 1.5px solid #d9dde3; padding: 7px 8px; letter-spacing: .3px; }
 .rpt-foot { margin-top: 26px; padding-top: 12px; border-top: 1px solid #eceef1; display: flex; justify-content: space-between; font-size: 10.5px; color: #8b93a3; }
 .rpt-empty { padding: 34px; text-align: center; color: #8b93a3; }
 

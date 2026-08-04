@@ -82,10 +82,6 @@ const AR = {
   'Log it': 'سجّلها', 'No linked parts': 'لا توجد قطع مرتبطة',
   'Pick the parts you used (OEM or alternative), then log it.': 'اختر القطع التي استخدمتها (أصلية أو بديلة)، ثم سجّلها.',
   'Done': 'تمّت', 'Not yet': 'ليس بعد', 'Carried to your next visit': 'مُرحّلة إلى زيارتك القادمة',
-  // service plan report
-  'Service plan': 'خطة الصيانة', 'Service Plan Report': 'تقرير خطة الصيانة', 'Upcoming visits': 'الزيارات القادمة', 'Major services': 'الخدمات الرئيسية',
-  'Est. total (SAR)': 'الإجمالي التقديري (ريال)', 'Upcoming maintenance by distance': 'الصيانة القادمة حسب المسافة', 'When': 'الموعد', 'Major': 'رئيسية', 'Basis': 'الأساس',
-  'Projected from the current odometer and your average driving — dates shift as you log services.': 'مُقدّرة من العداد الحالي ومتوسط قيادتك — تتغيّر التواريخ عند تسجيل الخدمات.',
   'None — not done': 'لا شيء — لم تُنفّذ', 'Skipped last time — do it now': 'تُخطّيت آخر مرة — نفّذها الآن', 'Do next service': 'نفّذها في الخدمة القادمة',
   'part(s) to redo next service': 'قطعة لإعادتها في الخدمة القادمة', 'mandatory': 'إلزامية', 'optional': 'اختيارية', 'recommended': 'مُستحسنة',
   'logged': 'مسجّلة', 'carried forward': 'مُرحّلة', 'Skipped — do it': 'متخطّاة — نفّذها',
@@ -1758,7 +1754,7 @@ function renderReports() {
   const toolbar = el('div', 'rpt-toolbar');
   const seg = el('div', 'seg');
   seg.style.flexWrap = 'wrap';
-  const types = [['service', 'Service history'], ['plan', 'Service plan'], ['purchases', 'Purchases'], ['summary', 'Full summary']];
+  const types = [['service', 'Service history'], ['purchases', 'Purchases'], ['summary', 'Full summary']];
   types.forEach(([k, label]) => {
     const b = el('button', k === reportType ? 'on' : '', t(label));
     b.onclick = () => { reportType = k; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
@@ -1779,38 +1775,7 @@ function renderReports() {
 }
 
 function reportHTML(type) {
-  return type === 'purchases' ? reportPurchases() : type === 'summary' ? reportSummary() : type === 'plan' ? reportPlan() : reportService();
-}
-function reportPlan() {
-  const all = planForward();
-  const cost = ms => ms.items.reduce((a, s) => a + Number(s.cost || 0), 0);
-  if (!all.length) return reportHeader(t('Service Plan Report')) + `<div class="rpt-empty">${t('Nothing scheduled — you’re all caught up!')}</div>` + reportFooter();
-  const grand = all.reduce((a, m) => a + cost(m), 0);
-  const majors = all.filter(m => m.major).length;
-  let lastYear = null;
-  const rows = all.map(m => {
-    const yr = m.date.getFullYear();
-    const yrRow = yr !== lastYear ? (lastYear = yr, `<tr class="rpt-group"><td colspan="4">${yr}</td></tr>`) : '';
-    return `${yrRow}<tr>
-      <td>≈ ${m.date.toLocaleDateString('en', { month: 'short' })}</td>
-      <td class="num">${fmt(m.km)} km</td>
-      <td>${m.major ? `<b>${t('Major')}:</b> ` : ''}${m.items.map(s => t(s.name)).join(' · ')}</td>
-      <td class="num">${sar(cost(m))} SAR</td></tr>`;
-  }).join('');
-  const body = `
-    <div class="rpt-cards">
-      <div class="rpt-stat"><div class="n">${all.length}</div><div class="l">${t('Upcoming visits')}</div></div>
-      <div class="rpt-stat"><div class="n">${majors}</div><div class="l">${t('Major services')}</div></div>
-      <div class="rpt-stat"><div class="n">${sar(grand)}</div><div class="l">${t('Est. total (SAR)')}</div></div>
-    </div>
-    <div class="rpt-section-title">${t('Upcoming maintenance by distance')}</div>
-    <table class="rpt-table">
-      <thead><tr><th>${t('When')}</th><th class="num">${t('Odometer')}</th><th>${t('Service')}</th><th class="num">${t('Est. cost')}</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="3">${t('Estimated total')}</td><td class="num">${sar(grand)} SAR</td></tr></tfoot>
-    </table>
-    <p style="font-size:11px;color:#6b7280;margin-top:10px;line-height:1.5">${t('Projected from the current odometer and your average driving — dates shift as you log services.')} ${t('Basis')}: ${t(state.severity === 'severe' ? 'Jeddah (severe)' : 'Dealer (normal)')}.</p>`;
-  return reportHeader(t('Service Plan Report')) + body + reportFooter();
+  return type === 'purchases' ? reportPurchases() : type === 'summary' ? reportSummary() : reportService();
 }
 function reportHeader(title) {
   const c = state.car;
