@@ -2101,11 +2101,12 @@ function openSettings() {
     const c = state.car;
     // language switch
     card.appendChild(field('Language / اللغة', ''));
+    let selectedLang = lang;
     const langSeg = el('div', 'seg');
     langSeg.style.margin = '0 0 16px';
     [['en', 'English'], ['ar', 'العربية']].forEach(([code, label]) => {
       const b = el('button', lang === code ? 'on' : '', label);
-      b.onclick = () => { if (lang !== code) { applyLang(code); closeModal(); openSettings(); } };
+      b.onclick = () => { selectedLang = code; [...langSeg.children].forEach(x => x.classList.toggle('on', x === b)); };
       langSeg.appendChild(b);
     });
     card.appendChild(langSeg);
@@ -2213,6 +2214,7 @@ function openSettings() {
       });
       try { save(); } catch (e) {}
       // photo may exceed quota — verify it stuck
+      if (selectedLang !== lang) applyLang(selectedLang);
       applyAccent(); renderTopbar(); closeModal(); go(current); toast('Profile saved');
     };
     card.appendChild(b);
