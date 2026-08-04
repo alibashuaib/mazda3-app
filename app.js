@@ -82,7 +82,7 @@ const AR = {
   // report types
   'Service history': 'سجل الصيانة', 'Purchases': 'المشتريات', 'Full summary': 'ملخص كامل',
   // built-in service names
-  'Engine Oil & Filter': 'زيت المحرك والفلتر', 'Tire Rotation & Balance': 'تدوير وموازنة الإطارات', 'Cabin (A/C) Filter': 'فلتر المكيف (المقصورة)',
+  'Engine Oil & Filter': 'زيت المحرك والفلتر', 'Fuel System Cleaner': 'منظف نظام الوقود', 'Tire Rotation & Balance': 'تدوير وموازنة الإطارات', 'Cabin (A/C) Filter': 'فلتر المكيف (المقصورة)',
   'Engine Air Filter': 'فلتر هواء المحرك', 'Wheel Alignment': 'ضبط زوايا العجلات', 'Brake Fluid': 'زيت الفرامل',
   'Automatic Transmission Fluid': 'زيت ناقل الحركة الأوتوماتيكي', 'Engine Coolant (FL22)': 'سائل تبريد المحرك (FL22)',
   'Throttle Body & MAF Cleaning': 'تنظيف بوابة الخانق وحساس الهواء', 'Spark Plugs (x4)': 'بواجي الإشعال (×4)', 'Fuel Filter': 'فلتر الوقود',
@@ -123,7 +123,7 @@ const AR = {
   'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
   'Garage · Mazda 3 care app': 'Garage · تطبيق العناية بمازدا 3', 'Report generated': 'صدر التقرير',
   // part names
-  'Engine Oil 5W-30 (4L)': 'زيت محرك 5W-30 (4 لتر)', 'Oil Filter': 'فلتر الزيت', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
+  'Engine Oil 5W-30 (4L)': 'زيت محرك 5W-30 (4 لتر)', 'Oil Filter': 'فلتر الزيت', 'Fuel System Cleaner (additive)': 'منظف نظام الوقود (إضافة)', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
   'Spark Plugs (each)': 'بواجي الإشعال (للحبة)', 'Front Brake Pads': 'فحمات الفرامل الأمامية', 'Rear Brake Pads': 'فحمات الفرامل الخلفية',
   'Wiper Blades (pair)': 'مساحات الزجاج (زوج)', '12V Battery': 'بطارية 12 فولت', 'Serpentine Belt': 'سير المولد (السربنتين)',
   'Coolant FL22 (long-life)': 'سائل تبريد FL22 (طويل العمر)', 'ATF FZ (per liter)': 'زيت ناقل ATF FZ (للتر)', 'Brake Fluid (DOT 4)': 'زيت فرامل (DOT 4)',
@@ -244,6 +244,9 @@ function seed() {
       { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', cat: 'Engine',
         intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 260,
         note: '5W-30 (API SP / ILSAC GF-6A) full synthetic — 4.2 L with filter, 4.0 L without. Every 7,500 km / 6 mo for Jeddah heat, dust & city driving.' },
+      { id: uid(), name: 'Fuel System Cleaner', icon: '🧪', cat: 'Engine',
+        intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 45,
+        note: 'Added to the tank at every oil change (dealer sheet) — keeps injectors and intake valves clean against Jeddah\'s dust and short city trips.' },
       { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', cat: 'Tires',
         intervalKm: 10000, intervalMonths: 12, lastKm: 309000, lastDate: '2026-03-01', cost: 80,
         note: 'Rotate front/rear and rebalance to even out wear.' },
@@ -654,6 +657,7 @@ let garage;
    [normalKm, normalMonths] keyed by built-in service name. */
 const NORMAL_SCHED = {
   'Engine Oil & Filter': [10000, 12],
+  'Fuel System Cleaner': [10000, 12], // added at every oil change, so it tracks the same dealer interval
   'Cabin (A/C) Filter': [20000, 12],
   'Engine Air Filter': [40000, 24],
   'Fuel Filter': [120000, 72]
@@ -673,11 +677,26 @@ function atfSealantPart() {
     { tag: 'ALT', brand: 'Mopar RTV Engine Sealant', partNo: '', price: 45, store: 'Local parts market' }
   ] };
 }
+function fuelSystemCleanerPart() {
+  return { id: uid(), name: 'Fuel System Cleaner (additive)', icon: '🧪', cat: 'Engine', options: [
+    { tag: 'OEM', brand: 'Dealer-applied treatment', partNo: '', price: 45, store: 'Mazda Dealer (Alireza)', note: 'Added at every oil change per dealer sheet' },
+    { tag: 'ALT', brand: 'Chevron Techron Concentrate Plus', partNo: '', price: 55, store: 'Amazon.sa' },
+    { tag: 'ALT', brand: 'Liqui Moly Fuel System Cleaner', partNo: '', price: 40, store: 'noon' }
+  ] };
+}
+function fuelSystemCleanerService(odo) {
+  return { id: uid(), name: 'Fuel System Cleaner', icon: '🧪', cat: 'Engine',
+    intervalKm: 7500, intervalMonths: 6, lastKm: odo || 0, lastDate: isoDate(TODAY), cost: 45,
+    note: 'Added to the tank at every oil change (dealer sheet) — keeps injectors and intake valves clean against Jeddah\'s dust and short city trips.' };
+}
 function normalizeData(s) {
   s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
   ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
   if (typeof s.planSetupDone !== 'boolean') s.planSetupDone = false;
   if (s.severity !== 'normal' && s.severity !== 'severe') s.severity = 'severe'; // Jeddah default
+  // Fuel System Cleaner — added at every oil change per the dealer sheet; idempotent, reaches existing vehicles too
+  if (!s.services.some(sv => sv.name === 'Fuel System Cleaner')) s.services.push(fuelSystemCleanerService(s.car.odometer));
+  if (!s.parts.some(p => p.name === 'Fuel System Cleaner (additive)')) s.parts.push(fuelSystemCleanerPart());
   s.services.forEach(sv => { // seed dealer intervals where they differ from severe
     if (sv.normalKm == null && NORMAL_SCHED[sv.name]) { sv.normalKm = NORMAL_SCHED[sv.name][0]; sv.normalMonths = NORMAL_SCHED[sv.name][1]; }
   });
@@ -786,6 +805,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
 /* ---------- cross-page links: which parts each service consumes ---------- */
 const SERVICE_PARTS = {
   'Engine Oil & Filter': ['Engine Oil 5W-30 (4L)', 'Oil Filter'],
+  'Fuel System Cleaner': ['Fuel System Cleaner (additive)'],
   'Engine Air Filter': ['Engine Air Filter'],
   'Cabin (A/C) Filter': ['Cabin A/C Filter'],
   'Spark Plugs (x4)': ['Spark Plugs (each)'],
