@@ -216,7 +216,116 @@ const AR = {
   'e.g. 42': 'مثال: 42', 'e.g. 95': 'مثال: 95', 'e.g. The Gray Ghost': 'مثال: الشبح الرمادي', 'e.g. Tawuniya comprehensive': 'مثال: التعاونية شامل',
   'e.g. New front brake pads': 'مثال: فحمات فرامل أمامية جديدة', 'e.g. Timing chain inspection': 'مثال: فحص جنزير التوقيت',
   'e.g. Timing chain check': 'مثال: فحص جنزير التوقيت', 'e.g. Front Brake Pads': 'مثال: فحمات الفرامل الأمامية',
-  'e.g. ABC 1234': 'مثال: أ ب ج 1234', '17-char VIN': 'رقم هيكل من 17 خانة'
+  'e.g. ABC 1234': 'مثال: أ ب ج 1234', '17-char VIN': 'رقم هيكل من 17 خانة',
+  // service notes — engine, fluids & major intervals
+  '5W-30 (API SP / ILSAC GF-6A) full synthetic — 4.2 L with filter, 4.0 L without. Every 7,500 km / 6 mo for Jeddah heat, dust & city driving.': 'زيت 5W-30 اصطناعي بالكامل (API SP / ILSAC GF-6A) — 4.2 لتر مع الفلتر، 4.0 لتر بدونه. كل 7,500 كم / 6 أشهر لحرارة وغبار جدة والقيادة داخل المدينة.',
+  'Added to the tank at every oil change (dealer sheet) — keeps injectors and intake valves clean against Jeddah\'s dust and short city trips.': 'يُضاف إلى خزان الوقود عند كل تغيير زيت (حسب جدول الوكيل) — يحافظ على نظافة الحاقنات وصمامات السحب من غبار جدة والرحلات القصيرة داخل المدينة.',
+  'Rotate front/rear and rebalance to even out wear.': 'بدّل مواضع الإطارات الأمامية/الخلفية وأعد الموازنة لتوزيع التآكل بالتساوي.',
+  'Jeddah dust clogs it fast — replace ~yearly / 15,000 km; check before summer A/C season.': 'غبار جدة يسدّه بسرعة — استبدله كل ~سنة / 15,000 كم؛ افحصه قبل موسم التكييف الصيفي.',
+  'Inspect earlier in sandy conditions.': 'افحصه مبكراً في الأجواء الرملية.',
+  'Also after any pothole hit or new tires.': 'أيضاً بعد الاصطدام بحفرة أو تركيب إطارات جديدة.',
+  'DOT 3/4 (~1 L). Absorbs moisture over time — flush every 2 years.': 'DOT 3/4 (~1 لتر). يمتص الرطوبة مع الوقت — اسحبه (فلاش) كل سنتين.',
+  'Mazda Genuine ATF-FZ only — ~3.5 L per drain (7.8 L total). Every 60–80k km; dealer or specialist.': 'زيت مازدا الأصلي ATF-FZ فقط — ~3.5 لتر لكل تصريف (7.8 لتر إجمالاً). كل 60–80 ألف كم؛ لدى الوكيل أو متخصص.',
+  'Mazda FL22 long-life (HOAT), ~6.6 L. Replace every 5 years in KSA heat.': 'مازدا FL22 طويل العمر (HOAT)، ~6.6 لتر. استبدله كل 5 سنوات في حرارة السعودية.',
+  'Clean throttle body & MAF sensor — Jeddah dust fouls them; restores idle & economy. (Known BM Mazda 3 MAF failure point.)': 'نظّف بوابة الخانق وحساس MAF — غبار جدة يلوّثهما؛ يعيد ثبات السرعة الاستاندر واقتصاد الوقود. (نقطة ضعف معروفة في حساس MAF لموديل BM من مازدا 3.)',
+  'Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.': 'بواجي NGK إيريديوم ILKAR7L11 — كل 120,000 كم / 6 سنوات (جدول خارج أوروبا). يعيد ثبات السرعة الاستاندر واقتصاد الوقود.',
+  'In-tank filter; replace on high mileage.': 'فلتر داخل الخزان؛ استبدله عند ارتفاع الممشى.',
+  'Inspect for cracks/squeal; replace before it fails.': 'افحصه بحثاً عن تشققات/صرير؛ استبدله قبل أن يتعطل.',
+  'Load-test yearly; Jeddah heat shortens battery life — plan to replace every 2–3 years.': 'اختبر الحمل سنوياً؛ حرارة جدة تقصّر عمر البطارية — خطّط لاستبدالها كل 2–3 سنوات.',
+  'Inspect pads/discs & lubricate caliper slide pins — part of the 5-year Jeddah routine; prevents sticking calipers in the heat.': 'افحص الفحمات والأقراص وزيّت مسامير انزلاق الكاليبر — جزء من روتين جدة الخمسي؛ يمنع تعلّق الكاليبر في الحرارة.',
+  'Check shocks, control arms, ball joints, sway-bar links, tie rods & coil springs — known BM Mazda 3 wear points on rough roads.': 'افحص المساعدات وأذرع التحكم ومفاصل الكرة وروابط عارضة التوازن وقضبان التوجيه والياي — نقاط تآكل معروفة في BM مازدا 3 على الطرق الوعرة.',
+
+  // part-option notes — short descriptors
+  'API SP / ILSAC GF-6A full synthetic — 4.2 L with filter, 4.0 L without': 'اصطناعي بالكامل API SP / ILSAC GF-6A — 4.2 لتر مع الفلتر، 4.0 لتر بدونه',
+  'Widely stocked in KSA': 'متوفر بكثرة في السعودية',
+  'Genuine, ships to KSA': 'أصلي، يُشحن إلى السعودية',
+  'In stock · 4–5 days': 'متوفر · 4–5 أيام',
+  'Activated carbon, odor control': 'كربون منشّط، يتحكم بالروائح',
+  'Low dust, quiet': 'غبار أقل، هادئ',
+  'Strong in heat': 'متين في الحرارة',
+  'System holds ~6.6 L': 'سعة النظام ~6.6 لتر',
+  'KSA-available compatible coolant (per 5-yr plan)': 'سائل تبريد متوافق ومتوفر في السعودية (حسب الخطة الخمسية)',
+  'Compatible chemistry': 'تركيبة كيميائية متوافقة',
+  '~3.5 L per drain, 7.8 L total': '~3.5 لتر لكل تصريف، 7.8 لتر إجمالاً',
+  'OE supplier equivalent': 'مكافئ لمورّد الشركة المصنّعة (OE)',
+  'Need ~1 L for a full flush': 'يلزم ~1 لتر للسحب الكامل',
+  'Top up as needed': 'أضِف عند الحاجة',
+
+  // part-option notes — symptom → action
+  'Bouncy ride / clunks = replace in pairs': 'قيادة مرتدة / أصوات طرق = استبدل كزوج',
+  'OEM-grade · in stock': 'بجودة الوكيل (OEM) · متوفر',
+  'Budget · in stock': 'اقتصادي · متوفر',
+  'Replace in pairs': 'استبدل كزوج',
+  'Incl. ball joint & bushing': 'يشمل مفصل الكرة والبوش',
+  'Complete arm · in stock': 'ذراع كامل · متوفر',
+  'Ball joint only': 'مفصل الكرة فقط',
+  'Creak/knock when turning = replace with struts': 'صرير/طرق عند اللف = استبدله مع المساعدات (Struts)',
+  'Humming/whine from rear = replace': 'أزيز/صفير من الخلف = استبدل',
+  'Rattle/clunk over bumps = worn links': 'طرقعة عند المطبات = روابط تالفة',
+  'Misfire / rough idle / flashing CEL = replace': 'تفويت شرارة / سرعة استاندر غير منتظمة / وميض ضوء المحرك = استبدل',
+  'In stock': 'متوفر',
+  'Battery/charge warning light = check': 'ضوء تحذير البطارية/الشحن = افحص',
+  'Slow / clicking crank = replace': 'بطء أو تكة عند إدارة المحرك = استبدل',
+  'Vibration under braking / lip on edge = replace in pairs': 'اهتزاز عند الفرملة / حافة بارزة = استبدل كزوج',
+  'Replace in pairs with pads': 'استبدل كزوج مع الفحمات',
+  'Coolant leak / whine / overheating = replace': 'تسريب سائل تبريد / صفير / ارتفاع حرارة = استبدل',
+  'OE supplier · in stock': 'مورّد الشركة المصنّعة (OE) · متوفر',
+  'OE supplier': 'مورّد الشركة المصنّعة (OE)',
+  'Overheating or slow warm-up = replace': 'ارتفاع حرارة أو بطء التسخين = استبدل',
+  'CEL / rough idle / high fuel use = replace': 'ضوء المحرك / سرعة استاندر غير منتظمة / ارتفاع استهلاك الوقود = استبدل',
+  'Clicking when turning = worn outer CV joint': 'تكة عند اللف = مفصل CV الخارجي تالف',
+  'Full axle often cheaper than OEM joint': 'الفلنجة الكاملة غالباً أرخص من مفصل الوكيل الأصلي',
+  'Common failure: hesitation / stalling / CEL — clean first, then replace': 'عطل شائع: تردد بالتسارع / توقف مفاجئ / ضوء المحرك — نظّفه أولاً ثم استبدله',
+  'Known leak — Mazda extended the warranty on 2016–17. Weak A/C = check': 'تسريب معروف — مدّدت مازدا الضمان على موديلات 2016–17. ضعف التكييف = افحص',
+  'Widely available': 'متوفر بكثرة',
+  'Coil springs crack/break on Mazda 3 (esp. rear) — sag or clunk = replace in pairs': 'الياي يتشقق/ينكسر في مازدا 3 (خصوصاً الخلفي) — هبوط أو طرقعة = استبدل كزوج',
+  'Humming/growling that rises with speed = replace': 'أزيز/هدير يزداد مع السرعة = استبدل',
+  'Leak / overheating / coolant residue = replace': 'تسريب / ارتفاع حرارة / بقايا سائل تبريد = استبدل',
+  'Vibration/clunk on start, idle or acceleration = worn mount': 'اهتزاز/طرقعة عند التشغيل أو السرعة الاستاندر أو التسارع = قاعدة محرك تالفة',
+  'Sticking/leaking = pulling or uneven pad wear': 'تعلّق/تسريب = سحب للسيارة أو تآكل غير متساوٍ للفحمات',
+  'Seals only — cheaper than full caliper': 'أويلات (سيلات) فقط — أرخص من كاليبر كامل',
+  'No / weak / noisy airflow from vents = replace': 'انعدام / ضعف / ضوضاء الهواء من الفتحات = استبدل',
+  'Cracked/fogged lens or dead unit': 'عدسة متشققة/ضبابية أو وحدة معطلة',
+  'Weak/no cold air or noisy clutch = replace': 'ضعف أو انعدام التبريد أو ضوضاء الكلتش = استبدل',
+  'Rear springs crack/sag on the BM Mazda 3 — replace in pairs': 'الياي الخلفي يتشقق/يهبط في BM مازدا 3 — استبدل كزوج',
+  'Oil seep around the valve cover = replace': 'تسريب زيت حول غطاء الصمامات = استبدل',
+  'Rough idle / oil consumption = replace': 'سرعة استاندر غير منتظمة / استهلاك زيت = استبدل',
+  'No-start / stalling / CEL = replace': 'عدم التشغيل / توقف مفاجئ / ضوء المحرك = استبدل',
+  'Rough running / CEL = replace': 'تشغيل غير منتظم / ضوء المحرك = استبدل',
+  'After the catalytic converter — emissions CEL = replace': 'بعد المحول الحفّاز — ضوء المحرك بسبب الانبعاثات = استبدل',
+  'Cranks-no-start / weak pressure = replace': 'المحرك يدور دون تشغيل / ضعف الضغط = استبدل',
+  'Belt squeal/rattle = worn tensioner; replace with the belt': 'صرير/طرقعة السير = مشدّ تالف؛ استبدله مع السير',
+  'Vibration/clunk on start & accel = worn mount. Verify no. by transmission/build.': 'اهتزاز/طرقعة عند التشغيل والتسارع = قاعدة تالفة. تحقق من الرقم حسب ناقل الحركة/تاريخ التصنيع.',
+  'Clunk on gear engagement = worn mount. Verify no. by transmission/build.': 'طرقعة عند دخول الجير = قاعدة تالفة. تحقق من الرقم حسب ناقل الحركة/تاريخ التصنيع.',
+  'Sinking pedal / internal leak = replace': 'دواسة تغوص / تسريب داخلي = استبدل',
+  'Sticking/leaking = drag, pulling or uneven pad wear': 'تعلّق/تسريب = جر، سحب للسيارة أو تآكل غير متساوٍ للفحمات',
+  'Cheaper than a full caliper': 'أرخص من كاليبر كامل',
+  'Play/clunk in steering or uneven tire wear = replace': 'فراغ/طرقعة في التوجيه أو تآكل غير متساوٍ للإطارات = استبدل',
+  'Consumable — dim/burnt-out beam. Halogen trims; verify your housing.': 'قطعة استهلاكية — إضاءة خافتة أو محروقة. للفئات الهالوجين؛ تحقق من نوع علبة المصباح لديك.',
+  'Rattle on cold start / stretched chain at high km = replace kit': 'طرقعة عند التشغيل البارد / تمدد الجنزير عند ارتفاع الممشى = استبدل الطقم كاملاً',
+  'Rubber hardens/cracks in Jeddah heat — verify exact numbers for 2.0 on PartSouq': 'المطاط يتصلب/يتشقق في حرارة جدة — تحقق من الأرقام الدقيقة لمحرك 2.0 على PartSouq',
+  'Consumable — renew at every oil change to avoid seepage': 'قطعة استهلاكية — جدّدها مع كل تغيير زيت لتجنب التسريب',
+  'Clunk/rattle over bumps = worn bushing; replace in pairs': 'طرقعة عند المطبات = بوش تالف؛ استبدل كزوج',
+  'Fan works only on some speeds = failed resistor': 'المروحة تعمل على بعض السرعات فقط = مقاومة تالفة',
+  'Consumable — replace burnt-out bulbs; halogen trims': 'قطعة استهلاكية — استبدل اللمبات المحروقة؛ للفئات الهالوجين',
+  'EVAP CEL (P0441/P0455) or rough idle = replace': 'ضوء المحرك لنظام EVAP (P0441/P0455) أو سرعة استاندر غير منتظمة = استبدل',
+  'CEL / reduced power / pinging = check': 'ضوء المحرك / انخفاض القوة / طرقعة المحرك (الفنجرة) = افحص',
+  'Clicking on turns / torn CV boot = worn axle': 'تكة عند اللف / تمزق غطاء CV المطاطي = فلنجة تالفة',
+  'ABS / traction / brake warning light on = replace': 'إضاءة ضوء ABS / التماسك / الفرامل = استبدل',
+  'CEL / wrong temp reading / fan or fuel-trim issues = replace': 'ضوء المحرك / قراءة حرارة خاطئة / مشاكل المروحة أو ضبط الوقود = استبدل',
+  'Vacuum leak / rough idle — renew when servicing the intake': 'تسريب هواء (فاكيوم) / سرعة استاندر غير منتظمة — جدّده عند صيانة مجمع السحب',
+
+  // dashboard recommendation body text
+  'In Jeddah\'s heat, shorten oil changes to ~7,500 km if you mostly do city driving. Fresh 5W-30 (API SP) keeps the SkyActiv engine clean.': 'في حرارة جدة، قلّل فترة تغيير الزيت إلى ~7,500 كم إذا كانت قيادتك غالباً داخل المدينة. الزيت الطازج 5W-30 (API SP) يحافظ على نظافة محرك SkyActiv.',
+  'Keep tires at 36 PSI and check monthly (when cold). Correct pressure saves fuel and prevents blowouts on hot asphalt.': 'حافظ على ضغط الإطارات عند 36 رطل وافحصه شهرياً (والإطار بارد). الضغط الصحيح يوفر الوقود ويمنع الانفجار على الإسفلت الساخن.',
+  'Heat-related wear shortens battery life in Jeddah — plan to replace it every 2–3 years, and load-test it yearly.': 'التآكل الناتج عن الحرارة يقصّر عمر البطارية في جدة — خطّط لاستبدالها كل 2–3 سنوات، واختبر حملها سنوياً.',
+  'Wash the underbody occasionally to protect against corrosion from Jeddah\'s coastal salt air.': 'اغسل أسفل السيارة بين حين وآخر لحمايتها من الصدأ الناتج عن هواء جدة الساحلي المالح.',
+
+  // store labels
+  'Local parts market': 'سوق قطع الغيار المحلي',
+  'Local battery shop': 'محل بطاريات محلي',
+  'AC Delco / battery shop': 'AC Delco / محل بطاريات',
+  'Mazda Dealer (Alireza)': 'وكيل مازدا (علي رضا)',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -1382,12 +1491,12 @@ function partCard(p) {
         <div class="opt">
           <span class="opt-tag ${o.tag === 'OEM' ? 'oem' : 'alt'}">${o.tag}</span>
           <div class="opt-main">
-            <div class="b">${o.brand}</div>
-            <div class="s">${[o.partNo, o.note].filter(Boolean).join(' · ') || '&nbsp;'}</div>
+            <div class="b">${t(o.brand)}</div>
+            <div class="s">${[o.partNo, t(o.note)].filter(Boolean).join(' · ') || '&nbsp;'}</div>
           </div>
           <div class="opt-price">
             <div class="p">${sar(o.price)} <span class="muted" style="font-size:10px">SAR</span></div>
-            <div class="store">${o.store}</div>
+            <div class="store">${t(o.store)}</div>
           </div>
         </div>`).join('')}
       ${usedIn.length ? `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
