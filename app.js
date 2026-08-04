@@ -82,6 +82,8 @@ const AR = {
   'Log it': 'سجّلها', 'No linked parts': 'لا توجد قطع مرتبطة',
   'Pick the parts you used (OEM or alternative), then log it.': 'اختر القطع التي استخدمتها (أصلية أو بديلة)، ثم سجّلها.',
   'Done': 'تمّت', 'Not yet': 'ليس بعد', 'Carried to your next visit': 'مُرحّلة إلى زيارتك القادمة',
+  'None — not done': 'لا شيء — لم تُنفّذ', 'Skipped last time — do it now': 'تُخطّيت آخر مرة — نفّذها الآن', 'Do next service': 'نفّذها في الخدمة القادمة',
+  'part(s) to redo next service': 'قطعة لإعادتها في الخدمة القادمة', 'mandatory': 'إلزامية', 'optional': 'اختيارية', 'recommended': 'مُستحسنة',
   'logged': 'مسجّلة', 'carried forward': 'مُرحّلة', 'Skipped — do it': 'متخطّاة — نفّذها',
   'service to catch up': 'خدمة بحاجة للإنجاز', 'services to catch up': 'خدمات بحاجة للإنجاز', 'Catch up': 'إنجاز المتأخّر',
   'Log ›': 'تسجيل ›',
@@ -936,6 +938,14 @@ const partCheapest = p => Math.min(...p.options.map(o => o.price));
 function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => state.parts.find(p => p.name === n)).filter(Boolean); }
 function servicesForPart(p) { return state.services.filter(s => (SERVICE_PARTS[s.name] || []).includes(p.name)); }
 
+/* How mandatory a part is for the car's health — drives the "do it next time"
+   warning when a part is skipped (marked None). high = safety/engine-critical. */
+const CRIT_HIGH = new Set(['Engine Oil 5W-30 (4L)', 'Oil Filter', 'Fuel System Cleaner (additive)', 'Front Brake Pads', 'Rear Brake Pads', 'Brake Fluid (DOT 4)', 'Front Brake Disc (each)', 'Rear Brake Disc (each)', 'Coolant FL22 (long-life)', 'ATF FZ (per liter)', 'Transmission Fluid Filter', 'Spark Plugs (each)', 'Timing Chain Kit', 'Water Pump', 'Serpentine Belt']);
+const CRIT_LOW = new Set(['Cabin A/C Filter', 'Wiper Blades (pair)', 'Windshield Washer Fluid (~2L)', 'Headlight Bulbs (H11 low · 9005 high)', 'Tail / Brake Light Bulbs', 'Transmission Pan Sealant']);
+function partCrit(name) { return CRIT_HIGH.has(name) ? 'high' : CRIT_LOW.has(name) ? 'low' : 'med'; }
+const critLevel = name => partCrit(name) === 'high' ? 'danger' : partCrit(name) === 'med' ? 'warn' : 'ok';
+const critLabel = name => partCrit(name) === 'high' ? t('mandatory') : partCrit(name) === 'low' ? t('optional') : t('recommended');
+
 /* ============================================================
    PAGE 1 — DASHBOARD
    ============================================================ */
@@ -1204,13 +1214,19 @@ function openLogConfirm(services, opts) {
         note.textContent = '↪ ' + t('Carried to your next visit');
         note.style.display = 'none';
 
+        if (svc.pendingParts && svc.pendingParts.length) {  // parts marked None last time
+          const worst = svc.pendingParts.some(n => partCrit(n) === 'high') ? 'danger' : svc.pendingParts.some(n => partCrit(n) === 'med') ? 'warn' : 'ok';
+          const pw = el('div', 'log-pending ' + worst);
+          pw.innerHTML = `⚠️ ${t('Skipped last time — do it now')}: ` + svc.pendingParts.map(n => `${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، ');
+          body.appendChild(pw);
+        }
         if (!lp.length) {
           const d = el('div', 'muted'); d.style.cssText = 'font-size:12px;margin:8px 2px 0';
           d.textContent = `${t('No linked parts')} · ${sar(svc.cost || 0)} SAR`;
           body.appendChild(d);
         }
         lp.forEach(p => {
-          const optsHtml = p.options.map((o, i) => `<option value="${i}">${o.tag} · ${o.brand} · ${sar(o.price)} SAR</option>`).join('');
+          const optsHtml = `<option value="none">— ${t('None — not done')} —</option>` + p.options.map((o, i) => `<option value="${i}">${o.tag} · ${o.brand} · ${sar(o.price)} SAR</option>`).join('');
           const f = field(t(p.name), `<select>${optsHtml}</select>`);
           const sel = f.querySelector('select');
           sel.value = String(defIdx(p));
@@ -1244,7 +1260,7 @@ function openLogConfirm(services, opts) {
       function svcCost(svc) {
         const lp = partsForService(svc);
         if (!lp.length) return Number(svc.cost || 0);
-        let sum = 0; lp.forEach(p => { sum += Number(p.options[+picks.get(p.id + ':' + svc.id).sel.value].price || 0); });
+        let sum = 0; lp.forEach(p => { const v = picks.get(p.id + ':' + svc.id).sel.value; sum += v === 'none' ? 0 : Number(p.options[+v].price || 0); });
         return sum + laborShare(svc);
       }
       function recalc() { totalEl.textContent = `${t('Total')}: ${sar(services.filter(s => doneState.get(s.id) !== false).reduce((a, svc) => a + svcCost(svc), 0))} SAR`; }
@@ -1255,11 +1271,19 @@ function openLogConfirm(services, opts) {
       b.onclick = () => {
         const odo = +$('#lc_odo').value || state.car.odometer;
         const date = $('#lc_date').value || isoDate(TODAY);
-        let grand = 0, nDone = 0, nSkip = 0, lastName = 'Service';
+        let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
         services.forEach(svc => {
           if (doneState.get(svc.id) === false) { svc.deferred = true; svc.deferredAt = date; nSkip++; return; }
           svc.lastKm = odo; svc.lastDate = date; svc.deferred = false;
-          const chosen = partsForService(svc).map(p => { const o = p.options[+picks.get(p.id + ':' + svc.id).sel.value]; return { part: p.name, tag: o.tag, brand: o.brand, price: o.price }; });
+          const chosen = [], skippedParts = [];
+          partsForService(svc).forEach(p => {
+            const v = picks.get(p.id + ':' + svc.id).sel.value;
+            if (v === 'none') { skippedParts.push(p.name); return; }
+            const o = p.options[+v]; chosen.push({ part: p.name, tag: o.tag, brand: o.brand, price: o.price });
+          });
+          const pend = new Set(svc.pendingParts || []);
+          skippedParts.forEach(n => pend.add(n)); chosen.forEach(c => pend.delete(c.part));
+          svc.pendingParts = [...pend]; nPartSkip += skippedParts.length;
           const cost = svcCost(svc); grand += cost; nDone++; lastName = svc.name;
           state.history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
         });
@@ -1269,6 +1293,7 @@ function openLogConfirm(services, opts) {
         (opts.onDone || (() => go('maintenance')))();
         if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
         else if (!opts.onDone) toast(t(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓'));
+        if (nPartSkip) toast(`⚠️ ${nPartSkip} ${t('part(s) to redo next service')}`, 'warn');
       };
       card.appendChild(b);
     });
@@ -2358,6 +2383,7 @@ function openServiceDetail(s) {
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
       <div class="detail-row"><span class="k">${t('Est. cost')}</span><span class="v">${sar(s.cost)} SAR</span></div>
+      ${s.pendingParts && s.pendingParts.length ? `<div class="log-pending ${s.pendingParts.some(n => partCrit(n) === 'high') ? 'danger' : s.pendingParts.some(n => partCrit(n) === 'med') ? 'warn' : 'ok'}" style="margin-top:14px">⚠️ ${t('Do next service')}: ${s.pendingParts.map(n => `${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، ')}</div>` : ''}
       ${s.note ? `<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${t(s.note)}</p>` : ''}`;
     card.appendChild(box);
 

@@ -700,6 +700,14 @@ html { scroll-behavior: smooth; }
 .log-svc-body { margin-top: 8px; }
 .log-svc-body .field { margin-bottom: 8px; }
 .log-svc-note { font-size: 12px; font-weight: 600; color: var(--warn); margin-top: 8px; }
+.log-pending {
+  font-size: 12px; font-weight: 600; line-height: 1.5;
+  padding: 8px 11px; border-radius: 10px; margin: 6px 0 2px;
+  color: var(--warn); background: var(--warn-soft);
+}
+.log-pending.danger { color: var(--danger); background: var(--danger-soft); }
+.log-pending.ok { color: var(--ok); background: var(--ok-soft); }
+.log-pending .crit { font-weight: 700; opacity: .85; }
 
 /* ---- deferred / catch-up reminder banner ---- */
 .reminder-banner {
