@@ -82,6 +82,9 @@ const AR = {
   'Log it': 'سجّلها', 'No linked parts': 'لا توجد قطع مرتبطة',
   'Pick the parts you used (OEM or alternative), then log it.': 'اختر القطع التي استخدمتها (أصلية أو بديلة)، ثم سجّلها.',
   'Done': 'تمّت', 'Not yet': 'ليس بعد', 'Carried to your next visit': 'مُرحّلة إلى زيارتك القادمة',
+  // add-vehicle picker
+  'Add a Mazda': 'إضافة مازدا', 'Pick the model and engine — its SkyActiv service plan is set up for you.': 'اختر الطراز والمحرك — تُجهّز خطة صيانة SkyActiv تلقائياً.',
+  'Vehicle added': 'تمت إضافة المركبة', 'e.g. 2019': 'مثال: 2019',
   'None — not done': 'لا شيء — لم تُنفّذ', 'Skipped last time — do it now': 'تُخطّيت آخر مرة — نفّذها الآن', 'Do next service': 'نفّذها في الخدمة القادمة',
   'part(s) to redo next service': 'قطعة لإعادتها في الخدمة القادمة', 'mandatory': 'إلزامية', 'optional': 'اختيارية', 'recommended': 'مُستحسنة',
   'logged': 'مسجّلة', 'carried forward': 'مُرحّلة', 'Skipped — do it': 'متخطّاة — نفّذها',
@@ -351,20 +354,33 @@ const relDate = d => {
    SEED DATA — Mazda 3 2.0 SkyActiv-G, Saudi (severe) intervals
    Odometer baseline ~155,000 km. All values editable in-app.
    ============================================================ */
-function seed() {
-  const s = {
-    car: {
-      nickname: '', make: 'Mazda', model: '3', year: 2016,
-      engine: '2.0L SkyActiv-G', transmission: 'Automatic',
-      color: 'Meteor Gray Mica (Code 42A)', plate: '', vin: '', photo: '', odometer: 316000,
-      dailyKm: 40 // avg km/day, used to project date from km
-    },
-    budget: { annual: 6000 },
-    // recurring services: intervals in km & months
-    services: [
+/* ============================================================
+   Mazda SkyActiv catalogue — a data-driven profile per model.
+   The service schedule is shared (SkyActiv-G is near-identical across
+   models); only oil capacity and part numbers vary. Adding a car builds
+   a fresh profile from here — light, offline, and cloud-ready.
+   ============================================================ */
+const DEFAULT_COLOR = 'Meteor Gray Mica (Code 42A)';
+// { id, model, generation, engines: [[code, oilLitresWithFilter], …] }
+const CAR_MODELS = [
+  { id: 'mazda2',   model: '2',     gen: 'DJ · 2015+',      engines: [['1.5L SkyActiv-G', 3.6]] },
+  { id: 'mazda3bm', model: '3',     gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L SkyActiv-G', 3.9]] },
+  { id: 'mazda3bp', model: '3',     gen: 'BP · 2019+',      engines: [['2.0L SkyActiv-G', 4.2], ['1.5L SkyActiv-G', 3.6], ['2.5L SkyActiv-G', 4.5]] },
+  { id: 'mazda6',   model: '6',     gen: 'GJ/GL · 2013+',   engines: [['2.5L SkyActiv-G', 4.5], ['2.0L SkyActiv-G', 4.3]] },
+  { id: 'cx3',      model: 'CX-3',  gen: 'DK · 2015+',      engines: [['2.0L SkyActiv-G', 4.2]] },
+  { id: 'cx30',     model: 'CX-30', gen: 'DM · 2019+',      engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.5]] },
+  { id: 'cx5ke',    model: 'CX-5',  gen: 'KE · 2012–16',    engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.8]] },
+  { id: 'cx5kf',    model: 'CX-5',  gen: 'KF · 2017+',      engines: [['2.5L SkyActiv-G', 4.8], ['2.0L SkyActiv-G', 4.2]] },
+  { id: 'cx9',      model: 'CX-9',  gen: 'TC · 2016+',      engines: [['2.5L Turbo SkyActiv-G', 5.4]] }
+];
+
+/* Shared SkyActiv-G schedule (Jeddah "severe" base intervals; dealer "normal"
+   values are layered on in normalizeData). Oil quantity varies per engine. */
+function skyactivServices(oilL) {
+  return [
       { id: uid(), name: 'Engine Oil & Filter', icon: '🛢️', cat: 'Engine',
-        intervalKm: 7500, intervalMonths: 6, lastKm: 312200, lastDate: '2026-04-15', cost: 305,
-        note: '5W-30 (API SP / ILSAC GF-6A) full synthetic — 4.2 L with filter, 4.0 L without. Every 7,500 km / 6 mo for Jeddah heat, dust & city driving. Add a fuel-system cleaner to the tank each change — mandatory for the direct-injection SkyActiv-G to keep injectors/intake valves clean.' },
+        intervalKm: 7500, intervalMonths: 6, lastKm: 0, lastDate: '', cost: 305,
+        note: `5W-30 (API SP / ILSAC GF-6A) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.` },
       { id: uid(), name: 'Tire Rotation & Balance', icon: '🔄', cat: 'Tires',
         intervalKm: 10000, intervalMonths: 12, lastKm: 309000, lastDate: '2026-03-01', cost: 80,
         note: 'Rotate front/rear and rebalance to even out wear.' },
@@ -388,7 +404,7 @@ function seed() {
         note: 'Mazda FL22 long-life (HOAT), ~6.6 L. Replace every 5 years in KSA heat.' },
       { id: uid(), name: 'Throttle Body & MAF Cleaning', icon: '🧴', cat: 'Engine',
         intervalKm: 15000, intervalMonths: 12, lastKm: 309000, lastDate: '2025-10-01', cost: 60,
-        note: 'Clean throttle body & MAF sensor — Jeddah dust fouls them; restores idle & economy. (Known BM Mazda 3 MAF failure point.)' },
+        note: 'Clean throttle body & MAF sensor — Jeddah dust fouls them; restores idle & economy. (A known SkyActiv-G MAF weak point.)' },
       { id: uid(), name: 'Spark Plugs (x4)', icon: '⚡', cat: 'Engine',
         intervalKm: 120000, intervalMonths: 72, lastKm: 257000, lastDate: '2022-06-01', cost: 340,
         note: 'Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.' },
@@ -406,10 +422,14 @@ function seed() {
         note: 'Inspect pads/discs & lubricate caliper slide pins — part of the 5-year Jeddah routine; prevents sticking calipers in the heat.' },
       { id: uid(), name: 'Suspension & Steering Inspection', icon: '🔧', cat: 'Suspension',
         intervalKm: 20000, intervalMonths: 24, lastKm: 301000, lastDate: '2025-08-10', cost: 0,
-        note: 'Check shocks, control arms, ball joints, sway-bar links, tie rods & coil springs — known BM Mazda 3 wear points on rough roads.' }
-    ],
-    // parts catalog with OEM + alternatives
-    parts: [
+        note: 'Check shocks, control arms, ball joints, sway-bar links, tie rods & coil springs — common SkyActiv wear points on rough roads.' }
+  ];
+}
+
+/* Full parts catalogue for the Mazda 3 (BM · 2.0). Other models start from the
+   shared consumables and gain their own OEM numbers over time. */
+function mazda3Parts() {
+  return [
       { id: uid(), name: 'Engine Oil 5W-30 (4L)', icon: '🛢️', cat: 'Engine',
         options: [
           { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic — 4.2 L with filter, 4.0 L without' },
@@ -747,22 +767,77 @@ function seed() {
           { tag: 'OEM', brand: 'Mazda Genuine (per port)', partNo: 'PE01-13-111', price: 25, store: 'Mazda Dealer (Alireza)', note: 'Vacuum leak / rough idle — renew when servicing the intake' },
           { tag: 'ALT', brand: 'Aftermarket gasket set', partNo: '', price: 15, store: 'Amazon.sa' }
         ] }
-    ],
-    // completed-service history (the "work log") — starts empty for your own car
-    history: [],
-    // spending log — starts empty for your own car
-    spending: [],
-    // fuel fill-up log — starts empty
-    fuel: [],
-    // documents & renewals (insurance, Istimara, license…) — starts empty
-    docs: []
+  ];
+}
+
+/* Generic SkyActiv-G consumables — every model starts with these until its own
+   OEM numbers are filled in. Numbers vary by model, so verify before buying. */
+function sharedParts() {
+  const P = (name, icon, cat, options) => ({ id: uid(), name, icon, cat, options });
+  const D = 'Mazda Dealer (Alireza)', A = 'Amazon.sa';
+  return [
+    P('Engine Oil 5W-30 (4L)', '🛢️', 'Engine', [
+      { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: A, note: 'API SP / ILSAC GF-6A full synthetic' },
+      { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 5W-30', partNo: '', price: 150, store: 'noon' }]),
+    P('Oil Filter', '🧽', 'Engine', [
+      { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G — commonly shared)', partNo: 'PE01-14-302A', price: 45, store: D, note: 'One filter fits most SkyActiv-G engines — verify' },
+      { tag: 'ALT', brand: 'Denso 150-2010', partNo: '150-2010', price: 28, store: A }]),
+    P('Fuel System Cleaner (additive)', '🧴', 'Engine', [
+      { tag: 'ALT', brand: 'Liqui Moly / Techron DI cleaner', partNo: '', price: 45, store: A, note: 'Mandatory for direct-injection SkyActiv-G' }]),
+    P('Engine Air Filter', '🌬️', 'Engine', [
+      { tag: 'OEM', brand: 'Mazda Genuine (verify for your model)', partNo: '', price: 90, store: D },
+      { tag: 'ALT', brand: 'Blue Print / WIX', partNo: '', price: 45, store: A }]),
+    P('Cabin A/C Filter', '❄️', 'Interior', [
+      { tag: 'OEM', brand: 'Mazda Genuine (verify for your model)', partNo: '', price: 80, store: D },
+      { tag: 'ALT', brand: 'Denso Carbon Cabin', partNo: '', price: 45, store: A }]),
+    P('Spark Plugs (each)', '⚡', 'Engine', [
+      { tag: 'OEM', brand: 'Mazda / NGK Iridium (verify for your engine)', partNo: '', price: 70, store: D },
+      { tag: 'ALT', brand: 'NGK / Denso Iridium', partNo: '', price: 50, store: A }]),
+    P('Front Brake Pads', '🛑', 'Brakes', [
+      { tag: 'OEM', brand: 'Mazda Genuine (verify for your model)', partNo: '', price: 300, store: D },
+      { tag: 'ALT', brand: 'Akebono Ceramic', partNo: '', price: 200, store: A }]),
+    P('Rear Brake Pads', '🛑', 'Brakes', [
+      { tag: 'OEM', brand: 'Mazda Genuine (verify for your model)', partNo: '', price: 260, store: D },
+      { tag: 'ALT', brand: 'Akebono Ceramic', partNo: '', price: 170, store: A }]),
+    P('Brake Fluid (DOT 4)', '🩸', 'Brakes', [
+      { tag: 'OEM', brand: 'Motul DOT 3 & 4', partNo: '', price: 35, store: A, note: '~1 L for a full flush' }]),
+    P('Coolant FL22 (long-life)', '🌡️', 'Engine', [
+      { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: D }]),
+    P('ATF FZ (per liter)', '⚙️', 'Drivetrain', [
+      { tag: 'OEM', brand: 'Mazda Genuine ATF-FZ (only)', partNo: 'K020-W0-052E4', price: 60, store: D, note: '~4.5–4.7 L per drain' }]),
+    P('Serpentine Belt', '🔗', 'Engine', [
+      { tag: 'OEM', brand: 'Mazda Genuine (verify for your model)', partNo: '', price: 150, store: D },
+      { tag: 'ALT', brand: 'Gates Micro-V', partNo: '', price: 90, store: A }]),
+    P('12V Battery', '🔋', 'Electrical', [
+      { tag: 'OEM', brand: 'Mazda Genuine', partNo: '', price: 480, store: D },
+      { tag: 'ALT', brand: 'Varta Blue Dynamic', partNo: '', price: 360, store: 'Battery shop', note: 'Strong in heat' }]),
+    P('Wiper Blades (pair)', '🌧️', 'Exterior', [
+      { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
+    P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
+      { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
+  ];
+}
+
+/* Assemble a fresh vehicle profile from the catalogue. */
+function buildProfile(modelId, engIdx, opts) {
+  opts = opts || {};
+  const m = CAR_MODELS.find(x => x.id === modelId) || CAR_MODELS[1];
+  const [engine, oilL] = m.engines[engIdx || 0] || m.engines[0];
+  const odo = opts.odometer != null ? opts.odometer : 0;
+  const s = {
+    car: { nickname: '', make: 'Mazda', model: m.model, year: opts.year || '', engine, transmission: 'Automatic',
+      color: opts.color || DEFAULT_COLOR, plate: '', vin: '', photo: '', odometer: odo, dailyKm: 40 },
+    budget: { annual: 6000 },
+    services: skyactivServices(oilL),
+    parts: modelId === 'mazda3bm' ? mazda3Parts() : sharedParts(),
+    history: [], spending: [], fuel: [], docs: []
   };
-  // Fresh start for the owner's car: baseline every service at the current
-  // odometer / today, so the schedule tracks from now (edit each service to
-  // record its real last-done point as you go).
-  s.services.forEach(x => { x.lastKm = s.car.odometer; x.lastDate = isoDate(TODAY); });
+  // baseline every service at the current odometer / today so the schedule tracks from now
+  s.services.forEach(x => { x.lastKm = odo; x.lastDate = isoDate(TODAY); });
   return s;
 }
+// default first vehicle: the owner's 2016 Mazda 3 (BM · 2.0) at 316,000 km
+function seed() { return buildProfile('mazda3bm', 0, { odometer: 316000, year: 2016, color: DEFAULT_COLOR }); }
 
 /* ---------- state / storage ---------- */
 /* ---------- multi-vehicle garage storage ----------
@@ -855,10 +930,30 @@ function switchVehicle(id) {
   garage.activeId = id; state = v.data; persistGarage();
   applyAccent(); renderTopbar(); go('dashboard');
 }
-function addVehicle() {
-  const v = { id: uid(), data: normalizeData(seed()) };
-  garage.vehicles.push(v); garage.activeId = v.id; state = v.data; persistGarage();
-  applyAccent(); renderTopbar(); go('dashboard'); openSettings();
+function addVehicle() { openAddVehicle(); }
+function openAddVehicle() {
+  openModal('Add a Mazda', 'Pick the model and engine — its SkyActiv service plan is set up for you.', card => {
+    card.appendChild(field('Model', `<select id="av_model">${CAR_MODELS.map((m, i) => `<option value="${i}">Mazda ${m.model} · ${m.gen}</option>`).join('')}</select>`));
+    const engField = field('Engine', `<select id="av_eng"></select>`);
+    card.appendChild(engField);
+    const r = el('div', 'field-row');
+    r.append(field('Current odometer (km)', `<input id="av_odo" type="number" inputmode="numeric" value="0">`),
+      field('Year', `<input id="av_year" type="number" inputmode="numeric" placeholder="${t('e.g. 2019')}">`));
+    card.appendChild(r);
+    const modelSel = card.querySelector('#av_model'), engSel = card.querySelector('#av_eng');
+    const fillEngines = () => { engSel.innerHTML = CAR_MODELS[+modelSel.value].engines.map((e, i) => `<option value="${i}">${e[0]}</option>`).join(''); };
+    modelSel.value = '1'; fillEngines();          // default to Mazda 3 BM
+    modelSel.onchange = fillEngines;
+    const b = el('button', 'btn primary block', t('Add a vehicle'));
+    b.onclick = () => {
+      const m = CAR_MODELS[+modelSel.value];
+      const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '' }));
+      const v = { id: uid(), data };
+      garage.vehicles.push(v); garage.activeId = v.id; state = v.data; persistGarage();
+      applyAccent(); renderTopbar(); closeModal(); go('dashboard'); toast(t('Vehicle added'));
+    };
+    card.appendChild(b);
+  });
 }
 function deleteVehicle(id) {
   if (garage.vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
