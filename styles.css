@@ -691,6 +691,32 @@ html { scroll-behavior: smooth; }
 }
 @media (hover: hover) and (pointer: fine) { .chip-link:hover { filter: brightness(1.12); } }
 
+/* ---- confirm-and-log: one container per service ---- */
+.log-svc { padding: 12px 14px; margin-bottom: 10px; }
+.log-svc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.log-svc-title { font-size: 13px; font-weight: 750; letter-spacing: -.1px; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.log-toggle { flex: none; width: auto; padding: 2px; }
+.log-toggle button { font-size: 11px; padding: 5px 10px; }
+.log-svc-body { margin-top: 8px; }
+.log-svc-body .field { margin-bottom: 8px; }
+.log-svc-note { font-size: 12px; font-weight: 600; color: var(--warn); margin-top: 8px; }
+
+/* ---- deferred / catch-up reminder banner ---- */
+.reminder-banner {
+  width: 100%; display: flex; align-items: center; gap: 11px;
+  padding: 12px 15px; margin: 14px 0 2px; cursor: pointer;
+  font-family: inherit; text-align: left; color: inherit;
+  border-left: 3px solid var(--warn);
+}
+.reminder-banner.danger { border-left-color: var(--danger); }
+.reminder-banner.ok { border-left-color: var(--ok); }
+[dir="rtl"] .reminder-banner { border-left: 0; border-right: 3px solid var(--warn); }
+[dir="rtl"] .reminder-banner.danger { border-right-color: var(--danger); }
+[dir="rtl"] .reminder-banner.ok { border-right-color: var(--ok); }
+.reminder-banner .rb-ic { font-size: 19px; line-height: 1; }
+.reminder-banner .rb-text { flex: 1; font-size: 13px; }
+.reminder-banner .rb-go { font-size: 12.5px; font-weight: 700; color: var(--accent-soft); }
+
 /* ---- manufacturer milestone plan ---- */
 .plan-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .plan-year { font-size: 12px; font-weight: 800; color: var(--text-2); letter-spacing: .4px; margin: 8px 2px 2px; }

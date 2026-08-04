@@ -81,6 +81,9 @@ const AR = {
   'Log a plan visit': 'تسجيل زيارة الخطة', 'Pick an upcoming group of services — logs everything in it at once.': 'اختر مجموعة خدمات قادمة — يسجّل كل ما فيها دفعة واحدة.',
   'Log it': 'سجّلها', 'No linked parts': 'لا توجد قطع مرتبطة',
   'Pick the parts you used (OEM or alternative), then log it.': 'اختر القطع التي استخدمتها (أصلية أو بديلة)، ثم سجّلها.',
+  'Done': 'تمّت', 'Not yet': 'ليس بعد', 'Carried to your next visit': 'مُرحّلة إلى زيارتك القادمة',
+  'logged': 'مسجّلة', 'carried forward': 'مُرحّلة', 'Skipped — do it': 'متخطّاة — نفّذها',
+  'service to catch up': 'خدمة بحاجة للإنجاز', 'services to catch up': 'خدمات بحاجة للإنجاز', 'Catch up': 'إنجاز المتأخّر',
   'Log ›': 'تسجيل ›',
   'Edit': 'تعديل', 'Save': 'حفظ', 'Add a part': 'إضافة قطعة', 'Add a custom service': 'إضافة خدمة مخصصة', 'Print / Save PDF': 'طباعة / حفظ PDF',
   'Update mileage': 'تحديث العداد', 'Set annual budget': 'تعيين الميزانية السنوية', 'Add a vehicle': 'إضافة مركبة', 'Add option': 'إضافة خيار',
@@ -998,10 +1001,20 @@ function renderDashboard() {
   [...tiles.children].forEach(t => { t.style.cursor = 'pointer'; });
   v.appendChild(tiles);
 
-  // Next up — top services due this year (overdue/due-soon always count, regardless of year)
+  // Reminder — services you marked "not yet" during a plan visit, ranked by severity
+  const deferred = ranked.filter(r => r.s.deferred);
+  if (deferred.length) {
+    const worst = deferred.some(r => r.st.level === 'danger') ? 'danger' : deferred.some(r => r.st.level === 'warn') ? 'warn' : 'ok';
+    const rb = el('button', 'card reminder-banner ' + worst);
+    rb.innerHTML = `<span class="rb-ic">⏰</span><span class="rb-text"><b>${deferred.length}</b> ${t(deferred.length === 1 ? 'service to catch up' : 'services to catch up')}</span><span class="rb-go">${t('Log ›')}</span>`;
+    rb.onclick = () => openLogConfirm(deferred.map(r => r.s), { checklist: true, title: 'Catch up', onDone: () => go('dashboard') });
+    v.appendChild(rb);
+  }
+
+  // Next up — top services due this year (overdue/due-soon and deferred always count)
   const thisYear = TODAY.getFullYear();
   v.appendChild(sectionTitle('Next up', 'See all', () => go('maintenance'), String(thisYear)));
-  const dueThisYear = ranked.filter(r => r.st.level !== 'ok' || r.st.dueDate.getFullYear() <= thisYear);
+  const dueThisYear = ranked.filter(r => r.s.deferred || r.st.level !== 'ok' || r.st.dueDate.getFullYear() <= thisYear);
   const list = el('div', 'list');
   dueThisYear.slice(0, 4).forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
   if (!dueThisYear.length) list.appendChild(emptyState('🎉', 'Nothing here — all good!'));
@@ -1130,9 +1143,9 @@ function buildPlan(v) {
       <button class="plan-log">${iconSvg('check')}${t('Log this visit')}</button>`;
     card.querySelectorAll('.plan-chip').forEach(btn => btn.onclick = () => {
       const s = ms.items[+btn.dataset.i];
-      openLogConfirm([s], { onDone: () => { go('maintenance'); toast(`${t(s.name)} ${t('logged ✓')}`); } });
+      openLogConfirm([s], { checklist: true, onDone: () => { go('maintenance'); } });
     });
-    card.querySelector('.plan-log').onclick = () => openLogConfirm(ms.items, { onDone: () => { go('maintenance'); toast(t('Visit logged ✓')); } });
+    card.querySelector('.plan-log').onclick = () => openLogConfirm(ms.items, { checklist: true, onDone: () => { go('maintenance'); } });
     wrap.appendChild(card);
   });
   if (!shown.length) wrap.appendChild(emptyState('🗓️', 'Nothing scheduled — you’re all caught up!'));
@@ -1172,8 +1185,10 @@ function logVisit(ms) {
    estimate (est. cost − default parts) is preserved. */
 function openLogConfirm(services, opts) {
   opts = opts || {};
+  const checklist = opts.checklist || services.length > 1; // per-service Done / Not yet toggles
   const defIdx = p => { const i = p.options.findIndex(o => o.tag === 'OEM'); return i >= 0 ? i : 0; };
   const laborShare = svc => { const lp = partsForService(svc); if (!lp.length) return 0; const dflt = lp.reduce((a, p) => a + Number(p.options[defIdx(p)].price || 0), 0); return Math.max(0, Number(svc.cost || 0) - dflt); };
+  const doneState = new Map(); services.forEach(s => doneState.set(s.id, true));
   openModal(opts.title || (services.length > 1 ? 'Log a plan visit' : services[0].name),
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
@@ -1184,12 +1199,18 @@ function openLogConfirm(services, opts) {
       const picks = new Map(); // `${part.id}:${svc.id}` -> <select>
       services.forEach(svc => {
         const lp = partsForService(svc);
-        const block = el('div');
-        block.innerHTML = `<div style="font-size:12.5px;font-weight:700;margin:12px 2px 6px">${svc.icon || '🔧'} ${t(svc.name)}</div>`;
+        const container = el('div', 'card log-svc');           // each service in its own container
+        const head = el('div', 'log-svc-head');
+        head.innerHTML = `<div class="log-svc-title">${svc.icon || '🔧'} ${t(svc.name)}</div>`;
+        const body = el('div', 'log-svc-body');
+        const note = el('div', 'log-svc-note');
+        note.textContent = '↪ ' + t('Carried to your next visit');
+        note.style.display = 'none';
+
         if (!lp.length) {
-          const d = el('div', 'muted'); d.style.cssText = 'font-size:12px;margin:0 2px 4px';
+          const d = el('div', 'muted'); d.style.cssText = 'font-size:12px;margin:8px 2px 0';
           d.textContent = `${t('No linked parts')} · ${sar(svc.cost || 0)} SAR`;
-          block.appendChild(d);
+          body.appendChild(d);
         }
         lp.forEach(p => {
           const optsHtml = p.options.map((o, i) => `<option value="${i}">${o.tag} · ${o.brand} · ${sar(o.price)} SAR</option>`).join('');
@@ -1198,9 +1219,27 @@ function openLogConfirm(services, opts) {
           sel.value = String(defIdx(p));
           sel.onchange = recalc;
           picks.set(p.id + ':' + svc.id, { svc, part: p, sel });
-          block.appendChild(f);
+          body.appendChild(f);
         });
-        card.appendChild(block);
+
+        if (checklist) {
+          const toggle = el('div', 'seg log-toggle');
+          [['done', 'Done'], ['skip', 'Not yet']].forEach(([code, label]) => {
+            const btn = el('button', code === 'done' ? 'on' : '', t(label));
+            btn.onclick = () => {
+              const isDone = code === 'done';
+              doneState.set(svc.id, isDone);
+              [...toggle.children].forEach(c => c.classList.toggle('on', c === btn));
+              body.style.display = isDone ? '' : 'none';
+              note.style.display = isDone ? 'none' : '';
+              recalc();
+            };
+            toggle.appendChild(btn);
+          });
+          head.appendChild(toggle);
+        }
+        container.append(head, body, note);
+        card.appendChild(container);
       });
 
       const totalEl = el('div');
@@ -1211,7 +1250,7 @@ function openLogConfirm(services, opts) {
         let sum = 0; lp.forEach(p => { sum += Number(p.options[+picks.get(p.id + ':' + svc.id).sel.value].price || 0); });
         return sum + laborShare(svc);
       }
-      function recalc() { totalEl.textContent = `${t('Total')}: ${sar(services.reduce((a, svc) => a + svcCost(svc), 0))} SAR`; }
+      function recalc() { totalEl.textContent = `${t('Total')}: ${sar(services.filter(s => doneState.get(s.id) !== false).reduce((a, svc) => a + svcCost(svc), 0))} SAR`; }
       recalc();
       card.appendChild(totalEl);
 
@@ -1219,17 +1258,20 @@ function openLogConfirm(services, opts) {
       b.onclick = () => {
         const odo = +$('#lc_odo').value || state.car.odometer;
         const date = $('#lc_date').value || isoDate(TODAY);
-        let grand = 0;
+        let grand = 0, nDone = 0, nSkip = 0, lastName = 'Service';
         services.forEach(svc => {
-          svc.lastKm = odo; svc.lastDate = date;
+          if (doneState.get(svc.id) === false) { svc.deferred = true; svc.deferredAt = date; nSkip++; return; }
+          svc.lastKm = odo; svc.lastDate = date; svc.deferred = false;
           const chosen = partsForService(svc).map(p => { const o = p.options[+picks.get(p.id + ':' + svc.id).sel.value]; return { part: p.name, tag: o.tag, brand: o.brand, price: o.price }; });
-          const cost = svcCost(svc); grand += cost;
+          const cost = svcCost(svc); grand += cost; nDone++; lastName = svc.name;
           state.history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
         });
-        if (grand > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: services.length > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : services[0].name, amount: grand, odometer: odo });
+        if (grand > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
         if (odo > (state.car.odometer || 0)) state.car.odometer = odo;
         save(); closeModal();
-        (opts.onDone || (() => { go('maintenance'); toast(t(services.length > 1 ? 'Visit logged ✓' : 'Service logged ✓')); }))();
+        (opts.onDone || (() => go('maintenance')))();
+        if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
+        else if (!opts.onDone) toast(t(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓'));
       };
       card.appendChild(b);
     });
@@ -1490,8 +1532,8 @@ function serviceItem(s, st, withBar) {
   item.innerHTML = `
     <div class="item-ic">${s.icon || '🔧'}</div>
     <div class="item-main">
-      <h3>${t(s.name)}</h3>
-      <p>${st.drivenByTime ? relDate(st.dueDate) + ' · ' : ''}${kmTxt}</p>
+      <h3>${s.deferred ? '⏰ ' : ''}${t(s.name)}</h3>
+      <p>${s.deferred ? t('Skipped — do it') + ' · ' : ''}${st.drivenByTime ? relDate(st.dueDate) + ' · ' : ''}${kmTxt}</p>
       ${withBar ? `<div class="bar ${st.level}"><span style="width:${clamp(st.prog, 0, 1) * 100}%"></span></div>` : ''}
     </div>
     <div class="item-side"><span class="pill ${st.level}">${pillTxt}</span></div>`;
@@ -2506,7 +2548,7 @@ function openLogPlanVisit() {
         <div class="item-ic">${ms.major ? '🛠️' : '🗓️'}</div>
         <div class="item-main"><h3>${fmt(ms.km)} km${ms.major ? ' · ' + t('Major service') : ''}</h3><p>${ms.items.map(s => t(s.name)).join(', ')}</p></div>
         <div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Log ›')}</span></div>`;
-      it.onclick = () => { closeModal(); openLogConfirm(ms.items, { onDone: () => { go('maintenance'); toast(t('Visit logged ✓')); } }); };
+      it.onclick = () => { closeModal(); openLogConfirm(ms.items, { checklist: true, onDone: () => { go('maintenance'); } }); };
       list.appendChild(it);
     });
     card.appendChild(list);
