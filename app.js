@@ -75,6 +75,11 @@ const AR = {
   'All': 'الكل', 'OK': 'سليمة',
   // buttons
   'Log a service': 'تسجيل خدمة', 'Add spending': 'إضافة مصروف', 'Add fill-up': 'إضافة تعبئة', 'Mark done now': 'تحديد كمنجز',
+  'A single service, or a whole plan visit at once.': 'خدمة واحدة، أو زيارة خطة كاملة دفعة واحدة.',
+  'Single service': 'خدمة واحدة', 'Pick one thing you just had done.': 'اختر شيئاً واحداً أنجزته للتو.', 'Choose': 'اختيار',
+  'Plan visit': 'زيارة الخطة', 'A group of services from your plan, done together.': 'مجموعة خدمات من خطتك، أُنجزت معاً.',
+  'Log a plan visit': 'تسجيل زيارة الخطة', 'Pick an upcoming group of services — logs everything in it at once.': 'اختر مجموعة خدمات قادمة — يسجّل كل ما فيها دفعة واحدة.',
+  'Log ›': 'تسجيل ›',
   'Edit': 'تعديل', 'Save': 'حفظ', 'Add a part': 'إضافة قطعة', 'Add a custom service': 'إضافة خدمة مخصصة', 'Print / Save PDF': 'طباعة / حفظ PDF',
   'Update mileage': 'تحديث العداد', 'Set annual budget': 'تعيين الميزانية السنوية', 'Add a vehicle': 'إضافة مركبة', 'Add option': 'إضافة خيار',
   'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save changes': 'حفظ التغييرات', 'Save profile': 'حفظ الملف',
@@ -2279,11 +2284,47 @@ function openEditService(s) {
 }
 
 function openLogService() {
+  openModal('Log a service', 'A single service, or a whole plan visit at once.', card => {
+    const single = el('div', 'card plan-setup-banner');
+    single.innerHTML = `<div class="r-ic">🔧</div><div style="flex:1"><h3>${t('Single service')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Pick one thing you just had done.')}</p></div>`;
+    const bSingle = el('button', 'btn', t('Choose'));
+    bSingle.onclick = () => { closeModal(); openLogSingleService(); };
+    single.appendChild(bSingle);
+    card.appendChild(single);
+
+    const plan = el('div', 'card plan-setup-banner');
+    plan.innerHTML = `<div class="r-ic">🗓️</div><div style="flex:1"><h3>${t('Plan visit')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('A group of services from your plan, done together.')}</p></div>`;
+    const bPlan = el('button', 'btn', t('Choose'));
+    bPlan.onclick = () => { closeModal(); openLogPlanVisit(); };
+    plan.appendChild(bPlan);
+    card.appendChild(plan);
+  });
+}
+
+function openLogSingleService() {
   openModal('Log a service', 'Pick what you just had done — it resets the clock and adds the cost.', card => {
     const list = el('div', 'list');
     servicesRanked().forEach(({ s, st }) => {
       const it = serviceItem(s, st);
       it.onclick = () => { markServiceDone(s); closeModal(); go(current); toast(`${t(s.name)} ${t('logged ✓')}`); };
+      list.appendChild(it);
+    });
+    card.appendChild(list);
+  });
+}
+
+function openLogPlanVisit() {
+  const milestones = planForward().slice(0, 6);
+  openModal('Log a plan visit', 'Pick an upcoming group of services — logs everything in it at once.', card => {
+    if (!milestones.length) { card.appendChild(emptyState('🗓️', 'Nothing scheduled — you’re all caught up!')); return; }
+    const list = el('div', 'list');
+    milestones.forEach(ms => {
+      const it = el('div', 'item');
+      it.innerHTML = `
+        <div class="item-ic">${ms.major ? '🛠️' : '🗓️'}</div>
+        <div class="item-main"><h3>${fmt(ms.km)} km${ms.major ? ' · ' + t('Major service') : ''}</h3><p>${ms.items.map(s => t(s.name)).join(', ')}</p></div>
+        <div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Log ›')}</span></div>`;
+      it.onclick = () => { logVisit(ms); closeModal(); go('maintenance'); toast(t('Visit logged ✓')); };
       list.appendChild(it);
     });
     card.appendChild(list);
