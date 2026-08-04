@@ -1115,8 +1115,6 @@ function renderMaintenance() {
   return v;
 }
 
-let planShowAll = false;   // reveal milestones beyond the current year
-
 function buildPlan(v) {
   const intro = el('p');
   intro.style.cssText = 'font-size:12.5px;line-height:1.55;color:var(--text-2);margin:2px 4px 14px';
@@ -1125,8 +1123,8 @@ function buildPlan(v) {
 
   const thisYear = TODAY.getFullYear();
   const all = planForward();
-  // Default: only what's due within the current year (plus always the next one up).
-  const shown = planShowAll ? all : all.filter((m, i) => i === 0 || m.date.getFullYear() <= thisYear);
+  // Show only what's due within the current year (plus always the next one up).
+  const shown = all.filter((m, i) => i === 0 || m.date.getFullYear() <= thisYear);
 
   const wrap = el('div', 'plan-list');
   let lastYear = null;
@@ -1157,13 +1155,6 @@ function buildPlan(v) {
   });
   if (!shown.length) wrap.appendChild(emptyState('🗓️', 'Nothing scheduled — you’re all caught up!'));
   v.appendChild(wrap);
-
-  if (!planShowAll && all.length > shown.length) {
-    const more = el('button', 'btn block ghost', `${t('Show later years')} ›`);
-    more.style.marginTop = '12px';
-    more.onclick = () => { planShowAll = true; go('maintenance'); };
-    v.appendChild(more);
-  }
 
   const note = el('div', 'card');
   note.style.cssText = 'padding:13px 15px;margin-top:12px;font-size:12px;line-height:1.55;color:var(--text-2)';
