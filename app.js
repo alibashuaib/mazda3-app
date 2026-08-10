@@ -983,13 +983,23 @@ function resolvePhotos(data, photos) {
   });
 }
 
+/* Re-create object URLs for the active vehicle after a revocation sweep. */
+function refreshPhotoUrls() {
+  if (!state || !photoBlobs) return;
+  resolvePhotos(state, photoBlobs);
+}
+
 function save() {
   const v = garage.vehicles.find(x => x.id === garage.activeId);
   if (!v) return Promise.resolve(false);
   v.data = state;
   const data = state;          // the vehicle being saved — `state` may move before this resolves
   return saveVehicle(v.id, data, garage.activeId, uid).then(res => {
-    if (res.ok) { applyPhotoIds(data, res.data); return true; }
+    if (res.ok) {
+      applyPhotoIds(data, res.data);
+      cacheNewPhotos(data, res.photoIds);
+      return true;
+    }
     const err = res.error;
     toast(isQuotaError(err)
       ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
@@ -1004,6 +1014,19 @@ function applyPhotoIds(live, stored) {
   const a = [live.car].concat(live.history || [], live.spending || []).filter(Boolean);
   const b = [stored.car].concat(stored.history || [], stored.spending || []).filter(Boolean);
   a.forEach((o, i) => { if (b[i] && b[i].photoId) o.photoId = b[i].photoId; });
+}
+
+/* Keep just-saved images in the session cache so later navigations render
+   them from a Blob like every other photo, instead of a lingering data URL. */
+function cacheNewPhotos(live, photoIds) {
+  if (!photoIds || !photoIds.length) return;
+  const slots = [live.car].concat(live.history || [], live.spending || []).filter(Boolean);
+  slots.forEach(o => {
+    if (o.photoId && photoIds.indexOf(o.photoId) >= 0 && !photoBlobs[o.photoId]) {
+      const blob = dataUrlToBlob(o.photo);
+      if (blob) photoBlobs[o.photoId] = blob;
+    }
+  });
 }
 function switchVehicle(id) {
   const v = garage.vehicles.find(x => x.id === id); if (!v) return;
@@ -1100,7 +1123,9 @@ const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, par
 let current = 'dashboard';
 let navIntent = null; // cross-page link target, consumed by the destination page's render
 function go(route, intent) {
-  if (!booted) return;
+  if (!booted) return;      // boot failed — leave the error card in place
+  revokeObjectUrls();
+  refreshPhotoUrls();
   current = route;
   navIntent = intent || null;
   const view = $('#view');
