@@ -339,6 +339,10 @@ const AR = {
   // storage errors
   'Storage is full — your change was NOT saved. Remove some receipt photos.': 'مساحة التخزين ممتلئة — لم يتم حفظ التغيير. احذف بعض صور الإيصالات.',
   'Could not save your change.': 'تعذّر حفظ التغيير.',
+
+  // odometer staleness
+  'Mileage is {n} days old — due dates may be off': 'مضى {n} يوماً على تحديث العداد — قد تكون مواعيد الاستحقاق غير دقيقة',
+  'Update ›': 'تحديث ›',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -882,6 +886,13 @@ function fuelSystemCleanerPart() {
 function normalizeData(s) {
   s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
   ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+  // When the odometer was last known good. Derived from data on disk — not
+  // from today() — because normalizeData runs on every load and is only
+  // persisted when something calls save().
+  if (!s.car.odoUpdatedAt) {
+    const seen = [].concat(s.fuel.map(f => f.date), s.history.map(h => h.date)).filter(Boolean).sort();
+    s.car.odoUpdatedAt = seen.length ? seen[seen.length - 1] : isoDate(today());
+  }
   if (typeof s.planSetupDone !== 'boolean') s.planSetupDone = false;
   if (s.severity !== 'normal' && s.severity !== 'severe') s.severity = 'severe'; // Jeddah default
   // Fuel System Cleaner is now a PART of every oil change (mandatory for the direct-injection
@@ -1117,6 +1128,15 @@ function renderDashboard() {
   tiles.children[2].onclick = () => go('budget');
   [...tiles.children].forEach(t => { t.style.cursor = 'pointer'; });
   v.appendChild(tiles);
+
+  // Stale mileage quietly corrupts every due date — nudge, don't nag.
+  const odoAge = daysSince(state.car.odoUpdatedAt, today());
+  if (odoAge >= 14) {
+    const ob = el('button', 'card reminder-banner warn');
+    ob.innerHTML = `<span class="rb-ic">📏</span><span class="rb-text">${t('Mileage is {n} days old — due dates may be off').replace('{n}', odoAge === Infinity ? '?' : odoAge)}</span><span class="rb-go">${t('Update ›')}</span>`;
+    ob.onclick = openEditOdo;
+    v.appendChild(ob);
+  }
 
   // Reminder — services you marked "not yet" during a plan visit, ranked by severity
   const deferred = ranked.filter(r => r.s.deferred);
@@ -2152,7 +2172,8 @@ function openAddFuel(e) {
       if (!odo) return toast('Odometer required', 'warn');
       const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(today()), odometer: odo, litres, cost: +$('#f_cost').value || 0, full: $('#f_full').value !== 'no' };
       if (e) Object.assign(e, obj); else { state.fuel = state.fuel || []; state.fuel.push(obj); }
-      if (odo > state.car.odometer) state.car.odometer = odo; // keep mileage current
+      // a fill-up is a real odometer reading — stamp it with the fill-up's own date
+      if (odo > state.car.odometer) { state.car.odometer = odo; state.car.odoUpdatedAt = obj.date; }
       save(); closeModal(); go('fuel'); toast(editing ? 'Fill-up updated' : 'Fill-up added');
     };
     card.appendChild(b);
@@ -2240,7 +2261,7 @@ function openEditOdo() {
     const b = el('button', 'btn primary block', t('Save'));
     b.onclick = () => {
       const val = parseInt($('#m_odo').value, 10);
-      if (!isNaN(val)) state.car.odometer = val;
+      if (!isNaN(val)) { state.car.odometer = val; state.car.odoUpdatedAt = isoDate(today()); }
       const d = parseInt($('#m_daily').value, 10);
       if (!isNaN(d) && d > 0) state.car.dailyKm = d;
       save(); closeModal(); go(current); toast('Mileage updated');

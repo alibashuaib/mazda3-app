@@ -60,5 +60,14 @@
     return within.length >= minCount ? within : milestones.slice(0, minCount);
   }
 
-  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon };
+  /* Whole days between an ISO YYYY-MM-DD date and `now`. A missing date is
+     infinitely stale so callers treat it as needing attention. Never negative. */
+  function daysSince(isoDateStr, now) {
+    if (!isoDateStr) return Infinity;
+    const then = new Date(isoDateStr + 'T00:00:00');
+    if (isNaN(then.getTime())) return Infinity;
+    return Math.max(0, Math.floor((now - then) / 86400000));
+  }
+
+  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince };
 });

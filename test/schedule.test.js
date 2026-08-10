@@ -116,3 +116,21 @@ test('withinHorizon never invents milestones that do not exist', () => {
   assert.strictEqual(out.length, 1);
   assert.deepStrictEqual(withinHorizon([], new Date('2027-01-01T00:00:00'), 3), []);
 });
+
+const { daysSince } = require('../schedule.js');
+
+test('daysSince counts whole days', () => {
+  const now = new Date('2026-08-10T00:00:00');
+  assert.strictEqual(daysSince('2026-08-10', now), 0);
+  assert.strictEqual(daysSince('2026-07-27', now), 14);
+});
+
+test('daysSince treats a missing date as infinitely stale', () => {
+  const now = new Date('2026-08-10T00:00:00');
+  assert.strictEqual(daysSince('', now), Infinity);
+  assert.strictEqual(daysSince(undefined, now), Infinity);
+});
+
+test('daysSince does not go negative for a future date', () => {
+  assert.strictEqual(daysSince('2026-09-01', new Date('2026-08-10T00:00:00')), 0);
+});
