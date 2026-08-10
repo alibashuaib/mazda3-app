@@ -86,7 +86,7 @@ January is used deliberately — no daylight-saving transition in any timezone, 
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '../schedule.js'`
 
 - [ ] **Step 3: Create `schedule.js` with the minimal implementation**
@@ -119,7 +119,7 @@ Expected: FAIL — `Cannot find module '../schedule.js'`
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 2 tests
 
 - [ ] **Step 5: Load `schedule.js` in the browser**
@@ -259,7 +259,7 @@ Each task shows its own `require` line so the dependency is explicit. Merging th
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `isQuotaError is not a function`
 
 - [ ] **Step 3: Implement `isQuotaError`**
@@ -282,7 +282,7 @@ And extend the return to `return { today, isQuotaError };`
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 5 tests
 
 - [ ] **Step 5: Make `persistGarage` honest**
@@ -430,7 +430,7 @@ test('mergeMilestones sorts unsorted input and handles empty input', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `mergeMilestones is not a function`
 
 - [ ] **Step 3: Implement `mergeMilestones`**
@@ -458,7 +458,7 @@ Extend the return to `return { today, isQuotaError, mergeMilestones };`
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 10 tests
 
 - [ ] **Step 5: Rewrite `planForward` to use it**
@@ -554,7 +554,7 @@ test('withinHorizon never invents milestones that do not exist', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `withinHorizon is not a function`
 
 - [ ] **Step 3: Implement `withinHorizon`**
@@ -574,7 +574,7 @@ Extend the return to `return { today, isQuotaError, mergeMilestones, withinHoriz
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 13 tests
 
 - [ ] **Step 5: Use it in `buildPlan`**
@@ -657,7 +657,7 @@ test('daysSince does not go negative for a future date', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `daysSince is not a function`
 
 - [ ] **Step 3: Implement `daysSince`**
@@ -679,7 +679,7 @@ Extend the return to `return { today, isQuotaError, mergeMilestones, withinHoriz
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 16 tests
 
 - [ ] **Step 5: Default the new field for existing vehicles**
@@ -822,7 +822,7 @@ test('healthFrom weights overdue above due-soon', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `healthFrom is not a function`
 
 - [ ] **Step 3: Implement `healthFrom`**
@@ -843,7 +843,7 @@ Extend the return to `return { today, isQuotaError, mergeMilestones, withinHoriz
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 19 tests
 
 - [ ] **Step 5: Delegate `healthScore` to it**
@@ -965,7 +965,7 @@ test('nextTheme recovers from an unrecognised stored value', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `nextTheme is not a function`
 
 - [ ] **Step 3: Implement `nextTheme`**
@@ -985,7 +985,7 @@ Extend the return to `return { today, isQuotaError, mergeMilestones, withinHoriz
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 21 tests
 
 - [ ] **Step 5: Replace the binary toggle**
@@ -1096,7 +1096,7 @@ Open `index.html`. Tap the theme button three times — expect toasts reading li
 
 - [ ] **Step 10: Run the full suite and commit**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 21 tests
 
 ```bash
@@ -1113,7 +1113,7 @@ light-mode users saw on load."
 
 ## Definition of done
 
-- [ ] `node --test test/` passes with 21 tests.
+- [ ] `node --test` passes with 21 tests. (Note: `node --test test/` fails on this Windows/Node 24 setup — use bare `node --test`, which discovers `test/` automatically.)
 - [ ] `grep -n "TODAY\|yearSpend(2026)\|2026-08-02" app.js` returns nothing.
 - [ ] Overdue status changes when the system clock passes a due date.
 - [ ] Filling `localStorage` produces a visible warning rather than silent data loss.
