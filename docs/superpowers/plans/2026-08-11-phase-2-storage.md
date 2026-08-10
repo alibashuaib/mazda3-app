@@ -934,6 +934,7 @@ Import **replaces** the garage. It must ask first — this is destructive.
 ```js
 function importGarage(file) {
   const reader = new FileReader();
+  reader.onerror = () => toast(t('Could not read that file.'), 'warn');
   reader.onload = async () => {
     const parsed = parseImport(reader.result);
     if (!parsed.ok) return toast(parsed.error, 'warn');
@@ -944,15 +945,26 @@ function importGarage(file) {
       const blob = dataUrlToBlob(parsed.photos[id]);
       if (blob) photoBlobs[id] = blob;
     });
-    garage.vehicles.forEach(v => normalizeData(v.data));
+    // The backup's .photo fields are stale blob: URLs from the exporting session.
+    // Restore real data: URLs from the backup's own photos dict first — otherwise
+    // splitPhotos takes its "blob: means already stored" branch and persists nothing,
+    // and every photo disappears on the next reload.
+    garage.vehicles.forEach(v => { v.data = inlinePhotos(v.data, parsed.photos); normalizeData(v.data); });
     const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
     garage.activeId = active.id;
     state = active.data;
     let ok = true;
     for (const v of garage.vehicles) {
       const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
-      if (res !== true && !(res && res.ok)) ok = false;
+      if (!res.ok) ok = false;
     }
+    // Re-read so memory matches disk: the save loop minted fresh photo ids, leaving the
+    // photoBlobs built from parsed.photos keyed by the backup's old ids.
+    const fresh = await loadAll();
+    const h = hydrate(fresh.garage, fresh.photos);
+    garage = h.garage;
+    state = h.state;
+    photoBlobs = fresh.photos || {};
     closeModal();
     applyAccent(); renderTopbar(); go('dashboard');
     toast(ok ? 'Garage restored' : 'Restored, but some data could not be saved', ok ? undefined : 'warn');
@@ -1013,6 +1025,7 @@ This reuses the existing `.btn`, `.btn.ghost` and `.section-title` classes, so n
   'That file is not valid JSON.': 'هذا الملف ليس JSON صالحاً.',
   'That is not a Garage backup file.': 'هذا ليس ملف نسخة احتياطية للمرآب.',
   'That backup file is incomplete.': 'ملف النسخة الاحتياطية غير مكتمل.',
+  'Could not read that file.': 'تعذّرت قراءة هذا الملف.',
 ```
 
 - [ ] **Step 5: Verify and commit**
