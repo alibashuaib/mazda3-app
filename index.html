@@ -1,6 +1,15 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
+  <script>
+    /* Set the theme before first paint — otherwise light-mode users see a dark flash. */
+    (function () {
+      var p = null;
+      try { p = localStorage.getItem('garage.theme'); } catch (e) {}
+      var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', p || sys);
+    })();
+  </script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f1013" />

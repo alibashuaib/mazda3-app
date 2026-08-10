@@ -150,3 +150,16 @@ test('healthFrom weights overdue above due-soon', () => {
   assert.strictEqual(healthFrom(['danger', 'ok', 'ok', 'ok']), 75);
   assert.strictEqual(healthFrom(['warn', 'ok', 'ok', 'ok']), 90);
 });
+
+const { nextTheme } = require('../schedule.js');
+
+test('nextTheme cycles system to light to dark and back', () => {
+  assert.strictEqual(nextTheme('system'), 'light');
+  assert.strictEqual(nextTheme('light'), 'dark');
+  assert.strictEqual(nextTheme('dark'), 'system');
+});
+
+test('nextTheme recovers from an unrecognised stored value', () => {
+  assert.strictEqual(nextTheme('chartreuse'), 'system');
+  assert.strictEqual(nextTheme(null), 'system');
+});

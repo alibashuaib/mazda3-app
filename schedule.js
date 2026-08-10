@@ -77,5 +77,12 @@
     return Math.round(Math.min(100, Math.max(0, 100 - (penalty / levels.length) * 100)));
   }
 
-  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince, healthFrom };
+  /* Cycle order for the theme button. An unrecognised value lands on
+     'system', so corrupt storage self-heals. */
+  const THEME_ORDER = ['system', 'light', 'dark'];
+  function nextTheme(current) {
+    return THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
+  }
+
+  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince, healthFrom, nextTheme };
 });

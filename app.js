@@ -348,6 +348,11 @@ const AR = {
   'Health score': 'مؤشر الحالة',
   'what is affecting it': 'ما الذي يؤثر عليه',
   'Everything is on track.': 'كل شيء على المسار الصحيح.',
+
+  // theme
+  'Theme: follows device': 'المظهر: حسب الجهاز',
+  'Theme: light': 'المظهر: فاتح',
+  'Theme: dark': 'المظهر: داكن',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -2882,10 +2887,21 @@ function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   $('meta[name=theme-color]').setAttribute('content', t === 'light' ? '#eef0f4' : '#0f1013');
 }
+/* Stored preference: 'light' | 'dark', or absent meaning "follow the device". */
+function themePref() {
+  try { return localStorage.getItem('garage.theme') || 'system'; } catch (e) { return 'system'; }
+}
+function setThemePref(p) {
+  try {
+    if (p === 'system') localStorage.removeItem('garage.theme');
+    else localStorage.setItem('garage.theme', p);
+  } catch (e) {}
+  applyTheme(p === 'system' ? systemTheme() : p);
+}
 $('#themeToggle').onclick = () => {
-  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-  applyTheme(next);
-  try { localStorage.setItem('garage.theme', next); } catch (e) {} // an explicit choice sticks
+  const next = nextTheme(themePref());
+  setThemePref(next);
+  toast(next === 'system' ? 'Theme: follows device' : next === 'light' ? 'Theme: light' : 'Theme: dark');
 };
 
 /* ---------- language (Arabic / English + RTL) ---------- */
@@ -2906,12 +2922,11 @@ function applyLang(l) {
   renderTopbar();
   go(current);
 }
-// default to the OS preference; a saved choice (if any) wins
-applyTheme(localStorage.getItem('garage.theme') || systemTheme());
-// keep following the OS until the user picks a theme manually
+// follow the device unless the user has explicitly picked light or dark
+setThemePref(themePref());
 if (window.matchMedia) {
   window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
-    if (!localStorage.getItem('garage.theme')) applyTheme(e.matches ? 'light' : 'dark');
+    if (themePref() === 'system') applyTheme(e.matches ? 'light' : 'dark');
   });
 }
 
