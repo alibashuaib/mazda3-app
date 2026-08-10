@@ -478,6 +478,7 @@ function planForward() {
     if (k < odo) {                    // overdue → due now, then continue on its interval
       occurrences.push({ km: odo, service: s });
       k += Math.ceil((odo - k) / ikm) * ikm;
+      if (k <= odo) k += ikm;         // must resume strictly past odo, or we duplicate the push above
     }
     for (; k <= horizon; k += ikm) occurrences.push({ km: k, service: s });
   });
