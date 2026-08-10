@@ -19,5 +19,15 @@
     return d;
   }
 
-  return { today };
+  /* localStorage quota errors, across browsers. Chrome/Safari throw
+     QuotaExceededError, Firefox NS_ERROR_DOM_QUOTA_REACHED, older
+     engines set legacy code 22. */
+  function isQuotaError(err) {
+    if (!err) return false;
+    return err.name === 'QuotaExceededError'
+      || err.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+      || err.code === 22;
+  }
+
+  return { today, isQuotaError };
 });

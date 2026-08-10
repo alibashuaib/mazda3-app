@@ -335,6 +335,10 @@ const AR = {
   'Local battery shop': 'محل بطاريات محلي',
   'AC Delco / battery shop': 'AC Delco / محل بطاريات',
   'Mazda Dealer (Alireza)': 'وكيل مازدا (علي رضا)',
+
+  // storage errors
+  'Storage is full — your change was NOT saved. Remove some receipt photos.': 'مساحة التخزين ممتلئة — لم يتم حفظ التغيير. احذف بعض صور الإيصالات.',
+  'Could not save your change.': 'تعذّر حفظ التغيير.',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -907,7 +911,19 @@ function normalizeData(s) {
    normal = the dealer values where a service defines them, else the same) */
 function svKm(s) { return (state.severity === 'normal' && s.normalKm) ? s.normalKm : s.intervalKm; }
 function svMo(s) { return (state.severity === 'normal' && s.normalMonths) ? s.normalMonths : s.intervalMonths; }
-function persistGarage() { try { localStorage.setItem(GKEY, JSON.stringify(garage)); } catch (e) {} }
+/* Returns true when the write succeeded. A silent failure here used to
+   lose the user's data with no indication at all. */
+function persistGarage() {
+  try {
+    localStorage.setItem(GKEY, JSON.stringify(garage));
+    return true;
+  } catch (e) {
+    toast(isQuotaError(e)
+      ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
+      : t('Could not save your change.'), 'warn');
+    return false;
+  }
+}
 let state = load();
 function load() {
   try { const g = localStorage.getItem(GKEY); if (g) garage = JSON.parse(g); } catch (e) {}
@@ -923,7 +939,7 @@ function load() {
   garage.activeId = active.id;
   return active.data;
 }
-function save() { const v = garage.vehicles.find(v => v.id === garage.activeId); if (v) v.data = state; persistGarage(); }
+function save() { const v = garage.vehicles.find(v => v.id === garage.activeId); if (v) v.data = state; return persistGarage(); }
 function switchVehicle(id) {
   const v = garage.vehicles.find(x => x.id === id); if (!v) return;
   garage.activeId = id; state = v.data; persistGarage();
