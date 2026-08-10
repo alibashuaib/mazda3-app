@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
+const { collectInlinePhotos } = require('../storage.js');
 
 const DATA_URL = 'data:image/jpeg;base64,AAAA';
 
@@ -111,4 +112,24 @@ test('blobToDataUrl round-trips dataUrlToBlob', async () => {
   const original = 'data:image/jpeg;base64,AAECAw==';
   const back = await blobToDataUrl(dataUrlToBlob(original));
   assert.strictEqual(back, original);
+});
+
+test('collectInlinePhotos returns {} for null/undefined and for a record with no photos', () => {
+  assert.deepStrictEqual(collectInlinePhotos(null), {});
+  assert.deepStrictEqual(collectInlinePhotos(undefined), {});
+  assert.deepStrictEqual(collectInlinePhotos({ car: {}, history: [], spending: [] }), {});
+});
+
+test('collectInlinePhotos picks up only slots with both a photoId and a data: URL', () => {
+  const data = {
+    car: { photo: DATA_URL, photoId: 'p1' },
+    history: [{ photo: '', photoId: 'p2' }, { photo: DATA_URL }],
+    spending: [{ photo: DATA_URL, photoId: 'p3' }]
+  };
+  assert.deepStrictEqual(collectInlinePhotos(data), { p1: DATA_URL, p3: DATA_URL });
+});
+
+test('collectInlinePhotos ignores a blob: URL', () => {
+  const data = { car: { photo: 'blob:http://x/abc', photoId: 'p1' } };
+  assert.deepStrictEqual(collectInlinePhotos(data), {});
 });

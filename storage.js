@@ -64,6 +64,16 @@
     return out;
   }
 
+  /* Photo id -> data URL for every image already inlined in a stored record.
+     The localStorage backend rewrites a vehicle wholesale, so a save that did
+     not re-supply an existing photo must not drop it. */
+  function collectInlinePhotos(data) {
+    const out = {};
+    if (!data) return out;
+    photoSlots(data).forEach(o => { if (o.photoId && isDataUrl(o.photo)) out[o.photoId] = o.photo; });
+    return out;
+  }
+
   const EXPORT_FORMAT = 'garage-export';
 
   function buildExport(garage, photosById, nowIso) {
@@ -144,6 +154,18 @@
     });
   }
 
+  /* Writes the meta record within an in-flight transaction, merging over the
+     existing record rather than replacing it wholesale — so an ordinary save
+     or delete never clobbers fields like migratedAt and re-triggers migration. */
+  function putMetaPreserving(tx, patch) {
+    const store = tx.objectStore('meta');
+    const getReq = store.get(META_KEY);
+    getReq.onsuccess = () => {
+      const prev = getReq.result || { key: META_KEY, schemaVersion: 1 };
+      store.put(Object.assign({}, prev, patch));
+    };
+  }
+
   function lsRead() {
     try { return JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch (e) { return null; }
   }
@@ -180,14 +202,15 @@
       .then(([meta, vehicles, photos]) => {
         const photosById = {};
         photos.forEach(p => { photosById[p.id] = p.blob; });
-        if (!vehicles.length) {
+        const m = meta.find(x => x.key === META_KEY) || {};
+        if (!m.migratedAt) {
           const legacy = lsRead();
           if (legacy && Array.isArray(legacy.vehicles) && legacy.vehicles.length) {
-            return migrateFromLocal(legacy).then(() => loadAll());
+            return migrateFromLocal(legacy).then(() => loadAll())
+              .catch(() => ({ garage: lsRead(), photos: {} }));
           }
-          return { garage: null, photos: {} };
         }
-        const m = meta.find(x => x.key === META_KEY) || {};
+        if (!vehicles.length) return { garage: null, photos: {} };
         return {
           garage: { vehicles: vehicles.map(v => ({ id: v.id, data: v.data })), activeId: m.activeId || vehicles[0].id },
           photos: photosById
@@ -224,7 +247,9 @@
     if (backend.kind === 'local') {
       const garage = lsRead() || { vehicles: [], activeId };
       const idx = garage.vehicles.findIndex(v => v.id === vehicleId);
-      const rec = { id: vehicleId, data: inlinePhotos(split.data, split.photos) };
+      const prev = idx >= 0 ? garage.vehicles[idx].data : null;
+      const merged = Object.assign(collectInlinePhotos(prev), split.photos);
+      const rec = { id: vehicleId, data: inlinePhotos(split.data, merged) };
       if (idx >= 0) garage.vehicles[idx] = rec; else garage.vehicles.push(rec);
       garage.activeId = activeId;
       const res = lsWrite(garage);
@@ -235,7 +260,7 @@
     const db = backend.db;
     return idbTx(db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
       tx.objectStore('vehicles').put({ id: vehicleId, data: split.data });
-      tx.objectStore('meta').put({ key: META_KEY, schemaVersion: 1, activeId });
+      putMetaPreserving(tx, { activeId });
       Object.keys(split.photos).forEach(id => {
         const blob = dataUrlToBlob(split.photos[id]);
         if (blob) tx.objectStore('photos').put({ id, blob });
@@ -254,14 +279,14 @@
     }
     return idbTx(backend.db, ['meta', 'vehicles'], 'readwrite', tx => {
       tx.objectStore('vehicles').delete(vehicleId);
-      tx.objectStore('meta').put({ key: META_KEY, schemaVersion: 1, activeId });
+      putMetaPreserving(tx, { activeId });
     }).then(() => true).catch(() => false);
   }
 
   function backendKind() { return backend ? backend.kind : null; }
 
   return {
-    shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport,
+    shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, buildExport, parseImport,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
   };
 });
