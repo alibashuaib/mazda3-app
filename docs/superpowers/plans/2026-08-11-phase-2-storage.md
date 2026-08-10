@@ -620,6 +620,10 @@ In `app.js`, replace `persistGarage`, `let state = load();`, `load()` and `save(
    `state` at boot — so page code is unchanged. */
 let state = null;
 let photoBlobs = {};   // photo id -> Blob, for the active session
+/* The tab bar and chrome buttons are bound at module-eval, before `state` exists.
+   If boot fails, tapping one would clear #view and throw inside a render — turning
+   the error card into a blank screen. Every entry point checks this first. */
+let booted = false;
 
 /* Object URLs created for stored photo Blobs. The app has no view-teardown
    hook — go() replaces innerHTML wholesale — so these are revoked at the
@@ -663,7 +667,11 @@ function save() {
   const v = garage.vehicles.find(x => x.id === garage.activeId);
   if (!v) return Promise.resolve(false);
   v.data = state;
-  return saveVehicle(v.id, state, garage.activeId, uid).then(res => {
+  // Capture the vehicle being saved. `state` is reassigned by switchVehicle, and
+  // this continuation may run after the user has switched — applying the result
+  // to whatever `state` points at then would bind A's photo ids onto B's records.
+  const data = state;
+  return saveVehicle(v.id, data, garage.activeId, uid).then(res => {
     if (res.ok) { applyPhotoIds(state, res.data); return true; }
     const err = res.error;
     toast(isQuotaError(err)
@@ -703,11 +711,13 @@ openStorage()
     const h = hydrate(g, photoBlobs);
     garage = h.garage;
     state = h.state;
-    if (!g) return save();          // first run — persist the seed
+    // A stored-but-empty garage is truthy, so gate on the vehicle list, not on `g`.
+    if (!g || !g.vehicles || !g.vehicles.length) return save();   // first run — persist the seed
   })
   .then(() => {
     applyAccent();
     renderTopbar();
+    booted = true;      // must precede the first go(); see the guard in go()
     go('dashboard');
   })
   .catch(err => {
@@ -739,6 +749,18 @@ b.onclick = async () => {
 Apply the same transformation to every site. The 6 sites with no success toast still need `await` if anything after them depends on the write having landed; where they merely navigate, `save();` without `await` is acceptable — but add `// fire-and-forget: nothing downstream reads the result` so the choice is visible.
 
 For the direct `persistGarage()` calls in `openAddVehicle` and `deleteVehicle`, use `saveVehicle`/`removeVehicle` and `await` them the same way.
+
+**Do not lose the failure toast at those two sites.** `persistGarage()` used to toast on failure itself; `save()` inherited that, but these two bypass `save()`. Without an explicit toast, a quota failure makes the new vehicle appear and then silently vanish on reload:
+
+```js
+// openAddVehicle — res is { ok, error } from saveVehicle
+if (!res.ok) toast(isQuotaError(res.error)
+  ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
+  : t('Could not save your change.'), 'warn');
+
+// deleteVehicle — removeVehicle resolves a bare boolean
+if (!ok) toast(t('Could not save your change.'), 'warn');
+```
 
 - [ ] **Step 5: Add the Arabic strings**
 
@@ -798,6 +820,7 @@ with:
 
 ```js
 function go(route, intent) {
+  if (!booted) return;      // boot failed — leave the error card in place
   revokeObjectUrls();
   refreshPhotoUrls();
   current = route;
@@ -830,8 +853,8 @@ with:
 
 ```js
     if (res.ok) {
-      applyPhotoIds(state, res.data);
-      cacheNewPhotos(state, res.photoIds);
+      applyPhotoIds(data, res.data);
+      cacheNewPhotos(data, res.photoIds);
       return true;
     }
 ```
