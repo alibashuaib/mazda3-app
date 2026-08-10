@@ -36,6 +36,7 @@ Read these before starting — two spec items are smaller than written, and one 
 | `app.js` | Modify | Calls into `schedule.js`; keeps all DOM/state work. |
 | `index.html` | Modify | Loads `schedule.js` before `app.js`; anti-flash theme script. |
 | `sw.js` | Modify | Caches `schedule.js`; cache version bumped. |
+| `styles.css` | Modify | One rule: the health ring reads as interactive (Task 6). |
 
 ---
 
@@ -683,19 +684,25 @@ Expected: PASS, 16 tests
 
 - [ ] **Step 5: Default the new field for existing vehicles**
 
-In `app.js`, in `normalizeData`, replace line 880:
+`normalizeData` runs on **every** load, but its result is only written to storage when something calls `save()`. So the default must be **derived from data already on disk**, not from the current date — otherwise a user who merely opens the app gets the field re-defaulted to that day every time, and the nudge could never fire.
+
+Fuel entries and history entries both carry a date and both imply an odometer reading, so the newest of them is the best evidence available for when the odometer was last known good.
+
+In `app.js`, in `normalizeData`, immediately after line 881 (the `['services', 'parts', …].forEach(…)` line that guarantees the arrays exist), insert:
 
 ```js
-  s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
+  // When the odometer was last known good. Derived from data on disk — not
+  // from today() — because normalizeData runs on every load and is only
+  // persisted when something calls save().
+  if (!s.car.odoUpdatedAt) {
+    const seen = [].concat(s.fuel.map(f => f.date), s.history.map(h => h.date)).filter(Boolean).sort();
+    s.car.odoUpdatedAt = seen.length ? seen[seen.length - 1] : isoDate(today());
+  }
 ```
 
-with:
+The `isoDate(today())` fallback only applies to a garage with no fuel and no history at all, where a staleness nudge would be meaningless anyway.
 
-```js
-  s.car = Object.assign({ nickname: '', vin: '', photo: '', odoUpdatedAt: isoDate(today()) }, s.car);
-```
-
-Existing vehicles get today's date rather than a fabricated past one — the app has no record of when the odometer was really last touched, and inventing staleness would nag the user on first load after upgrading.
+Leave line 880 (`s.car = Object.assign(…)`) unchanged.
 
 - [ ] **Step 6: Stamp the field when the odometer changes**
 
