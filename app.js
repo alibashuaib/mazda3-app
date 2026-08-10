@@ -369,6 +369,7 @@ const AR = {
   'That file is not valid JSON.': 'هذا الملف ليس JSON صالحاً.',
   'That is not a Garage backup file.': 'هذا ليس ملف نسخة احتياطية للمرآب.',
   'That backup file is incomplete.': 'ملف النسخة الاحتياطية غير مكتمل.',
+  'Could not read that file.': 'تعذّرت قراءة هذا الملف.',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -1118,19 +1119,30 @@ function importGarage(file) {
       const blob = dataUrlToBlob(parsed.photos[id]);
       if (blob) photoBlobs[id] = blob;
     });
-    garage.vehicles.forEach(v => normalizeData(v.data));
+    // The backup's .photo fields are stale blob: URLs from the exporting session.
+    // Restore real data: URLs from the backup's own photos dict, or splitPhotos
+    // will treat them as already-stored and persist nothing.
+    garage.vehicles.forEach(v => { v.data = inlinePhotos(v.data, parsed.photos); normalizeData(v.data); });
     const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
     garage.activeId = active.id;
     state = active.data;
     let ok = true;
     for (const v of garage.vehicles) {
       const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
-      if (res !== true && !(res && res.ok)) ok = false;
+      if (!res.ok) ok = false;
     }
+    // The save loop minted fresh photo ids, so re-read from storage to bring
+    // memory back in sync with what was actually persisted.
+    const fresh = await loadAll();
+    const h = hydrate(fresh.garage, fresh.photos);
+    garage = h.garage;
+    state = h.state;
+    photoBlobs = fresh.photos || {};
     closeModal();
     applyAccent(); renderTopbar(); go('dashboard');
     toast(ok ? t('Garage restored') : t('Restored, but some data could not be saved'), ok ? undefined : 'warn');
   };
+  reader.onerror = () => toast(t('Could not read that file.'), 'warn');
   reader.readAsText(file);
 }
 
