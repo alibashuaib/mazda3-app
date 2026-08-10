@@ -5,7 +5,6 @@
 'use strict';
 
 const STORE_KEY = 'garage.mazda3.v1';
-const TODAY = new Date('2026-08-02');
 
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -341,7 +340,7 @@ function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
 const addMonths = (d, m) => { const x = new Date(d); x.setMonth(x.getMonth() + Math.round(m)); return x; };
 const relDate = d => {
-  const days = Math.round((d - TODAY) / 86400000);
+  const days = Math.round((d - today()) / 86400000);
   const ar = lang === 'ar';
   if (days === 0) return t('today');
   if (days < 0) return ar ? `قبل ${Math.abs(days)} يوم` : `${Math.abs(days)}d ago`;
@@ -833,7 +832,7 @@ function buildProfile(modelId, engIdx, opts) {
     history: [], spending: [], fuel: [], docs: []
   };
   // baseline every service at the current odometer / today so the schedule tracks from now
-  s.services.forEach(x => { x.lastKm = odo; x.lastDate = isoDate(TODAY); });
+  s.services.forEach(x => { x.lastKm = odo; x.lastDate = isoDate(today()); });
   return s;
 }
 // default first vehicle: the owner's 2016 Mazda 3 (BM · 2.0) at 316,000 km
@@ -970,10 +969,10 @@ function serviceStatus(s) {
   const dueKm = s.lastKm + ikm;
   const kmLeft = dueKm - odo;
   const dueDate = addMonths(parseDate(s.lastDate), imo);
-  const daysLeft = Math.round((dueDate - TODAY) / 86400000);
+  const daysLeft = Math.round((dueDate - today()) / 86400000);
   // progress through the interval (0..1+), take the more advanced of km/time
   const kmProg = (odo - s.lastKm) / ikm;
-  const timeProg = monthsBetween(parseDate(s.lastDate), TODAY) / imo;
+  const timeProg = monthsBetween(parseDate(s.lastDate), today()) / imo;
   const prog = Math.max(kmProg, timeProg);
   // which dimension is driving the due?
   const drivenByTime = timeProg >= kmProg;
@@ -1050,7 +1049,7 @@ function renderDashboard() {
   const overdue = ranked.filter(r => r.st.level === 'danger');
   const soon = ranked.filter(r => r.st.level === 'warn');
   const hs = healthScore();
-  const spent = yearSpend(2026);
+  const spent = yearSpend(today().getFullYear());
   const budget = state.budget.annual;
 
   // Car photo — its own container / banner
@@ -1114,7 +1113,7 @@ function renderDashboard() {
   }
 
   // Next up — top services due this year (overdue/due-soon and deferred always count)
-  const thisYear = TODAY.getFullYear();
+  const thisYear = today().getFullYear();
   v.appendChild(sectionTitle('Next up', 'See all', () => go('maintenance'), String(thisYear)));
   const dueThisYear = ranked.filter(r => r.s.deferred || r.st.level !== 'ok' || r.st.dueDate.getFullYear() <= thisYear);
   const list = el('div', 'list');
@@ -1180,7 +1179,7 @@ function planForward() {
     km,
     items: buckets[km],
     major: buckets[km].some(s => svKm(s) >= 60000),
-    date: new Date(TODAY.getTime() + Math.max(0, (km - odo) / dpk) * 86400000)
+    date: new Date(today().getTime() + Math.max(0, (km - odo) / dpk) * 86400000)
   }));
 }
 
@@ -1216,7 +1215,7 @@ function buildPlan(v) {
   intro.textContent = t('What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.');
   v.appendChild(intro);
 
-  const thisYear = TODAY.getFullYear();
+  const thisYear = today().getFullYear();
   const all = planForward();
   // Show only what's due within the current year (plus always the next one up).
   const shown = all.filter((m, i) => i === 0 || m.date.getFullYear() <= thisYear);
@@ -1259,7 +1258,7 @@ function buildPlan(v) {
 
 // Log a whole visit as done NOW (at the current odometer) — resets those services' clocks.
 function logVisit(ms) {
-  const date = isoDate(TODAY);
+  const date = isoDate(today());
   const odo = state.car.odometer || 0;
   let total = 0;
   ms.items.forEach(s => {
@@ -1286,7 +1285,7 @@ function openLogConfirm(services, opts) {
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
       r.append(field('Odometer (km)', `<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : state.car.odometer}">`),
-        field('Date', `<input id="lc_date" type="date" value="${isoDate(TODAY)}">`));
+        field('Date', `<input id="lc_date" type="date" value="${isoDate(today())}">`));
       card.appendChild(r);
 
       const picks = new Map(); // `${part.id}:${svc.id}` -> <select>
@@ -1356,7 +1355,7 @@ function openLogConfirm(services, opts) {
       const b = el('button', 'btn primary block', iconSvg('check') + t('Log it'));
       b.onclick = () => {
         const odo = +$('#lc_odo').value || state.car.odometer;
-        const date = $('#lc_date').value || isoDate(TODAY);
+        const date = $('#lc_date').value || isoDate(today());
         let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
         services.forEach(svc => {
           if (doneState.get(svc.id) === false) { svc.deferred = true; svc.deferredAt = date; nSkip++; return; }
@@ -1510,7 +1509,7 @@ function openPlanSetup() {
         if (isNaN(val) || val <= 0) return;
         a.s.lastKm = val;
         const days = Math.max(0, ((state.car.odometer || val) - val) / dpk);
-        a.s.lastDate = isoDate(new Date(TODAY.getTime() - days * 86400000));
+        a.s.lastDate = isoDate(new Date(today().getTime() - days * 86400000));
       });
       state.planSetupDone = true;
       save(); closeModal(); go('maintenance'); toast(t('Plan updated'));
@@ -1748,7 +1747,7 @@ function renderBudget() {
   const v = el('div');
   v.appendChild(pageIntro('Budget & Spending', 'Track what your Mazda costs to run and keep it in top shape.'));
 
-  const spent = yearSpend(2026);
+  const spent = yearSpend(today().getFullYear());
   const budget = state.budget.annual;
   const pct = clamp(budget ? spent / budget : 0, 0, 1.2);
   const dash = 2 * Math.PI * 40;
@@ -1884,14 +1883,14 @@ function reportHeader(title) {
       </div>
       <div class="rpt-meta">
         <div class="rpt-title">${title}</div>
-        <div>${t('Generated')} ${TODAY.toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        <div>${t('Generated')} ${today().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
         <div>${t('Odometer ')}${fmt(c.odometer)} km${c.plate ? ` · ${c.plate}` : ''}</div>
         ${c.vin ? `<div>VIN ${c.vin}</div>` : ''}
       </div>
     </div>`;
 }
 function reportFooter() {
-  return `<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${TODAY.toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
+  return `<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${today().toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
 }
 function reportService() {
   const hist = [...state.history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
@@ -1951,7 +1950,7 @@ function reportSummary() {
   const due = [...overdue, ...soon];
   const dueCost = due.reduce((a, r) => a + (r.s.cost || 0), 0);
   const hs = healthScore();
-  const spent = yearSpend(2026);
+  const spent = yearSpend(today().getFullYear());
   const histTotal = state.history.reduce((a, e) => a + Number(e.cost || 0), 0);
   const dueRows = due.length
     ? due.map(({ s, st }) => `<tr><td>${t(s.name)}</td><td>${st.level === 'danger' ? t('Overdue') : t('Due soon')}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' ' + t('km left')}</td><td class="num">${sar(s.cost)} SAR</td></tr>`).join('')
@@ -1978,7 +1977,7 @@ function reportSummary() {
 function monthlyBars() {
   const wrap = el('div', 'spend-bars');
   const months = [];
-  for (let i = 5; i >= 0; i--) { const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - i, 1); months.push(d); }
+  for (let i = 5; i >= 0; i--) { const d = new Date(today().getFullYear(), today().getMonth() - i, 1); months.push(d); }
   const totals = months.map(m => {
     const key = m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0'); // local month, no TZ shift
     return state.spending.filter(e => e.date.startsWith(key)).reduce((a, e) => a + Number(e.amount), 0);
@@ -2120,7 +2119,7 @@ function openAddFuel(e) {
   const editing = !!e;
   openModal(editing ? 'Edit fill-up' : 'Add fill-up', 'Record a refuel to track economy & cost.', card => {
     const r0 = el('div', 'field-row');
-    r0.append(field('Date', `<input id="f_date" type="date" value="${e ? e.date : isoDate(TODAY)}">`),
+    r0.append(field('Date', `<input id="f_date" type="date" value="${e ? e.date : isoDate(today())}">`),
       field('Odometer (km)', `<input id="f_odo" type="number" inputmode="numeric" value="${e ? e.odometer : state.car.odometer}">`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
@@ -2133,7 +2132,7 @@ function openAddFuel(e) {
       const litres = +$('#f_l').value, odo = +$('#f_odo').value;
       if (!litres) return toast('Litres required', 'warn');
       if (!odo) return toast('Odometer required', 'warn');
-      const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(TODAY), odometer: odo, litres, cost: +$('#f_cost').value || 0, full: $('#f_full').value !== 'no' };
+      const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(today()), odometer: odo, litres, cost: +$('#f_cost').value || 0, full: $('#f_full').value !== 'no' };
       if (e) Object.assign(e, obj); else { state.fuel = state.fuel || []; state.fuel.push(obj); }
       if (odo > state.car.odometer) state.car.odometer = odo; // keep mileage current
       save(); closeModal(); go('fuel'); toast(editing ? 'Fill-up updated' : 'Fill-up added');
@@ -2152,7 +2151,7 @@ function openAddFuel(e) {
 const DOC_ICONS = { 'Insurance': '📄', 'Registration (Istimara)': '🪪', 'Vehicle Inspection (Fahes)': '✅', 'Driving License': '🚗', 'Warranty': '🛡️', 'Other': '📎' };
 function docStatus(expiry) {
   if (!expiry) return { level: 'ok', txt: t('No date set') };
-  const days = Math.round((parseDate(expiry) - TODAY) / 86400000);
+  const days = Math.round((parseDate(expiry) - today()) / 86400000);
   const ar = lang === 'ar';
   const level = days < 0 ? 'danger' : days <= 30 ? 'warn' : 'ok';
   const txt = days < 0 ? (ar ? `منتهية منذ ${Math.abs(days)} يوم` : `Expired ${Math.abs(days)}d ago`)
@@ -2505,11 +2504,11 @@ function openServiceDetail(s) {
 
 function markServiceDone(s) {
   s.lastKm = state.car.odometer;
-  s.lastDate = isoDate(TODAY);
+  s.lastDate = isoDate(today());
   // record it in the work history
-  state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date: isoDate(TODAY), odometer: state.car.odometer, cost: s.cost || 0, cat: 'Maintenance', note: '' });
+  state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date: isoDate(today()), odometer: state.car.odometer, cost: s.cost || 0, cat: 'Maintenance', note: '' });
   // log the spend
-  if (s.cost > 0) state.spending.push({ id: uid(), date: isoDate(TODAY), cat: 'Maintenance', desc: s.name, amount: s.cost, odometer: state.car.odometer });
+  if (s.cost > 0) state.spending.push({ id: uid(), date: isoDate(today()), cat: 'Maintenance', desc: s.name, amount: s.cost, odometer: state.car.odometer });
   save();
 }
 
@@ -2524,7 +2523,7 @@ function openAddHistory(e, prefill) {
       field('Category', `<select id="h_cat">${cats.map(c => `<option value="${c}" ${p.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
-    r1.append(field('Date', `<input id="h_date" type="date" value="${e ? e.date : isoDate(TODAY)}">`),
+    r1.append(field('Date', `<input id="h_date" type="date" value="${e ? e.date : isoDate(today())}">`),
       field('Odometer (km)', `<input id="h_odo" type="number" value="${p.odometer != null ? p.odometer : state.car.odometer}">`));
     card.appendChild(r1);
     card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${p.cost != null ? p.cost : 0}">`));
@@ -2544,7 +2543,7 @@ function openAddHistory(e, prefill) {
       if (!name) return toast('Service name required', 'warn');
       const obj = {
         id: e ? e.id : uid(), name, icon: $('#h_icon').value.trim() || '🔧', cat: $('#h_cat').value,
-        date: $('#h_date').value || isoDate(TODAY), odometer: +$('#h_odo').value || 0,
+        date: $('#h_date').value || isoDate(today()), odometer: +$('#h_odo').value || 0,
         cost: +$('#h_cost').value || 0, note: $('#h_note').value.trim(), photo: hphoto
       };
       if (e) Object.assign(e, obj);
@@ -2584,7 +2583,7 @@ function openEditService(s) {
     card.appendChild(row1b);
     const row2 = el('div', 'field-row');
     row2.append(field('Last done (km)', `<input id="s_lkm" type="number" value="${s ? s.lastKm : state.car.odometer}">`),
-      field('Last done (date)', `<input id="s_ldate" type="date" value="${s ? s.lastDate : isoDate(TODAY)}">`));
+      field('Last done (date)', `<input id="s_ldate" type="date" value="${s ? s.lastDate : isoDate(today())}">`));
     card.appendChild(row2);
     const row3 = el('div', 'field-row');
     row3.append(field('Category', `<input id="s_cat" value="${s ? s.cat : 'General'}">`),
@@ -2600,7 +2599,7 @@ function openEditService(s) {
         cat: $('#s_cat').value.trim() || 'General',
         intervalKm: +$('#s_ikm').value || 10000, intervalMonths: +$('#s_imo').value || 12,
         normalKm: +$('#s_nkm').value || null, normalMonths: +$('#s_nmo').value || null,
-        lastKm: +$('#s_lkm').value || 0, lastDate: $('#s_ldate').value || isoDate(TODAY),
+        lastKm: +$('#s_lkm').value || 0, lastDate: $('#s_ldate').value || isoDate(today()),
         cost: +$('#s_cost').value || 0, note: $('#s_note').value.trim()
       };
       if (s) Object.assign(s, obj); else state.services.push(obj);
@@ -2676,7 +2675,7 @@ function openAddSpending(e) {
     card.appendChild(field('Description', `<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
     const row = el('div', 'field-row');
     row.append(field('Amount (SAR)', `<input id="x_amt" type="number" inputmode="numeric" value="${e ? e.amount : ''}">`),
-      field('Date', `<input id="x_date" type="date" value="${e ? e.date : isoDate(TODAY)}">`));
+      field('Date', `<input id="x_date" type="date" value="${e ? e.date : isoDate(today())}">`));
     card.appendChild(row);
     card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${e ? e.odometer : state.car.odometer}">`));
@@ -2697,7 +2696,7 @@ function openAddSpending(e) {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return toast('Description required', 'warn');
       if (isNaN(amt)) return toast('Amount required', 'warn');
-      const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(TODAY), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer, photo: xphoto };
+      const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer, photo: xphoto };
       if (e) Object.assign(e, obj); else state.spending.push(obj);
       save(); closeModal(); go('budget'); toast(editing ? 'Expense updated' : 'Expense added');
     };
