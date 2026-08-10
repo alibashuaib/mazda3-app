@@ -983,10 +983,12 @@ function resolvePhotos(data, photos) {
   });
 }
 
-/* Re-create object URLs for the active vehicle after a revocation sweep. */
+/* Re-create object URLs after a revocation sweep. Must cover EVERY vehicle:
+   revokeObjectUrls() is indiscriminate, and the garage switcher renders photos
+   for vehicles that are not active. */
 function refreshPhotoUrls() {
-  if (!state || !photoBlobs) return;
-  resolvePhotos(state, photoBlobs);
+  if (!garage || !photoBlobs) return;
+  garage.vehicles.forEach(v => resolvePhotos(v.data, photoBlobs));
 }
 
 function save() {
@@ -1126,6 +1128,7 @@ function go(route, intent) {
   if (!booted) return;      // boot failed — leave the error card in place
   revokeObjectUrls();
   refreshPhotoUrls();
+  renderTopbar();     // the badge lives outside #view; its URL was just revoked
   current = route;
   navIntent = intent || null;
   const view = $('#view');
