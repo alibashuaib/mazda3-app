@@ -1032,7 +1032,7 @@ function openAddVehicle() {
       garage.vehicles.push(v); garage.activeId = v.id; state = v.data;
       const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
       const ok = res.ok;
-      if (ok) applyPhotoIds(state, res.data);
+      if (ok) applyPhotoIds(v.data, res.data);
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
       if (ok) toast(t('Vehicle added'));
       else toast(isQuotaError(res.error)
