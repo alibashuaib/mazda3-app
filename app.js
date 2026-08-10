@@ -14,7 +14,6 @@ const fmt = n => Number(n).toLocaleString('en-US');
 const sar = n => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
 const parseDate = s => new Date(s + 'T00:00:00');
-const isoDate = d => d.toISOString().slice(0, 10);
 
 /* ============================================================
    i18n — Arabic / English. t() keys on the English string, so any
@@ -985,8 +984,8 @@ function openAddVehicle() {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '' }));
       const v = { id: uid(), data };
-      garage.vehicles.push(v); garage.activeId = v.id; state = v.data; persistGarage();
-      applyAccent(); renderTopbar(); closeModal(); go('dashboard'); toast(t('Vehicle added'));
+      garage.vehicles.push(v); garage.activeId = v.id; state = v.data; const ok = persistGarage();
+      applyAccent(); renderTopbar(); closeModal(); go('dashboard'); if (ok) toast(t('Vehicle added'));
     };
     card.appendChild(b);
   });
@@ -995,7 +994,7 @@ function deleteVehicle(id) {
   if (garage.vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
   garage.vehicles = garage.vehicles.filter(v => v.id !== id);
   if (garage.activeId === id) { garage.activeId = garage.vehicles[0].id; state = garage.vehicles[0].data; }
-  persistGarage(); applyAccent(); renderTopbar(); go('dashboard'); toast('Vehicle removed');
+  const ok = persistGarage(); applyAccent(); renderTopbar(); go('dashboard'); if (ok) toast('Vehicle removed');
 }
 function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle'; }
 
@@ -1435,11 +1434,13 @@ function openLogConfirm(services, opts) {
         });
         if (grand > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
         if (odo > (state.car.odometer || 0)) state.car.odometer = odo;
-        save(); closeModal();
+        const ok = save(); closeModal();
         (opts.onDone || (() => go('maintenance')))();
-        if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
-        else if (!opts.onDone) toast(t(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓'));
-        if (nPartSkip) toast(`⚠️ ${nPartSkip} ${t('part(s) to redo next service')}`, 'warn');
+        if (ok) {
+          if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
+          else if (!opts.onDone) toast(t(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓'));
+          if (nPartSkip) toast(`⚠️ ${nPartSkip} ${t('part(s) to redo next service')}`, 'warn');
+        }
       };
       card.appendChild(b);
     });
@@ -1573,7 +1574,7 @@ function openPlanSetup() {
         a.s.lastDate = isoDate(new Date(today().getTime() - days * 86400000));
       });
       state.planSetupDone = true;
-      save(); closeModal(); go('maintenance'); toast(t('Plan updated'));
+      const ok = save(); closeModal(); go('maintenance'); if (ok) toast(t('Plan updated'));
     }
 
     backBtn.onclick = () => { if (step > 0) { step--; renderStep(); } };
@@ -2197,13 +2198,13 @@ function openAddFuel(e) {
       if (e) Object.assign(e, obj); else { state.fuel = state.fuel || []; state.fuel.push(obj); }
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
       if (odo > state.car.odometer) { state.car.odometer = odo; state.car.odoUpdatedAt = obj.date; }
-      save(); closeModal(); go('fuel'); toast(editing ? 'Fill-up updated' : 'Fill-up added');
+      const ok = save(); closeModal(); go('fuel'); if (ok) toast(editing ? 'Fill-up updated' : 'Fill-up added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete fill-up'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = () => { state.fuel = state.fuel.filter(x => x.id !== e.id); save(); closeModal(); go('fuel'); toast('Fill-up deleted'); };
+      del.onclick = () => { state.fuel = state.fuel.filter(x => x.id !== e.id); const ok = save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); };
       card.appendChild(del);
     }
   });
@@ -2249,13 +2250,13 @@ function openAddDoc(d) {
     b.onclick = () => {
       const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
       if (d) Object.assign(d, obj); else { state.docs = state.docs || []; state.docs.push(obj); }
-      save(); closeModal(); go('dashboard'); toast(editing ? 'Document updated' : 'Document added');
+      const ok = save(); closeModal(); go('dashboard'); if (ok) toast(editing ? 'Document updated' : 'Document added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete document'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = () => { state.docs = state.docs.filter(x => x.id !== d.id); save(); closeModal(); go('dashboard'); toast('Document deleted'); };
+      del.onclick = () => { state.docs = state.docs.filter(x => x.id !== d.id); const ok = save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); };
       card.appendChild(del);
     }
   });
@@ -2287,7 +2288,7 @@ function openEditOdo() {
       if (!isNaN(val)) { state.car.odometer = val; state.car.odoUpdatedAt = isoDate(today()); }
       const d = parseInt($('#m_daily').value, 10);
       if (!isNaN(d) && d > 0) state.car.dailyKm = d;
-      save(); closeModal(); go(current); toast('Mileage updated');
+      const ok = save(); closeModal(); go(current); if (ok) toast('Mileage updated');
     };
     card.appendChild(b);
   });
@@ -2494,10 +2495,11 @@ function openSettings() {
         engine: $('#c_engine').value.trim(), transmission: $('#c_trans').value,
         plate: $('#c_plate').value.trim(), vin: $('#c_vin').value.trim().toUpperCase(), photo
       });
-      try { save(); } catch (e) {}
+      let ok = false;
+      try { ok = save(); } catch (e) {}
       // photo may exceed quota — verify it stuck
       if (selectedLang !== lang) applyLang(selectedLang);
-      applyAccent(); renderTopbar(); closeModal(); go(current); toast('Profile saved');
+      applyAccent(); renderTopbar(); closeModal(); go(current); if (ok) toast('Profile saved');
     };
     card.appendChild(b);
     if (garage.vehicles.length > 1) {
@@ -2513,7 +2515,7 @@ function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
     card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${state.budget.annual}">`));
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; save(); closeModal(); go('budget'); toast('Budget updated'); };
+    b.onclick = () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; const ok = save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); };
     card.appendChild(b);
   });
 }
@@ -2618,13 +2620,13 @@ function openAddHistory(e, prefill) {
           if (sv && obj.odometer > 0) { sv.lastKm = obj.odometer; sv.lastDate = obj.date; }
         }
       }
-      save(); closeModal(); go('maintenance'); toast(editing ? 'Record updated' : 'Service logged ✓');
+      const ok = save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Record updated' : 'Service logged ✓');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete record'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.history = state.history.filter(x => x.id !== e.id); save(); closeModal(); go('maintenance'); toast('Record deleted'); };
+      del.onclick = () => { state.history = state.history.filter(x => x.id !== e.id); const ok = save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); };
       card.appendChild(del);
     }
   });
@@ -2665,13 +2667,13 @@ function openEditService(s) {
         cost: +$('#s_cost').value || 0, note: $('#s_note').value.trim()
       };
       if (s) Object.assign(s, obj); else state.services.push(obj);
-      save(); closeModal(); go('maintenance'); toast(editing ? 'Service updated' : 'Service added');
+      const ok = save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Service updated' : 'Service added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete service'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.services = state.services.filter(x => x.id !== s.id); save(); closeModal(); go('maintenance'); toast('Service deleted'); };
+      del.onclick = () => { state.services = state.services.filter(x => x.id !== s.id); const ok = save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); };
       card.appendChild(del);
     }
   });
@@ -2760,13 +2762,13 @@ function openAddSpending(e) {
       if (isNaN(amt)) return toast('Amount required', 'warn');
       const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer, photo: xphoto };
       if (e) Object.assign(e, obj); else state.spending.push(obj);
-      save(); closeModal(); go('budget'); toast(editing ? 'Expense updated' : 'Expense added');
+      const ok = save(); closeModal(); go('budget'); if (ok) toast(editing ? 'Expense updated' : 'Expense added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete expense'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.spending = state.spending.filter(x => x.id !== e.id); save(); closeModal(); go('budget'); toast('Expense deleted'); };
+      del.onclick = () => { state.spending = state.spending.filter(x => x.id !== e.id); const ok = save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); };
       card.appendChild(del);
     }
   });
@@ -2830,13 +2832,13 @@ function openEditPart(p) {
       if (!valid.length) return toast('Add at least one option', 'warn');
       const obj = { id: p ? p.id : uid(), name, icon: $('#p_icon').value.trim() || '🔩', cat: $('#p_cat').value.trim() || 'General', partsouq: $('#p_psq').value.trim().replace(/[^A-Za-z0-9]/g, ''), options: valid };
       if (p) Object.assign(p, obj); else state.parts.push(obj);
-      save(); closeModal(); go('parts'); toast(editing ? 'Part updated' : 'Part added');
+      const ok = save(); closeModal(); go('parts'); if (ok) toast(editing ? 'Part updated' : 'Part added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete part'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.parts = state.parts.filter(x => x.id !== p.id); save(); closeModal(); go('parts'); toast('Part deleted'); };
+      del.onclick = () => { state.parts = state.parts.filter(x => x.id !== p.id); const ok = save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); };
       card.appendChild(del);
     }
   });

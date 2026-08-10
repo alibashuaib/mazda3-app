@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { today, isQuotaError, mergeMilestones, nextOverdueOccurrence } = require('../schedule.js');
+const { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence } = require('../schedule.js');
 
 test('today() returns local midnight', () => {
   const d = today();
@@ -17,6 +17,22 @@ test('today() tracks the system clock rather than a fixed date', (t) => {
   t.mock.timers.tick(48 * 60 * 60 * 1000);
   const second = today();
   assert.strictEqual(second.getTime() - first.getTime(), 48 * 60 * 60 * 1000);
+});
+
+test('isoDate formats from local parts, not UTC', () => {
+  // 1 Jan local. A UTC-based format would return the previous year in any UTC+ zone.
+  assert.strictEqual(isoDate(new Date(2027, 0, 1, 0, 0, 0)), '2027-01-01');
+  assert.strictEqual(isoDate(new Date(2026, 7, 10, 0, 0, 0)), '2026-08-10');
+});
+
+test('isoDate pads single-digit months and days', () => {
+  assert.strictEqual(isoDate(new Date(2026, 2, 5, 0, 0, 0)), '2026-03-05');
+});
+
+test('isoDate round-trips with local-midnight parsing', () => {
+  const parseDate = s => new Date(s + 'T00:00:00');   // mirrors app.js
+  const t = today();
+  assert.strictEqual(parseDate(isoDate(t)).getTime(), t.getTime());
 });
 
 test('isQuotaError detects the standard quota error', () => {

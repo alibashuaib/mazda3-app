@@ -19,6 +19,13 @@
     return d;
   }
 
+  /* YYYY-MM-DD from a Date's LOCAL parts. Must not go through toISOString():
+     today() returns local midnight, which is the previous day in UTC for any
+     UTC+ timezone, so a UTC-based format would stamp every record a day early. */
+  function isoDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
   /* localStorage quota errors, across browsers. Chrome/Safari throw
      QuotaExceededError, Firefox NS_ERROR_DOM_QUOTA_REACHED, older
      engines set legacy code 22. */
@@ -84,5 +91,5 @@
     return THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
   }
 
-  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince, healthFrom, nextTheme };
+  return { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince, healthFrom, nextTheme };
 });
