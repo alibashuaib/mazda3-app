@@ -79,5 +79,189 @@
     return { ok: true, garage: obj.garage, photos: obj.photos || {} };
   }
 
-  return { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport };
+  /* data: URL -> Blob. Returns null for anything else (notably blob: URLs,
+     which must never be written to storage). */
+  function dataUrlToBlob(dataUrl) {
+    if (!isDataUrl(dataUrl)) return null;
+    const comma = dataUrl.indexOf(',');
+    const header = dataUrl.slice(5, comma);
+    const type = header.split(';')[0] || 'application/octet-stream';
+    const binary = atob(dataUrl.slice(comma + 1));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type });
+  }
+
+  function blobToDataUrl(blob) {
+    return blob.arrayBuffer().then(buf => {
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      return `data:${blob.type || 'application/octet-stream'};base64,${btoa(binary)}`;
+    });
+  }
+
+  const DB_NAME = 'garage';
+  const DB_VERSION = 1;
+  const LS_KEY = 'garage.mazda3.v2';   // same key the app used before Phase 2
+  const META_KEY = 'meta';
+
+  let backend = null;   // { kind, ... } once openStorage() has run
+
+  function idbOpen() {
+    return new Promise((resolve, reject) => {
+      let req;
+      try { req = indexedDB.open(DB_NAME, DB_VERSION); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('vehicles')) db.createObjectStore('vehicles', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    });
+  }
+
+  function idbTx(db, stores, mode, fn) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(stores, mode);
+      let result;
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('aborted'));
+      result = fn(tx);
+    });
+  }
+
+  function idbGetAll(db, store) {
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(store, 'readonly').objectStore(store).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function lsRead() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch (e) { return null; }
+  }
+  function lsWrite(garage) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(garage)); return true; }
+    catch (e) { return { error: e }; }
+  }
+
+  /* Selects a backend once. Any failure opening IndexedDB — including the
+     SecurityError browsers throw on opaque origins — falls back to
+     localStorage rather than leaving the user with no app at all. */
+  function openStorage(env) {
+    env = env || { protocol: location.protocol, hasIndexedDb: typeof indexedDB !== 'undefined' };
+    if (!shouldTryIndexedDb(env.protocol, env.hasIndexedDb)) {
+      backend = { kind: 'local' };
+      return Promise.resolve(backend);
+    }
+    return idbOpen()
+      .then(db => { backend = { kind: 'idb', db }; return backend; })
+      .catch(() => { backend = { kind: 'local' }; return backend; });
+  }
+
+  /* Reads everything into the shape app.js already expects. On the IndexedDB
+     backend, a first run with no data migrates the localStorage garage in
+     place — non-destructively; the old key is never deleted, so a user who
+     opens index.html from disk afterwards still finds their data. */
+  function loadAll() {
+    if (backend.kind === 'local') {
+      const garage = lsRead();
+      return Promise.resolve({ garage, photos: {} });
+    }
+    const db = backend.db;
+    return Promise.all([idbGetAll(db, 'meta'), idbGetAll(db, 'vehicles'), idbGetAll(db, 'photos')])
+      .then(([meta, vehicles, photos]) => {
+        const photosById = {};
+        photos.forEach(p => { photosById[p.id] = p.blob; });
+        if (!vehicles.length) {
+          const legacy = lsRead();
+          if (legacy && Array.isArray(legacy.vehicles) && legacy.vehicles.length) {
+            return migrateFromLocal(legacy).then(() => loadAll());
+          }
+          return { garage: null, photos: {} };
+        }
+        const m = meta.find(x => x.key === META_KEY) || {};
+        return {
+          garage: { vehicles: vehicles.map(v => ({ id: v.id, data: v.data })), activeId: m.activeId || vehicles[0].id },
+          photos: photosById
+        };
+      });
+  }
+
+  function migrateFromLocal(legacy) {
+    const db = backend.db;
+    const writes = [];
+    const vehicles = legacy.vehicles.map(v => {
+      const split = splitPhotos(v.data, () => `${v.id}-${Math.random().toString(36).slice(2, 9)}`);
+      Object.keys(split.photos).forEach(id => {
+        const blob = dataUrlToBlob(split.photos[id]);
+        if (blob) writes.push({ store: 'photos', rec: { id, blob } });
+      });
+      return { id: v.id, data: split.data };
+    });
+    vehicles.forEach(v => writes.push({ store: 'vehicles', rec: v }));
+    writes.push({ store: 'meta', rec: { key: META_KEY, schemaVersion: 1, migratedAt: new Date().toISOString(), activeId: legacy.activeId } });
+    return idbTx(db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
+      writes.forEach(w => tx.objectStore(w.store).put(w.rec));
+    });
+  }
+
+  /* Writes ONE vehicle plus any newly added photos. The pre-Phase-2 code
+     re-serialised every vehicle and every photo on every change.
+
+     ALWAYS resolves to the same shape — { ok, error?, photoIds, data } — so
+     callers never have to know which backend is live. */
+  function saveVehicle(vehicleId, data, activeId, makeId) {
+    const split = splitPhotos(data, makeId);
+    const photoIds = Object.keys(split.photos);
+    if (backend.kind === 'local') {
+      const garage = lsRead() || { vehicles: [], activeId };
+      const idx = garage.vehicles.findIndex(v => v.id === vehicleId);
+      const rec = { id: vehicleId, data: inlinePhotos(split.data, split.photos) };
+      if (idx >= 0) garage.vehicles[idx] = rec; else garage.vehicles.push(rec);
+      garage.activeId = activeId;
+      const res = lsWrite(garage);
+      return Promise.resolve(res === true
+        ? { ok: true, photoIds, data: split.data }
+        : { ok: false, error: res.error });
+    }
+    const db = backend.db;
+    return idbTx(db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
+      tx.objectStore('vehicles').put({ id: vehicleId, data: split.data });
+      tx.objectStore('meta').put({ key: META_KEY, schemaVersion: 1, activeId });
+      Object.keys(split.photos).forEach(id => {
+        const blob = dataUrlToBlob(split.photos[id]);
+        if (blob) tx.objectStore('photos').put({ id, blob });
+      });
+    }).then(() => ({ ok: true, photoIds, data: split.data }))
+      .catch(e => ({ ok: false, error: e }));
+  }
+
+  function removeVehicle(vehicleId, activeId) {
+    if (backend.kind === 'local') {
+      const garage = lsRead() || { vehicles: [], activeId };
+      garage.vehicles = garage.vehicles.filter(v => v.id !== vehicleId);
+      garage.activeId = activeId;
+      const res = lsWrite(garage);
+      return Promise.resolve(res === true);
+    }
+    return idbTx(backend.db, ['meta', 'vehicles'], 'readwrite', tx => {
+      tx.objectStore('vehicles').delete(vehicleId);
+      tx.objectStore('meta').put({ key: META_KEY, schemaVersion: 1, activeId });
+    }).then(() => true).catch(() => false);
+  }
+
+  function backendKind() { return backend ? backend.kind : null; }
+
+  return {
+    shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport,
+    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
+  };
 });

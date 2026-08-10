@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
+const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
 
 const DATA_URL = 'data:image/jpeg;base64,AAAA';
 
@@ -90,4 +91,24 @@ test('parseImport rejects junk and foreign files without throwing', () => {
   assert.strictEqual(parseImport('{"hello":1}').ok, false);
   assert.strictEqual(parseImport(JSON.stringify({ format: 'something-else' })).ok, false);
   assert.strictEqual(typeof parseImport('not json').error, 'string');
+});
+
+test('dataUrlToBlob produces a Blob with the declared type and byte length', async () => {
+  const blob = dataUrlToBlob('data:image/jpeg;base64,AAECAw==');   // 4 bytes: 00 01 02 03
+  assert.strictEqual(blob.type, 'image/jpeg');
+  assert.strictEqual(blob.size, 4);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  assert.deepStrictEqual([...bytes], [0, 1, 2, 3]);
+});
+
+test('dataUrlToBlob returns null for anything that is not a data URL', () => {
+  assert.strictEqual(dataUrlToBlob('blob:http://x/y'), null);
+  assert.strictEqual(dataUrlToBlob(''), null);
+  assert.strictEqual(dataUrlToBlob(undefined), null);
+});
+
+test('blobToDataUrl round-trips dataUrlToBlob', async () => {
+  const original = 'data:image/jpeg;base64,AAECAw==';
+  const back = await blobToDataUrl(dataUrlToBlob(original));
+  assert.strictEqual(back, original);
 });
