@@ -343,6 +343,11 @@ const AR = {
   // odometer staleness
   'Mileage is {n} days old — due dates may be off': 'مضى {n} يوماً على تحديث العداد — قد تكون مواعيد الاستحقاق غير دقيقة',
   'Update ›': 'تحديث ›',
+
+  // health breakdown
+  'Health score': 'مؤشر الحالة',
+  'what is affecting it': 'ما الذي يؤثر عليه',
+  'Everything is on track.': 'كل شيء على المسار الصحيح.',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -1014,10 +1019,17 @@ function servicesRanked() {
     .sort((a, b) => a.st.prog === b.st.prog ? a.st.kmLeft - b.st.kmLeft : b.st.prog - a.st.prog);
 }
 function healthScore() {
-  const list = state.services.map(serviceStatus);
-  if (!list.length) return 100;
-  const penalty = list.reduce((acc, st) => acc + (st.level === 'danger' ? 1 : st.level === 'warn' ? 0.4 : 0), 0);
-  return Math.round(clamp(100 - (penalty / list.length) * 100, 0, 100));
+  return healthFrom(state.services.map(s => serviceStatus(s).level));
+}
+/* What is dragging the score down — a bare number is not actionable. */
+function openHealthBreakdown() {
+  const bad = servicesRanked().filter(r => r.st.level !== 'ok');
+  openModal('Health score', `${healthScore()} / 100 — ${t('what is affecting it')}`, card => {
+    if (!bad.length) { card.appendChild(emptyState('✅', 'Everything is on track.')); return; }
+    const list = el('div', 'list');
+    bad.forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
+    card.appendChild(list);
+  });
 }
 function yearSpend(year) {
   return state.spending.filter(e => e.date.startsWith(String(year))).reduce((a, e) => a + Number(e.amount), 0);
@@ -1181,6 +1193,12 @@ function renderDashboard() {
   v.appendChild(recs);
 
   hero.querySelector('#editOdo').onclick = openEditOdo;
+  const ring = hero.querySelector('.ring');
+  ring.setAttribute('role', 'button');
+  ring.setAttribute('tabindex', '0');
+  ring.setAttribute('aria-label', `${t('Health')} ${hs} — ${t('what is affecting it')}`);
+  ring.onclick = openHealthBreakdown;
+  ring.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHealthBreakdown(); } };
   return v;
 }
 

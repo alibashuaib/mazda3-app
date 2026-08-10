@@ -134,3 +134,19 @@ test('daysSince treats a missing date as infinitely stale', () => {
 test('daysSince does not go negative for a future date', () => {
   assert.strictEqual(daysSince('2026-09-01', new Date('2026-08-10T00:00:00')), 0);
 });
+
+const { healthFrom } = require('../schedule.js');
+
+test('healthFrom returns 100 for no services or all healthy', () => {
+  assert.strictEqual(healthFrom([]), 100);
+  assert.strictEqual(healthFrom(['ok', 'ok', 'ok']), 100);
+});
+
+test('healthFrom returns 0 when everything is overdue', () => {
+  assert.strictEqual(healthFrom(['danger', 'danger']), 0);
+});
+
+test('healthFrom weights overdue above due-soon', () => {
+  assert.strictEqual(healthFrom(['danger', 'ok', 'ok', 'ok']), 75);
+  assert.strictEqual(healthFrom(['warn', 'ok', 'ok', 'ok']), 90);
+});

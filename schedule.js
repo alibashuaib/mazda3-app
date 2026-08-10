@@ -69,5 +69,13 @@
     return Math.max(0, Math.floor((now - then) / 86400000));
   }
 
-  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince };
+  /* 100 = everything on track. Overdue costs a full share of the score,
+     due-soon costs 40% of one. */
+  function healthFrom(levels) {
+    if (!levels.length) return 100;
+    const penalty = levels.reduce((a, l) => a + (l === 'danger' ? 1 : l === 'warn' ? 0.4 : 0), 0);
+    return Math.round(Math.min(100, Math.max(0, 100 - (penalty / levels.length) * 100)));
+  }
+
+  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince, healthFrom };
 });

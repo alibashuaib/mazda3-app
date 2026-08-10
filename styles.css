@@ -248,7 +248,8 @@ body {
 .odo-edit:active { transform: scale(.95); }
 
 /* health ring */
-.ring { position: relative; width: 92px; height: 92px; }
+.ring { position: relative; width: 92px; height: 92px; cursor: pointer; }
+.ring:active { transform: scale(.97); }
 .ring svg { transform: rotate(-90deg); width: 92px; height: 92px; }
 .ring .track { stroke: var(--stroke); }
 .ring .prog { stroke: url(#ringGrad); stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.22,1,.36,1); }
