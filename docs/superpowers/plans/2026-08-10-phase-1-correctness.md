@@ -454,7 +454,19 @@ In `schedule.js`, add inside the factory:
   }
 ```
 
-Extend the return to `return { today, isQuotaError, mergeMilestones };`
+Also add the overdue-advance helper, kept pure so it is testable (`planForward` itself reads the `state` global and cannot be reached from the Node harness):
+
+```js
+  /* The first occurrence strictly after `odo` for a service already overdue.
+     Must never land exactly on `odo` — planForward has already pushed an
+     occurrence there, and a second one would surface as the same service
+     listed twice at the same distance. */
+  function nextOverdueOccurrence(dueKm, odo, ikm) {
+    return dueKm + (Math.floor((odo - dueKm) / ikm) + 1) * ikm;
+  }
+```
+
+Extend the return to `return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence };`
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -477,8 +489,7 @@ function planForward() {
     let k = serviceStatus(s).dueKm;   // first upcoming due (lastKm + interval)
     if (k < odo) {                    // overdue → due now, then continue on its interval
       occurrences.push({ km: odo, service: s });
-      k += Math.ceil((odo - k) / ikm) * ikm;
-      if (k <= odo) k += ikm;         // must resume strictly past odo, or we duplicate the push above
+      k = nextOverdueOccurrence(k, odo, ikm);  // must resume STRICTLY past odo
     }
     for (; k <= horizon; k += ikm) occurrences.push({ km: k, service: s });
   });
