@@ -865,6 +865,10 @@ function seed() { return buildProfile('mazda3bm', 0, { odometer: 316000, year: 2
    so the rest of the app keeps using state.car / state.services / … unchanged. */
 const GKEY = 'garage.mazda3.v2';
 let garage;
+/* Guards navigation and chrome (tabs, settings, garage) until boot has
+   hydrated `state`. A failed boot leaves this false so a stray tap can't
+   clear the error card and crash into a blank screen on a null `state`. */
+let booted = false;
 /* Dealer "normal" intervals from the Haji Husein Alireza (Mazda KSA) sheet —
    the shorter values already in the app are the Jeddah "severe" schedule.
    [normalKm, normalMonths] keyed by built-in service name. */
@@ -983,8 +987,9 @@ function save() {
   const v = garage.vehicles.find(x => x.id === garage.activeId);
   if (!v) return Promise.resolve(false);
   v.data = state;
-  return saveVehicle(v.id, state, garage.activeId, uid).then(res => {
-    if (res.ok) { applyPhotoIds(state, res.data); return true; }
+  const data = state;          // the vehicle being saved — `state` may move before this resolves
+  return saveVehicle(v.id, data, garage.activeId, uid).then(res => {
+    if (res.ok) { applyPhotoIds(data, res.data); return true; }
     const err = res.error;
     toast(isQuotaError(err)
       ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
@@ -1028,7 +1033,11 @@ function openAddVehicle() {
       const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
       const ok = res.ok;
       if (ok) applyPhotoIds(state, res.data);
-      applyAccent(); renderTopbar(); closeModal(); go('dashboard'); if (ok) toast(t('Vehicle added'));
+      applyAccent(); renderTopbar(); closeModal(); go('dashboard');
+      if (ok) toast(t('Vehicle added'));
+      else toast(isQuotaError(res.error)
+        ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
+        : t('Could not save your change.'), 'warn');
     };
     card.appendChild(b);
   });
@@ -1037,7 +1046,9 @@ async function deleteVehicle(id) {
   if (garage.vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
   garage.vehicles = garage.vehicles.filter(v => v.id !== id);
   if (garage.activeId === id) { garage.activeId = garage.vehicles[0].id; state = garage.vehicles[0].data; }
-  const ok = await removeVehicle(id, garage.activeId); applyAccent(); renderTopbar(); go('dashboard'); if (ok) toast('Vehicle removed');
+  const ok = await removeVehicle(id, garage.activeId); applyAccent(); renderTopbar(); go('dashboard');
+  if (ok) toast('Vehicle removed');
+  else toast(t('Could not save your change.'), 'warn');
 }
 function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle'; }
 
@@ -1089,6 +1100,7 @@ const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, par
 let current = 'dashboard';
 let navIntent = null; // cross-page link target, consumed by the destination page's render
 function go(route, intent) {
+  if (!booted) return;
   current = route;
   navIntent = intent || null;
   const view = $('#view');
@@ -2405,6 +2417,7 @@ function openImage(url) {
 }
 
 function openGarage() {
+  if (!booted) return;
   openModal('Your garage', 'Switch between your vehicles or add another.', card => {
     const list = el('div', 'list');
     garage.vehicles.forEach(v => {
@@ -2427,6 +2440,7 @@ function openGarage() {
 }
 
 function openSettings() {
+  if (!booted) return;
   openModal('Car profile', 'These details personalise the app and its badge.', card => {
     const c = state.car;
     // language switch
@@ -3037,9 +3051,10 @@ openStorage()
     const h = hydrate(g, photoBlobs);
     garage = h.garage;
     state = h.state;
-    if (!g) return save();          // first run — persist the seed
+    if (!g || !g.vehicles || !g.vehicles.length) return save();          // first run — persist the seed
   })
   .then(() => {
+    booted = true;
     applyAccent();
     renderTopbar();
     go('dashboard');
