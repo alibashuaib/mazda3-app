@@ -356,6 +356,19 @@ const AR = {
   // storage
   'Could not open your garage': 'تعذّر فتح المرآب',
   'Your data is safe. Please reload the page.': 'بياناتك آمنة. يرجى إعادة تحميل الصفحة.',
+
+  // backup
+  'Backup & restore': 'النسخ الاحتياطي والاستعادة',
+  'A backup file holds every vehicle, service, receipt and photo.': 'ملف النسخة الاحتياطية يحتوي على كل مركبة وصيانة وإيصال وصورة.',
+  'Export backup': 'تصدير نسخة احتياطية',
+  'Import backup': 'استيراد نسخة احتياطية',
+  'Backup downloaded': 'تم تنزيل النسخة الاحتياطية',
+  'Garage restored': 'تمت استعادة المرآب',
+  'Restored, but some data could not be saved': 'تمت الاستعادة، لكن تعذّر حفظ بعض البيانات',
+  'Importing replaces everything currently in your garage. Continue?': 'الاستيراد سيستبدل كل ما في مرآبك حالياً. هل تريد المتابعة؟',
+  'That file is not valid JSON.': 'هذا الملف ليس JSON صالحاً.',
+  'That is not a Garage backup file.': 'هذا ليس ملف نسخة احتياطية للمرآب.',
+  'That backup file is incomplete.': 'ملف النسخة الاحتياطية غير مكتمل.',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -1076,6 +1089,50 @@ async function deleteVehicle(id) {
   else toast(t('Could not save your change.'), 'warn');
 }
 function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle'; }
+
+/* A backup the user controls, before any server exists. Photos are inlined
+   as base64 so a single file is the whole garage. */
+async function exportGarage() {
+  const photos = {};
+  await Promise.all(Object.keys(photoBlobs).map(async id => { photos[id] = await blobToDataUrl(photoBlobs[id]); }));
+  const payload = buildExport(garage, photos, new Date().toISOString());
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `garage-backup-${isoDate(today())}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast(t('Backup downloaded'));
+}
+
+/* Import **replaces** the garage. It must ask first — this is destructive. */
+function importGarage(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const parsed = parseImport(reader.result);
+    if (!parsed.ok) return toast(t(parsed.error), 'warn');
+    if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
+    garage = parsed.garage;
+    photoBlobs = {};
+    Object.keys(parsed.photos).forEach(id => {
+      const blob = dataUrlToBlob(parsed.photos[id]);
+      if (blob) photoBlobs[id] = blob;
+    });
+    garage.vehicles.forEach(v => normalizeData(v.data));
+    const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
+    garage.activeId = active.id;
+    state = active.data;
+    let ok = true;
+    for (const v of garage.vehicles) {
+      const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
+      if (res !== true && !(res && res.ok)) ok = false;
+    }
+    closeModal();
+    applyAccent(); renderTopbar(); go('dashboard');
+    toast(ok ? t('Garage restored') : t('Restored, but some data could not be saved'), ok ? undefined : 'warn');
+  };
+  reader.readAsText(file);
+}
 
 /* ---------- service status computation ---------- */
 function serviceStatus(s) {
@@ -2597,6 +2654,22 @@ function openSettings() {
       del.onclick = () => deleteVehicle(garage.activeId);
       card.appendChild(del);
     }
+    const backup = el('div');
+    backup.style.cssText = 'margin-top:22px;padding-top:16px;border-top:1px solid var(--stroke)';
+    backup.innerHTML = `<div class="section-title"><div class="section-title-left"><h2>${t('Backup & restore')}</h2></div></div>
+      <p style="font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:12px">${t('A backup file holds every vehicle, service, receipt and photo.')}</p>`;
+    const exp = el('button', 'btn block', t('Export backup'));
+    exp.onclick = exportGarage;
+    const imp = el('button', 'btn block ghost', t('Import backup'));
+    imp.style.marginTop = '8px';
+    const impFile = el('input');
+    impFile.type = 'file';
+    impFile.accept = 'application/json';
+    impFile.hidden = true;
+    impFile.onchange = ev => { const f = ev.target.files[0]; if (f) importGarage(f); };
+    imp.onclick = () => impFile.click();
+    backup.append(exp, imp, impFile);
+    card.appendChild(backup);
   });
 }
 
