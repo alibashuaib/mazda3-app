@@ -823,17 +823,24 @@ function go(route, intent) {
   if (!booted) return;      // boot failed — leave the error card in place
   revokeObjectUrls();
   refreshPhotoUrls();
+  renderTopbar();           // #carBadge lives outside #view; its URL was just revoked
   current = route;
   navIntent = intent || null;
 ```
 
+`renderTopbar()` is called here, not only by its existing callers, because the revoke is indiscriminate while `go()` only repaints `#view`. Every `renderTopbar(); go(...)` sequence in the codebase paints the badge and then revokes the exact URL it just painted, in the same tick — so without this the badge is a broken image from the first frame for any car with a photo.
+
 And add:
 
 ```js
-/* Re-create object URLs for the active vehicle after a revocation sweep. */
+/* Re-create object URLs after a revocation sweep. This must cover EVERY vehicle,
+   not just the active one: revokeObjectUrls() is indiscriminate, hydrate() resolves
+   photos for all vehicles at boot, and the garage switcher renders thumbnails for
+   vehicles that are not active. Re-resolving only `state` leaves those permanently
+   broken after the first navigation. */
 function refreshPhotoUrls() {
-  if (!state || !photoBlobs) return;
-  resolvePhotos(state, photoBlobs);
+  if (!garage || !photoBlobs) return;
+  garage.vehicles.forEach(v => resolvePhotos(v.data, photoBlobs));
 }
 ```
 
