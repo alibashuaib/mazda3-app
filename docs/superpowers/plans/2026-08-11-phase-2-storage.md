@@ -295,11 +295,12 @@ Still no `app.js` changes — the adapter is built and exercised only by the nex
 - Produces (all async unless noted):
   - `openStorage()` → `Promise<{ kind: 'idb' | 'local' }>` — selects and initialises a backend, remembered internally
   - `loadAll()` → `Promise<{ garage, photos }>` where `photos` is `{ [id]: Blob }`
-  - `saveVehicle(vehicleId, data, activeId)` → `Promise<boolean>`
-  - `savePhoto(id, dataUrl)` → `Promise<boolean>`
-  - `deletePhotos(ids)` → `Promise<void>`
-  - `saveGarageMeta(activeId)` → `Promise<boolean>`
-  - `removeVehicle(vehicleId)` → `Promise<boolean>`
+  - `saveVehicle(vehicleId, data, activeId, makeId)` → `Promise<{ ok: true, photoIds, data } | { ok: false, error }>` — the **same shape on both backends**, so callers never branch on which is live
+  - `removeVehicle(vehicleId, activeId)` → `Promise<boolean>`
+  - `collectInlinePhotos(data)` → `{ [photoId]: dataUrl }` (pure)
+  - `backendKind()` → `'idb' | 'local' | null`
+
+Deliberately **not** provided: `savePhoto`, `deletePhotos`, `saveGarageMeta`. An earlier draft of this header listed them, but no step needs them — `saveVehicle` writes photos and the active id along with the vehicle, and `switchVehicle` persists the new active id by calling `save()`. Adding unused entry points would be speculative.
   - `dataUrlToBlob(dataUrl)` (sync, pure-ish — uses `atob`/`Blob`, both present in Node 24 and browsers)
   - `blobToDataUrl(blob)` → `Promise<string>`
 
@@ -465,14 +466,19 @@ The `localStorage` backend keeps photos inline as data URLs — exactly the pre-
       .then(([meta, vehicles, photos]) => {
         const photosById = {};
         photos.forEach(p => { photosById[p.id] = p.blob; });
-        if (!vehicles.length) {
+        const m = meta.find(x => x.key === META_KEY) || {};
+        // Gate migration on `migratedAt`, NOT on the store being empty. The legacy
+        // localStorage key is deliberately never deleted, so an empty-store trigger
+        // would re-fire and resurrect a vehicle the user had just removed.
+        if (!m.migratedAt) {
           const legacy = lsRead();
           if (legacy && Array.isArray(legacy.vehicles) && legacy.vehicles.length) {
-            return migrateFromLocal(legacy).then(() => loadAll());
+            return migrateFromLocal(legacy)
+              .then(() => loadAll())
+              .catch(() => ({ garage: lsRead(), photos: {} }));
           }
-          return { garage: null, photos: {} };
         }
-        const m = meta.find(x => x.key === META_KEY) || {};
+        if (!vehicles.length) return { garage: null, photos: {} };
         return {
           garage: { vehicles: vehicles.map(v => ({ id: v.id, data: v.data })), activeId: m.activeId || vehicles[0].id },
           photos: photosById
@@ -509,7 +515,11 @@ The `localStorage` backend keeps photos inline as data URLs — exactly the pre-
     if (backend.kind === 'local') {
       const garage = lsRead() || { vehicles: [], activeId };
       const idx = garage.vehicles.findIndex(v => v.id === vehicleId);
-      const rec = { id: vehicleId, data: inlinePhotos(split.data, split.photos) };
+      // This backend rewrites the vehicle wholesale, so photos it already holds
+      // must be carried over — a save that did not re-supply one must not drop it.
+      const prev = idx >= 0 ? garage.vehicles[idx].data : null;
+      const merged = Object.assign(collectInlinePhotos(prev), split.photos);
+      const rec = { id: vehicleId, data: inlinePhotos(split.data, merged) };
       if (idx >= 0) garage.vehicles[idx] = rec; else garage.vehicles.push(rec);
       garage.activeId = activeId;
       const res = lsWrite(garage);
@@ -520,7 +530,13 @@ The `localStorage` backend keeps photos inline as data URLs — exactly the pre-
     const db = backend.db;
     return idbTx(db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
       tx.objectStore('vehicles').put({ id: vehicleId, data: split.data });
-      tx.objectStore('meta').put({ key: META_KEY, schemaVersion: 1, activeId });
+      // Read-modify-write the meta record: blindly putting a fresh one would drop
+      // `migratedAt` and make migration re-fire on the next load.
+      const metaReq = tx.objectStore('meta').get(META_KEY);
+      metaReq.onsuccess = () => {
+        const prevMeta = metaReq.result || {};
+        tx.objectStore('meta').put(Object.assign({}, prevMeta, { key: META_KEY, schemaVersion: 1, activeId }));
+      };
       Object.keys(split.photos).forEach(id => {
         const blob = dataUrlToBlob(split.photos[id]);
         if (blob) tx.objectStore('photos').put({ id, blob });
