@@ -94,3 +94,25 @@ test('nextOverdueOccurrence advances correctly on the ordinary (non-exact-multip
   assert.strictEqual(k, 315000);
   assert.ok(k > 312500);
 });
+
+const { withinHorizon } = require('../schedule.js');
+
+const ms = iso => ({ date: new Date(iso + 'T00:00:00') });
+
+test('withinHorizon keeps everything inside the cutoff', () => {
+  const list = [ms('2026-09-01'), ms('2027-01-01'), ms('2027-06-01')];
+  const out = withinHorizon(list, new Date('2028-01-01T00:00:00'), 3);
+  assert.strictEqual(out.length, 3);
+});
+
+test('withinHorizon falls back to minCount when too few are inside', () => {
+  const list = [ms('2026-09-01'), ms('2031-01-01'), ms('2032-01-01'), ms('2033-01-01')];
+  const out = withinHorizon(list, new Date('2027-01-01T00:00:00'), 3);
+  assert.strictEqual(out.length, 3);
+});
+
+test('withinHorizon never invents milestones that do not exist', () => {
+  const out = withinHorizon([ms('2031-01-01')], new Date('2027-01-01T00:00:00'), 3);
+  assert.strictEqual(out.length, 1);
+  assert.deepStrictEqual(withinHorizon([], new Date('2027-01-01T00:00:00'), 3), []);
+});

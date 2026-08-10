@@ -53,5 +53,12 @@
     return dueKm + (Math.floor((odo - dueKm) / ikm) + 1) * ikm;
   }
 
-  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence };
+  /* Milestones due before `cutoff`, but never fewer than `minCount` — so the
+     view cannot empty out simply because of the time of year. */
+  function withinHorizon(milestones, cutoff, minCount) {
+    const within = milestones.filter(m => m.date <= cutoff);
+    return within.length >= minCount ? within : milestones.slice(0, minCount);
+  }
+
+  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon };
 });

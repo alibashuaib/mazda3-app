@@ -1231,10 +1231,12 @@ function buildPlan(v) {
   intro.textContent = t('What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.');
   v.appendChild(intro);
 
-  const thisYear = today().getFullYear();
   const all = planForward();
-  // Show only what's due within the current year (plus always the next one up).
-  const shown = all.filter((m, i) => i === 0 || m.date.getFullYear() <= thisYear);
+  // A rolling 24-month window — a calendar-year filter made this view empty
+  // out every December. Always at least three milestones.
+  const cutoff = new Date(today());
+  cutoff.setMonth(cutoff.getMonth() + 24);
+  const shown = withinHorizon(all, cutoff, 3);
 
   const wrap = el('div', 'plan-list');
   let lastYear = null;
