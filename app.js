@@ -1173,29 +1173,26 @@ function renderDashboard() {
    a service was done off its recommended interval. Each service's future due points
    (lastKm + n·interval) are grouped onto the nearest 10,000 km milestone, and every
    milestone carries a projected calendar date from the car's average driving. */
+const MILESTONE_TOLERANCE_KM = 1000; // services this close share one workshop visit
 function planForward() {
-  const step = 10000;
   const odo = state.car.odometer || 0;
   const dpk = state.car.dailyKm || 40;
-  const firstGrid = Math.ceil((odo + 1) / step) * step;
   const horizon = odo + 300000; // far enough that recurring services (ATF 60–80k, etc.) repeat for years
-  const buckets = {};
-  const add = (km, s) => { (buckets[km] = buckets[km] || []); if (!buckets[km].includes(s)) buckets[km].push(s); };
+  const occurrences = [];
   state.services.filter(s => svKm(s) > 0).forEach(s => {
     const ikm = svKm(s);
-    const st = serviceStatus(s);
-    let k = st.dueKm;                       // first upcoming due (lastKm + interval)
-    if (k < odo) {                          // overdue → show at the very next milestone, then continue
-      add(firstGrid, s);
+    let k = serviceStatus(s).dueKm;   // first upcoming due (lastKm + interval)
+    if (k < odo) {                    // overdue → due now, then continue on its interval
+      occurrences.push({ km: odo, service: s });
       k += Math.ceil((odo - k) / ikm) * ikm;
     }
-    for (; k <= horizon; k += ikm) add(Math.max(firstGrid, Math.round(k / step) * step), s);
+    for (; k <= horizon; k += ikm) occurrences.push({ km: k, service: s });
   });
-  return Object.keys(buckets).map(Number).sort((a, b) => a - b).map(km => ({
-    km,
-    items: buckets[km],
-    major: buckets[km].some(s => svKm(s) >= 60000),
-    date: new Date(today().getTime() + Math.max(0, (km - odo) / dpk) * 86400000)
+  return mergeMilestones(occurrences, MILESTONE_TOLERANCE_KM).map(ms => ({
+    km: ms.km,
+    items: ms.items,
+    major: ms.items.some(s => svKm(s) >= 60000),
+    date: new Date(today().getTime() + Math.max(0, (ms.km - odo) / dpk) * 86400000)
   }));
 }
 

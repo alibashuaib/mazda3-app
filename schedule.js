@@ -29,5 +29,20 @@
       || err.code === 22;
   }
 
-  return { today, isQuotaError };
+  /* Group service occurrences into workshop visits. Occurrences within
+     `tolerance` km of the milestone that started the group join it — but a
+     service is never added to a milestone it is already in, because that
+     would silently drop a recurrence. */
+  function mergeMilestones(occurrences, tolerance) {
+    const sorted = occurrences.slice().sort((a, b) => a.km - b.km);
+    const out = [];
+    sorted.forEach(o => {
+      const last = out[out.length - 1];
+      if (last && o.km - last.km <= tolerance && !last.items.includes(o.service)) last.items.push(o.service);
+      else out.push({ km: o.km, items: [o.service] });
+    });
+    return out;
+  }
+
+  return { today, isQuotaError, mergeMilestones };
 });
