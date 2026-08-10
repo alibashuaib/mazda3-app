@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { today, isQuotaError, mergeMilestones } = require('../schedule.js');
+const { today, isQuotaError, mergeMilestones, nextOverdueOccurrence } = require('../schedule.js');
 
 test('today() returns local midnight', () => {
   const d = today();
@@ -78,4 +78,19 @@ test('mergeMilestones sorts unsorted input and handles empty input', () => {
   const out = mergeMilestones([{ km: 9000, service: b }, { km: 1000, service: a }], 1000);
   assert.deepStrictEqual(out.map(m => m.km), [1000, 9000]);
   assert.deepStrictEqual(mergeMilestones([], 1000), []);
+});
+
+test('nextOverdueOccurrence skips past odo when the overdue gap is an exact multiple of the interval', () => {
+  // Regression: dueKm=297500, odo=312500, ikm=7500 — overdue by exactly two
+  // intervals. A naive ceil() advance lands exactly on odo, duplicating the
+  // separate "due now" occurrence planForward already pushed at odo.
+  const k = nextOverdueOccurrence(297500, 312500, 7500);
+  assert.strictEqual(k, 320000);
+  assert.ok(k > 312500);
+});
+
+test('nextOverdueOccurrence advances correctly on the ordinary (non-exact-multiple) overdue path', () => {
+  const k = nextOverdueOccurrence(300000, 312500, 7500);
+  assert.strictEqual(k, 315000);
+  assert.ok(k > 312500);
 });

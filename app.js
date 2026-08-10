@@ -1171,8 +1171,11 @@ function renderDashboard() {
    Built from THIS vehicle's own services and their ACTUAL last-done point, so it
    fits any car, projects forward from the current odometer, and self-adjusts when
    a service was done off its recommended interval. Each service's future due points
-   (lastKm + n·interval) are grouped onto the nearest 10,000 km milestone, and every
-   milestone carries a projected calendar date from the car's average driving. */
+   (lastKm + n·interval) are computed at their true due distance, then merged into
+   workshop visits whenever two due points fall within MILESTONE_TOLERANCE_KM of each
+   other (see mergeMilestones in schedule.js) — never onto a fixed distance grid, and
+   never merging a service into a milestone it is already part of. Every milestone
+   carries a projected calendar date from the car's average driving. */
 const MILESTONE_TOLERANCE_KM = 1000; // services this close share one workshop visit
 function planForward() {
   const odo = state.car.odometer || 0;
@@ -1182,9 +1185,9 @@ function planForward() {
   state.services.filter(s => svKm(s) > 0).forEach(s => {
     const ikm = svKm(s);
     let k = serviceStatus(s).dueKm;   // first upcoming due (lastKm + interval)
-    if (k < odo) {                    // overdue → due now, then continue on its interval
+    if (k < odo) {                    // overdue → due now, then continue strictly after odo
       occurrences.push({ km: odo, service: s });
-      k += Math.ceil((odo - k) / ikm) * ikm;
+      k = nextOverdueOccurrence(k, odo, ikm);
     }
     for (; k <= horizon; k += ikm) occurrences.push({ km: k, service: s });
   });

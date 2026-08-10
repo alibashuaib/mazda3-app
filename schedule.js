@@ -44,5 +44,14 @@
     return out;
   }
 
-  return { today, isQuotaError, mergeMilestones };
+  /* First occurrence strictly after `odo` for a service overdue at `dueKm`,
+     continuing on its `ikm` interval. Strictly-after (not >=) matters: when
+     (odo - dueKm) is an exact multiple of ikm, a naive ceil() advance lands
+     exactly on odo — duplicating the caller's separate "due now" occurrence
+     at odo and producing two identical milestones. */
+  function nextOverdueOccurrence(dueKm, odo, ikm) {
+    return dueKm + (Math.floor((odo - dueKm) / ikm) + 1) * ikm;
+  }
+
+  return { today, isQuotaError, mergeMilestones, nextOverdueOccurrence };
 });
