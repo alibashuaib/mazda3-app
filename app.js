@@ -1029,7 +1029,7 @@ function save() {
 function applyPhotoIds(live, stored) {
   const a = [live.car].concat(live.history || [], live.spending || []).filter(Boolean);
   const b = [stored.car].concat(stored.history || [], stored.spending || []).filter(Boolean);
-  a.forEach((o, i) => { if (b[i] && b[i].photoId) o.photoId = b[i].photoId; });
+  a.forEach((o, i) => { if (!b[i]) return; if (b[i].photoId) o.photoId = b[i].photoId; else delete o.photoId; });
 }
 
 /* Keep just-saved images in the session cache so later navigations render
@@ -1045,6 +1045,7 @@ function cacheNewPhotos(live, photoIds) {
   });
 }
 function switchVehicle(id) {
+  closeModal();
   const v = garage.vehicles.find(x => x.id === id); if (!v) return;
   garage.activeId = id; state = v.data; save();
   applyAccent(); renderTopbar(); go('dashboard');
@@ -1113,6 +1114,7 @@ function importGarage(file) {
     const parsed = parseImport(reader.result);
     if (!parsed.ok) return toast(t(parsed.error), 'warn');
     if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
+    const priorIds = garage.vehicles.map(v => v.id);
     garage = parsed.garage;
     photoBlobs = {};
     Object.keys(parsed.photos).forEach(id => {
@@ -1122,7 +1124,14 @@ function importGarage(file) {
     // The backup's .photo fields are stale blob: URLs from the exporting session.
     // Restore real data: URLs from the backup's own photos dict, or splitPhotos
     // will treat them as already-stored and persist nothing.
-    garage.vehicles.forEach(v => { v.data = inlinePhotos(v.data, parsed.photos); normalizeData(v.data); });
+    garage.vehicles.forEach(v => {
+      // A backup from the localStorage backend carries its images inline; one from
+      // IndexedDB carries them in `photos` with stale blob: URLs in the records.
+      // Merge both so neither origin loses data. collectInlinePhotos ignores blob: URLs.
+      const merged = Object.assign(collectInlinePhotos(v.data), parsed.photos);
+      v.data = inlinePhotos(v.data, merged);
+      normalizeData(v.data);
+    });
     const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
     garage.activeId = active.id;
     state = active.data;
@@ -1130,6 +1139,11 @@ function importGarage(file) {
     for (const v of garage.vehicles) {
       const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
       if (!res.ok) ok = false;
+    }
+    // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
+    const keptIds = garage.vehicles.map(v => v.id);
+    for (const id of priorIds) {
+      if (keptIds.indexOf(id) < 0) await removeVehicle(id, garage.activeId);
     }
     // The save loop minted fresh photo ids, so re-read from storage to bring
     // memory back in sync with what was actually persisted.

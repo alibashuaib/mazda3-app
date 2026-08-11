@@ -167,7 +167,10 @@
   }
 
   function lsRead() {
-    try { return JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch (e) { return null; }
+    try {
+      const v = JSON.parse(localStorage.getItem(LS_KEY));
+      return (v && Array.isArray(v.vehicles)) ? v : null;
+    } catch (e) { return null; }
   }
   function lsWrite(garage) {
     try { localStorage.setItem(LS_KEY, JSON.stringify(garage)); return true; }
@@ -207,7 +210,7 @@
           const legacy = lsRead();
           if (legacy && Array.isArray(legacy.vehicles) && legacy.vehicles.length) {
             return migrateFromLocal(legacy).then(() => loadAll())
-              .catch(() => ({ garage: lsRead(), photos: {} }));
+              .catch(() => { backend = { kind: 'local' }; return { garage: lsRead(), photos: {} }; });
           }
         }
         if (!vehicles.length) return { garage: null, photos: {} };
