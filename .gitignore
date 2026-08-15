@@ -1,6 +1,9 @@
 # build artifacts
 mazda3-app.zip
 
+# the app itself ships with no dependencies; these are the test runner's
+node_modules/
+
 # OS files
 .DS_Store
 Thumbs.db

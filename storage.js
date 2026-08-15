@@ -45,8 +45,14 @@
         obj.photo = '';
         obj.photoId = id;
       } else if (!v) {
+        /* An empty photo alongside a photoId is the UI's only signal that the
+           user removed the image, so it is read as one — which means a record
+           MUST go through hydrate()/resolvePhotos before it is saved. Since
+           orphan collection landed, saving an unresolved record no longer just
+           drops the id and leaks the blob; it deletes the blob. Pinned by the
+           INVARIANT test in test/idb.test.js. */
         obj.photo = '';
-        delete obj.photoId;      // photo was removed — drop the dangling id
+        delete obj.photoId;
       } else {
         obj.photo = '';          // blob: URL — keep photoId, never store the URL
       }

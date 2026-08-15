@@ -13,7 +13,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      # No dependencies: the suite is node:test against the plain source files.
+      # fake-indexeddb is the only dependency and it is dev-only — nothing the
+      # browser loads requires it, so the app still ships with no build step.
+      - run: npm ci
       - run: npm test
       # Catches syntax errors in the browser-only files, which no test loads.
       - run: node --check app.js && node --check storage.js && node --check ui.js && node --check schedule.js && node --check sw.js
