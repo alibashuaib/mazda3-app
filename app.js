@@ -918,6 +918,10 @@ function fuelSystemCleanerPart() {
 function normalizeData(s) {
   s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);
   ['services', 'parts', 'history', 'spending', 'fuel', 'docs'].forEach(k => { if (!Array.isArray(s[k])) s[k] = []; });
+  /* Record-level shape lives in storage.js so the suite can reach it. It runs
+     here, before anything reads into the records — the odoUpdatedAt derivation
+     below maps over fuel and history, which a null entry would throw on. */
+  normalizeRecords(s, uid);
   // When the odometer was last known good. Derived from data on disk — not
   // from today() — because normalizeData runs on every load and is only
   // persisted when something calls save().
@@ -1262,7 +1266,8 @@ const SERVICE_PARTS = {
   'Battery Check': ['12V Battery'],
   'Brake Inspection & Caliper Lube': ['Front Brake Pads', 'Rear Brake Pads']
 };
-const partCheapest = p => Math.min(...p.options.map(o => o.price));
+// Math.min() of nothing is Infinity, which renders as a price — 0 reads as "unpriced".
+const partCheapest = p => (p.options && p.options.length) ? Math.min(...p.options.map(o => o.price)) : 0;
 function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => state.parts.find(p => p.name === n)).filter(Boolean); }
 function servicesForPart(p) { return state.services.filter(s => (SERVICE_PARTS[s.name] || []).includes(p.name)); }
 
@@ -2948,7 +2953,7 @@ function openAddSpending(e) {
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
-      const partOpts = state.parts.map((p, i) => `<option value="part:${i}">${t(p.name)} · ${sar(Math.min(...p.options.map(o => o.price)))} SAR</option>`).join('');
+      const partOpts = state.parts.map((p, i) => `<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`).join('');
       card.appendChild(field('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>',
         `<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
     }
@@ -2967,7 +2972,7 @@ function openAddSpending(e) {
         if (!this.value) return;
         const p = state.parts[+this.value.split(':')[1]];
         $('#x_desc').value = p.name;
-        $('#x_amt').value = Math.min(...p.options.map(o => o.price));
+        $('#x_amt').value = partCheapest(p);
         $('#x_cat').value = p.cat === 'Tires' ? 'Tires' : p.cat === 'Electrical' ? 'Electrical' : 'Parts';
       };
     }
