@@ -1,0 +1,12 @@
+{
+  "name": "mazda3-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Garage — a vanilla-JS PWA for tracking Mazda service, fuel and spending. No build step; this manifest exists only so the tests have a documented entry point.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

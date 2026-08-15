@@ -135,20 +135,75 @@ longer empty out as a function of the month.
 
 Removes the storage ceiling and establishes the local database Phase 4 syncs from.
 
-### 2.1 IndexedDB
+> **Amended 2026-08-11, during planning.** Three decisions changed from the original
+> text below. Each is recorded inline in the subsection it affects.
 
-Object stores: `vehicles`, `services`, `history`, `spending`, `fuel`, `docs`, `parts`,
-`photos`, `meta`. Records carry `vehicleId` where applicable, indexed for lookup.
+### 2.0 Two backends, selected at runtime
+
+**Amendment.** IndexedDB is unavailable from `file://` in Chrome (opaque origin →
+`SecurityError` on `open()`) and Safari. Opening `index.html` by double-clicking it is
+a documented feature of this app and was a global constraint throughout Phase 1, so
+IndexedDB cannot simply replace `localStorage`.
+
+A storage adapter selects the backend at runtime: IndexedDB where available, the
+existing `localStorage` path where it is not. Hosted and installed-PWA use gets the
+full fix; double-click-from-disk keeps working, with the old ~5 MB ceiling and the
+honest quota warning Phase 1 added.
+
+The adapter's API is async in both backends, so callers cannot depend on which one is
+live.
+
+### 2.1 Object stores
+
+**Amendment — three stores, not nine.** The original text below listed one store per
+entity. Nothing consumes that normalization until Phase 4's sync, whose schema should
+be designed against sync requirements rather than guessed a phase early; and
+reassembling nine stores into the in-memory shape on every boot is meaningful bug
+surface for no present benefit. Three stores deliver every acceptance criterion:
+
+| Store | Contents |
+| --- | --- |
+| `meta` | Schema version, `migratedAt`, active vehicle id |
+| `vehicles` | One record per vehicle — its `data` object with photos replaced by ids |
+| `photos` | `Blob` values keyed by id |
+
+*Superseded:* ~~Object stores: `vehicles`, `services`, `history`, `spending`, `fuel`,
+`docs`, `parts`, `photos`, `meta`. Records carry `vehicleId` where applicable.~~
 
 ### 2.2 Photos as Blobs
 
 Photos move to their own store as `Blob` values keyed by id; records reference them by
 id. This removes base64's 33% inflation and the data-URL-in-JSON pattern entirely.
-Display uses `URL.createObjectURL`, revoked on view teardown.
+Display uses `URL.createObjectURL`.
 
-### 2.3 Per-record writes
+Revocation: the app has no view-teardown hook — `go()` replaces `innerHTML` wholesale.
+So created object URLs go into a registry that is revoked at the start of each
+navigation. Without this the app leaks a blob URL per photo per render.
 
-Writing one service record writes one record, not the entire garage. Fixes defect 6.
+### 2.3 Per-vehicle writes
+
+**Amendment.** Writing one record per *vehicle*, not per entity. Once photos are out of
+the JSON, a vehicle's remaining record is small (tens of KB), so rewriting one vehicle
+per save is inexpensive and removes the defect — which was re-serializing *every*
+vehicle *and every photo* on every keystroke-level change.
+
+*Superseded:* ~~Writing one service record writes one record.~~
+
+### 2.6 Reads stay synchronous
+
+The app is written synchronously against a module-level `state` object, and every page
+renders from it directly. Converting those reads to async would touch the entire
+codebase — that is Phase 3's job, not this one.
+
+Instead the adapter hydrates the whole garage into the existing in-memory `state` shape
+at boot, so no rendering code changes. Only two things become async: application
+startup, and `save()`.
+
+`save()` returning a synchronous boolean — which Phase 1 introduced and 19 call sites
+depend on — cannot survive an async backend. `save()` returns a Promise instead and
+those call sites `await` it, preserving Phase 1's guarantee that a success message is
+never shown for a write that failed. Reverting to fire-and-forget would silently undo
+that fix.
 
 ### 2.4 Migration
 
@@ -164,10 +219,15 @@ escape hatch after one does.
 
 ### Acceptance criteria
 
-- 50 receipt photos can be stored without error.
+- 50 receipt photos can be stored without error **on the IndexedDB backend**. On the
+  `localStorage` fallback the ~5 MB ceiling remains, and hitting it produces Phase 1's
+  visible warning rather than silent loss.
 - Existing `localStorage` data appears intact in the app after migration, with the
   original key still present.
 - Export followed by import into an empty browser profile reproduces the garage.
+- The app still runs by double-clicking `index.html`, on the fallback backend.
+- No success message is shown for a write that failed, on either backend.
+- Navigating between pages does not leak object URLs.
 
 ## Phase 3 — Modules and tests
 

@@ -1,0 +1,19 @@
+name: tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # No dependencies: the suite is node:test against the plain source files.
+      - run: npm test
+      # Catches syntax errors in the browser-only files, which no test loads.
+      - run: node --check app.js && node --check storage.js && node --check schedule.js && node --check sw.js

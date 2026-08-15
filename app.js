@@ -4,7 +4,8 @@
    ============================================================ */
 'use strict';
 
-const STORE_KEY = 'garage.mazda3.v1';
+/* The pre-garage v1 key is read by storage.js (LEGACY_V1_KEY / readLegacyV1)
+   and seeded from in hydrate(). Nothing here writes it. */
 
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -352,6 +353,24 @@ const AR = {
   'Theme: follows device': 'المظهر: حسب الجهاز',
   'Theme: light': 'المظهر: فاتح',
   'Theme: dark': 'المظهر: داكن',
+
+  // storage
+  'Could not open your garage': 'تعذّر فتح المرآب',
+  'Your data is safe. Please reload the page.': 'بياناتك آمنة. يرجى إعادة تحميل الصفحة.',
+
+  // backup
+  'Backup & restore': 'النسخ الاحتياطي والاستعادة',
+  'A backup file holds every vehicle, service, receipt and photo.': 'ملف النسخة الاحتياطية يحتوي على كل مركبة وصيانة وإيصال وصورة.',
+  'Export backup': 'تصدير نسخة احتياطية',
+  'Import backup': 'استيراد نسخة احتياطية',
+  'Backup downloaded': 'تم تنزيل النسخة الاحتياطية',
+  'Garage restored': 'تمت استعادة المرآب',
+  'Restored, but some data could not be saved': 'تمت الاستعادة، لكن تعذّر حفظ بعض البيانات',
+  'Importing replaces everything currently in your garage. Continue?': 'الاستيراد سيستبدل كل ما في مرآبك حالياً. هل تريد المتابعة؟',
+  'That file is not valid JSON.': 'هذا الملف ليس JSON صالحاً.',
+  'That is not a Garage backup file.': 'هذا ليس ملف نسخة احتياطية للمرآب.',
+  'That backup file is incomplete.': 'ملف النسخة الاحتياطية غير مكتمل.',
+  'Could not read that file.': 'تعذّرت قراءة هذا الملف.',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
@@ -861,6 +880,10 @@ function seed() { return buildProfile('mazda3bm', 0, { odometer: 316000, year: 2
    so the rest of the app keeps using state.car / state.services / … unchanged. */
 const GKEY = 'garage.mazda3.v2';
 let garage;
+/* Guards navigation and chrome (tabs, settings, garage) until boot has
+   hydrated `state`. A failed boot leaves this false so a stray tap can't
+   clear the error card and crash into a blank screen on a null `state`. */
+let booted = false;
 /* Dealer "normal" intervals from the Haji Husein Alireza (Mazda KSA) sheet —
    the shorter values already in the app are the Jeddah "severe" schedule.
    [normalKm, normalMonths] keyed by built-in service name. */
@@ -931,38 +954,104 @@ function normalizeData(s) {
    normal = the dealer values where a service defines them, else the same) */
 function svKm(s) { return (state.severity === 'normal' && s.normalKm) ? s.normalKm : s.intervalKm; }
 function svMo(s) { return (state.severity === 'normal' && s.normalMonths) ? s.normalMonths : s.intervalMonths; }
-/* Returns true when the write succeeded. A silent failure here used to
-   lose the user's data with no indication at all. */
-function persistGarage() {
-  try {
-    localStorage.setItem(GKEY, JSON.stringify(garage));
-    return true;
-  } catch (e) {
-    toast(isQuotaError(e)
+/* Phase 2: persistence is async and may be backed by IndexedDB or
+   localStorage. Reads stay synchronous — the whole garage is hydrated into
+   `state` at boot — so page code is unchanged. */
+let state = null;
+let photoBlobs = {};   // photo id -> Blob, for the active session
+
+/* Object URLs created for stored photo Blobs. The app has no view-teardown
+   hook — go() replaces innerHTML wholesale — so these are revoked at the
+   start of each navigation (Task 4). Without that the app leaks one URL per
+   photo per render. */
+let liveObjectUrls = [];
+function objectUrl(blob) {
+  const url = URL.createObjectURL(blob);
+  liveObjectUrls.push(url);
+  return url;
+}
+function revokeObjectUrls() {
+  liveObjectUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+  liveObjectUrls = [];
+}
+
+function hydrate(garage, photos) {
+  if (!garage || !Array.isArray(garage.vehicles) || !garage.vehicles.length) {
+    // Pre-garage single-car data still living under STORE_KEY is this user's
+    // only copy — seed from it before falling back to a blank car.
+    const legacy = readLegacyV1();
+    garage = { vehicles: [{ id: uid(), data: normalizeData(legacy || seed()) }], activeId: null };
+    garage.activeId = garage.vehicles[0].id;
+  }
+  garage.vehicles.forEach(v => {
+    normalizeData(v.data);
+    resolvePhotos(v.data, photos);
+  });
+  const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
+  garage.activeId = active.id;
+  return { garage, state: active.data };
+}
+
+/* Turn stored photo ids into object URLs so `.photo` keeps working in every
+   render path. Registered for revocation on the next navigation. */
+function resolvePhotos(data, photos) {
+  const slots = [data.car].concat(data.history || [], data.spending || []).filter(Boolean);
+  slots.forEach(o => {
+    if (o.photoId && photos[o.photoId]) o.photo = objectUrl(photos[o.photoId]);
+  });
+}
+
+/* Re-create object URLs after a revocation sweep. Must cover EVERY vehicle:
+   revokeObjectUrls() is indiscriminate, and the garage switcher renders photos
+   for vehicles that are not active. */
+function refreshPhotoUrls() {
+  if (!garage || !photoBlobs) return;
+  garage.vehicles.forEach(v => resolvePhotos(v.data, photoBlobs));
+}
+
+function save() {
+  const v = garage.vehicles.find(x => x.id === garage.activeId);
+  if (!v) return Promise.resolve(false);
+  v.data = state;
+  const data = state;          // the vehicle being saved — `state` may move before this resolves
+  return saveVehicle(v.id, data, garage.activeId, uid).then(res => {
+    if (res.ok) {
+      applyPhotoIds(data, res.data);
+      cacheNewPhotos(data, res.photoIds);
+      return true;
+    }
+    const err = res.error;
+    toast(isQuotaError(err)
       ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
       : t('Could not save your change.'), 'warn');
     return false;
-  }
+  });
 }
-let state = load();
-function load() {
-  try { const g = localStorage.getItem(GKEY); if (g) garage = JSON.parse(g); } catch (e) {}
-  if (!garage || !Array.isArray(garage.vehicles) || !garage.vehicles.length) {
-    let data;
-    try { const old = localStorage.getItem(STORE_KEY); if (old) data = JSON.parse(old); } catch (e) {} // migrate old single-car data
-    garage = { vehicles: [{ id: uid(), data: normalizeData(data || seed()) }], activeId: null };
-    garage.activeId = garage.vehicles[0].id;
-    persistGarage();
-  }
-  garage.vehicles.forEach(v => normalizeData(v.data));
-  const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
-  garage.activeId = active.id;
-  return active.data;
+
+/* After a successful write the stored copy knows each photo's id; copy those
+   ids back into the live objects so the next save does not re-upload them. */
+function applyPhotoIds(live, stored) {
+  const a = [live.car].concat(live.history || [], live.spending || []).filter(Boolean);
+  const b = [stored.car].concat(stored.history || [], stored.spending || []).filter(Boolean);
+  a.forEach((o, i) => { if (!b[i]) return; if (b[i].photoId) o.photoId = b[i].photoId; else delete o.photoId; });
 }
-function save() { const v = garage.vehicles.find(v => v.id === garage.activeId); if (v) v.data = state; return persistGarage(); }
+
+/* Keep just-saved images in the session cache so later navigations render
+   them from a Blob like every other photo, instead of a lingering data URL. */
+function cacheNewPhotos(live, photoIds) {
+  if (!photoIds || !photoIds.length) return;
+  const slots = [live.car].concat(live.history || [], live.spending || []).filter(Boolean);
+  slots.forEach(o => {
+    if (o.photoId && photoIds.indexOf(o.photoId) >= 0 && !photoBlobs[o.photoId]) {
+      const blob = dataUrlToBlob(o.photo);
+      if (blob) photoBlobs[o.photoId] = blob;
+    }
+  });
+}
 function switchVehicle(id) {
+  closeModal();
   const v = garage.vehicles.find(x => x.id === id); if (!v) return;
-  garage.activeId = id; state = v.data; persistGarage();
+  garage.activeId = id; state = v.data; save();
   applyAccent(); renderTopbar(); go('dashboard');
 }
 function addVehicle() { openAddVehicle(); }
@@ -980,23 +1069,108 @@ function openAddVehicle() {
     modelSel.value = '1'; fillEngines();          // default to Mazda 3 BM
     modelSel.onchange = fillEngines;
     const b = el('button', 'btn primary block', t('Add a vehicle'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '' }));
       const v = { id: uid(), data };
-      garage.vehicles.push(v); garage.activeId = v.id; state = v.data; const ok = persistGarage();
-      applyAccent(); renderTopbar(); closeModal(); go('dashboard'); if (ok) toast(t('Vehicle added'));
+      garage.vehicles.push(v); garage.activeId = v.id; state = v.data;
+      const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
+      const ok = res.ok;
+      if (ok) applyPhotoIds(v.data, res.data);
+      applyAccent(); renderTopbar(); closeModal(); go('dashboard');
+      if (ok) toast(t('Vehicle added'));
+      else toast(isQuotaError(res.error)
+        ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
+        : t('Could not save your change.'), 'warn');
     };
     card.appendChild(b);
   });
 }
-function deleteVehicle(id) {
+async function deleteVehicle(id) {
   if (garage.vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
   garage.vehicles = garage.vehicles.filter(v => v.id !== id);
   if (garage.activeId === id) { garage.activeId = garage.vehicles[0].id; state = garage.vehicles[0].data; }
-  const ok = persistGarage(); applyAccent(); renderTopbar(); go('dashboard'); if (ok) toast('Vehicle removed');
+  const ok = await removeVehicle(id, garage.activeId); applyAccent(); renderTopbar(); go('dashboard');
+  if (ok) toast('Vehicle removed');
+  else toast(t('Could not save your change.'), 'warn');
 }
 function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle'; }
+
+/* A backup the user controls, before any server exists. Photos are inlined
+   as base64 so a single file is the whole garage. */
+async function exportGarage() {
+  const photos = {};
+  await Promise.all(Object.keys(photoBlobs).map(async id => { photos[id] = await blobToDataUrl(photoBlobs[id]); }));
+  const payload = buildExport(garage, photos, new Date().toISOString());
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `garage-backup-${isoDate(today())}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast(t('Backup downloaded'));
+}
+
+/* Import **replaces** the garage. It must ask first — this is destructive. */
+function importGarage(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const parsed = parseImport(reader.result);
+    if (!parsed.ok) return toast(t(parsed.error), 'warn');
+    if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
+    // Past this point `garage` and `photoBlobs` are replaced in place, so any
+    // throw would strand the running app on a half-restored garage with no
+    // toast. parseImport validates the shape; this catches everything else.
+    try {
+      const priorIds = garage.vehicles.map(v => v.id);
+      garage = parsed.garage;
+      photoBlobs = {};
+      Object.keys(parsed.photos).forEach(id => {
+        const blob = dataUrlToBlob(parsed.photos[id]);
+        if (blob) photoBlobs[id] = blob;
+      });
+      // The backup's .photo fields are stale blob: URLs from the exporting session.
+      // Restore real data: URLs from the backup's own photos dict, or splitPhotos
+      // will treat them as already-stored and persist nothing.
+      garage.vehicles.forEach(v => {
+        // A backup from the localStorage backend carries its images inline; one from
+        // IndexedDB carries them in `photos` with stale blob: URLs in the records.
+        // Merge both so neither origin loses data. collectInlinePhotos ignores blob: URLs.
+        const merged = Object.assign(collectInlinePhotos(v.data), parsed.photos);
+        v.data = inlinePhotos(v.data, merged);
+        normalizeData(v.data);
+      });
+      const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
+      garage.activeId = active.id;
+      state = active.data;
+      let ok = true;
+      for (const v of garage.vehicles) {
+        const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
+        if (!res.ok) ok = false;
+      }
+      // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
+      const keptIds = garage.vehicles.map(v => v.id);
+      for (const id of priorIds) {
+        if (keptIds.indexOf(id) < 0) await removeVehicle(id, garage.activeId);
+      }
+      // The save loop minted fresh photo ids, so re-read from storage to bring
+      // memory back in sync with what was actually persisted.
+      const fresh = await loadAll();
+      const h = hydrate(fresh.garage, fresh.photos);
+      garage = h.garage;
+      state = h.state;
+      photoBlobs = fresh.photos || {};
+      closeModal();
+      applyAccent(); renderTopbar(); go('dashboard');
+      toast(ok ? t('Garage restored') : t('Restored, but some data could not be saved'), ok ? undefined : 'warn');
+    } catch (err) {
+      console.error(err);
+      toast(t('That backup could not be restored. Please reload the page.'), 'warn');
+    }
+  };
+  reader.onerror = () => toast(t('Could not read that file.'), 'warn');
+  reader.readAsText(file);
+}
 
 /* ---------- service status computation ---------- */
 function serviceStatus(s) {
@@ -1046,6 +1220,10 @@ const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, par
 let current = 'dashboard';
 let navIntent = null; // cross-page link target, consumed by the destination page's render
 function go(route, intent) {
+  if (!booted) return;      // boot failed — leave the error card in place
+  revokeObjectUrls();
+  refreshPhotoUrls();
+  renderTopbar();     // the badge lives outside #view; its URL was just revoked
   current = route;
   navIntent = intent || null;
   const view = $('#view');
@@ -1328,7 +1506,7 @@ function logVisit(ms) {
     total += Number(s.cost || 0);
   });
   if (total > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Service visit')} · ${fmt(odo)} km`, amount: total, odometer: odo });
-  save();
+  save(); // fire-and-forget: nothing downstream reads the result
 }
 
 /* Confirm-and-log a service or a whole plan visit, letting the user choose which
@@ -1413,7 +1591,7 @@ function openLogConfirm(services, opts) {
       card.appendChild(totalEl);
 
       const b = el('button', 'btn primary block', iconSvg('check') + t('Log it'));
-      b.onclick = () => {
+      b.onclick = async () => {
         const odo = +$('#lc_odo').value || state.car.odometer;
         const date = $('#lc_date').value || isoDate(today());
         let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
@@ -1434,7 +1612,7 @@ function openLogConfirm(services, opts) {
         });
         if (grand > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
         if (odo > (state.car.odometer || 0)) state.car.odometer = odo;
-        const ok = save(); closeModal();
+        const ok = await save(); closeModal();
         (opts.onDone || (() => go('maintenance')))();
         if (ok) {
           if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
@@ -1562,7 +1740,7 @@ function openPlanSetup() {
       if (dailyKm > 0) state.car.dailyKm = dailyKm;
     }
 
-    function finish() {
+    async function finish() {
       applyGeneralSettings();
       const dpk = state.car.dailyKm || 40;
       answers.forEach(a => {
@@ -1574,11 +1752,11 @@ function openPlanSetup() {
         a.s.lastDate = isoDate(new Date(today().getTime() - days * 86400000));
       });
       state.planSetupDone = true;
-      const ok = save(); closeModal(); go('maintenance'); if (ok) toast(t('Plan updated'));
+      const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(t('Plan updated'));
     }
 
     backBtn.onclick = () => { if (step > 0) { step--; renderStep(); } };
-    nextBtn.onclick = () => {
+    nextBtn.onclick = async () => {
       if (step === 1) {
         const od = parseInt(odo, 10);
         if (isNaN(od) || od <= 0) { $('#wiz_odo', body).classList.add('err'); toast(t('Enter your current odometer'), 'warn'); return; }
@@ -1592,10 +1770,14 @@ function openPlanSetup() {
           if (isNaN(val) || val <= 0) { body.querySelector('.wiz-km input').classList.add('err'); toast(t('Enter a km for this service'), 'warn'); return; }
         }
       }
-      if (step === totalSteps - 1) { finish(); return; }
+      if (step === totalSteps - 1) { await finish(); return; }
       step++; renderStep();
     };
-    skipAll.onclick = () => { applyGeneralSettings(); state.planSetupDone = true; save(); closeModal(); go('maintenance'); };
+    skipAll.onclick = () => {
+      applyGeneralSettings(); state.planSetupDone = true;
+      save(); // fire-and-forget: nothing downstream reads the result
+      closeModal(); go('maintenance');
+    };
 
     renderStep();
   });
@@ -2190,7 +2372,7 @@ function openAddFuel(e) {
     card.appendChild(r1);
     card.appendChild(field('Tank', `<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const litres = +$('#f_l').value, odo = +$('#f_odo').value;
       if (!litres) return toast('Litres required', 'warn');
       if (!odo) return toast('Odometer required', 'warn');
@@ -2198,13 +2380,13 @@ function openAddFuel(e) {
       if (e) Object.assign(e, obj); else { state.fuel = state.fuel || []; state.fuel.push(obj); }
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
       if (odo > state.car.odometer) { state.car.odometer = odo; state.car.odoUpdatedAt = obj.date; }
-      const ok = save(); closeModal(); go('fuel'); if (ok) toast(editing ? 'Fill-up updated' : 'Fill-up added');
+      const ok = await save(); closeModal(); go('fuel'); if (ok) toast(editing ? 'Fill-up updated' : 'Fill-up added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete fill-up'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = () => { state.fuel = state.fuel.filter(x => x.id !== e.id); const ok = save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); };
+      del.onclick = async () => { state.fuel = state.fuel.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); };
       card.appendChild(del);
     }
   });
@@ -2247,16 +2429,16 @@ function openAddDoc(d) {
       field('Reference no. (optional)', `<input id="d_num" value="${d ? (d.number || '') : ''}">`));
     card.appendChild(r);
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
       if (d) Object.assign(d, obj); else { state.docs = state.docs || []; state.docs.push(obj); }
-      const ok = save(); closeModal(); go('dashboard'); if (ok) toast(editing ? 'Document updated' : 'Document added');
+      const ok = await save(); closeModal(); go('dashboard'); if (ok) toast(editing ? 'Document updated' : 'Document added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete document'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = () => { state.docs = state.docs.filter(x => x.id !== d.id); const ok = save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); };
+      del.onclick = async () => { state.docs = state.docs.filter(x => x.id !== d.id); const ok = await save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); };
       card.appendChild(del);
     }
   });
@@ -2283,12 +2465,12 @@ function openEditOdo() {
     card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${state.car.odometer}">`));
     card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${state.car.dailyKm}">`));
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const val = parseInt($('#m_odo').value, 10);
       if (!isNaN(val)) { state.car.odometer = val; state.car.odoUpdatedAt = isoDate(today()); }
       const d = parseInt($('#m_daily').value, 10);
       if (!isNaN(d) && d > 0) state.car.dailyKm = d;
-      const ok = save(); closeModal(); go(current); if (ok) toast('Mileage updated');
+      const ok = await save(); closeModal(); go(current); if (ok) toast('Mileage updated');
     };
     card.appendChild(b);
   });
@@ -2358,6 +2540,7 @@ function openImage(url) {
 }
 
 function openGarage() {
+  if (!booted) return;
   openModal('Your garage', 'Switch between your vehicles or add another.', card => {
     const list = el('div', 'list');
     garage.vehicles.forEach(v => {
@@ -2380,6 +2563,7 @@ function openGarage() {
 }
 
 function openSettings() {
+  if (!booted) return;
   openModal('Car profile', 'These details personalise the app and its badge.', card => {
     const c = state.car;
     // language switch
@@ -2488,7 +2672,7 @@ function openSettings() {
     card.appendChild(r4);
 
     const b = el('button', 'btn primary block', t('Save profile'));
-    b.onclick = () => {
+    b.onclick = async () => {
       Object.assign(state.car, {
         nickname: $('#c_nick').value.trim(), make: $('#c_make').value.trim(), model: $('#c_model').value.trim(),
         year: +$('#c_year').value || c.year, color: $('#c_color').value.trim(),
@@ -2496,7 +2680,7 @@ function openSettings() {
         plate: $('#c_plate').value.trim(), vin: $('#c_vin').value.trim().toUpperCase(), photo
       });
       let ok = false;
-      try { ok = save(); } catch (e) {}
+      try { ok = await save(); } catch (e) {}
       // photo may exceed quota — verify it stuck
       if (selectedLang !== lang) applyLang(selectedLang);
       applyAccent(); renderTopbar(); closeModal(); go(current); if (ok) toast('Profile saved');
@@ -2508,6 +2692,22 @@ function openSettings() {
       del.onclick = () => deleteVehicle(garage.activeId);
       card.appendChild(del);
     }
+    const backup = el('div');
+    backup.style.cssText = 'margin-top:22px;padding-top:16px;border-top:1px solid var(--stroke)';
+    backup.innerHTML = `<div class="section-title"><div class="section-title-left"><h2>${t('Backup & restore')}</h2></div></div>
+      <p style="font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:12px">${t('A backup file holds every vehicle, service, receipt and photo.')}</p>`;
+    const exp = el('button', 'btn block', t('Export backup'));
+    exp.onclick = exportGarage;
+    const imp = el('button', 'btn block ghost', t('Import backup'));
+    imp.style.marginTop = '8px';
+    const impFile = el('input');
+    impFile.type = 'file';
+    impFile.accept = 'application/json';
+    impFile.hidden = true;
+    impFile.onchange = ev => { const f = ev.target.files[0]; if (f) importGarage(f); };
+    imp.onclick = () => impFile.click();
+    backup.append(exp, imp, impFile);
+    card.appendChild(backup);
   });
 }
 
@@ -2515,7 +2715,7 @@ function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
     card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${state.budget.annual}">`));
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; const ok = save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); };
+    b.onclick = async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); };
     card.appendChild(b);
   });
 }
@@ -2573,7 +2773,7 @@ function markServiceDone(s) {
   state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date: isoDate(today()), odometer: state.car.odometer, cost: s.cost || 0, cat: 'Maintenance', note: '' });
   // log the spend
   if (s.cost > 0) state.spending.push({ id: uid(), date: isoDate(today()), cat: 'Maintenance', desc: s.name, amount: s.cost, odometer: state.car.odometer });
-  save();
+  save(); // fire-and-forget: nothing downstream reads the result
 }
 
 function openAddHistory(e, prefill) {
@@ -2602,7 +2802,7 @@ function openAddHistory(e, prefill) {
       card.appendChild(chk);
     }
     const b = el('button', 'btn primary block', editing ? t('Save changes') : t('Add to history'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const name = $('#h_name').value.trim();
       if (!name) return toast('Service name required', 'warn');
       const obj = {
@@ -2620,13 +2820,13 @@ function openAddHistory(e, prefill) {
           if (sv && obj.odometer > 0) { sv.lastKm = obj.odometer; sv.lastDate = obj.date; }
         }
       }
-      const ok = save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Record updated' : 'Service logged ✓');
+      const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Record updated' : 'Service logged ✓');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete record'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.history = state.history.filter(x => x.id !== e.id); const ok = save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); };
+      del.onclick = async () => { state.history = state.history.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); };
       card.appendChild(del);
     }
   });
@@ -2655,7 +2855,7 @@ function openEditService(s) {
     card.appendChild(row3);
     card.appendChild(field('Note', `<textarea id="s_note" rows="2">${s ? (s.note || '') : ''}</textarea>`));
     const b = el('button', 'btn primary block', t('Save service'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const name = $('#s_name').value.trim();
       if (!name) return toast('Name is required', 'warn');
       const obj = {
@@ -2667,13 +2867,13 @@ function openEditService(s) {
         cost: +$('#s_cost').value || 0, note: $('#s_note').value.trim()
       };
       if (s) Object.assign(s, obj); else state.services.push(obj);
-      const ok = save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Service updated' : 'Service added');
+      const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Service updated' : 'Service added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete service'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.services = state.services.filter(x => x.id !== s.id); const ok = save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); };
+      del.onclick = async () => { state.services = state.services.filter(x => x.id !== s.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); };
       card.appendChild(del);
     }
   });
@@ -2756,19 +2956,19 @@ function openAddSpending(e) {
       };
     }
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return toast('Description required', 'warn');
       if (isNaN(amt)) return toast('Amount required', 'warn');
       const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer, photo: xphoto };
       if (e) Object.assign(e, obj); else state.spending.push(obj);
-      const ok = save(); closeModal(); go('budget'); if (ok) toast(editing ? 'Expense updated' : 'Expense added');
+      const ok = await save(); closeModal(); go('budget'); if (ok) toast(editing ? 'Expense updated' : 'Expense added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete expense'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.spending = state.spending.filter(x => x.id !== e.id); const ok = save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); };
+      del.onclick = async () => { state.spending = state.spending.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); };
       card.appendChild(del);
     }
   });
@@ -2825,20 +3025,20 @@ function openEditPart(p) {
     card.appendChild(addOpt);
 
     const b = el('button', 'btn primary block', t('Save part'));
-    b.onclick = () => {
+    b.onclick = async () => {
       const name = $('#p_name').value.trim();
       if (!name) return toast('Part name required', 'warn');
       const valid = opts.filter(o => o.brand.trim());
       if (!valid.length) return toast('Add at least one option', 'warn');
       const obj = { id: p ? p.id : uid(), name, icon: $('#p_icon').value.trim() || '🔩', cat: $('#p_cat').value.trim() || 'General', partsouq: $('#p_psq').value.trim().replace(/[^A-Za-z0-9]/g, ''), options: valid };
       if (p) Object.assign(p, obj); else state.parts.push(obj);
-      const ok = save(); closeModal(); go('parts'); if (ok) toast(editing ? 'Part updated' : 'Part added');
+      const ok = await save(); closeModal(); go('parts'); if (ok) toast(editing ? 'Part updated' : 'Part added');
     };
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete part'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = () => { state.parts = state.parts.filter(x => x.id !== p.id); const ok = save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); };
+      del.onclick = async () => { state.parts = state.parts.filter(x => x.id !== p.id); const ok = await save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); };
       card.appendChild(del);
     }
   });
@@ -2982,9 +3182,27 @@ lang = localStorage.getItem('garage.lang') || 'en';
 document.documentElement.setAttribute('lang', lang);
 document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
 applyNavLabels();
-applyAccent();
-renderTopbar();
-go('dashboard');
+
+openStorage()
+  .then(loadAll)
+  .then(({ garage: g, photos }) => {
+    photoBlobs = photos || {};
+    const h = hydrate(g, photoBlobs);
+    garage = h.garage;
+    state = h.state;
+    if (!g || !g.vehicles || !g.vehicles.length) return save();          // first run — persist the seed
+  })
+  .then(() => {
+    booted = true;
+    applyAccent();
+    renderTopbar();
+    go('dashboard');
+  })
+  .catch(err => {
+    document.getElementById('view').innerHTML =
+      `<div class="card" style="padding:20px"><h3>${t('Could not open your garage')}</h3><p style="color:var(--text-2);margin-top:8px">${t('Your data is safe. Please reload the page.')}</p></div>`;
+    console.error(err);
+  });
 
 /* ---------- PWA: offline + installable ---------- */
 if ('serviceWorker' in navigator) {
