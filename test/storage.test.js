@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
+const { parseLegacyV1, migrationPlan } = require('../storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
 const { collectInlinePhotos } = require('../storage.js');
 
@@ -92,6 +93,56 @@ test('parseImport rejects junk and foreign files without throwing', () => {
   assert.strictEqual(parseImport('{"hello":1}').ok, false);
   assert.strictEqual(parseImport(JSON.stringify({ format: 'something-else' })).ok, false);
   assert.strictEqual(typeof parseImport('not json').error, 'string');
+});
+
+/* The restore path replaces the live garage before it touches storage, so a
+   backup that parses but cannot be restored must be rejected here, not throw
+   halfway through. */
+test('parseImport rejects a backup with no usable vehicle', () => {
+  const wrap = garage => JSON.stringify(buildExport(garage, {}, '2026-08-16T00:00:00Z'));
+  assert.strictEqual(parseImport(wrap({ vehicles: [], activeId: null })).ok, false);
+  assert.strictEqual(parseImport(wrap({ vehicles: [{ id: 'v' }], activeId: 'v' })).ok, false);        // no data
+  assert.strictEqual(parseImport(wrap({ vehicles: [{ data: { car: {} } }] })).ok, false);             // no id
+  assert.strictEqual(parseImport(wrap({ vehicles: [null] })).ok, false);
+  assert.strictEqual(parseImport(wrap({ vehicles: [{ id: 'v', data: 'nope' }] })).ok, false);
+  assert.strictEqual(parseImport(wrap({ vehicles: [{ id: 'v', data: { car: {} } }], activeId: 'v' })).ok, true);
+  assert.strictEqual(typeof parseImport(wrap({ vehicles: [] })).error, 'string');
+});
+
+/* Regression: Phase 2 dropped the v1 read entirely, so a user who had not
+   opened the app since the single-car days booted into a blank seeded car and
+   the first save wrote that seed over their garage slot. */
+test('parseLegacyV1 recovers pre-garage single-car data', () => {
+  const car = { car: { nickname: 'Mine', odometer: 90000 }, history: [{ id: 'h1' }] };
+  assert.deepStrictEqual(parseLegacyV1(JSON.stringify(car)), car);
+});
+
+test('parseLegacyV1 returns null for absent, unparseable, or already-migrated data', () => {
+  assert.strictEqual(parseLegacyV1(null), null);
+  assert.strictEqual(parseLegacyV1(''), null);
+  assert.strictEqual(parseLegacyV1('not json'), null);
+  assert.strictEqual(parseLegacyV1('[]'), null);
+  assert.strictEqual(parseLegacyV1('null'), null);
+  // a v2 garage stored under the v1 key is not a single car — do not seed from it
+  assert.strictEqual(parseLegacyV1(JSON.stringify({ vehicles: [], activeId: null })), null);
+});
+
+test('migrationPlan migrates only real legacy data, and never twice', () => {
+  const legacy = { vehicles: [{ id: 'v', data: {} }], activeId: 'v' };
+  assert.strictEqual(migrationPlan({}, legacy), 'migrate');
+  assert.strictEqual(migrationPlan({ migratedAt: '2026-08-16T00:00:00Z' }, legacy), 'none');
+});
+
+/* Regression: migratedAt was only written when something was actually
+   migrated, so a first run on IndexedDB stayed unstamped. A later file://
+   session writes a seeded garage to the localStorage key, and the next visit
+   would have imported that seed as "legacy" — phantom vehicle, stolen
+   activeId. Stamping on an empty first run closes that door. */
+test('migrationPlan stamps a first run that has nothing to migrate', () => {
+  assert.strictEqual(migrationPlan({}, null), 'stamp');
+  assert.strictEqual(migrationPlan(undefined, null), 'stamp');
+  assert.strictEqual(migrationPlan({}, { vehicles: [] }), 'stamp');
+  assert.strictEqual(migrationPlan({}, { vehicles: null }), 'stamp');
 });
 
 test('dataUrlToBlob produces a Blob with the declared type and byte length', async () => {

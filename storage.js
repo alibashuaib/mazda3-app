@@ -80,12 +80,20 @@
     return { format: EXPORT_FORMAT, version: 1, exportedAt: nowIso, garage, photos: photosById };
   }
 
+  /* Validates hard enough that the caller can replace the live garage without
+     checking anything itself. An import that parses but has no usable vehicle
+     would otherwise throw halfway through the restore, after the in-memory
+     garage has already been overwritten. */
   function parseImport(text) {
     let obj;
     try { obj = JSON.parse(text); }
     catch (e) { return { ok: false, error: 'That file is not valid JSON.' }; }
     if (!obj || obj.format !== EXPORT_FORMAT) return { ok: false, error: 'That is not a Garage backup file.' };
     if (!obj.garage || !Array.isArray(obj.garage.vehicles)) return { ok: false, error: 'That backup file is incomplete.' };
+    if (!obj.garage.vehicles.length) return { ok: false, error: 'That backup file has no vehicles in it.' };
+    const usable = obj.garage.vehicles.every(v =>
+      v && typeof v === 'object' && v.id && v.data && typeof v.data === 'object' && !Array.isArray(v.data));
+    if (!usable) return { ok: false, error: 'That backup file is damaged.' };
     return { ok: true, garage: obj.garage, photos: obj.photos || {} };
   }
 
@@ -114,7 +122,43 @@
   const DB_NAME = 'garage';
   const DB_VERSION = 1;
   const LS_KEY = 'garage.mazda3.v2';   // same key the app used before Phase 2
+  const LEGACY_V1_KEY = 'garage.mazda3.v1';
   const META_KEY = 'meta';
+
+  /* Before the garage existed the app stored ONE car's data object directly
+     under the v1 key. A user who has not opened the app since then still has
+     their history there and nowhere else, so a first run with no v2 garage
+     must seed from it rather than from a blank car. Returns the car data, or
+     null if the key is absent, unparseable, or already a v2 garage. */
+  function parseLegacyV1(raw) {
+    if (typeof raw !== 'string' || !raw) return null;
+    let obj;
+    try { obj = JSON.parse(raw); }
+    catch (e) { return null; }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+    if (Array.isArray(obj.vehicles)) return null;   // a v2 garage, not a v1 car
+    return obj;
+  }
+
+  function readLegacyV1() {
+    try { return parseLegacyV1(localStorage.getItem(LEGACY_V1_KEY)); }
+    catch (e) { return null; }
+  }
+
+  /* Pure: what loadAll should do on the IndexedDB backend, given the stored
+     meta record and whatever garage sits in localStorage.
+
+     'stamp' matters as much as 'migrate'. If migratedAt is only written when
+     something was actually migrated, a user whose first run is on IndexedDB
+     stays unstamped forever — and a later session forced onto localStorage
+     (file://, or an IndexedDB failure) writes a *seeded* garage to LS_KEY that
+     the next IndexedDB visit would import as "legacy", adding a phantom
+     vehicle and stealing activeId. */
+  function migrationPlan(meta, legacy) {
+    if (meta && meta.migratedAt) return 'none';
+    if (legacy && Array.isArray(legacy.vehicles) && legacy.vehicles.length) return 'migrate';
+    return 'stamp';
+  }
 
   let backend = null;   // { kind, ... } once openStorage() has run
 
@@ -206,19 +250,30 @@
         const photosById = {};
         photos.forEach(p => { photosById[p.id] = p.blob; });
         const m = meta.find(x => x.key === META_KEY) || {};
-        if (!m.migratedAt) {
-          const legacy = lsRead();
-          if (legacy && Array.isArray(legacy.vehicles) && legacy.vehicles.length) {
-            return migrateFromLocal(legacy).then(() => loadAll())
-              .catch(() => { backend = { kind: 'local' }; return { garage: lsRead(), photos: {} }; });
-          }
-        }
-        if (!vehicles.length) return { garage: null, photos: {} };
-        return {
-          garage: { vehicles: vehicles.map(v => ({ id: v.id, data: v.data })), activeId: m.activeId || vehicles[0].id },
-          photos: photosById
+        const shape = () => {
+          if (!vehicles.length) return { garage: null, photos: {} };
+          return {
+            garage: { vehicles: vehicles.map(v => ({ id: v.id, data: v.data })), activeId: m.activeId || vehicles[0].id },
+            photos: photosById
+          };
         };
+        const legacy = lsRead();
+        const plan = migrationPlan(m, legacy);
+        if (plan === 'migrate') {
+          return migrateFromLocal(legacy).then(() => loadAll())
+            .catch(() => { backend = { kind: 'local' }; return { garage: lsRead(), photos: {} }; });
+        }
+        // Nothing to migrate, but close the door behind us — see migrationPlan.
+        // A failed stamp is not worth failing the boot over; it retries next load.
+        if (plan === 'stamp') return stampMigrated(db).catch(() => {}).then(shape);
+        return shape();
       });
+  }
+
+  function stampMigrated(db) {
+    return idbTx(db, ['meta'], 'readwrite', tx => {
+      putMetaPreserving(tx, { migratedAt: new Date().toISOString() });
+    });
   }
 
   function migrateFromLocal(legacy) {
@@ -290,6 +345,7 @@
 
   return {
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, buildExport, parseImport,
+    parseLegacyV1, readLegacyV1, migrationPlan,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
   };
 });
