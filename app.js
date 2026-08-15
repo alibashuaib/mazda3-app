@@ -1028,13 +1028,8 @@ function save() {
   });
 }
 
-/* After a successful write the stored copy knows each photo's id; copy those
-   ids back into the live objects so the next save does not re-upload them. */
-function applyPhotoIds(live, stored) {
-  const a = [live.car].concat(live.history || [], live.spending || []).filter(Boolean);
-  const b = [stored.car].concat(stored.history || [], stored.spending || []).filter(Boolean);
-  a.forEach((o, i) => { if (!b[i]) return; if (b[i].photoId) o.photoId = b[i].photoId; else delete o.photoId; });
-}
+/* applyPhotoIds lives in storage.js with the rest of the pure record
+   transforms, so the id-matching it depends on is covered by the tests. */
 
 /* Keep just-saved images in the session cache so later navigations render
    them from a Blob like every other photo, instead of a lingering data URL. */

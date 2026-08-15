@@ -74,6 +74,35 @@
     return out;
   }
 
+  /* After a successful write the stored copy knows each photo's id; copy those
+     ids back into the live records so the next save does not re-upload the
+     image.
+
+     Matched by id, never by array position. save() is fired without await by
+     markServiceDone() and logVisit(), so the user can delete a history or
+     spending record while the write is still in flight. Zipping the live and
+     stored arrays by index then shifts every record past the deletion: one
+     entry silently adopts another's receipt photo, and one loses its only
+     pointer to a stored blob.
+
+     A live record with no stored counterpart is left alone — it was added
+     after splitPhotos took its snapshot, and its own save will claim its id. */
+  function applyPhotoIds(live, stored) {
+    if (!live || !stored) return live;
+    const copy = (o, s) => {
+      if (!o || !s) return;
+      if (s.photoId) o.photoId = s.photoId;
+      else delete o.photoId;
+    };
+    copy(live.car, stored.car);
+    ['history', 'spending'].forEach(key => {
+      const byId = {};
+      (stored[key] || []).forEach(s => { if (s && s.id) byId[s.id] = s; });
+      (live[key] || []).forEach(o => { if (o && o.id) copy(o, byId[o.id]); });
+    });
+    return live;
+  }
+
   const EXPORT_FORMAT = 'garage-export';
 
   function buildExport(garage, photosById, nowIso) {
@@ -344,7 +373,7 @@
   function backendKind() { return backend ? backend.kind : null; }
 
   return {
-    shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, buildExport, parseImport,
+    shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
     parseLegacyV1, readLegacyV1, migrationPlan,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
   };
