@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
-const { parseLegacyV1, migrationPlan } = require('../storage.js');
+const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
 const { collectInlinePhotos } = require('../storage.js');
 
@@ -77,6 +77,51 @@ test('inlinePhotos leaves a missing photo empty rather than throwing', () => {
   const { data } = splitPhotos(sampleData(), makeIdFactory());
   const back = inlinePhotos(data, {});
   assert.strictEqual(back.car.photo, '');
+});
+
+test('applyPhotoIds copies ids onto the matching records', () => {
+  const live = { car: {}, history: [{ id: 'h1' }, { id: 'h2' }], spending: [{ id: 's1' }] };
+  const stored = {
+    car: { photoId: 'pc' },
+    history: [{ id: 'h1', photoId: 'p1' }, { id: 'h2' }],
+    spending: [{ id: 's1', photoId: 'p3' }]
+  };
+  applyPhotoIds(live, stored);
+  assert.strictEqual(live.car.photoId, 'pc');
+  assert.strictEqual(live.history[0].photoId, 'p1');
+  assert.ok(!('photoId' in live.history[1]));   // stored has none — clear it
+  assert.strictEqual(live.spending[0].photoId, 'p3');
+});
+
+/* Regression: this zipped the two arrays by index. save() is fired without
+   await by markServiceDone() and logVisit(), so a delete can land before the
+   write resolves — every record past it shifts, and h3 would inherit h2's
+   photo while h2's own id is dropped. */
+test('applyPhotoIds survives a record deleted while the save was in flight', () => {
+  const stored = {
+    car: {},
+    history: [{ id: 'h1', photoId: 'p1' }, { id: 'h2', photoId: 'p2' }, { id: 'h3', photoId: 'p3' }],
+    spending: []
+  };
+  const live = { car: {}, history: [{ id: 'h1' }, { id: 'h3' }], spending: [] };   // h2 deleted mid-write
+  applyPhotoIds(live, stored);
+  assert.strictEqual(live.history[0].photoId, 'p1');
+  assert.strictEqual(live.history[1].photoId, 'p3');   // not p2, which index-matching would have given it
+});
+
+test('applyPhotoIds leaves a record added after the snapshot untouched', () => {
+  const live = { car: {}, history: [{ id: 'h1' }, { id: 'h9', photo: 'data:image/jpeg;base64,AAAA' }], spending: [] };
+  const stored = { car: {}, history: [{ id: 'h1', photoId: 'p1' }], spending: [] };
+  applyPhotoIds(live, stored);
+  assert.strictEqual(live.history[0].photoId, 'p1');
+  assert.ok(!('photoId' in live.history[1]));          // its own save will claim one
+  assert.strictEqual(live.history[1].photo, 'data:image/jpeg;base64,AAAA');
+});
+
+test('applyPhotoIds tolerates missing arrays and null records', () => {
+  assert.doesNotThrow(() => applyPhotoIds({ car: {} }, { car: {} }));
+  assert.doesNotThrow(() => applyPhotoIds({ car: {}, history: [null] }, { car: {}, history: [null] }));
+  assert.doesNotThrow(() => applyPhotoIds(null, { car: {} }));
 });
 
 test('buildExport is self-describing and parseImport round-trips it', () => {
