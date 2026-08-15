@@ -16,4 +16,4 @@ jobs:
       # No dependencies: the suite is node:test against the plain source files.
       - run: npm test
       # Catches syntax errors in the browser-only files, which no test loads.
-      - run: node --check app.js && node --check storage.js && node --check schedule.js && node --check sw.js
+      - run: node --check app.js && node --check storage.js && node --check ui.js && node --check schedule.js && node --check sw.js

@@ -1064,7 +1064,7 @@ function openAddVehicle() {
     modelSel.value = '1'; fillEngines();          // default to Mazda 3 BM
     modelSel.onchange = fillEngines;
     const b = el('button', 'btn primary block', t('Add a vehicle'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '' }));
       const v = { id: uid(), data };
@@ -1077,7 +1077,7 @@ function openAddVehicle() {
       else toast(isQuotaError(res.error)
         ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
         : t('Could not save your change.'), 'warn');
-    };
+    });
     card.appendChild(b);
   });
 }
@@ -1586,7 +1586,7 @@ function openLogConfirm(services, opts) {
       card.appendChild(totalEl);
 
       const b = el('button', 'btn primary block', iconSvg('check') + t('Log it'));
-      b.onclick = async () => {
+      onAsyncClick(b, async () => {
         const odo = +$('#lc_odo').value || state.car.odometer;
         const date = $('#lc_date').value || isoDate(today());
         let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
@@ -1614,7 +1614,7 @@ function openLogConfirm(services, opts) {
           else if (!opts.onDone) toast(t(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓'));
           if (nPartSkip) toast(`⚠️ ${nPartSkip} ${t('part(s) to redo next service')}`, 'warn');
         }
-      };
+      });
       card.appendChild(b);
     });
 }
@@ -1751,7 +1751,7 @@ function openPlanSetup() {
     }
 
     backBtn.onclick = () => { if (step > 0) { step--; renderStep(); } };
-    nextBtn.onclick = async () => {
+    onAsyncClick(nextBtn, async () => {
       if (step === 1) {
         const od = parseInt(odo, 10);
         if (isNaN(od) || od <= 0) { $('#wiz_odo', body).classList.add('err'); toast(t('Enter your current odometer'), 'warn'); return; }
@@ -1767,7 +1767,7 @@ function openPlanSetup() {
       }
       if (step === totalSteps - 1) { await finish(); return; }
       step++; renderStep();
-    };
+    });
     skipAll.onclick = () => {
       applyGeneralSettings(); state.planSetupDone = true;
       save(); // fire-and-forget: nothing downstream reads the result
@@ -2367,7 +2367,7 @@ function openAddFuel(e) {
     card.appendChild(r1);
     card.appendChild(field('Tank', `<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const litres = +$('#f_l').value, odo = +$('#f_odo').value;
       if (!litres) return toast('Litres required', 'warn');
       if (!odo) return toast('Odometer required', 'warn');
@@ -2376,12 +2376,12 @@ function openAddFuel(e) {
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
       if (odo > state.car.odometer) { state.car.odometer = odo; state.car.odoUpdatedAt = obj.date; }
       const ok = await save(); closeModal(); go('fuel'); if (ok) toast(editing ? 'Fill-up updated' : 'Fill-up added');
-    };
+    });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete fill-up'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = async () => { state.fuel = state.fuel.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); };
+      onAsyncClick(del, async () => { state.fuel = state.fuel.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); });
       card.appendChild(del);
     }
   });
@@ -2424,16 +2424,16 @@ function openAddDoc(d) {
       field('Reference no. (optional)', `<input id="d_num" value="${d ? (d.number || '') : ''}">`));
     card.appendChild(r);
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
       if (d) Object.assign(d, obj); else { state.docs = state.docs || []; state.docs.push(obj); }
       const ok = await save(); closeModal(); go('dashboard'); if (ok) toast(editing ? 'Document updated' : 'Document added');
-    };
+    });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete document'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = async () => { state.docs = state.docs.filter(x => x.id !== d.id); const ok = await save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); };
+      onAsyncClick(del, async () => { state.docs = state.docs.filter(x => x.id !== d.id); const ok = await save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); });
       card.appendChild(del);
     }
   });
@@ -2449,6 +2449,9 @@ function openModal(title, sub, bodyBuilder) {
   host.querySelector('[data-close]').onclick = closeModal;
 }
 function closeModal() { $('#modalHost').hidden = true; }
+
+/* onAsyncClick lives in ui.js so the re-entry guard is covered by the tests —
+   it is a race, and races do not show up in a render. */
 function field(label, inputHtml) {
   const f = el('div', 'field');
   f.innerHTML = `<label>${t(label)}</label>${inputHtml}`;
@@ -2460,13 +2463,13 @@ function openEditOdo() {
     card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${state.car.odometer}">`));
     card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${state.car.dailyKm}">`));
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const val = parseInt($('#m_odo').value, 10);
       if (!isNaN(val)) { state.car.odometer = val; state.car.odoUpdatedAt = isoDate(today()); }
       const d = parseInt($('#m_daily').value, 10);
       if (!isNaN(d) && d > 0) state.car.dailyKm = d;
       const ok = await save(); closeModal(); go(current); if (ok) toast('Mileage updated');
-    };
+    });
     card.appendChild(b);
   });
 }
@@ -2667,7 +2670,7 @@ function openSettings() {
     card.appendChild(r4);
 
     const b = el('button', 'btn primary block', t('Save profile'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       Object.assign(state.car, {
         nickname: $('#c_nick').value.trim(), make: $('#c_make').value.trim(), model: $('#c_model').value.trim(),
         year: +$('#c_year').value || c.year, color: $('#c_color').value.trim(),
@@ -2679,7 +2682,7 @@ function openSettings() {
       // photo may exceed quota — verify it stuck
       if (selectedLang !== lang) applyLang(selectedLang);
       applyAccent(); renderTopbar(); closeModal(); go(current); if (ok) toast('Profile saved');
-    };
+    });
     card.appendChild(b);
     if (garage.vehicles.length > 1) {
       const del = el('button', 'btn block ghost', t('Remove this vehicle'));
@@ -2710,7 +2713,7 @@ function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
     card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${state.budget.annual}">`));
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); };
+    onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); });
     card.appendChild(b);
   });
 }
@@ -2797,7 +2800,7 @@ function openAddHistory(e, prefill) {
       card.appendChild(chk);
     }
     const b = el('button', 'btn primary block', editing ? t('Save changes') : t('Add to history'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const name = $('#h_name').value.trim();
       if (!name) return toast('Service name required', 'warn');
       const obj = {
@@ -2816,12 +2819,12 @@ function openAddHistory(e, prefill) {
         }
       }
       const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Record updated' : 'Service logged ✓');
-    };
+    });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete record'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = async () => { state.history = state.history.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); };
+      onAsyncClick(del, async () => { state.history = state.history.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); });
       card.appendChild(del);
     }
   });
@@ -2850,7 +2853,7 @@ function openEditService(s) {
     card.appendChild(row3);
     card.appendChild(field('Note', `<textarea id="s_note" rows="2">${s ? (s.note || '') : ''}</textarea>`));
     const b = el('button', 'btn primary block', t('Save service'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const name = $('#s_name').value.trim();
       if (!name) return toast('Name is required', 'warn');
       const obj = {
@@ -2863,12 +2866,12 @@ function openEditService(s) {
       };
       if (s) Object.assign(s, obj); else state.services.push(obj);
       const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Service updated' : 'Service added');
-    };
+    });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete service'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = async () => { state.services = state.services.filter(x => x.id !== s.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); };
+      onAsyncClick(del, async () => { state.services = state.services.filter(x => x.id !== s.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); });
       card.appendChild(del);
     }
   });
@@ -2951,19 +2954,19 @@ function openAddSpending(e) {
       };
     }
     const b = el('button', 'btn primary block', t('Save'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return toast('Description required', 'warn');
       if (isNaN(amt)) return toast('Amount required', 'warn');
       const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer, photo: xphoto };
       if (e) Object.assign(e, obj); else state.spending.push(obj);
       const ok = await save(); closeModal(); go('budget'); if (ok) toast(editing ? 'Expense updated' : 'Expense added');
-    };
+    });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete expense'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = async () => { state.spending = state.spending.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); };
+      onAsyncClick(del, async () => { state.spending = state.spending.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); });
       card.appendChild(del);
     }
   });
@@ -3020,7 +3023,7 @@ function openEditPart(p) {
     card.appendChild(addOpt);
 
     const b = el('button', 'btn primary block', t('Save part'));
-    b.onclick = async () => {
+    onAsyncClick(b, async () => {
       const name = $('#p_name').value.trim();
       if (!name) return toast('Part name required', 'warn');
       const valid = opts.filter(o => o.brand.trim());
@@ -3028,12 +3031,12 @@ function openEditPart(p) {
       const obj = { id: p ? p.id : uid(), name, icon: $('#p_icon').value.trim() || '🔩', cat: $('#p_cat').value.trim() || 'General', partsouq: $('#p_psq').value.trim().replace(/[^A-Za-z0-9]/g, ''), options: valid };
       if (p) Object.assign(p, obj); else state.parts.push(obj);
       const ok = await save(); closeModal(); go('parts'); if (ok) toast(editing ? 'Part updated' : 'Part added');
-    };
+    });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete part'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      del.onclick = async () => { state.parts = state.parts.filter(x => x.id !== p.id); const ok = await save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); };
+      onAsyncClick(del, async () => { state.parts = state.parts.filter(x => x.id !== p.id); const ok = await save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); });
       card.appendChild(del);
     }
   });
