@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
 const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../storage.js');
+const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds } = require('../storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
 const { collectInlinePhotos } = require('../storage.js');
 
@@ -77,6 +78,49 @@ test('inlinePhotos leaves a missing photo empty rather than throwing', () => {
   const { data } = splitPhotos(sampleData(), makeIdFactory());
   const back = inlinePhotos(data, {});
   assert.strictEqual(back.car.photo, '');
+});
+
+test('photoIdsIn collects every referenced id, once each', () => {
+  const data = {
+    car: { photoId: 'pc' },
+    history: [{ id: 'h1', photoId: 'p1' }, { id: 'h2' }, { id: 'h3', photoId: 'p1' }],
+    spending: [{ id: 's1', photoId: 'p2' }]
+  };
+  assert.deepStrictEqual(photoIdsIn(data).sort(), ['p1', 'p2', 'pc']);
+  assert.deepStrictEqual(photoIdsIn(null), []);
+  assert.deepStrictEqual(photoIdsIn({ car: {} }), []);
+});
+
+/* Regression for #5: saveVehicle wrote replacement blobs but never deleted
+   the ones they replaced, so the photo store only ever grew — and
+   exportGarage base64s all of it into every backup. */
+test('orphanedPhotoIds finds photos the new version of a record dropped', () => {
+  const prev = { car: { photoId: 'pc' }, history: [{ id: 'h1', photoId: 'p1' }], spending: [] };
+  const replaced = { car: { photoId: 'pc2' }, history: [{ id: 'h1', photoId: 'p1' }], spending: [] };
+  assert.deepStrictEqual(orphanedPhotoIds(prev, replaced), ['pc']);
+
+  const removed = { car: {}, history: [{ id: 'h1' }], spending: [] };   // both photos deleted
+  assert.deepStrictEqual(orphanedPhotoIds(prev, removed).sort(), ['p1', 'pc']);
+
+  const recordGone = { car: { photoId: 'pc' }, history: [], spending: [] };
+  assert.deepStrictEqual(orphanedPhotoIds(prev, recordGone), ['p1']);
+
+  assert.deepStrictEqual(orphanedPhotoIds(prev, prev), []);   // unchanged save deletes nothing
+  assert.deepStrictEqual(orphanedPhotoIds(null, replaced), []);
+});
+
+test('unreferencedPhotoIds finds orphans across the whole garage', () => {
+  const vehicles = [
+    { id: 'v1', data: { car: { photoId: 'pc' }, history: [{ id: 'h1', photoId: 'p1' }], spending: [] } },
+    { id: 'v2', data: { car: {}, history: [], spending: [{ id: 's1', photoId: 'p2' }] } }
+  ];
+  assert.deepStrictEqual(unreferencedPhotoIds(['pc', 'p1', 'p2', 'dead1', 'dead2'], vehicles), ['dead1', 'dead2']);
+  assert.deepStrictEqual(unreferencedPhotoIds(['pc', 'p1', 'p2'], vehicles), []);
+  // a photo must not be swept just because the OTHER vehicle does not use it
+  assert.deepStrictEqual(unreferencedPhotoIds(['p2'], vehicles), []);
+  assert.deepStrictEqual(unreferencedPhotoIds([], vehicles), []);
+  assert.deepStrictEqual(unreferencedPhotoIds(['x'], []), ['x']);
+  assert.deepStrictEqual(unreferencedPhotoIds(['x'], null), ['x']);
 });
 
 test('applyPhotoIds copies ids onto the matching records', () => {

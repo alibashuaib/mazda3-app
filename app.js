@@ -1018,6 +1018,7 @@ function save() {
     if (res.ok) {
       applyPhotoIds(data, res.data);
       cacheNewPhotos(data, res.photoIds);
+      prunePhotoBlobs();
       return true;
     }
     const err = res.error;
@@ -1030,6 +1031,16 @@ function save() {
 
 /* applyPhotoIds lives in storage.js with the rest of the pure record
    transforms, so the id-matching it depends on is covered by the tests. */
+
+/* Drop session Blobs no vehicle points at any more. storage.js deletes the
+   stored copy on save and on vehicle removal; without this the in-memory
+   cache still holds them, and exportGarage base64s every one into the backup.
+   Cheap: it walks the garage's photo ids, not the images. */
+function prunePhotoBlobs() {
+  if (!garage || !photoBlobs) return;
+  unreferencedPhotoIds(Object.keys(photoBlobs), garage.vehicles)
+    .forEach(id => { delete photoBlobs[id]; });
+}
 
 /* Keep just-saved images in the session cache so later navigations render
    them from a Blob like every other photo, instead of a lingering data URL. */
@@ -1085,7 +1096,7 @@ async function deleteVehicle(id) {
   if (garage.vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
   garage.vehicles = garage.vehicles.filter(v => v.id !== id);
   if (garage.activeId === id) { garage.activeId = garage.vehicles[0].id; state = garage.vehicles[0].data; }
-  const ok = await removeVehicle(id, garage.activeId); applyAccent(); renderTopbar(); go('dashboard');
+  const ok = await removeVehicle(id, garage.activeId); prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
