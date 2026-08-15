@@ -925,6 +925,13 @@ function normalizeData(s) {
     const seen = [].concat(s.fuel.map(f => f.date), s.history.map(h => h.date)).filter(Boolean).sort();
     s.car.odoUpdatedAt = seen.length ? seen[seen.length - 1] : isoDate(today());
   }
+  // renderDashboard and renderBudget both read state.budget.annual unguarded,
+  // and only seed() ever set it — so any record that did not come from seed()
+  // took the whole app down at boot with "Could not open your garage". Reachable
+  // from a legacy v1 payload predating the budget feature, and from an imported
+  // backup whose vehicle data lacks the key.
+  if (!s.budget || typeof s.budget !== 'object') s.budget = { annual: 6000 };
+  if (typeof s.budget.annual !== 'number' || !isFinite(s.budget.annual)) s.budget.annual = 6000;
   if (typeof s.planSetupDone !== 'boolean') s.planSetupDone = false;
   if (s.severity !== 'normal' && s.severity !== 'severe') s.severity = 'severe'; // Jeddah default
   // Fuel System Cleaner is now a PART of every oil change (mandatory for the direct-injection
