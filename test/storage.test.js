@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
 const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../storage.js');
-const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds } = require('../storage.js');
+const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords } = require('../storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
 const { collectInlinePhotos } = require('../storage.js');
 
@@ -78,6 +78,69 @@ test('inlinePhotos leaves a missing photo empty rather than throwing', () => {
   const { data } = splitPhotos(sampleData(), makeIdFactory());
   const back = inlinePhotos(data, {});
   assert.strictEqual(back.car.photo, '');
+});
+
+/* Regression for the boot crashes found by sweeping every route against
+   malformed payloads. Each of these fields is read with a string or array
+   method somewhere in a render path, so an absent one takes the whole app
+   down at boot — the user sees "Could not open your garage" over data that
+   loaded fine. Reachable from a legacy v1 payload and from any imported
+   backup. */
+let seq = 0;
+const ids = () => `id${++seq}`;
+
+test('normalizeRecords fills the fields the render paths call methods on', () => {
+  const s = normalizeRecords({
+    history: [{}], spending: [{}], fuel: [{}], docs: [{}], parts: [{}], services: [{}]
+  }, ids);
+  assert.strictEqual(typeof s.history[0].date, 'string');    // e.date.slice(0,4)
+  assert.strictEqual(typeof s.spending[0].date, 'string');   // e.date.startsWith(year)
+  assert.strictEqual(typeof s.fuel[0].date, 'string');
+  assert.strictEqual(typeof s.docs[0].date, 'string');
+  assert.ok(Array.isArray(s.parts[0].options));              // p.options.map(o => o.price)
+  assert.strictEqual(s.parts[0].cat, 'General');
+  ['history', 'spending', 'fuel', 'docs', 'services'].forEach(k => assert.ok(s[k][0].id, `${k} entry should get an id`));
+});
+
+test('normalizeRecords coerces numeric fields instead of leaving NaN', () => {
+  const s = normalizeRecords({
+    history: [{ cost: 'abc', odometer: null }],
+    spending: [{ amount: '250' }],
+    fuel: [{ litres: undefined, cost: '95.5' }]
+  }, ids);
+  assert.strictEqual(s.history[0].cost, 0);
+  assert.strictEqual(s.history[0].odometer, 0);
+  assert.strictEqual(s.spending[0].amount, 250);      // a numeric string is real data, keep it
+  assert.strictEqual(s.fuel[0].litres, 0);
+  assert.strictEqual(s.fuel[0].cost, 95.5);
+});
+
+test('normalizeRecords drops entries that are not objects', () => {
+  const s = normalizeRecords({ history: [null, { id: 'h1' }, 'junk', 42, ['nested']], spending: 'not an array' }, ids);
+  assert.deepStrictEqual(s.history.map(e => e.id), ['h1']);
+  assert.deepStrictEqual(s.spending, []);
+});
+
+test('normalizeRecords leaves good data alone', () => {
+  const good = {
+    history: [{ id: 'h1', date: '2026-01-02', service: 'Oil', cost: 200, odometer: 1000 }],
+    spending: [{ id: 's1', date: '2026-03-04', amount: 50, cat: 'Fuel' }],
+    fuel: [], docs: [], parts: [{ name: 'Filter', cat: 'Engine', options: [{ price: 30 }] }], services: []
+  };
+  const before = JSON.parse(JSON.stringify(good));
+  const after = normalizeRecords(good, ids);
+  assert.deepStrictEqual(after.history, before.history);
+  assert.deepStrictEqual(after.spending, before.spending);
+  assert.deepStrictEqual(after.parts, before.parts);
+});
+
+test('normalizeRecords is idempotent and tolerates an empty object', () => {
+  const once = normalizeRecords({ history: [{}] }, ids);
+  const id = once.history[0].id;
+  const twice = normalizeRecords(once, ids);
+  assert.strictEqual(twice.history[0].id, id, 'a second pass must not re-mint ids');
+  assert.doesNotThrow(() => normalizeRecords({}, ids));
+  assert.strictEqual(normalizeRecords(null, ids), null);
 });
 
 test('photoIdsIn collects every referenced id, once each', () => {

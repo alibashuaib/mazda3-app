@@ -109,6 +109,37 @@
     return live;
   }
 
+  /* Record-level shape, for data that did not come from seed(): a legacy v1
+     payload or an imported backup.
+
+     The render paths call string and array methods on fields nothing
+     guarantees — e.date.slice, e.date.startsWith, p.options.map — so a single
+     malformed entry throws inside go('dashboard'), and the boot chain's catch
+     shows "Could not open your garage" over data that had loaded perfectly.
+     Same failure as an absent state.budget, one level down.
+
+     Dates default to '' rather than today: a damaged record stays visible
+     without being given a date it never had. Takes makeId so it stays pure. */
+  function normalizeRecords(s, makeId) {
+    if (!s) return s;
+    const num = v => (typeof v === 'number' && isFinite(v)) ? v : (isFinite(Number(v)) ? Number(v) : 0);
+    const str = v => typeof v === 'string' ? v : '';
+    /* Non-objects are dropped rather than defaulted: there is nothing to
+       recover from a null or a bare string sitting in a record array, and
+       leaving one in place throws on the next property read. */
+    const list = k => {
+      s[k] = (Array.isArray(s[k]) ? s[k] : []).filter(x => x && typeof x === 'object' && !Array.isArray(x));
+      return s[k];
+    };
+    list('history').forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.cost = num(e.cost); e.odometer = num(e.odometer); });
+    list('spending').forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.amount = num(e.amount); });
+    list('fuel').forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.litres = num(e.litres); e.cost = num(e.cost); e.odometer = num(e.odometer); });
+    list('docs').forEach(d => { d.id = d.id || makeId(); d.date = str(d.date); });
+    list('parts').forEach(p => { if (!Array.isArray(p.options)) p.options = []; p.name = str(p.name); p.cat = str(p.cat) || 'General'; });
+    list('services').forEach(sv => { sv.id = sv.id || makeId(); sv.name = str(sv.name); sv.cost = num(sv.cost); });
+    return s;
+  }
+
   /* Every photo id a stored record still points at. */
   function photoIdsIn(data) {
     const out = [];
@@ -435,7 +466,7 @@
 
   return {
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
-    photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds,
+    photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords,
     parseLegacyV1, readLegacyV1, migrationPlan,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
   };
