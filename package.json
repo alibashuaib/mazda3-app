@@ -8,5 +8,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5"
   }
 }
