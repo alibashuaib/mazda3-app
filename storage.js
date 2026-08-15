@@ -103,6 +103,32 @@
     return live;
   }
 
+  /* Every photo id a stored record still points at. */
+  function photoIdsIn(data) {
+    const out = [];
+    if (!data) return out;
+    photoSlots(data).forEach(o => { if (o && o.photoId && out.indexOf(o.photoId) < 0) out.push(o.photoId); });
+    return out;
+  }
+
+  /* Ids the previous version of a record referenced and the new one does not —
+     the user replaced the image, or deleted the record that held it. Photo ids
+     are minted per photo and never shared between records, so anything dropped
+     here is genuinely unreachable. */
+  function orphanedPhotoIds(prevData, nextData) {
+    const keep = photoIdsIn(nextData);
+    return photoIdsIn(prevData).filter(id => keep.indexOf(id) < 0);
+  }
+
+  /* Ids in the photo store that no vehicle references at all. Used for a sweep
+     at load, to clear orphans written before saveVehicle started collecting
+     them. */
+  function unreferencedPhotoIds(storedIds, vehicles) {
+    const keep = [];
+    (vehicles || []).forEach(v => photoIdsIn(v && v.data).forEach(id => { if (keep.indexOf(id) < 0) keep.push(id); }));
+    return (storedIds || []).filter(id => keep.indexOf(id) < 0);
+  }
+
   const EXPORT_FORMAT = 'garage-export';
 
   function buildExport(garage, photosById, nowIso) {
@@ -279,6 +305,19 @@
         const photosById = {};
         photos.forEach(p => { photosById[p.id] = p.blob; });
         const m = meta.find(x => x.key === META_KEY) || {};
+        /* Blobs written before saveVehicle/removeVehicle started collecting
+           orphans are unreachable but still on disk, and still loaded into
+           memory and serialised into every backup. Sweep them once at load;
+           after that the write paths keep the store clean. Failure is
+           ignored — this is housekeeping, not something to fail a boot over. */
+        const sweep = () => {
+          const dead = unreferencedPhotoIds(Object.keys(photosById), vehicles);
+          if (!dead.length) return Promise.resolve();
+          dead.forEach(id => { delete photosById[id]; });
+          return idbTx(db, ['photos'], 'readwrite', tx => {
+            dead.forEach(id => tx.objectStore('photos').delete(id));
+          }).catch(() => {});
+        };
         const shape = () => {
           if (!vehicles.length) return { garage: null, photos: {} };
           return {
@@ -294,8 +333,8 @@
         }
         // Nothing to migrate, but close the door behind us — see migrationPlan.
         // A failed stamp is not worth failing the boot over; it retries next load.
-        if (plan === 'stamp') return stampMigrated(db).catch(() => {}).then(shape);
-        return shape();
+        if (plan === 'stamp') return stampMigrated(db).catch(() => {}).then(sweep).then(shape);
+        return sweep().then(shape);
       });
   }
 
@@ -346,7 +385,17 @@
     }
     const db = backend.db;
     return idbTx(db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
-      tx.objectStore('vehicles').put({ id: vehicleId, data: split.data });
+      const vehicles = tx.objectStore('vehicles');
+      /* Queued before the put, so it reads the record as it was and can drop
+         the blobs this save orphans — a replaced photo, or one whose record
+         the user deleted. Without this the photo store only ever grows, and
+         exportGarage carries every dead image into the backup. */
+      const prev = vehicles.get(vehicleId);
+      prev.onsuccess = () => {
+        const prevData = prev.result ? prev.result.data : null;
+        orphanedPhotoIds(prevData, split.data).forEach(id => tx.objectStore('photos').delete(id));
+      };
+      vehicles.put({ id: vehicleId, data: split.data });
       putMetaPreserving(tx, { activeId });
       Object.keys(split.photos).forEach(id => {
         const blob = dataUrlToBlob(split.photos[id]);
@@ -364,8 +413,14 @@
       const res = lsWrite(garage);
       return Promise.resolve(res === true);
     }
-    return idbTx(backend.db, ['meta', 'vehicles'], 'readwrite', tx => {
-      tx.objectStore('vehicles').delete(vehicleId);
+    return idbTx(backend.db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
+      const vehicles = tx.objectStore('vehicles');
+      // Read before the delete, or the vehicle's photo ids are gone with it.
+      const prev = vehicles.get(vehicleId);
+      prev.onsuccess = () => {
+        photoIdsIn(prev.result && prev.result.data).forEach(id => tx.objectStore('photos').delete(id));
+      };
+      vehicles.delete(vehicleId);
       putMetaPreserving(tx, { activeId });
     }).then(() => true).catch(() => false);
   }
@@ -374,6 +429,7 @@
 
   return {
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
+    photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds,
     parseLegacyV1, readLegacyV1, migrationPlan,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
   };
