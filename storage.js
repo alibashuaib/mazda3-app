@@ -183,10 +183,40 @@
     if (!obj || obj.format !== EXPORT_FORMAT) return { ok: false, error: 'That is not a Garage backup file.' };
     if (!obj.garage || !Array.isArray(obj.garage.vehicles)) return { ok: false, error: 'That backup file is incomplete.' };
     if (!obj.garage.vehicles.length) return { ok: false, error: 'That backup file has no vehicles in it.' };
-    const usable = obj.garage.vehicles.every(v =>
-      v && typeof v === 'object' && v.id && v.data && typeof v.data === 'object' && !Array.isArray(v.data));
-    if (!usable) return { ok: false, error: 'That backup file is damaged.' };
+    const faults = importFaults(obj.garage.vehicles);
+    if (faults.length) return { ok: false, error: 'That backup file is damaged.', faults };
+    if (obj.photos && (typeof obj.photos !== 'object' || Array.isArray(obj.photos))) {
+      return { ok: false, error: 'That backup file is damaged.', faults: ['photos is not an object'] };
+    }
     return { ok: true, garage: obj.garage, photos: obj.photos || {} };
+  }
+
+  /* Structural faults that make a backup unrestorable, as a list of readable
+     reasons (surfaced to the console; the user sees the one-line error).
+
+     The line is deliberate: STRUCTURE must be sound, CONTENT is repaired.
+     A vehicle with no id, or a `history` that is a string rather than a list,
+     is damage — there is no sane restore. A record missing its date or cost is
+     not: normalizeRecords fills those, and rejecting them would refuse a
+     backup exported after an earlier repair, which legitimately carries empty
+     dates. Rejecting those would make the repair path a one-way trip. */
+  const RECORD_LISTS = ['history', 'spending', 'fuel', 'docs', 'parts', 'services'];
+  function importFaults(vehicles) {
+    const faults = [];
+    vehicles.forEach((v, i) => {
+      const where = `vehicle ${i + 1}`;
+      if (!v || typeof v !== 'object' || Array.isArray(v)) { faults.push(`${where} is not an object`); return; }
+      if (!v.id || typeof v.id !== 'string') faults.push(`${where} has no id`);
+      if (!v.data || typeof v.data !== 'object' || Array.isArray(v.data)) { faults.push(`${where} has no data`); return; }
+      if ('car' in v.data && (typeof v.data.car !== 'object' || Array.isArray(v.data.car))) faults.push(`${where}: car is not an object`);
+      RECORD_LISTS.forEach(k => {
+        if (!(k in v.data)) return;                       // absent is fine — normalizeRecords creates it
+        if (!Array.isArray(v.data[k])) { faults.push(`${where}: ${k} is not a list`); return; }
+        const bad = v.data[k].filter(e => !e || typeof e !== 'object' || Array.isArray(e)).length;
+        if (bad) faults.push(`${where}: ${k} has ${bad} entr${bad === 1 ? 'y' : 'ies'} that are not records`);
+      });
+    });
+    return faults;
   }
 
   /* data: URL -> Blob. Returns null for anything else (notably blob: URLs,
@@ -466,7 +496,7 @@
 
   return {
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
-    photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords,
+    photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
     parseLegacyV1, readLegacyV1, migrationPlan,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
   };
