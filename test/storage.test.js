@@ -143,6 +143,13 @@ test('importFaults returns nothing for a healthy garage', () => {
   assert.deepStrictEqual(importFaults([{ id: 'v1', data: { car: {}, history: [{ id: 'h' }], parts: [] } }]), []);
 });
 
+test('importFaults counts bad entries in readable English', () => {
+  const one = importFaults([{ id: 'v1', data: { history: [null] } }]);
+  assert.deepStrictEqual(one, ['vehicle 1: history has 1 entry that is not a record']);
+  const many = importFaults([{ id: 'v1', data: { history: [null, 'x', 3] } }]);
+  assert.deepStrictEqual(many, ['vehicle 1: history has 3 entries that are not records']);
+});
+
 /* Regression for the boot crashes found by sweeping every route against
    malformed payloads. Each of these fields is read with a string or array
    method somewhere in a render path, so an absent one takes the whole app

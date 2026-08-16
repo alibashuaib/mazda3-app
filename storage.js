@@ -213,7 +213,7 @@
         if (!(k in v.data)) return;                       // absent is fine — normalizeRecords creates it
         if (!Array.isArray(v.data[k])) { faults.push(`${where}: ${k} is not a list`); return; }
         const bad = v.data[k].filter(e => !e || typeof e !== 'object' || Array.isArray(e)).length;
-        if (bad) faults.push(`${where}: ${k} has ${bad} entr${bad === 1 ? 'y' : 'ies'} that are not records`);
+        if (bad) faults.push(`${where}: ${k} has ${bad === 1 ? '1 entry that is not a record' : bad + ' entries that are not records'}`);
       });
     });
     return faults;
