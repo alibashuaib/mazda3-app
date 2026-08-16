@@ -1133,7 +1133,11 @@ function importGarage(file) {
   const reader = new FileReader();
   reader.onload = async () => {
     const parsed = parseImport(reader.result);
-    if (!parsed.ok) return toast(t(parsed.error), 'warn');
+    if (!parsed.ok) {
+      // The toast has room for one line; the specifics go where they can be read.
+      if (parsed.faults) console.warn('Backup rejected:', parsed.faults.join('; '));
+      return toast(t(parsed.error), 'warn');
+    }
     if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
     // Past this point `garage` and `photoBlobs` are replaced in place, so any
     // throw would strand the running app on a half-restored garage with no

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
 const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../storage.js');
-const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords } = require('../storage.js');
+const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults } = require('../storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
 const { collectInlinePhotos } = require('../storage.js');
 
@@ -78,6 +78,69 @@ test('inlinePhotos leaves a missing photo empty rather than throwing', () => {
   const { data } = splitPhotos(sampleData(), makeIdFactory());
   const back = inlinePhotos(data, {});
   assert.strictEqual(back.car.photo, '');
+});
+
+/* Import is the one path where the app is handed a file it did not write.
+   The rule is that STRUCTURE must be sound and CONTENT is repaired: a vehicle
+   with no id or a history that is a string cannot be restored sanely, but a
+   record missing its date can — and a backup exported after an earlier repair
+   legitimately carries empty dates, so rejecting those would make the repair
+   path a one-way trip. */
+const wrapExport = garage => JSON.stringify(buildExport(garage, {}, '2026-08-16T00:00:00Z'));
+const oneVehicle = data => ({ vehicles: [{ id: 'v1', data }], activeId: 'v1' });
+
+test('parseImport rejects structurally damaged vehicles', () => {
+  const cases = [
+    ['record list is a string', { car: {}, history: 'nope' }],
+    ['record list holds a null', { car: {}, spending: [null] }],
+    ['record list holds a string', { car: {}, fuel: ['junk'] }],
+    ['record list holds a number', { car: {}, docs: [42] }],
+    ['record list holds an array', { car: {}, parts: [[]] }],
+    ['car is not an object', { car: 'a car' }],
+    ['car is an array', { car: [] }]
+  ];
+  for (const [label, data] of cases) {
+    const out = parseImport(wrapExport(oneVehicle(data)));
+    assert.strictEqual(out.ok, false, `${label} should be rejected`);
+    assert.ok(out.faults && out.faults.length, `${label} should say why`);
+  }
+});
+
+test('parseImport rejects a damaged vehicle wrapper', () => {
+  assert.strictEqual(parseImport(wrapExport({ vehicles: [null], activeId: null })).ok, false);
+  assert.strictEqual(parseImport(wrapExport({ vehicles: [{ data: { car: {} } }] })).ok, false);          // no id
+  assert.strictEqual(parseImport(wrapExport({ vehicles: [{ id: 7, data: { car: {} } }] })).ok, false);   // id not a string
+  assert.strictEqual(parseImport(wrapExport({ vehicles: [{ id: 'v', data: [] }] })).ok, false);          // data is an array
+});
+
+test('parseImport rejects a damaged photos dictionary', () => {
+  const text = JSON.stringify(Object.assign(
+    JSON.parse(wrapExport(oneVehicle({ car: {} }))), { photos: ['not', 'a', 'dict'] }));
+  assert.strictEqual(parseImport(text).ok, false);
+});
+
+test('parseImport still accepts a sparse but sound backup', () => {
+  // absent lists, and records missing the fields normalizeRecords repairs
+  assert.strictEqual(parseImport(wrapExport(oneVehicle({ car: {} }))).ok, true);
+  assert.strictEqual(parseImport(wrapExport(oneVehicle({}))).ok, true);
+  const sparse = { car: { nickname: 'X' }, history: [{ id: 'h1' }], spending: [{ id: 's1', date: '' }], parts: [{ name: 'Filter' }] };
+  const out = parseImport(wrapExport(oneVehicle(sparse)));
+  assert.strictEqual(out.ok, true, 'repairable content must not be rejected');
+});
+
+test('parseImport reports every fault it found, not just the first', () => {
+  const garage = { vehicles: [
+    { id: 'v1', data: { car: {}, history: 'nope', spending: [null] } },
+    { data: { car: {} } }
+  ], activeId: 'v1' };
+  const out = parseImport(wrapExport(garage));
+  assert.strictEqual(out.ok, false);
+  assert.ok(out.faults.length >= 3, `expected several faults, got ${JSON.stringify(out.faults)}`);
+  assert.ok(out.faults.some(f => f.includes('vehicle 2')), 'faults should name which vehicle');
+});
+
+test('importFaults returns nothing for a healthy garage', () => {
+  assert.deepStrictEqual(importFaults([{ id: 'v1', data: { car: {}, history: [{ id: 'h' }], parts: [] } }]), []);
 });
 
 /* Regression for the boot crashes found by sweeping every route against
