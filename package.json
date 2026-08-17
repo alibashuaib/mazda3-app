@@ -10,6 +10,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "fake-indexeddb": "^6.2.5"
+    "fake-indexeddb": "^6.2.5",
+    "linkedom": "^0.18.13"
   }
 }
