@@ -11,6 +11,15 @@
 /* $, el, uid, fmt, sar, clamp, parseDate, monthsBetween, addMonths now live
    in src/core/helpers.js (loaded as a script before this file). */
 
+/* The session owns the garage; app.js reads it through these. Phase 3c
+   deletes them along with this file, and each page module calls
+   session.current() directly. */
+const save = () => session.save();
+const switchVehicle = id => session.switchVehicle(id);
+const objectUrl = b => session.objectUrl(b);
+const revokeObjectUrls = () => session.revokeObjectUrls();
+const refreshPhotoUrls = () => session.refreshPhotoUrls();
+
 let lang = 'en';
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const relDate = d => {
@@ -31,125 +40,32 @@ const relDate = d => {
    script before this file). */
 
 /* ---------- state / storage ---------- */
-/* ---------- multi-vehicle garage storage ----------
-   garage = { vehicles: [{ id, data }], activeId }; `state` is the active vehicle's data,
-   so the rest of the app keeps using state.car / state.services / … unchanged. */
+/* The garage — { vehicles: [{ id, data }], activeId } — and the active
+   vehicle's data now live in src/data/session.js. Read them through
+   session.garage() and session.current(); nothing here holds a reference,
+   which is what will make sign-out a one-liner.
+   session.booted() guards navigation and chrome (tabs, settings, garage)
+   until boot has hydrated the session. A failed boot leaves it false so a
+   stray tap can't clear the error card and crash into a blank screen. */
 const GKEY = 'garage.mazda3.v2';
-let garage;
-/* Guards navigation and chrome (tabs, settings, garage) until boot has
-   hydrated `state`. A failed boot leaves this false so a stray tap can't
-   clear the error card and crash into a blank screen on a null `state`. */
-let booted = false;
 /* normalizeData now lives in src/data/normalize.js (loaded as a script
    before this file). */
 /* active interval for the current schedule basis (severe = the app's own values;
    normal = the dealer values where a service defines them, else the same) */
-function svKm(s) { return (state.severity === 'normal' && s.normalKm) ? s.normalKm : s.intervalKm; }
-function svMo(s) { return (state.severity === 'normal' && s.normalMonths) ? s.normalMonths : s.intervalMonths; }
-/* Phase 2: persistence is async and may be backed by IndexedDB or
-   localStorage. Reads stay synchronous — the whole garage is hydrated into
-   `state` at boot — so page code is unchanged. */
-let state = null;
-let photoBlobs = {};   // photo id -> Blob, for the active session
+function svKm(s) { return (session.current().severity === 'normal' && s.normalKm) ? s.normalKm : s.intervalKm; }
+function svMo(s) { return (session.current().severity === 'normal' && s.normalMonths) ? s.normalMonths : s.intervalMonths; }
+/* Phase 3: the session (src/data/session.js) owns `state`, the photo Blob
+   cache and the object-URL registry, along with hydrate(), resolvePhotos(),
+   save(), prunePhotoBlobs() and cacheNewPhotos(). Reads stay synchronous —
+   the whole garage is hydrated at boot — so page code is unchanged. */
 
-/* Object URLs created for stored photo Blobs. The app has no view-teardown
-   hook — go() replaces innerHTML wholesale — so these are revoked at the
-   start of each navigation (Task 4). Without that the app leaks one URL per
-   photo per render. */
-let liveObjectUrls = [];
-function objectUrl(blob) {
-  const url = URL.createObjectURL(blob);
-  liveObjectUrls.push(url);
-  return url;
-}
-function revokeObjectUrls() {
-  liveObjectUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
-  liveObjectUrls = [];
-}
-
-function hydrate(garage, photos) {
-  if (!garage || !Array.isArray(garage.vehicles) || !garage.vehicles.length) {
-    // Pre-garage single-car data still living under STORE_KEY is this user's
-    // only copy — seed from it before falling back to a blank car.
-    const legacy = readLegacyV1();
-    garage = { vehicles: [{ id: uid(), data: normalizeData(legacy || seed()) }], activeId: null };
-    garage.activeId = garage.vehicles[0].id;
-  }
-  garage.vehicles.forEach(v => {
-    normalizeData(v.data);
-    resolvePhotos(v.data, photos);
-  });
-  const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
-  garage.activeId = active.id;
-  return { garage, state: active.data };
-}
-
-/* Turn stored photo ids into object URLs so `.photo` keeps working in every
-   render path. Registered for revocation on the next navigation. */
-function resolvePhotos(data, photos) {
-  const slots = [data.car].concat(data.history || [], data.spending || []).filter(Boolean);
-  slots.forEach(o => {
-    if (o.photoId && photos[o.photoId]) o.photo = objectUrl(photos[o.photoId]);
-  });
-}
-
-/* Re-create object URLs after a revocation sweep. Must cover EVERY vehicle:
-   revokeObjectUrls() is indiscriminate, and the garage switcher renders photos
-   for vehicles that are not active. */
-function refreshPhotoUrls() {
-  if (!garage || !photoBlobs) return;
-  garage.vehicles.forEach(v => resolvePhotos(v.data, photoBlobs));
-}
-
-function save() {
-  const v = garage.vehicles.find(x => x.id === garage.activeId);
-  if (!v) return Promise.resolve(false);
-  v.data = state;
-  const data = state;          // the vehicle being saved — `state` may move before this resolves
-  return saveVehicle(v.id, data, garage.activeId, uid).then(res => {
-    if (res.ok) {
-      applyPhotoIds(data, res.data);
-      cacheNewPhotos(data, res.photoIds);
-      prunePhotoBlobs();
-      return true;
-    }
-    const err = res.error;
-    toast(isQuotaError(err)
-      ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
-      : t('Could not save your change.'), 'warn');
-    return false;
-  });
-}
-
-/* applyPhotoIds lives in storage.js with the rest of the pure record
-   transforms, so the id-matching it depends on is covered by the tests. */
-
-/* Drop session Blobs no vehicle points at any more. storage.js deletes the
-   stored copy on save and on vehicle removal; without this the in-memory
-   cache still holds them, and exportGarage base64s every one into the backup.
-   Cheap: it walks the garage's photo ids, not the images. */
-function prunePhotoBlobs() {
-  if (!garage || !photoBlobs) return;
-  unreferencedPhotoIds(Object.keys(photoBlobs), garage.vehicles)
-    .forEach(id => { delete photoBlobs[id]; });
-}
-
-/* Keep just-saved images in the session cache so later navigations render
-   them from a Blob like every other photo, instead of a lingering data URL. */
-function cacheNewPhotos(live, photoIds) {
-  if (!photoIds || !photoIds.length) return;
-  const slots = [live.car].concat(live.history || [], live.spending || []).filter(Boolean);
-  slots.forEach(o => {
-    if (o.photoId && photoIds.indexOf(o.photoId) >= 0 && !photoBlobs[o.photoId]) {
-      const blob = dataUrlToBlob(o.photo);
-      if (blob) photoBlobs[o.photoId] = blob;
-    }
-  });
-}
-function switchVehicle(id) {
+/* The session switch plus the UI that has to follow it. session.switchVehicle
+   only moves the active vehicle; the modal, persist and re-render are this
+   app's business. */
+function chooseVehicle(id) {
   closeModal();
-  const v = garage.vehicles.find(x => x.id === id); if (!v) return;
-  garage.activeId = id; state = v.data; save();
+  if (!session.garage().vehicles.some(v => v.id === id)) return;  // unknown id must not blank the app
+  switchVehicle(id); save();
   applyAccent(); renderTopbar(); go('dashboard');
 }
 function addVehicle() { openAddVehicle(); }
@@ -171,8 +87,8 @@ function openAddVehicle() {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '' }));
       const v = { id: uid(), data };
-      garage.vehicles.push(v); garage.activeId = v.id; state = v.data;
-      const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
+      session.setVehicles(session.garage().vehicles.concat([v]), v.id);
+      const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
       const ok = res.ok;
       if (ok) applyPhotoIds(v.data, res.data);
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
@@ -185,10 +101,11 @@ function openAddVehicle() {
   });
 }
 async function deleteVehicle(id) {
-  if (garage.vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
-  garage.vehicles = garage.vehicles.filter(v => v.id !== id);
-  if (garage.activeId === id) { garage.activeId = garage.vehicles[0].id; state = garage.vehicles[0].data; }
-  const ok = await removeVehicle(id, garage.activeId); prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
+  if (session.garage().vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
+  const kept = session.garage().vehicles.filter(v => v.id !== id);
+  // setVehicles falls back to kept[0] when the removed vehicle was the active one.
+  session.setVehicles(kept, session.garage().activeId === id ? kept[0].id : session.garage().activeId);
+  const ok = await removeVehicle(id, session.garage().activeId); session.prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
@@ -198,8 +115,8 @@ function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(
    as base64 so a single file is the whole garage. */
 async function exportGarage() {
   const photos = {};
-  await Promise.all(Object.keys(photoBlobs).map(async id => { photos[id] = await blobToDataUrl(photoBlobs[id]); }));
-  const payload = buildExport(garage, photos, new Date().toISOString());
+  await Promise.all(Object.keys(session.photos()).map(async id => { photos[id] = await blobToDataUrl(session.photos()[id]); }));
+  const payload = buildExport(session.garage(), photos, new Date().toISOString());
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -220,21 +137,23 @@ function importGarage(file) {
       return toast(t(parsed.error), 'warn');
     }
     if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
-    // Past this point `garage` and `photoBlobs` are replaced in place, so any
+    // Past this point the session's garage and photo cache are replaced, so any
     // throw would strand the running app on a half-restored garage with no
     // toast. parseImport validates the shape; this catches everything else.
     try {
-      const priorIds = garage.vehicles.map(v => v.id);
-      garage = parsed.garage;
-      photoBlobs = {};
+      const priorIds = session.garage().vehicles.map(v => v.id);
+      // session.photos() hands back the live cache; empty it, then refill from
+      // the backup so the imported Blobs are what the session holds.
+      const cache = session.photos();
+      Object.keys(cache).forEach(id => { delete cache[id]; });
       Object.keys(parsed.photos).forEach(id => {
         const blob = dataUrlToBlob(parsed.photos[id]);
-        if (blob) photoBlobs[id] = blob;
+        if (blob) cache[id] = blob;
       });
       // The backup's .photo fields are stale blob: URLs from the exporting session.
       // Restore real data: URLs from the backup's own photos dict, or splitPhotos
       // will treat them as already-stored and persist nothing.
-      garage.vehicles.forEach(v => {
+      parsed.garage.vehicles.forEach(v => {
         // A backup from the localStorage backend carries its images inline; one from
         // IndexedDB carries them in `photos` with stale blob: URLs in the records.
         // Merge both so neither origin loses data. collectInlinePhotos ignores blob: URLs.
@@ -242,26 +161,22 @@ function importGarage(file) {
         v.data = inlinePhotos(v.data, merged);
         normalizeData(v.data);
       });
-      const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
-      garage.activeId = active.id;
-      state = active.data;
+      // setVehicles picks the backup's activeId, or vehicles[0] if it is missing.
+      session.setVehicles(parsed.garage.vehicles, parsed.garage.activeId);
       let ok = true;
-      for (const v of garage.vehicles) {
-        const res = await saveVehicle(v.id, v.data, garage.activeId, uid);
+      for (const v of session.garage().vehicles) {
+        const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
         if (!res.ok) ok = false;
       }
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
-      const keptIds = garage.vehicles.map(v => v.id);
+      const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) await removeVehicle(id, garage.activeId);
+        if (keptIds.indexOf(id) < 0) await removeVehicle(id, session.garage().activeId);
       }
       // The save loop minted fresh photo ids, so re-read from storage to bring
-      // memory back in sync with what was actually persisted.
-      const fresh = await loadAll();
-      const h = hydrate(fresh.garage, fresh.photos);
-      garage = h.garage;
-      state = h.state;
-      photoBlobs = fresh.photos || {};
+      // memory back in sync with what was actually persisted. session.load()
+      // is exactly that read plus the hydrate the boot path uses.
+      await session.load();
       closeModal();
       applyAccent(); renderTopbar(); go('dashboard');
       toast(ok ? t('Garage restored') : t('Restored, but some data could not be saved'), ok ? undefined : 'warn');
@@ -276,7 +191,7 @@ function importGarage(file) {
 
 /* ---------- service status computation ---------- */
 function serviceStatus(s) {
-  const odo = state.car.odometer;
+  const odo = session.current().car.odometer;
   const ikm = svKm(s), imo = svMo(s);
   const dueKm = s.lastKm + ikm;
   const kmLeft = dueKm - odo;
@@ -294,12 +209,12 @@ function serviceStatus(s) {
   return { dueKm, kmLeft, dueDate, daysLeft, prog: clamp(prog, 0, 1.2), level, drivenByTime };
 }
 function servicesRanked() {
-  return state.services
+  return session.current().services
     .map(s => ({ s, st: serviceStatus(s) }))
     .sort((a, b) => a.st.prog === b.st.prog ? a.st.kmLeft - b.st.kmLeft : b.st.prog - a.st.prog);
 }
 function healthScore() {
-  return healthFrom(state.services.map(s => serviceStatus(s).level));
+  return healthFrom(session.current().services.map(s => serviceStatus(s).level));
 }
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
@@ -312,7 +227,7 @@ function openHealthBreakdown() {
   });
 }
 function yearSpend(year) {
-  return state.spending.filter(e => e.date.startsWith(String(year))).reduce((a, e) => a + Number(e.amount), 0);
+  return session.current().spending.filter(e => e.date.startsWith(String(year))).reduce((a, e) => a + Number(e.amount), 0);
 }
 
 /* ============================================================
@@ -322,7 +237,7 @@ const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, par
 let current = 'dashboard';
 let navIntent = null; // cross-page link target, consumed by the destination page's render
 function go(route, intent) {
-  if (!booted) return;      // boot failed — leave the error card in place
+  if (!session.booted()) return;      // boot failed — leave the error card in place
   revokeObjectUrls();
   refreshPhotoUrls();
   renderTopbar();     // the badge lives outside #view; its URL was just revoked
@@ -353,8 +268,8 @@ const SERVICE_PARTS = {
 };
 // Math.min() of nothing is Infinity, which renders as a price — 0 reads as "unpriced".
 const partCheapest = p => (p.options && p.options.length) ? Math.min(...p.options.map(o => o.price)) : 0;
-function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => state.parts.find(p => p.name === n)).filter(Boolean); }
-function servicesForPart(p) { return state.services.filter(s => (SERVICE_PARTS[s.name] || []).includes(p.name)); }
+function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => session.current().parts.find(p => p.name === n)).filter(Boolean); }
+function servicesForPart(p) { return session.current().services.filter(s => (SERVICE_PARTS[s.name] || []).includes(p.name)); }
 
 /* How mandatory a part is for the car's health — drives the "do it next time"
    warning when a part is skipped (marked None). high = safety/engine-critical. */
@@ -374,14 +289,14 @@ function renderDashboard() {
   const soon = ranked.filter(r => r.st.level === 'warn');
   const hs = healthScore();
   const spent = yearSpend(today().getFullYear());
-  const budget = state.budget.annual;
+  const budget = session.current().budget.annual;
 
   // Car photo — its own container / banner
-  const carName = state.car.nickname || [state.car.year, state.car.make, state.car.model].filter(Boolean).join(' ');
-  const carCard = el('button', 'card car-card' + (state.car.photo ? '' : ' empty'));
-  carCard.title = state.car.photo ? t('Change car photo') : t('Add a photo of your car');
-  carCard.innerHTML = state.car.photo
-    ? `<img src="${state.car.photo}" alt="Your ${carName}"><div class="car-card-grad"></div><div class="car-card-cap">${carName}</div>`
+  const carName = session.current().car.nickname || [session.current().car.year, session.current().car.make, session.current().car.model].filter(Boolean).join(' ');
+  const carCard = el('button', 'card car-card' + (session.current().car.photo ? '' : ' empty'));
+  carCard.title = session.current().car.photo ? t('Change car photo') : t('Add a photo of your car');
+  carCard.innerHTML = session.current().car.photo
+    ? `<img src="${session.current().car.photo}" alt="Your ${carName}"><div class="car-card-grad"></div><div class="car-card-cap">${carName}</div>`
     : `<span class="cpb-ph"><span class="cpb-emoji">🚗</span><small>${t('Add a photo of your car')}</small></span>`;
   carCard.onclick = openSettings;
   const topRow = el('div', 'top-row');
@@ -393,7 +308,7 @@ function renderDashboard() {
   hero.innerHTML = `
     <div>
       <div class="odo-label">${t('Odometer')}</div>
-      <div class="odo-value">${fmt(state.car.odometer)}<span>km</span></div>
+      <div class="odo-value">${fmt(session.current().car.odometer)}<span>km</span></div>
       <button class="odo-edit" id="editOdo">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
         ${t('Update mileage')}
@@ -427,7 +342,7 @@ function renderDashboard() {
   v.appendChild(tiles);
 
   // Stale mileage quietly corrupts every due date — nudge, don't nag.
-  const odoAge = daysSince(state.car.odoUpdatedAt, today());
+  const odoAge = daysSince(session.current().car.odoUpdatedAt, today());
   if (odoAge >= 14) {
     const ob = el('button', 'card reminder-banner warn');
     ob.innerHTML = `<span class="rb-ic">📏</span><span class="rb-text">${t('Mileage is {n} days old — due dates may be off').replace('{n}', odoAge === Infinity ? '?' : odoAge)}</span><span class="rb-go">${t('Update ›')}</span>`;
@@ -457,7 +372,7 @@ function renderDashboard() {
   // Documents & renewals (insurance, Istimara, license…)
   v.appendChild(sectionTitle('Documents & renewals', 'Add', () => openAddDoc(null)));
   const docsList = el('div', 'list');
-  const docs = [...(state.docs || [])].sort((a, b) => (a.expiry ? +parseDate(a.expiry) : Infinity) - (b.expiry ? +parseDate(b.expiry) : Infinity));
+  const docs = [...(session.current().docs || [])].sort((a, b) => (a.expiry ? +parseDate(a.expiry) : Infinity) - (b.expiry ? +parseDate(b.expiry) : Infinity));
   if (!docs.length) docsList.appendChild(emptyState('📄', 'No documents yet.\nAdd insurance, Istimara or license expiry.'));
   docs.forEach(d => docsList.appendChild(docItem(d)));
   v.appendChild(docsList);
@@ -501,11 +416,11 @@ function renderDashboard() {
    carries a projected calendar date from the car's average driving. */
 const MILESTONE_TOLERANCE_KM = 1000; // services this close share one workshop visit
 function planForward() {
-  const odo = state.car.odometer || 0;
-  const dpk = state.car.dailyKm || 40;
+  const odo = session.current().car.odometer || 0;
+  const dpk = session.current().car.dailyKm || 40;
   const horizon = odo + 300000; // far enough that recurring services (ATF 60–80k, etc.) repeat for years
   const occurrences = [];
-  state.services.filter(s => svKm(s) > 0).forEach(s => {
+  session.current().services.filter(s => svKm(s) > 0).forEach(s => {
     const ikm = svKm(s);
     let k = serviceStatus(s).dueKm;   // first upcoming due (lastKm + interval)
     if (k < odo) {                    // overdue → due now, then continue strictly after odo
@@ -600,15 +515,15 @@ function buildPlan(v) {
 // Log a whole visit as done NOW (at the current odometer) — resets those services' clocks.
 function logVisit(ms) {
   const date = isoDate(today());
-  const odo = state.car.odometer || 0;
+  const odo = session.current().car.odometer || 0;
   let total = 0;
   ms.items.forEach(s => {
     s.lastKm = odo;
     s.lastDate = date;
-    state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date, odometer: odo, cost: s.cost || 0, cat: 'Maintenance', note: '' });
+    session.current().history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date, odometer: odo, cost: s.cost || 0, cat: 'Maintenance', note: '' });
     total += Number(s.cost || 0);
   });
-  if (total > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Service visit')} · ${fmt(odo)} km`, amount: total, odometer: odo });
+  if (total > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Service visit')} · ${fmt(odo)} km`, amount: total, odometer: odo });
   save(); // fire-and-forget: nothing downstream reads the result
 }
 
@@ -625,7 +540,7 @@ function openLogConfirm(services, opts) {
   openModal(opts.title || (services.length > 1 ? 'Log a plan visit' : services[0].name),
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
-      r.append(field('Odometer (km)', `<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : state.car.odometer}">`),
+      r.append(field('Odometer (km)', `<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : session.current().car.odometer}">`),
         field('Date', `<input id="lc_date" type="date" value="${isoDate(today())}">`));
       card.appendChild(r);
 
@@ -695,7 +610,7 @@ function openLogConfirm(services, opts) {
 
       const b = el('button', 'btn primary block', iconSvg('check') + t('Log it'));
       onAsyncClick(b, async () => {
-        const odo = +$('#lc_odo').value || state.car.odometer;
+        const odo = +$('#lc_odo').value || session.current().car.odometer;
         const date = $('#lc_date').value || isoDate(today());
         let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
         services.forEach(svc => {
@@ -711,10 +626,10 @@ function openLogConfirm(services, opts) {
           skippedParts.forEach(n => pend.add(n)); chosen.forEach(c => pend.delete(c.part));
           svc.pendingParts = [...pend]; nPartSkip += skippedParts.length;
           const cost = svcCost(svc); grand += cost; nDone++; lastName = svc.name;
-          state.history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
+          session.current().history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
         });
-        if (grand > 0) state.spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
-        if (odo > (state.car.odometer || 0)) state.car.odometer = odo;
+        if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
+        if (odo > (session.current().car.odometer || 0)) session.current().car.odometer = odo;
         const ok = await save(); closeModal();
         (opts.onDone || (() => go('maintenance')))();
         if (ok) {
@@ -735,15 +650,15 @@ function openLogConfirm(services, opts) {
    toggle on the Maintenance page anymore. Major/regular grouping uses the
    base (severe) interval so it doesn't shift depending on the basis answer. */
 function openPlanSetup() {
-  const eligible = state.services.filter(s => s.intervalKm > 0);
+  const eligible = session.current().services.filter(s => s.intervalKm > 0);
   const majors = eligible.filter(s => s.intervalKm >= 40000).sort((a, b) => a.intervalKm - b.intervalKm);
   const regulars = eligible.filter(s => s.intervalKm < 40000).sort((a, b) => a.intervalKm - b.intervalKm);
   const services = [...majors, ...regulars];
   const answers = services.map(s => ({ s, choice: s.lastKm > 0 ? 'yes' : null, km: s.lastKm || '' }));
-  let basis = state.severity === 'normal' ? 'normal' : 'severe';
-  let odo = state.car.odometer || '';
+  let basis = session.current().severity === 'normal' ? 'normal' : 'severe';
+  let odo = session.current().car.odometer || '';
   let driveUnit = 'day';
-  let dailyKm = state.car.dailyKm || 40;
+  let dailyKm = session.current().car.dailyKm || 40;
   let step = 0;
   const totalSteps = 3 + services.length; // basis + odometer + driving style + one per service
 
@@ -837,24 +752,24 @@ function openPlanSetup() {
     }
 
     function applyGeneralSettings() {
-      state.severity = basis;
+      session.current().severity = basis;
       const finalOdo = parseInt(odo, 10);
-      if (!isNaN(finalOdo) && finalOdo > 0) state.car.odometer = finalOdo;
-      if (dailyKm > 0) state.car.dailyKm = dailyKm;
+      if (!isNaN(finalOdo) && finalOdo > 0) session.current().car.odometer = finalOdo;
+      if (dailyKm > 0) session.current().car.dailyKm = dailyKm;
     }
 
     async function finish() {
       applyGeneralSettings();
-      const dpk = state.car.dailyKm || 40;
+      const dpk = session.current().car.dailyKm || 40;
       answers.forEach(a => {
         if (a.choice !== 'yes') return;
         const val = parseInt(a.km, 10);
         if (isNaN(val) || val <= 0) return;
         a.s.lastKm = val;
-        const days = Math.max(0, ((state.car.odometer || val) - val) / dpk);
+        const days = Math.max(0, ((session.current().car.odometer || val) - val) / dpk);
         a.s.lastDate = isoDate(new Date(today().getTime() - days * 86400000));
       });
-      state.planSetupDone = true;
+      session.current().planSetupDone = true;
       const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(t('Plan updated'));
     }
 
@@ -877,7 +792,7 @@ function openPlanSetup() {
       step++; renderStep();
     });
     skipAll.onclick = () => {
-      applyGeneralSettings(); state.planSetupDone = true;
+      applyGeneralSettings(); session.current().planSetupDone = true;
       save(); // fire-and-forget: nothing downstream reads the result
       closeModal(); go('maintenance');
     };
@@ -1002,7 +917,7 @@ function renderParts() {
   const v = el('div');
   v.appendChild(pageIntro('Car Parts', 'OEM parts with cheaper alternatives, prices and where to buy. Tap a part to compare.'));
 
-  const cats = ['All', ...new Set(state.parts.map(p => p.cat))];
+  const cats = ['All', ...new Set(session.current().parts.map(p => p.cat))];
   let active = 'All';
   const seg = el('div', 'seg');
   seg.style.flexWrap = 'wrap';
@@ -1017,7 +932,7 @@ function renderParts() {
   v.appendChild(list);
   function paint() {
     list.innerHTML = '';
-    const items = state.parts.filter(p => active === 'All' || p.cat === active);
+    const items = session.current().parts.filter(p => active === 'All' || p.cat === active);
     items.forEach(p => list.appendChild(partCard(p)));
   }
   paint();
@@ -1081,7 +996,7 @@ function partCard(p) {
   card.querySelector('[data-edit]').onclick = e => { e.stopPropagation(); openEditPart(p); };
   card.querySelectorAll('[data-svc]').forEach(btn => btn.onclick = e => {
     e.stopPropagation();
-    const s = state.services.find(x => x.id === btn.dataset.svc);
+    const s = session.current().services.find(x => x.id === btn.dataset.svc);
     if (s) { go('maintenance'); setTimeout(() => openServiceDetail(s), 0); }
   });
   return card;
@@ -1095,7 +1010,7 @@ function renderBudget() {
   v.appendChild(pageIntro('Budget & Spending', 'Track what your Mazda costs to run and keep it in top shape.'));
 
   const spent = yearSpend(today().getFullYear());
-  const budget = state.budget.annual;
+  const budget = session.current().budget.annual;
   const pct = clamp(budget ? spent / budget : 0, 0, 1.2);
   const dash = 2 * Math.PI * 40;
   const overBudget = spent > budget;
@@ -1154,7 +1069,7 @@ function renderBudget() {
 
   // breakdown by category
   const byCat = {};
-  state.spending.filter(e => e.date.startsWith('2026')).forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount); });
+  session.current().spending.filter(e => e.date.startsWith('2026')).forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount); });
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   if (cats.length) {
     v.appendChild(sectionTitle('By category (2026)', '', null));
@@ -1219,7 +1134,7 @@ function reportHTML(type) {
   return type === 'purchases' ? reportPurchases() : type === 'summary' ? reportSummary() : reportService();
 }
 function reportHeader(title) {
-  const c = state.car;
+  const c = session.current().car;
   const name = c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle';
   const initials = ((c.make ? c.make[0] : 'M') + (c.model ? c.model[0] : '3')).toUpperCase();
   return `
@@ -1247,7 +1162,7 @@ function reportService() {
     : `<div class="rpt-cards">
         <div class="rpt-stat"><div class="n">${hist.length}</div><div class="l">${t('Services logged')}</div></div>
         <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">${t('Total spent (SAR)')}</div></div>
-        <div class="rpt-stat"><div class="n">${fmt(state.car.odometer)}</div><div class="l">${t('Current odometer (km)')}</div></div>
+        <div class="rpt-stat"><div class="n">${fmt(session.current().car.odometer)}</div><div class="l">${t('Current odometer (km)')}</div></div>
       </div>
       <div class="rpt-section-title">${t('Work history')}</div>
       <table class="rpt-table">
@@ -1298,7 +1213,7 @@ function reportSummary() {
   const dueCost = due.reduce((a, r) => a + (r.s.cost || 0), 0);
   const hs = healthScore();
   const spent = yearSpend(today().getFullYear());
-  const histTotal = state.history.reduce((a, e) => a + Number(e.cost || 0), 0);
+  const histTotal = session.current().history.reduce((a, e) => a + Number(e.cost || 0), 0);
   const dueRows = due.length
     ? due.map(({ s, st }) => `<tr><td>${t(s.name)}</td><td>${st.level === 'danger' ? t('Overdue') : t('Due soon')}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' ' + t('km left')}</td><td class="num">${sar(s.cost)} SAR</td></tr>`).join('')
     : `<tr><td colspan="4" style="text-align:center;color:#8b93a3;padding:16px">${t('Everything is up to date 🎉')}</td></tr>`;
@@ -1311,7 +1226,7 @@ function reportSummary() {
     <div class="rpt-cards" style="margin-top:12px">
       <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">${t('Spent in 2026 (SAR)')}</div></div>
       <div class="rpt-stat"><div class="n">${sar(histTotal)}</div><div class="l">${t('Lifetime service cost')}</div></div>
-      <div class="rpt-stat"><div class="n">${state.history.length}</div><div class="l">${t('Services logged')}</div></div>
+      <div class="rpt-stat"><div class="n">${session.current().history.length}</div><div class="l">${t('Services logged')}</div></div>
     </div>
     <div class="rpt-section-title">${t('Upcoming &amp; overdue services')}</div>
     <table class="rpt-table">
@@ -1327,7 +1242,7 @@ function monthlyBars() {
   for (let i = 5; i >= 0; i--) { const d = new Date(today().getFullYear(), today().getMonth() - i, 1); months.push(d); }
   const totals = months.map(m => {
     const key = m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0'); // local month, no TZ shift
-    return state.spending.filter(e => e.date.startsWith(key)).reduce((a, e) => a + Number(e.amount), 0);
+    return session.current().spending.filter(e => e.date.startsWith(key)).reduce((a, e) => a + Number(e.amount), 0);
   });
   const max = Math.max(1, ...totals);
   months.forEach((m, i) => {
@@ -1379,7 +1294,7 @@ function recCard(ic, title, body) {
    PAGE 6 — FUEL LOG & ECONOMY
    ============================================================ */
 function fuelRows() {
-  const entries = [...(state.fuel || [])].sort((a, b) => a.date.localeCompare(b.date) || a.odometer - b.odometer);
+  const entries = [...(session.current().fuel || [])].sort((a, b) => a.date.localeCompare(b.date) || a.odometer - b.odometer);
   return entries.map((e, i) => {
     const prev = entries[i - 1];
     let l100 = null, km = null, costPerKm = null;
@@ -1392,7 +1307,7 @@ function fuelRows() {
   });
 }
 function renderFuel() {
-  if (!state.fuel) state.fuel = [];
+  if (!session.current().fuel) session.current().fuel = [];
   const v = el('div');
   v.appendChild(pageIntro('Fuel', 'Log fill-ups to track economy (L/100 km) and running cost.'));
 
@@ -1401,7 +1316,7 @@ function renderFuel() {
   const avg = withEcon.length ? withEcon.reduce((a, r) => a + r.l100, 0) / withEcon.length : null;
   const last = withEcon.length ? withEcon[withEcon.length - 1].l100 : null;
   const lastCPK = withEcon.length ? withEcon[withEcon.length - 1].costPerKm : null;
-  const totalFuel = (state.fuel).reduce((a, e) => a + (Number(e.cost) || 0), 0);
+  const totalFuel = (session.current().fuel).reduce((a, e) => a + (Number(e.cost) || 0), 0);
 
   const tiles = el('div', 'tiles');
   tiles.innerHTML = `
@@ -1467,7 +1382,7 @@ function openAddFuel(e) {
   openModal(editing ? 'Edit fill-up' : 'Add fill-up', 'Record a refuel to track economy & cost.', card => {
     const r0 = el('div', 'field-row');
     r0.append(field('Date', `<input id="f_date" type="date" value="${e ? e.date : isoDate(today())}">`),
-      field('Odometer (km)', `<input id="f_odo" type="number" inputmode="numeric" value="${e ? e.odometer : state.car.odometer}">`));
+      field('Odometer (km)', `<input id="f_odo" type="number" inputmode="numeric" value="${e ? e.odometer : session.current().car.odometer}">`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
     r1.append(field('Litres', `<input id="f_l" type="number" inputmode="decimal" step="0.01" value="${e ? e.litres : ''}" placeholder="${t('e.g. 42')}">`),
@@ -1480,16 +1395,16 @@ function openAddFuel(e) {
       if (!litres) return toast('Litres required', 'warn');
       if (!odo) return toast('Odometer required', 'warn');
       const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(today()), odometer: odo, litres, cost: +$('#f_cost').value || 0, full: $('#f_full').value !== 'no' };
-      if (e) Object.assign(e, obj); else { state.fuel = state.fuel || []; state.fuel.push(obj); }
+      if (e) Object.assign(e, obj); else { session.current().fuel = session.current().fuel || []; session.current().fuel.push(obj); }
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
-      if (odo > state.car.odometer) { state.car.odometer = odo; state.car.odoUpdatedAt = obj.date; }
+      if (odo > session.current().car.odometer) { session.current().car.odometer = odo; session.current().car.odoUpdatedAt = obj.date; }
       const ok = await save(); closeModal(); go('fuel'); if (ok) toast(editing ? 'Fill-up updated' : 'Fill-up added');
     });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete fill-up'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      onAsyncClick(del, async () => { state.fuel = state.fuel.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); });
+      onAsyncClick(del, async () => { session.current().fuel = session.current().fuel.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); });
       card.appendChild(del);
     }
   });
@@ -1534,14 +1449,14 @@ function openAddDoc(d) {
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => {
       const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
-      if (d) Object.assign(d, obj); else { state.docs = state.docs || []; state.docs.push(obj); }
+      if (d) Object.assign(d, obj); else { session.current().docs = session.current().docs || []; session.current().docs.push(obj); }
       const ok = await save(); closeModal(); go('dashboard'); if (ok) toast(editing ? 'Document updated' : 'Document added');
     });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete document'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      onAsyncClick(del, async () => { state.docs = state.docs.filter(x => x.id !== d.id); const ok = await save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); });
+      onAsyncClick(del, async () => { session.current().docs = session.current().docs.filter(x => x.id !== d.id); const ok = await save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); });
       card.appendChild(del);
     }
   });
@@ -1568,14 +1483,14 @@ function field(label, inputHtml) {
 
 function openEditOdo() {
   openModal('Update mileage', 'Keep this current so due dates stay accurate.', card => {
-    card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${state.car.odometer}">`));
-    card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${state.car.dailyKm}">`));
+    card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${session.current().car.odometer}">`));
+    card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${session.current().car.dailyKm}">`));
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => {
       const val = parseInt($('#m_odo').value, 10);
-      if (!isNaN(val)) { state.car.odometer = val; state.car.odoUpdatedAt = isoDate(today()); }
+      if (!isNaN(val)) { session.current().car.odometer = val; session.current().car.odoUpdatedAt = isoDate(today()); }
       const d = parseInt($('#m_daily').value, 10);
-      if (!isNaN(d) && d > 0) state.car.dailyKm = d;
+      if (!isNaN(d) && d > 0) session.current().car.dailyKm = d;
       const ok = await save(); closeModal(); go(current); if (ok) toast('Mileage updated');
     });
     card.appendChild(b);
@@ -1583,15 +1498,15 @@ function openEditOdo() {
 }
 
 /* ---------- car profile / settings ---------- */
-function carTitle() { return state.car.nickname || `${state.car.make} ${state.car.model}`.trim() || 'My car'; }
+function carTitle() { return session.current().car.nickname || `${session.current().car.make} ${session.current().car.model}`.trim() || 'My car'; }
 function carInitials() {
-  const c = state.car;
+  const c = session.current().car;
   const a = (c.make || '')[0] || '';
   const b = (c.model || '')[0] || '';
   return (a + b).toUpperCase() || '🚗';
 }
 function renderTopbar() {
-  const c = state.car;
+  const c = session.current().car;
   $('#carTitle').textContent = carTitle();
   $('#carSub').textContent = [c.year, c.engine, c.transmission, c.color].filter(Boolean).join(' · ');
   const badge = $('#carBadge');
@@ -1646,18 +1561,18 @@ function openImage(url) {
 }
 
 function openGarage() {
-  if (!booted) return;
+  if (!session.booted()) return;
   openModal('Your garage', 'Switch between your vehicles or add another.', card => {
     const list = el('div', 'list');
-    garage.vehicles.forEach(v => {
+    session.garage().vehicles.forEach(v => {
       const c = v.data.car;
-      const active = v.id === garage.activeId;
+      const active = v.id === session.garage().activeId;
       const it = el('div', 'item');
       it.innerHTML = `
         <div class="item-ic" style="overflow:hidden">${c.photo ? `<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : '🚗'}</div>
         <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
         <div class="item-side">${active ? `<span class="pill ok">${t('Active')}</span>` : `<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
-      it.onclick = () => { if (active) { closeModal(); openSettings(); } else switchVehicle(v.id); };
+      it.onclick = () => { if (active) { closeModal(); openSettings(); } else chooseVehicle(v.id); };
       list.appendChild(it);
     });
     card.appendChild(list);
@@ -1669,9 +1584,9 @@ function openGarage() {
 }
 
 function openSettings() {
-  if (!booted) return;
+  if (!session.booted()) return;
   openModal('Car profile', 'These details personalise the app and its badge.', card => {
-    const c = state.car;
+    const c = session.current().car;
     // language switch
     card.appendChild(field('Language / اللغة', ''));
     let selectedLang = lang;
@@ -1687,10 +1602,10 @@ function openSettings() {
     // plan setup wizard — schedule basis, odometer & service history
     const planRow = el('div', 'card plan-setup-banner');
     planRow.style.margin = '0 0 16px';
-    planRow.innerHTML = state.planSetupDone
+    planRow.innerHTML = session.current().planSetupDone
       ? `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`
       : `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
-    const planBtn = el('button', state.planSetupDone ? 'btn ghost' : 'btn', t(state.planSetupDone ? 'Edit' : 'Set up'));
+    const planBtn = el('button', session.current().planSetupDone ? 'btn ghost' : 'btn', t(session.current().planSetupDone ? 'Edit' : 'Set up'));
     planBtn.onclick = () => { closeModal(); openPlanSetup(); };
     planRow.appendChild(planBtn);
     card.appendChild(planRow);
@@ -1779,7 +1694,7 @@ function openSettings() {
 
     const b = el('button', 'btn primary block', t('Save profile'));
     onAsyncClick(b, async () => {
-      Object.assign(state.car, {
+      Object.assign(session.current().car, {
         nickname: $('#c_nick').value.trim(), make: $('#c_make').value.trim(), model: $('#c_model').value.trim(),
         year: +$('#c_year').value || c.year, color: $('#c_color').value.trim(),
         engine: $('#c_engine').value.trim(), transmission: $('#c_trans').value,
@@ -1792,10 +1707,10 @@ function openSettings() {
       applyAccent(); renderTopbar(); closeModal(); go(current); if (ok) toast('Profile saved');
     });
     card.appendChild(b);
-    if (garage.vehicles.length > 1) {
+    if (session.garage().vehicles.length > 1) {
       const del = el('button', 'btn block ghost', t('Remove this vehicle'));
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = () => deleteVehicle(garage.activeId);
+      del.onclick = () => deleteVehicle(session.garage().activeId);
       card.appendChild(del);
     }
     const backup = el('div');
@@ -1819,9 +1734,9 @@ function openSettings() {
 
 function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
-    card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${state.budget.annual}">`));
+    card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${session.current().budget.annual}">`));
     const b = el('button', 'btn primary block', t('Save'));
-    onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) state.budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); });
+    onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) session.current().budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); });
     card.appendChild(b);
   });
 }
@@ -1833,7 +1748,7 @@ function openServiceDetail(s) {
     const box = el('div');
     box.innerHTML = `
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
-      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? ` <span class="muted" style="font-size:11px">· ${t(state.severity === 'severe' ? 'dealer' : 'severe')} ${fmt(state.severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
+      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? ` <span class="muted" style="font-size:11px">· ${t(session.current().severity === 'severe' ? 'dealer' : 'severe')} ${fmt(session.current().severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
       <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${new Date(s.lastDate + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
@@ -1873,12 +1788,12 @@ function openServiceDetail(s) {
 }
 
 function markServiceDone(s) {
-  s.lastKm = state.car.odometer;
+  s.lastKm = session.current().car.odometer;
   s.lastDate = isoDate(today());
   // record it in the work history
-  state.history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date: isoDate(today()), odometer: state.car.odometer, cost: s.cost || 0, cat: 'Maintenance', note: '' });
+  session.current().history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date: isoDate(today()), odometer: session.current().car.odometer, cost: s.cost || 0, cat: 'Maintenance', note: '' });
   // log the spend
-  if (s.cost > 0) state.spending.push({ id: uid(), date: isoDate(today()), cat: 'Maintenance', desc: s.name, amount: s.cost, odometer: state.car.odometer });
+  if (s.cost > 0) session.current().spending.push({ id: uid(), date: isoDate(today()), cat: 'Maintenance', desc: s.name, amount: s.cost, odometer: session.current().car.odometer });
   save(); // fire-and-forget: nothing downstream reads the result
 }
 
@@ -1894,7 +1809,7 @@ function openAddHistory(e, prefill) {
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
     r1.append(field('Date', `<input id="h_date" type="date" value="${e ? e.date : isoDate(today())}">`),
-      field('Odometer (km)', `<input id="h_odo" type="number" value="${p.odometer != null ? p.odometer : state.car.odometer}">`));
+      field('Odometer (km)', `<input id="h_odo" type="number" value="${p.odometer != null ? p.odometer : session.current().car.odometer}">`));
     card.appendChild(r1);
     card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${p.cost != null ? p.cost : 0}">`));
     card.appendChild(field('Note', `<textarea id="h_note" rows="2">${e ? (e.note || '') : ''}</textarea>`));
@@ -1918,11 +1833,11 @@ function openAddHistory(e, prefill) {
       };
       if (e) Object.assign(e, obj);
       else {
-        state.history.push(obj);
-        if ($('#h_spend').checked && obj.cost > 0) state.spending.push({ id: uid(), date: obj.date, cat: obj.cat, desc: obj.name, amount: obj.cost, odometer: obj.odometer });
+        session.current().history.push(obj);
+        if ($('#h_spend').checked && obj.cost > 0) session.current().spending.push({ id: uid(), date: obj.date, cat: obj.cat, desc: obj.name, amount: obj.cost, odometer: obj.odometer });
         // logged from the plan → re-baseline that service so the plan re-times itself
         if (prefill && prefill.serviceId) {
-          const sv = state.services.find(x => x.id === prefill.serviceId);
+          const sv = session.current().services.find(x => x.id === prefill.serviceId);
           if (sv && obj.odometer > 0) { sv.lastKm = obj.odometer; sv.lastDate = obj.date; }
         }
       }
@@ -1932,7 +1847,7 @@ function openAddHistory(e, prefill) {
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete record'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { state.history = state.history.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); });
+      onAsyncClick(del, async () => { session.current().history = session.current().history.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); });
       card.appendChild(del);
     }
   });
@@ -1952,7 +1867,7 @@ function openEditService(s) {
       field('Dealer interval (mo)', `<input id="s_nmo" type="number" value="${s && s.normalMonths ? s.normalMonths : ''}" placeholder="${t('same as above')}">`));
     card.appendChild(row1b);
     const row2 = el('div', 'field-row');
-    row2.append(field('Last done (km)', `<input id="s_lkm" type="number" value="${s ? s.lastKm : state.car.odometer}">`),
+    row2.append(field('Last done (km)', `<input id="s_lkm" type="number" value="${s ? s.lastKm : session.current().car.odometer}">`),
       field('Last done (date)', `<input id="s_ldate" type="date" value="${s ? s.lastDate : isoDate(today())}">`));
     card.appendChild(row2);
     const row3 = el('div', 'field-row');
@@ -1972,14 +1887,14 @@ function openEditService(s) {
         lastKm: +$('#s_lkm').value || 0, lastDate: $('#s_ldate').value || isoDate(today()),
         cost: +$('#s_cost').value || 0, note: $('#s_note').value.trim()
       };
-      if (s) Object.assign(s, obj); else state.services.push(obj);
+      if (s) Object.assign(s, obj); else session.current().services.push(obj);
       const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Service updated' : 'Service added');
     });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete service'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { state.services = state.services.filter(x => x.id !== s.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); });
+      onAsyncClick(del, async () => { session.current().services = session.current().services.filter(x => x.id !== s.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); });
       card.appendChild(del);
     }
   });
@@ -2038,7 +1953,7 @@ function openAddSpending(e) {
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
-      const partOpts = state.parts.map((p, i) => `<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`).join('');
+      const partOpts = session.current().parts.map((p, i) => `<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`).join('');
       card.appendChild(field('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>',
         `<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
     }
@@ -2048,14 +1963,14 @@ function openAddSpending(e) {
       field('Date', `<input id="x_date" type="date" value="${e ? e.date : isoDate(today())}">`));
     card.appendChild(row);
     card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
-    card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${e ? e.odometer : state.car.odometer}">`));
+    card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${e ? e.odometer : session.current().car.odometer}">`));
     let xphoto = e ? (e.photo || '') : '';
     card.appendChild(field('Receipt / invoice', ''));
     card.appendChild(photoPicker(xphoto, v => xphoto = v));
     if (!editing) {
       $('#x_pick').onchange = function () {
         if (!this.value) return;
-        const p = state.parts[+this.value.split(':')[1]];
+        const p = session.current().parts[+this.value.split(':')[1]];
         $('#x_desc').value = p.name;
         $('#x_amt').value = partCheapest(p);
         $('#x_cat').value = p.cat === 'Tires' ? 'Tires' : p.cat === 'Electrical' ? 'Electrical' : 'Parts';
@@ -2066,15 +1981,15 @@ function openAddSpending(e) {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return toast('Description required', 'warn');
       if (isNaN(amt)) return toast('Amount required', 'warn');
-      const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || state.car.odometer, photo: xphoto };
-      if (e) Object.assign(e, obj); else state.spending.push(obj);
+      const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || session.current().car.odometer, photo: xphoto };
+      if (e) Object.assign(e, obj); else session.current().spending.push(obj);
       const ok = await save(); closeModal(); go('budget'); if (ok) toast(editing ? 'Expense updated' : 'Expense added');
     });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete expense'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { state.spending = state.spending.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); });
+      onAsyncClick(del, async () => { session.current().spending = session.current().spending.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); });
       card.appendChild(del);
     }
   });
@@ -2137,14 +2052,14 @@ function openEditPart(p) {
       const valid = opts.filter(o => o.brand.trim());
       if (!valid.length) return toast('Add at least one option', 'warn');
       const obj = { id: p ? p.id : uid(), name, icon: $('#p_icon').value.trim() || '🔩', cat: $('#p_cat').value.trim() || 'General', partsouq: $('#p_psq').value.trim().replace(/[^A-Za-z0-9]/g, ''), options: valid };
-      if (p) Object.assign(p, obj); else state.parts.push(obj);
+      if (p) Object.assign(p, obj); else session.current().parts.push(obj);
       const ok = await save(); closeModal(); go('parts'); if (ok) toast(editing ? 'Part updated' : 'Part added');
     });
     card.appendChild(b);
     if (editing) {
       const del = el('button', 'btn block ghost', t('Delete part'));
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { state.parts = state.parts.filter(x => x.id !== p.id); const ok = await save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); });
+      onAsyncClick(del, async () => { session.current().parts = session.current().parts.filter(x => x.id !== p.id); const ok = await save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); });
       card.appendChild(del);
     }
   });
@@ -2271,7 +2186,7 @@ const COLOR_SWATCHES = {
 };
 function swatchFor(name) { return COLOR_SWATCHES[name] || accentForColor(name)[0]; }
 function applyAccent() {
-  const [acc, soft] = accentForColor(state.car && state.car.color);
+  const [acc, soft] = accentForColor(session.current().car && session.current().car.color);
   const [r, g, b] = hexToRgb(acc);
   const s = document.documentElement.style;
   s.setProperty('--accent', acc);
@@ -2289,17 +2204,13 @@ document.documentElement.setAttribute('lang', lang);
 document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
 applyNavLabels();
 
-openStorage()
-  .then(loadAll)
-  .then(({ garage: g, photos }) => {
-    photoBlobs = photos || {};
-    const h = hydrate(g, photoBlobs);
-    garage = h.garage;
-    state = h.state;
-    if (!g || !g.vehicles || !g.vehicles.length) return save();          // first run — persist the seed
-  })
+/* session.js emits its failure messages untranslated; t() here is what keeps
+   the Arabic save-failure toasts working. */
+session.configure({ notify: (msg, kind) => toast(t(msg), kind) });
+
+session.load()
+  .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist the seed
   .then(() => {
-    booted = true;
     applyAccent();
     renderTopbar();
     go('dashboard');

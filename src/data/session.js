@@ -173,6 +173,7 @@
     configure, load, save, clear,
     current, garage, booted, photos,
     setVehicles, switchVehicle,
-    objectUrl, revokeObjectUrls, refreshPhotoUrls
+    objectUrl, revokeObjectUrls, refreshPhotoUrls,
+    prunePhotoBlobs        // deleteVehicle prunes without saving, so it needs this directly
   };
 });
