@@ -11,12 +11,8 @@
 /* $, el, uid, fmt, sar, clamp, parseDate, monthsBetween, addMonths now live
    in src/core/helpers.js (loaded as a script before this file). */
 
-/* ============================================================
-   i18n — Arabic / English. t() keys on the English string, so any
-   string not yet in the dictionary safely falls back to English.
-   ============================================================ */
-let lang = ‘en’;
-function t(s) { return (lang === ‘ar’ && s != null && AR[s]) ? AR[s] : s; }
+let lang = 'en';
+function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
 const relDate = d => {
   const days = Math.round((d - today()) / 86400000);
   const ar = lang === 'ar';
