@@ -1,6 +1,6 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-v5';
-const ASSETS = ['./', './index.html', './styles.css', './schedule.js', './storage.js', './ui.js', './app.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'garage-v6';
+const ASSETS = ['./', './index.html', './styles.css', './src/core/helpers.js', './schedule.js', './storage.js', './ui.js', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

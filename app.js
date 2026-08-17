@@ -8,13 +8,8 @@
    and seeded from in hydrate(). Nothing here writes it. */
 
 /* ---------- helpers ---------- */
-const $ = (s, r = document) => r.querySelector(s);
-const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-const uid = () => Math.random().toString(36).slice(2, 9);
-const fmt = n => Number(n).toLocaleString('en-US');
-const sar = n => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
-const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
-const parseDate = s => new Date(s + 'T00:00:00');
+/* $, el, uid, fmt, sar, clamp, parseDate, monthsBetween, addMonths now live
+   in src/core/helpers.js (loaded as a script before this file). */
 
 /* ============================================================
    i18n — Arabic / English. t() keys on the English string, so any
@@ -373,8 +368,6 @@ const AR = {
   'Could not read that file.': 'تعذّرت قراءة هذا الملف.',
 };
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
-const monthsBetween = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30;
-const addMonths = (d, m) => { const x = new Date(d); x.setMonth(x.getMonth() + Math.round(m)); return x; };
 const relDate = d => {
   const days = Math.round((d - today()) / 86400000);
   const ar = lang === 'ar';
