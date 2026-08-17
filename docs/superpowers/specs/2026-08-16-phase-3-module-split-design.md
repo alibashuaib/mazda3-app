@@ -293,6 +293,25 @@ shown, because the `.then` body never runs — but the `Promise<boolean>` contra
 narrower than it looks, and the nineteen `await save()` call sites would propagate the
 rejection. Whichever phase takes ownership of storage error handling should close it.
 
+## Amendment, 2026-08-17: a dev-only DOM harness
+
+This design said "no new dependencies" without qualification. Phase 3a then shipped two
+bugs that a green suite could not see — a syntax error from smart quotes, and five
+`ReferenceError`s hiding inside spread syntax — because the tests exercise the extracted
+modules and never load `app.js` at all. Static inspection was the only check on the file
+every task was editing.
+
+Phase 3b is a second, larger mechanical pass over that same untested code, so the
+constraint is narrowed rather than kept absolute: **the shipped app still loads zero
+runtime packages**, and `linkedom` joins `fake-indexeddb` as a devDependency so tests can
+boot `app.js`, render every page and assert on the output. Nothing under `src/`, and
+nothing in `app.js`, may reference it.
+
+The escaping conversion is blanket, as this design specified — all ~230 construction
+sites, not merely the ~60 interpolations that carry user-supplied text — because the
+guarantee worth having is that an unescaped interpolation requires typing `raw()`, and
+that property only holds if every site goes through the builder.
+
 ## Non-goals
 
 - **The tab merge.** Four tabs instead of six, and merging Schedule and Plan into
