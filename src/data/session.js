@@ -159,8 +159,11 @@
     });
   }
 
-  /* Sign-out, in full. Phase 4 adds a storage wipe beside this call; nothing
-     else in the app needs to change. */
+  /* Clears session state: garage, active vehicle, photo cache and object URLs.
+     This is not the whole of sign-out — revoking a blob URL does not blank an
+     already-decoded <img>, so the caller must pair this with a re-render or
+     the previous user's photo stays on screen. Phase 4 adds a storage wipe
+     beside this call. */
   function clear() {
     revokeObjectUrls();
     _garage = null;

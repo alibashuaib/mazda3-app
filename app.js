@@ -16,7 +16,6 @@
    session.current() directly. */
 const save = () => session.save();
 const switchVehicle = id => session.switchVehicle(id);
-const objectUrl = b => session.objectUrl(b);
 const revokeObjectUrls = () => session.revokeObjectUrls();
 const refreshPhotoUrls = () => session.refreshPhotoUrls();
 /* Status functions are pure now; these thread the session through so the
@@ -54,7 +53,6 @@ const relDate = d => {
    session.booted() guards navigation and chrome (tabs, settings, garage)
    until boot has hydrated the session. A failed boot leaves it false so a
    stray tap can't clear the error card and crash into a blank screen. */
-const GKEY = 'garage.mazda3.v2';
 /* normalizeData now lives in src/data/normalize.js (loaded as a script
    before this file). */
 /* Phase 3: the session (src/data/session.js) owns `state`, the photo Blob
@@ -140,9 +138,11 @@ function importGarage(file) {
       return toast(t(parsed.error), 'warn');
     }
     if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
-    // Past this point the session's garage and photo cache are replaced, so any
-    // throw would strand the running app on a half-restored garage with no
-    // toast. parseImport validates the shape; this catches everything else.
+    // Past this point the photo cache is emptied and refilled with the backup's
+    // Blobs immediately below, but the garage itself isn't swapped in until
+    // session.setVehicles() after the normalize loop. A throw inside that loop
+    // leaves the OLD garage paired with the IMPORTED photo cache, with no toast.
+    // parseImport validates the shape; this catches everything else.
     try {
       const priorIds = session.garage().vehicles.map(v => v.id);
       // session.photos() hands back the live cache; empty it, then refill from

@@ -248,6 +248,44 @@ mechanical passes do not overlap in the same lines.
   intact after the refactor.
 - `app.js` no longer exists.
 
+## Phase 4 preconditions discovered during Phase 3a implementation
+
+The pre-merge review of the module split surfaced four issues in `src/data/session.js`
+and `storage.js` that are correct today, with a single garage and no sign-out, and become
+real defects the moment Phase 4 adds accounts. They are recorded here because Phase 4
+needs to treat them as preconditions, not surprises.
+
+An in-flight `save()` can write the previous user's photo Blob into the next user's
+cache. `save()` captures `const data = _state`, but on resolve it calls
+`cacheNewPhotos(data, res.photoIds)`, which writes into `_photos` by current reference,
+not the reference captured at call time. If `clear()` runs while a save is in flight, the
+resolution lands in the fresh `_photos`, and `prunePhotoBlobs()` early-returns on a null
+`_garage` so the stray Blob is never removed — the next user's export would embed it.
+`env.notify` has the same shape of bug: user A's "Storage is full" toast can fire on user
+B's screen. It is harmless now because nothing ever calls `clear()`. The fix is a
+generation counter that `clear()` increments and that the `.then` body checks before
+acting on `data` or firing a notification.
+
+`hydrate()` seeds one user from another's legacy data. When the loaded garage is empty it
+falls back to `readLegacyV1()`, which reads a device-scoped `localStorage` key with no
+user scoping. After a sign-out, a second user with no vehicles of their own would be
+seeded with the first user's pre-garage car. Sign-in must scope or skip the legacy
+fallback rather than calling `hydrate()` unchanged.
+
+`clear()` is not the whole of sign-out while the DOM is still painted. It revokes object
+URLs, but revoking a blob URL does not blank an already-decoded `<img>` — the previous
+user's car photo stays on screen until something re-renders. The docstring calling it
+"Sign-out, in full" overstates what it does; it has been corrected in `session.js` to say
+that it clears session state and must be paired with a re-render, since sign-out is not
+complete until both happen.
+
+Two cleanups are deliberately deferred rather than fixed now. `importGarage` in `app.js`
+should move its photo-cache swap below `session.setVehicles` so the garage and the cache
+are replaced together, closing the window described in the comment above that code today.
+And repeated imports leak one idle IndexedDB connection each, because `session.load()`
+calls `openStorage()` and `storage.js` reassigns its backend without closing the previous
+`db`; that fix belongs in `storage.js`, not the session.
+
 ## Non-goals
 
 - **The tab merge.** Four tabs instead of six, and merging Schedule and Plan into
