@@ -856,7 +856,7 @@ function scheduleTimelineItem(s, st, isLast) {
 }
 
 function buildHistory(v) {
-  const hist = [...state.history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
+  const hist = [...session.current().history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
   const totalCost = hist.reduce((a, e) => a + Number(e.cost || 0), 0);
   const last = hist[0];
 
@@ -1090,7 +1090,7 @@ function renderBudget() {
   // spending log
   v.appendChild(sectionTitle('Recent spending', 'Add', () => openAddSpending()));
   const log = el('div', 'list');
-  const sorted = [...state.spending].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...session.current().spending].sort((a, b) => b.date.localeCompare(a.date));
   if (!sorted.length) log.appendChild(emptyState('🧾', 'No spending logged yet.'));
   sorted.slice(0, 12).forEach(e => log.appendChild(spendEntry(e)));
   v.appendChild(log);
@@ -1155,7 +1155,7 @@ function reportFooter() {
   return `<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${today().toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
 }
 function reportService() {
-  const hist = [...state.history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
+  const hist = [...session.current().history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
   const total = hist.reduce((a, e) => a + Number(e.cost || 0), 0);
   const body = !hist.length
     ? `<div class="rpt-empty">${t('No service history recorded yet.')}</div>`
@@ -1178,7 +1178,7 @@ function reportService() {
   return reportHeader(t('Service History Report')) + body + reportFooter();
 }
 function reportPurchases() {
-  const sp = [...state.spending].sort((a, b) => b.date.localeCompare(a.date));
+  const sp = [...session.current().spending].sort((a, b) => b.date.localeCompare(a.date));
   const total = sp.reduce((a, e) => a + Number(e.amount || 0), 0);
   const byCat = {};
   sp.forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount || 0); });
@@ -2001,7 +2001,7 @@ function openEditPart(p) {
     card.appendChild(field('Part name', `<input id="p_name" value="${p ? p.name : ''}" placeholder="${t('e.g. Front Brake Pads')}">`));
     const row = el('div', 'field-row');
     const curCat = p ? p.cat : 'Engine';
-    const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...state.parts.map(x => x.cat), curCat])];
+    const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...session.current().parts.map(x => x.cat), curCat])];
     row.append(field('Icon (emoji)', `<input id="p_icon" value="${p ? p.icon : '🔩'}" maxlength="2">`),
       field('Category', `<select id="p_cat">${catList.map(c => `<option value="${c}" ${c === curCat ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(row);
