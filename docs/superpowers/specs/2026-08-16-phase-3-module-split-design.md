@@ -286,6 +286,13 @@ And repeated imports leak one idle IndexedDB connection each, because `session.l
 calls `openStorage()` and `storage.js` reassigns its backend without closing the previous
 `db`; that fix belongs in `storage.js`, not the session.
 
+One further gap predates this phase and was carried through unchanged. `save()`'s promise
+chain has no `.catch`, so a storage backend that throws rejects the returned promise
+instead of resolving `false`. Phase 1's guarantee still holds — no success message is
+shown, because the `.then` body never runs — but the `Promise<boolean>` contract is
+narrower than it looks, and the nineteen `await save()` call sites would propagate the
+rejection. Whichever phase takes ownership of storage error handling should close it.
+
 ## Non-goals
 
 - **The tab merge.** Four tabs instead of six, and merging Schedule and Plan into
