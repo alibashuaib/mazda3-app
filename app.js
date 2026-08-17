@@ -277,8 +277,8 @@ function renderDashboard() {
   const carCard = el('button', 'card car-card' + (session.current().car.photo ? '' : ' empty'));
   carCard.title = session.current().car.photo ? t('Change car photo') : t('Add a photo of your car');
   carCard.innerHTML = session.current().car.photo
-    ? `<img src="${session.current().car.photo}" alt="Your ${carName}"><div class="car-card-grad"></div><div class="car-card-cap">${carName}</div>`
-    : `<span class="cpb-ph"><span class="cpb-emoji">🚗</span><small>${t('Add a photo of your car')}</small></span>`;
+    ? html`<img src="${session.current().car.photo}" alt="Your ${carName}"><div class="car-card-grad"></div><div class="car-card-cap">${carName}</div>`
+    : html`<span class="cpb-ph"><span class="cpb-emoji">🚗</span><small>${t('Add a photo of your car')}</small></span>`;
   carCard.onclick = openSettings;
   const topRow = el('div', 'top-row');
   topRow.appendChild(carCard);
