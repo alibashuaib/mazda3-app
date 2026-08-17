@@ -19,6 +19,13 @@ const switchVehicle = id => session.switchVehicle(id);
 const objectUrl = b => session.objectUrl(b);
 const revokeObjectUrls = () => session.revokeObjectUrls();
 const refreshPhotoUrls = () => session.refreshPhotoUrls();
+/* Status functions are pure now; these thread the session through so the
+   render code reads unchanged until Phase 3c moves it. */
+const svKm = s => Status.svKm(s, session.current().severity);
+const svMo = s => Status.svMo(s, session.current().severity);
+const serviceStatus = s => Status.serviceStatus(s, { odometer: session.current().car.odometer, severity: session.current().severity });
+const servicesRanked = () => Status.servicesRanked(session.current());
+const healthScore = () => Status.healthScore(session.current());
 
 let lang = 'en';
 function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
@@ -50,10 +57,6 @@ const relDate = d => {
 const GKEY = 'garage.mazda3.v2';
 /* normalizeData now lives in src/data/normalize.js (loaded as a script
    before this file). */
-/* active interval for the current schedule basis (severe = the app's own values;
-   normal = the dealer values where a service defines them, else the same) */
-function svKm(s) { return (session.current().severity === 'normal' && s.normalKm) ? s.normalKm : s.intervalKm; }
-function svMo(s) { return (session.current().severity === 'normal' && s.normalMonths) ? s.normalMonths : s.intervalMonths; }
 /* Phase 3: the session (src/data/session.js) owns `state`, the photo Blob
    cache and the object-URL registry, along with hydrate(), resolvePhotos(),
    save(), prunePhotoBlobs() and cacheNewPhotos(). Reads stay synchronous —
@@ -190,32 +193,10 @@ function importGarage(file) {
 }
 
 /* ---------- service status computation ---------- */
-function serviceStatus(s) {
-  const odo = session.current().car.odometer;
-  const ikm = svKm(s), imo = svMo(s);
-  const dueKm = s.lastKm + ikm;
-  const kmLeft = dueKm - odo;
-  const dueDate = addMonths(parseDate(s.lastDate), imo);
-  const daysLeft = Math.round((dueDate - today()) / 86400000);
-  // progress through the interval (0..1+), take the more advanced of km/time
-  const kmProg = (odo - s.lastKm) / ikm;
-  const timeProg = monthsBetween(parseDate(s.lastDate), today()) / imo;
-  const prog = Math.max(kmProg, timeProg);
-  // which dimension is driving the due?
-  const drivenByTime = timeProg >= kmProg;
-  let level = 'ok';
-  if (kmLeft <= 0 || daysLeft <= 0) level = 'danger';
-  else if (kmLeft <= 1200 || daysLeft <= 30) level = 'warn';
-  return { dueKm, kmLeft, dueDate, daysLeft, prog: clamp(prog, 0, 1.2), level, drivenByTime };
-}
-function servicesRanked() {
-  return session.current().services
-    .map(s => ({ s, st: serviceStatus(s) }))
-    .sort((a, b) => a.st.prog === b.st.prog ? a.st.kmLeft - b.st.kmLeft : b.st.prog - a.st.prog);
-}
-function healthScore() {
-  return healthFrom(session.current().services.map(s => serviceStatus(s).level));
-}
+/* svKm, svMo, serviceStatus, servicesRanked, healthScore now live in
+   src/data/status.js (pure — no session, no DOM). The adapters near the
+   top of this file thread the session through so call sites here are
+   unchanged. */
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
   const bad = servicesRanked().filter(r => r.st.level !== 'ok');
