@@ -286,7 +286,7 @@ function renderDashboard() {
   // hero + ring
   const hero = el('div', 'card hero');
   const dash = 2 * Math.PI * 40;
-  hero.innerHTML = `
+  hero.innerHTML = html`
     <div>
       <div class="odo-label">${t('Odometer')}</div>
       <div class="odo-value">${fmt(session.current().car.odometer)}<span>km</span></div>
@@ -312,7 +312,7 @@ function renderDashboard() {
 
   // tiles — each links to the page it summarizes
   const tiles = el('div', 'tiles');
-  tiles.innerHTML = `
+  tiles.innerHTML = html`
     <div class="tile ${soon.length ? 'warn' : 'ok'}"><div class="t-num">${soon.length}</div><div class="t-cap">${t('Due soon')}</div></div>
     <div class="tile ${overdue.length ? 'danger' : 'ok'}"><div class="t-num">${overdue.length}</div><div class="t-cap">${t('Overdue')}</div></div>
     <div class="tile"><div class="t-num">${sar(spent)}</div><div class="t-cap">${t('SAR this year')}</div></div>`;
@@ -326,7 +326,7 @@ function renderDashboard() {
   const odoAge = daysSince(session.current().car.odoUpdatedAt, today());
   if (odoAge >= 14) {
     const ob = el('button', 'card reminder-banner warn');
-    ob.innerHTML = `<span class="rb-ic">📏</span><span class="rb-text">${t('Mileage is {n} days old — due dates may be off').replace('{n}', odoAge === Infinity ? '?' : odoAge)}</span><span class="rb-go">${t('Update ›')}</span>`;
+    ob.innerHTML = html`<span class="rb-ic">📏</span><span class="rb-text">${t('Mileage is {n} days old — due dates may be off').replace('{n}', odoAge === Infinity ? '?' : odoAge)}</span><span class="rb-go">${t('Update ›')}</span>`;
     ob.onclick = openEditOdo;
     v.appendChild(ob);
   }
@@ -336,7 +336,7 @@ function renderDashboard() {
   if (deferred.length) {
     const worst = deferred.some(r => r.st.level === 'danger') ? 'danger' : deferred.some(r => r.st.level === 'warn') ? 'warn' : 'ok';
     const rb = el('button', 'card reminder-banner ' + worst);
-    rb.innerHTML = `<span class="rb-ic">⏰</span><span class="rb-text"><b>${deferred.length}</b> ${t(deferred.length === 1 ? 'service to catch up' : 'services to catch up')}</span><span class="rb-go">${t('Log ›')}</span>`;
+    rb.innerHTML = html`<span class="rb-ic">⏰</span><span class="rb-text"><b>${deferred.length}</b> ${t(deferred.length === 1 ? 'service to catch up' : 'services to catch up')}</span><span class="rb-go">${t('Log ›')}</span>`;
     rb.onclick = () => openLogConfirm(deferred.map(r => r.s), { checklist: true, title: 'Catch up', onDone: () => go('dashboard') });
     v.appendChild(rb);
   }
@@ -1264,7 +1264,7 @@ function recommendations() {
 }
 function recCard(ic, title, body) {
   const c = el('div', 'card rec');
-  c.innerHTML = `<div class="r-ic">${ic}</div><div><h3>${title}</h3><p>${body}</p></div>`;
+  c.innerHTML = html`<div class="r-ic">${ic}</div><div><h3>${title}</h3><p>${body}</p></div>`;
   return c;
 }
 
@@ -1491,7 +1491,7 @@ function renderTopbar() {
   $('#carTitle').textContent = carTitle();
   $('#carSub').textContent = [c.year, c.engine, c.transmission, c.color].filter(Boolean).join(' · ');
   const badge = $('#carBadge');
-  if (c.photo) { badge.classList.add('has-photo'); badge.innerHTML = `<img src="${c.photo}" alt="">`; }
+  if (c.photo) { badge.classList.add('has-photo'); badge.innerHTML = html`<img src="${c.photo}" alt="">`; }
   else { badge.classList.remove('has-photo'); badge.textContent = carInitials(); }
 }
 
