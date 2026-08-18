@@ -108,7 +108,35 @@ function makeContext(dom) {
     (dom.document.head || dom.document.documentElement).appendChild(meta);
   }
 
+  patchSelectValueSetter(dom);
+
   return { context, g };
+}
+
+/* linkedom defines HTMLSelectElement.prototype.value as a getter with no
+   setter, so `select.value = x` throws "Cannot set property value ... which has
+   only a getter". Browsers make it settable, and app.js relies on that in
+   openLogConfirm (app.js:554) and openAddVehicle — both of which were
+   consequently impossible to render under test. This restores the standard
+   behaviour rather than working around it in the app: assigning selects the
+   first matching option, and a value that matches nothing clears the
+   selection, exactly as the HTML spec requires. */
+function patchSelectValueSetter(dom) {
+  const proto = dom.window.HTMLSelectElement && dom.window.HTMLSelectElement.prototype;
+  if (!proto) return;
+  const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+  if (!desc || !desc.get || desc.set) return;   // already settable, or absent
+  Object.defineProperty(proto, 'value', {
+    configurable: true,
+    get: desc.get,
+    set(v) {
+      const wanted = String(v);
+      const options = [...this.querySelectorAll('option')];
+      const match = options.find(o => (o.hasAttribute('value') ? o.getAttribute('value') : o.textContent) === wanted);
+      options.forEach(o => { o.selected = false; o.removeAttribute('selected'); });
+      if (match) { match.selected = true; match.setAttribute('selected', ''); }
+    }
+  });
 }
 
 async function bootApp(opts = {}) {
