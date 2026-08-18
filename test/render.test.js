@@ -241,3 +241,26 @@ test('a hostile document label cannot break out of the add-document dialog', asy
   assertNoAttributeInjection(document.querySelector('#modalCard'), 'openAddDoc');
   cleanup();
 });
+
+/* Regression for a second attribute-injection hole found in openEditPart on
+   2026-08-18, after the first pass at converting this dialog: the icon,
+   category and PartSouq part-no fields were never esc()-wrapped in the first
+   place, so nothing flagged them, and they stayed untagged plain template
+   literals straight past the html`` conversion. All three are user-editable
+   (icon and PartSouq no. are free-text fields; category is drawn from
+   user-created parts' `cat` values) and all three are settable via an
+   imported backup. */
+test('a hostile part icon, category or PartSouq no. cannot break out of the edit-part dialog', async () => {
+  const { document, api, cleanup } = await bootApp();
+  const p = api.session.current().parts[0];
+  p.icon = ATTR_PAYLOAD;
+  p.cat = ATTR_PAYLOAD;
+  p.partsouq = ATTR_PAYLOAD;
+  api.go('parts');
+  api.openEditPart(p);
+  const card = document.querySelector('#modalCard');
+  assertNoAttributeInjection(card, 'openEditPart (icon/cat/partsouq)');
+  assert.strictEqual(card.querySelector('#p_psq').getAttribute('value'), ATTR_PAYLOAD,
+    'the PartSouq part no. was escaped away instead of round-tripping');
+  cleanup();
+});

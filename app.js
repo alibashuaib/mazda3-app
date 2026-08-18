@@ -1983,10 +1983,10 @@ function openEditPart(p) {
     const row = el('div', 'field-row');
     const curCat = p ? p.cat : 'Engine';
     const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...session.current().parts.map(x => x.cat), curCat])];
-    row.append(field('Icon (emoji)', `<input id="p_icon" value="${p ? p.icon : '🔩'}" maxlength="2">`),
-      field('Category', `<select id="p_cat">${catList.map(c => `<option value="${c}" ${c === curCat ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
+    row.append(field('Icon (emoji)', html`<input id="p_icon" value="${p ? p.icon : '🔩'}" maxlength="2">`),
+      field('Category', html`<select id="p_cat">${catList.map(c => html`<option value="${c}" ${c === curCat ? 'selected' : ''}>${t(c)}</option>`)}</select>`));
     card.appendChild(row);
-    card.appendChild(field('PartSouq part no. (optional — enables live-price link)', `<input id="p_psq" value="${p && p.partsouq ? p.partsouq : ''}" placeholder="e.g. PE0114302A">`));
+    card.appendChild(field('PartSouq part no. (optional — enables live-price link)', html`<input id="p_psq" value="${p && p.partsouq ? p.partsouq : ''}" placeholder="e.g. PE0114302A">`));
 
     const optsWrap = el('div');
     const lbl = el('div'); lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-2);margin:6px 0';
