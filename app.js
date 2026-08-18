@@ -939,7 +939,7 @@ function partCard(p) {
   const usedIn = servicesForPart(p);
   const card = el('div', 'card part');
   card.dataset.id = p.id;
-  card.innerHTML = `
+  card.innerHTML = html`
     <div class="part-head">
       <div class="item-ic">${p.icon || '🔩'}</div>
       <h3>${t(p.name)}</h3>
@@ -950,23 +950,23 @@ function partCard(p) {
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
     <div class="part-body">
-      ${p.options.map(o => `
+      ${p.options.map(o => html`
         <div class="opt">
           <span class="opt-tag ${o.tag === 'OEM' ? 'oem' : 'alt'}">${o.tag}</span>
           <div class="opt-main">
             <div class="b">${t(o.brand)}</div>
-            <div class="s">${[o.partNo, t(o.note)].filter(Boolean).join(' · ') || '&nbsp;'}</div>
+            <div class="s">${[o.partNo, t(o.note)].filter(Boolean).join(' · ') || raw('&nbsp;')}</div>
           </div>
           <div class="opt-price">
             <div class="p">${sar(o.price)} <span class="muted" style="font-size:10px">SAR</span></div>
             <div class="store">${t(o.store)}</div>
           </div>
-        </div>`).join('')}
-      ${usedIn.length ? `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        </div>`)}
+      ${usedIn.length ? html`<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
         <span class="muted" style="font-size:11px;font-weight:600">${t('🔧 Used in:')}</span>
-        ${usedIn.map(s => `<button class="chip-link" data-svc="${s.id}">${t(s.name)}</button>`).join('')}
+        ${usedIn.map(s => html`<button class="chip-link" data-svc="${s.id}">${t(s.name)}</button>`)}
       </div>` : ''}
-      ${p.partsouq ? `<a class="btn" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer" style="width:100%;margin-top:12px;font-size:12.5px;padding:11px;text-decoration:none;color:var(--accent-soft)">${t('🔎 Live price &amp; alternatives on PartSouq ↗')}</a>` : ''}
+      ${p.partsouq ? html`<a class="btn" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer" style="width:100%;margin-top:12px;font-size:12.5px;padding:11px;text-decoration:none;color:var(--accent-soft)">${raw(t('🔎 Live price &amp; alternatives on PartSouq ↗'))}</a>` : ''}
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-edit>${t('Edit')}</button>
       </div>
@@ -997,7 +997,7 @@ function renderBudget() {
   const overBudget = spent > budget;
 
   const ring = el('div', 'card budget-ring-card');
-  ring.innerHTML = `
+  ring.innerHTML = html`
     <div class="ring" style="width:96px;height:96px">
       <svg viewBox="0 0 92 92" style="width:96px;height:96px">
         <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
@@ -1014,7 +1014,7 @@ function renderBudget() {
       <div class="muted" style="font-size:12px">${t('Spent in 2026')}</div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-.5px">${sar(spent)} <span class="muted" style="font-size:13px;font-weight:600">SAR</span></div>
       <div style="font-size:12.5px;margin-top:4px" class="${overBudget ? '' : 'muted'}">
-        ${overBudget ? `⚠️ ${sar(spent - budget)} ${t('over budget')}` : `${sar(budget - spent)} ${t('SAR remaining of')} ${sar(budget)}`}
+        ${overBudget ? html`⚠️ ${sar(spent - budget)} ${t('over budget')}` : html`${sar(budget - spent)} ${t('SAR remaining of')} ${sar(budget)}`}
       </div>
       <button class="odo-edit" id="editBudget" style="margin-top:8px">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
@@ -1030,11 +1030,11 @@ function renderBudget() {
     const odCount = upcoming.filter(r => r.st.level === 'danger').length;
     const fc = el('div', 'card');
     fc.style.cssText = 'padding:14px 16px;margin-top:12px;display:flex;align-items:center;gap:12px;cursor:pointer';
-    fc.innerHTML = `
+    fc.innerHTML = html`
       <div class="item-ic">🔧</div>
       <div style="flex:1">
         <h3 style="font-size:13.5px;font-weight:650">${t('Upcoming maintenance')}</h3>
-        <p class="muted" style="font-size:12px;margin-top:2px">${upcoming.length} ${t('services due')}${odCount ? ` · ${odCount} ${t('overdue')}` : ''} — ${t('plan ~')}${sar(dueCost)} SAR</p>
+        <p class="muted" style="font-size:12px;margin-top:2px">${upcoming.length} ${t('services due')}${odCount ? html` · ${odCount} ${t('overdue')}` : ''} — ${t('plan ~')}${sar(dueCost)} SAR</p>
       </div>
       <span style="color:var(--accent-soft);font-size:12.5px;font-weight:600">${t('View ›')}</span>`;
     fc.onclick = () => go('maintenance', { filter: odCount ? 'Overdue' : 'Due soon' });
@@ -1058,13 +1058,13 @@ function renderBudget() {
     const cc = el('div', 'card');
     cc.style.padding = '14px 16px';
     const total = cats.reduce((a, c) => a + c[1], 0) || 1;
-    cc.innerHTML = cats.map(([k, val]) => `
+    cc.innerHTML = html`${cats.map(([k, val]) => html`
       <div style="margin:10px 0 12px">
         <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
           <span>${t(k)}</span><span style="font-weight:700">${sar(val)} SAR</span>
         </div>
         <div class="bar"><span style="width:${(val / total) * 100}%"></span></div>
-      </div>`).join('');
+      </div>`)}`;
     v.appendChild(cc);
   }
 
@@ -1118,7 +1118,7 @@ function reportHeader(title) {
   const c = session.current().car;
   const name = c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle';
   const initials = ((c.make ? c.make[0] : 'M') + (c.model ? c.model[0] : '3')).toUpperCase();
-  return `
+  return html`
     <div class="rpt-head">
       <div class="rpt-brand">
         <div class="rpt-badge">${initials}</div>
@@ -1127,20 +1127,20 @@ function reportHeader(title) {
       <div class="rpt-meta">
         <div class="rpt-title">${title}</div>
         <div>${t('Generated')} ${today().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-        <div>${t('Odometer ')}${fmt(c.odometer)} km${c.plate ? ` · ${c.plate}` : ''}</div>
-        ${c.vin ? `<div>VIN ${c.vin}</div>` : ''}
+        <div>${t('Odometer ')}${fmt(c.odometer)} km${c.plate ? html` · ${c.plate}` : ''}</div>
+        ${c.vin ? html`<div>VIN ${c.vin}</div>` : ''}
       </div>
     </div>`;
 }
 function reportFooter() {
-  return `<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${today().toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
+  return html`<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${today().toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
 }
 function reportService() {
   const hist = [...session.current().history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
   const total = hist.reduce((a, e) => a + Number(e.cost || 0), 0);
   const body = !hist.length
-    ? `<div class="rpt-empty">${t('No service history recorded yet.')}</div>`
-    : `<div class="rpt-cards">
+    ? html`<div class="rpt-empty">${t('No service history recorded yet.')}</div>`
+    : html`<div class="rpt-cards">
         <div class="rpt-stat"><div class="n">${hist.length}</div><div class="l">${t('Services logged')}</div></div>
         <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">${t('Total spent (SAR)')}</div></div>
         <div class="rpt-stat"><div class="n">${fmt(session.current().car.odometer)}</div><div class="l">${t('Current odometer (km)')}</div></div>
@@ -1148,15 +1148,15 @@ function reportService() {
       <div class="rpt-section-title">${t('Work history')}</div>
       <table class="rpt-table">
         <thead><tr><th>${t('Date')}</th><th>${t('Service')}</th><th>${t('Category')}</th><th class="num">${t('Odometer')}</th><th class="num">${t('Cost')}</th><th>${t('Notes')}</th></tr></thead>
-        <tbody>${hist.map(e => `<tr>
+        <tbody>${hist.map(e => html`<tr>
           <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
           <td>${t(e.name)}</td><td>${e.cat ? t(e.cat) : '—'}</td>
           <td class="num">${fmt(e.odometer)} km</td>
           <td class="num">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</td>
-          <td>${e.note || ''}</td></tr>`).join('')}</tbody>
+          <td>${e.note || ''}</td></tr>`)}</tbody>
         <tfoot><tr><td colspan="4">${t('Total')}</td><td class="num">${sar(total)} SAR</td><td></td></tr></tfoot>
       </table>`;
-  return reportHeader(t('Service History Report')) + body + reportFooter();
+  return html`${reportHeader(t('Service History Report'))}${body}${reportFooter()}`;
 }
 function reportPurchases() {
   const sp = [...session.current().spending].sort((a, b) => b.date.localeCompare(a.date));
@@ -1165,26 +1165,26 @@ function reportPurchases() {
   sp.forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount || 0); });
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const body = !sp.length
-    ? `<div class="rpt-empty">${t('No purchases or spending recorded yet.')}</div>`
-    : `<div class="rpt-cards">
+    ? html`<div class="rpt-empty">${t('No purchases or spending recorded yet.')}</div>`
+    : html`<div class="rpt-cards">
         <div class="rpt-stat"><div class="n">${sp.length}</div><div class="l">${t('Entries')}</div></div>
         <div class="rpt-stat"><div class="n">${sar(total)}</div><div class="l">${t('Total spent (SAR)')}</div></div>
         <div class="rpt-stat"><div class="n">${cats.length}</div><div class="l">${t('Categories')}</div></div>
       </div>
       <div class="rpt-section-title">${t('By category')}</div>
       <table class="rpt-table"><thead><tr><th>${t('Category')}</th><th class="num">${t('Amount')}</th><th class="num">${t('Share')}</th></tr></thead>
-        <tbody>${cats.map(([k, val]) => `<tr><td>${t(k)}</td><td class="num">${sar(val)} SAR</td><td class="num">${Math.round(val / (total || 1) * 100)}%</td></tr>`).join('')}</tbody></table>
+        <tbody>${cats.map(([k, val]) => html`<tr><td>${t(k)}</td><td class="num">${sar(val)} SAR</td><td class="num">${Math.round(val / (total || 1) * 100)}%</td></tr>`)}</tbody></table>
       <div class="rpt-section-title">${t('All purchases')}</div>
       <table class="rpt-table">
         <thead><tr><th>${t('Date')}</th><th>${t('Item')}</th><th>${t('Category')}</th><th class="num">${t('Odometer')}</th><th class="num">${t('Amount')}</th></tr></thead>
-        <tbody>${sp.map(e => `<tr>
+        <tbody>${sp.map(e => html`<tr>
           <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
           <td>${e.desc}</td><td>${t(e.cat)}</td>
           <td class="num">${e.odometer ? fmt(e.odometer) + ' km' : '—'}</td>
-          <td class="num">${sar(e.amount)} SAR</td></tr>`).join('')}</tbody>
+          <td class="num">${sar(e.amount)} SAR</td></tr>`)}</tbody>
         <tfoot><tr><td colspan="4">${t('Total')}</td><td class="num">${sar(total)} SAR</td></tr></tfoot>
       </table>`;
-  return reportHeader(t('Purchases & Spending Report')) + body + reportFooter();
+  return html`${reportHeader(t('Purchases & Spending Report'))}${body}${reportFooter()}`;
 }
 function reportSummary() {
   const ranked = servicesRanked();
@@ -1196,9 +1196,9 @@ function reportSummary() {
   const spent = yearSpend(today().getFullYear());
   const histTotal = session.current().history.reduce((a, e) => a + Number(e.cost || 0), 0);
   const dueRows = due.length
-    ? due.map(({ s, st }) => `<tr><td>${t(s.name)}</td><td>${st.level === 'danger' ? t('Overdue') : t('Due soon')}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' ' + t('km left')}</td><td class="num">${sar(s.cost)} SAR</td></tr>`).join('')
-    : `<tr><td colspan="4" style="text-align:center;color:#8b93a3;padding:16px">${t('Everything is up to date 🎉')}</td></tr>`;
-  return reportHeader(t('Vehicle Summary Report')) + `
+    ? due.map(({ s, st }) => html`<tr><td>${t(s.name)}</td><td>${st.level === 'danger' ? t('Overdue') : t('Due soon')}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' ' + t('km left')}</td><td class="num">${sar(s.cost)} SAR</td></tr>`)
+    : html`<tr><td colspan="4" style="text-align:center;color:#8b93a3;padding:16px">${t('Everything is up to date 🎉')}</td></tr>`;
+  return html`${reportHeader(t('Vehicle Summary Report'))}
     <div class="rpt-cards">
       <div class="rpt-stat"><div class="n">${hs}</div><div class="l">${t('Health score')}</div></div>
       <div class="rpt-stat"><div class="n">${soon.length}</div><div class="l">${t('Due soon')}</div></div>
@@ -1209,12 +1209,12 @@ function reportSummary() {
       <div class="rpt-stat"><div class="n">${sar(histTotal)}</div><div class="l">${t('Lifetime service cost')}</div></div>
       <div class="rpt-stat"><div class="n">${session.current().history.length}</div><div class="l">${t('Services logged')}</div></div>
     </div>
-    <div class="rpt-section-title">${t('Upcoming &amp; overdue services')}</div>
+    <div class="rpt-section-title">${raw(t('Upcoming &amp; overdue services'))}</div>
     <table class="rpt-table">
       <thead><tr><th>${t('Service')}</th><th>${t('Status')}</th><th class="num">${t('Distance')}</th><th class="num">${t('Est. cost')}</th></tr></thead>
       <tbody>${dueRows}</tbody>
-      ${due.length ? `<tfoot><tr><td colspan="3">${t('Estimated total')}</td><td class="num">${sar(dueCost)} SAR</td></tr></tfoot>` : ''}
-    </table>` + reportFooter();
+      ${due.length ? html`<tfoot><tr><td colspan="3">${t('Estimated total')}</td><td class="num">${sar(dueCost)} SAR</td></tr></tfoot>` : ''}
+    </table>${reportFooter()}`;
 }
 
 function monthlyBars() {
@@ -1230,7 +1230,7 @@ function monthlyBars() {
     const isNow = i === months.length - 1;
     const sb = el('div', 'sb' + (isNow ? ' now' : ''));
     const h = Math.max(4, (totals[i] / max) * 100);
-    sb.innerHTML = `<div class="col" style="height:${h}%"></div><div class="m">${m.toLocaleString('en', { month: 'short' })}</div>`;
+    sb.innerHTML = html`<div class="col" style="height:${h}%"></div><div class="m">${m.toLocaleString('en', { month: 'short' })}</div>`;
     sb.title = `${sar(totals[i])} SAR`;
     wrap.appendChild(sb);
   });
@@ -1240,7 +1240,7 @@ function monthlyBars() {
 function spendEntry(e) {
   const emoji = { Maintenance: '🔧', Tires: '🛞', Parts: '📦', Fuel: '⛽', Electrical: '🔋', Insurance: '📄', Other: '💠' }[e.cat] || '💠';
   const it = el('div', 'card entry');
-  it.innerHTML = `
+  it.innerHTML = html`
     <div class="e-ic">${emoji}</div>
     <div class="e-main"><h3>${e.desc}${e.photo ? ' 🧾' : ''}</h3><p>${t(e.cat)} · ${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
     <div class="e-amt">${sar(e.amount)} <span class="muted" style="font-size:10px">SAR</span></div>`;
@@ -1715,7 +1715,7 @@ function openSettings() {
 
 function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
-    card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${esc(session.current().budget.annual)}">`));
+    card.appendChild(field('Budget (SAR / year)', html`<input id="m_budget" type="number" inputmode="numeric" value="${session.current().budget.annual}">`));
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) session.current().budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); });
     card.appendChild(b);
@@ -1934,17 +1934,17 @@ function openAddSpending(e) {
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
-      const partOpts = session.current().parts.map((p, i) => `<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`).join('');
+      const partOpts = session.current().parts.map((p, i) => html`<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`);
       card.appendChild(field('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>',
-        `<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
+        html`<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
     }
-    card.appendChild(field('Description', `<input id="x_desc" value="${esc(e ? e.desc : '')}" placeholder="${t('e.g. New front brake pads')}">`));
+    card.appendChild(field('Description', html`<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
     const row = el('div', 'field-row');
-    row.append(field('Amount (SAR)', `<input id="x_amt" type="number" inputmode="numeric" value="${e ? e.amount : ''}">`),
-      field('Date', `<input id="x_date" type="date" value="${e ? e.date : isoDate(today())}">`));
+    row.append(field('Amount (SAR)', html`<input id="x_amt" type="number" inputmode="numeric" value="${e ? e.amount : ''}">`),
+      field('Date', html`<input id="x_date" type="date" value="${e ? e.date : isoDate(today())}">`));
     card.appendChild(row);
-    card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
-    card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${esc(e ? e.odometer : session.current().car.odometer)}">`));
+    card.appendChild(field('Category', html`<select id="x_cat">${cats.map(c => html`<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`)}</select>`));
+    card.appendChild(field('Odometer at time (km)', html`<input id="x_odo" type="number" value="${e ? e.odometer : session.current().car.odometer}">`));
     let xphoto = e ? (e.photo || '') : '';
     card.appendChild(field('Receipt / invoice', ''));
     card.appendChild(photoPicker(xphoto, v => xphoto = v));
@@ -1979,7 +1979,7 @@ function openAddSpending(e) {
 function openEditPart(p) {
   const editing = !!p;
   openModal(editing ? 'Edit part' : 'New part', 'Add the OEM option and any alternatives.', card => {
-    card.appendChild(field('Part name', `<input id="p_name" value="${esc(p ? p.name : '')}" placeholder="${t('e.g. Front Brake Pads')}">`));
+    card.appendChild(field('Part name', html`<input id="p_name" value="${p ? p.name : ''}" placeholder="${t('e.g. Front Brake Pads')}">`));
     const row = el('div', 'field-row');
     const curCat = p ? p.cat : 'Engine';
     const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...session.current().parts.map(x => x.cat), curCat])];
@@ -2000,17 +2000,17 @@ function openEditPart(p) {
       opts.forEach((o, i) => {
         const box = el('div', 'card');
         box.style.cssText = 'padding:12px;margin-bottom:10px';
-        box.innerHTML = `
+        box.innerHTML = html`
           <div class="field-row" style="margin-bottom:8px">
             <div class="field" style="margin:0"><label>${t('Type')}</label><select data-k="tag"><option ${o.tag === 'OEM' ? 'selected' : ''}>OEM</option><option ${o.tag !== 'OEM' ? 'selected' : ''}>ALT</option></select></div>
             <div class="field" style="margin:0"><label>${t('Price (SAR)')}</label><input type="number" data-k="price" value="${o.price}"></div>
           </div>
-          <div class="field" style="margin:0 0 8px"><label>${t('Brand / product')}</label><input data-k="brand" value="${esc(o.brand || '')}"></div>
+          <div class="field" style="margin:0 0 8px"><label>${t('Brand / product')}</label><input data-k="brand" value="${o.brand || ''}"></div>
           <div class="field-row" style="margin-bottom:8px">
-            <div class="field" style="margin:0"><label>${t('Part no.')}</label><input data-k="partNo" value="${esc(o.partNo || '')}"></div>
-            <div class="field" style="margin:0"><label>${t('Store')}</label><input data-k="store" value="${esc(o.store || '')}"></div>
+            <div class="field" style="margin:0"><label>${t('Part no.')}</label><input data-k="partNo" value="${o.partNo || ''}"></div>
+            <div class="field" style="margin:0"><label>${t('Store')}</label><input data-k="store" value="${o.store || ''}"></div>
           </div>
-          <div class="field" style="margin:0"><label>${t('Note')}</label><input data-k="note" value="${esc(o.note || '')}"></div>`;
+          <div class="field" style="margin:0"><label>${t('Note')}</label><input data-k="note" value="${o.note || ''}"></div>`;
         box.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { o[inp.dataset.k] = inp.type === 'number' ? +inp.value : inp.value; });
         if (opts.length > 1) {
           const rm = el('button', 'btn ghost', t('Remove option')); rm.style.cssText = 'margin-top:8px;font-size:12px;padding:7px;color:var(--danger)';
