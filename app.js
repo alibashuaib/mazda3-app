@@ -464,19 +464,19 @@ function buildPlan(v) {
     if (yr !== lastYear) { wrap.appendChild(el('div', 'plan-year', String(yr))); lastYear = yr; }
     const isNext = idx === 0;
     const card = el('div', 'card plan-ms' + (ms.major ? ' major' : '') + (isNext ? ' next' : ''));
-    card.innerHTML = `
+    card.innerHTML = html`
       <div class="plan-ms-head">
         <div class="plan-km">${fmt(ms.km)}<span>km</span></div>
         <div class="plan-meta">
-          ${isNext ? `<span class="plan-badge next">${t('Next up')}</span>` : ''}
-          ${ms.major ? `<span class="plan-badge">${t('Major service')}</span>` : ''}
+          ${isNext ? html`<span class="plan-badge next">${t('Next up')}</span>` : ''}
+          ${ms.major ? html`<span class="plan-badge">${t('Major service')}</span>` : ''}
           <span class="plan-when">≈ ${ms.date.toLocaleDateString('en', { month: 'short', year: 'numeric' })}</span>
         </div>
       </div>
       <div class="plan-items">
-        ${ms.items.map((s, i) => `<button class="plan-chip" data-i="${i}"><i>${s.icon || '🔧'}</i>${t(s.name)}</button>`).join('')}
+        ${ms.items.map((s, i) => html`<button class="plan-chip" data-i="${i}"><i>${s.icon || '🔧'}</i>${t(s.name)}</button>`)}
       </div>
-      <button class="plan-log">${iconSvg('check')}${t('Log this visit')}</button>`;
+      <button class="plan-log">${raw(iconSvg('check'))}${t('Log this visit')}</button>`;
     card.querySelectorAll('.plan-chip').forEach(btn => btn.onclick = () => {
       const s = ms.items[+btn.dataset.i];
       openLogConfirm([s], { checklist: true, onDone: () => { go('maintenance'); } });
@@ -489,7 +489,7 @@ function buildPlan(v) {
 
   const note = el('div', 'card');
   note.style.cssText = 'padding:13px 15px;margin-top:12px;font-size:12px;line-height:1.55;color:var(--text-2)';
-  note.innerHTML = `💡 ${t('This adapts to when you actually service the car — log a task off its usual interval and the plan re-times itself. Edit intervals under Schedule.')}`;
+  note.innerHTML = html`💡 ${t('This adapts to when you actually service the car — log a task off its usual interval and the plan re-times itself. Edit intervals under Schedule.')}`;
   v.appendChild(note);
 }
 
@@ -530,7 +530,7 @@ function openLogConfirm(services, opts) {
         const lp = partsForService(svc);
         const container = el('div', 'card log-svc');           // each service in its own container
         const head = el('div', 'log-svc-head');
-        head.innerHTML = `<div class="log-svc-title">${svc.icon || '🔧'} ${t(svc.name)}</div>`;
+        head.innerHTML = html`<div class="log-svc-title">${svc.icon || '🔧'} ${t(svc.name)}</div>`;
         const body = el('div', 'log-svc-body');
         const note = el('div', 'log-svc-note');
         note.textContent = '↪ ' + t('Carried to your next visit');
@@ -539,7 +539,7 @@ function openLogConfirm(services, opts) {
         if (svc.pendingParts && svc.pendingParts.length) {  // parts marked None last time
           const worst = svc.pendingParts.some(n => partCrit(n) === 'high') ? 'danger' : svc.pendingParts.some(n => partCrit(n) === 'med') ? 'warn' : 'ok';
           const pw = el('div', 'log-pending ' + worst);
-          pw.innerHTML = `⚠️ ${t('Skipped last time — do it now')}: ` + svc.pendingParts.map(n => `${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، ');
+          pw.innerHTML = html`⚠️ ${t('Skipped last time — do it now')}: ${raw(svc.pendingParts.map(n => html`${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، '))}`;
           body.appendChild(pw);
         }
         if (!lp.length) {
@@ -662,7 +662,7 @@ function openPlanSetup() {
       body.innerHTML = '';
 
       if (step === 0) {
-        body.innerHTML = `
+        body.innerHTML = html`
           <div class="item-ic">📍</div>
           <h3>${t('Which schedule fits your car?')}</h3>
           <p>${t('Jeddah heat & dust call for shorter intervals; the dealer sheet is the standard Mazda schedule.')}</p>
@@ -675,7 +675,7 @@ function openPlanSetup() {
           body.querySelectorAll('.wiz-opt').forEach(b => b.classList.toggle('on', b === btn));
         });
       } else if (step === 1) {
-        body.innerHTML = `
+        body.innerHTML = html`
           <div class="item-ic">🧭</div>
           <h3>${t('Current odometer')}</h3>
           <p>${t('Keeps every due date and estimate accurate.')}</p>
@@ -685,7 +685,7 @@ function openPlanSetup() {
         setTimeout(() => odoInput.focus(), 30);
       } else if (step === 2) {
         const displayVal = driveUnit === 'day' ? Math.round(dailyKm) : Math.round(dailyKm * 30);
-        body.innerHTML = `
+        body.innerHTML = html`
           <div class="item-ic">🛣️</div>
           <h3>${t('How much do you drive?')}</h3>
           <p>${t('Used to turn km into calendar dates, and to adjust the plan to your driving style — a rough average is fine.')}</p>
@@ -708,7 +708,7 @@ function openPlanSetup() {
       } else {
         const a = answers[step - 3];
         const s = a.s;
-        body.innerHTML = `
+        body.innerHTML = html`
           <div class="item-ic">${s.icon || '🔧'}</div>
           <h3>${t(s.name)}</h3>
           <p>${t('Have you had this done?')}</p>
@@ -826,7 +826,7 @@ function scheduleTimelineItem(s, st, isLast) {
   const item = el('div', 'tl-item' + (isLast ? ' last' : ''));
   const pillTxt = t(st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track');
   const kmTxt = st.kmLeft <= 0 ? `${fmt(-st.kmLeft)} ${t('km over')}` : `${fmt(st.kmLeft)} ${t('km left')}`;
-  item.innerHTML = `
+  item.innerHTML = html`
     <div class="tl-dot ${st.level}">${s.icon || '🔧'}</div>
     <div class="card tl-card">
       <div class="tl-top"><h3>${t(s.name)}</h3><span class="pill ${st.level}">${pillTxt}</span></div>
@@ -842,7 +842,7 @@ function buildHistory(v) {
   const last = hist[0];
 
   const tiles = el('div', 'tiles');
-  tiles.innerHTML = `
+  tiles.innerHTML = html`
     <div class="tile"><div class="t-num">${hist.length}</div><div class="t-cap">${t('Services logged')}</div></div>
     <div class="tile"><div class="t-num">${sar(totalCost)}</div><div class="t-cap">${t('SAR total')}</div></div>
     <div class="tile"><div class="t-num" style="font-size:15px;line-height:1.9">${last ? new Date(last.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'}</div><div class="t-cap">${t('Last service')}</div></div>`;
@@ -862,12 +862,12 @@ function buildHistory(v) {
     if (yr !== lastYear) { tl.appendChild(el('div', 'tl-year', yr)); lastYear = yr; }
     const item = el('div', 'tl-item' + (i === hist.length - 1 ? ' last' : ''));
     const d = new Date(e.date + 'T00:00:00');
-    item.innerHTML = `
+    item.innerHTML = html`
       <div class="tl-dot">${e.icon || '🔧'}</div>
       <div class="card tl-card">
         <div class="tl-top"><h3>${t(e.name)}${e.photo ? ' 🧾' : ''}</h3><div class="tl-cost">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</div></div>
         <div class="tl-sub">${d.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km</div>
-        ${e.note ? `<div class="tl-note">${e.note}</div>` : ''}
+        ${e.note ? html`<div class="tl-note">${e.note}</div>` : ''}
       </div>`;
     item.querySelector('.tl-card').onclick = () => openAddHistory(e);
     tl.appendChild(item);
@@ -879,12 +879,12 @@ function serviceItem(s, st, withBar) {
   const item = el('div', 'item');
   const pillTxt = t(st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track');
   const kmTxt = st.kmLeft <= 0 ? `${fmt(-st.kmLeft)} ${t('km over')}` : `${fmt(st.kmLeft)} ${t('km left')}`;
-  item.innerHTML = `
+  item.innerHTML = html`
     <div class="item-ic">${s.icon || '🔧'}</div>
     <div class="item-main">
       <h3>${s.deferred ? '⏰ ' : ''}${t(s.name)}</h3>
       <p>${s.deferred ? t('Skipped — do it') + ' · ' : ''}${st.drivenByTime ? relDate(st.dueDate) + ' · ' : ''}${kmTxt}</p>
-      ${withBar ? `<div class="bar ${st.level}"><span style="width:${clamp(st.prog, 0, 1) * 100}%"></span></div>` : ''}
+      ${withBar ? html`<div class="bar ${st.level}"><span style="width:${clamp(st.prog, 0, 1) * 100}%"></span></div>` : ''}
     </div>
     <div class="item-side"><span class="pill ${st.level}">${pillTxt}</span></div>`;
   item.onclick = () => openServiceDetail(s);
@@ -1727,15 +1727,15 @@ function openServiceDetail(s) {
   openModal(s.name, s.cat, card => {
     const pillTxt = t(st.level === 'danger' ? 'Overdue' : st.level === 'warn' ? 'Due soon' : 'On track');
     const box = el('div');
-    box.innerHTML = `
+    box.innerHTML = html`
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
-      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? ` <span class="muted" style="font-size:11px">· ${t(session.current().severity === 'severe' ? 'dealer' : 'severe')} ${fmt(session.current().severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
+      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? html` <span class="muted" style="font-size:11px">· ${t(session.current().severity === 'severe' ? 'dealer' : 'severe')} ${fmt(session.current().severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
       <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${new Date(s.lastDate + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
       <div class="detail-row"><span class="k">${t('Est. cost')}</span><span class="v">${sar(s.cost)} SAR</span></div>
-      ${s.pendingParts && s.pendingParts.length ? `<div class="log-pending ${s.pendingParts.some(n => partCrit(n) === 'high') ? 'danger' : s.pendingParts.some(n => partCrit(n) === 'med') ? 'warn' : 'ok'}" style="margin-top:14px">⚠️ ${t('Do next service')}: ${s.pendingParts.map(n => `${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، ')}</div>` : ''}
-      ${s.note ? `<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${t(s.note)}</p>` : ''}`;
+      ${s.pendingParts && s.pendingParts.length ? html`<div class="log-pending ${s.pendingParts.some(n => partCrit(n) === 'high') ? 'danger' : s.pendingParts.some(n => partCrit(n) === 'med') ? 'warn' : 'ok'}" style="margin-top:14px">⚠️ ${t('Do next service')}: ${raw(s.pendingParts.map(n => html`${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، '))}</div>` : ''}
+      ${s.note ? html`<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${t(s.note)}</p>` : ''}`;
     card.appendChild(box);
 
     // Parts this service needs — pulled live from the Parts catalog
@@ -1744,11 +1744,11 @@ function openServiceDetail(s) {
       const total = rel.reduce((a, p) => a + partCheapest(p), 0);
       const pb = el('div');
       pb.style.marginTop = '18px';
-      pb.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px">${t('Parts for this service')} · ~${sar(total)} SAR</div>`;
+      pb.innerHTML = html`<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px">${t('Parts for this service')} · ~${sar(total)} SAR</div>`;
       const pl = el('div', 'list');
       rel.forEach(p => {
         const it = el('div', 'item');
-        it.innerHTML = `<div class="item-ic">${p.icon || '🔩'}</div><div class="item-main"><h3>${t(p.name)}</h3><p>${t('from')} ${sar(partCheapest(p))} SAR · ${p.options.length} ${t('options')}</p></div><div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('View ›')}</span></div>`;
+        it.innerHTML = html`<div class="item-ic">${p.icon || '🔩'}</div><div class="item-main"><h3>${t(p.name)}</h3><p>${t('from')} ${sar(partCheapest(p))} SAR · ${p.options.length} ${t('options')}</p></div><div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('View ›')}</span></div>`;
         it.onclick = () => { closeModal(); go('parts', { openPart: p.id }); };
         pl.appendChild(it);
       });
@@ -1799,7 +1799,7 @@ function openAddHistory(e, prefill) {
     card.appendChild(photoPicker(hphoto, v => hphoto = v));
     if (!editing) {
       const chk = el('div', 'field');
-      chk.innerHTML = `<label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);font-weight:500;cursor:pointer">
+      chk.innerHTML = html`<label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);font-weight:500;cursor:pointer">
         <input type="checkbox" id="h_spend" checked style="width:auto;accent-color:var(--accent)"> ${t('Also add this cost to Budget')}</label>`;
       card.appendChild(chk);
     }
@@ -1884,14 +1884,14 @@ function openEditService(s) {
 function openLogService() {
   openModal('Log a service', 'A single service, or a whole plan visit at once.', card => {
     const single = el('div', 'card plan-setup-banner');
-    single.innerHTML = `<div class="r-ic">🔧</div><div style="flex:1"><h3>${t('Single service')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Pick one thing you just had done.')}</p></div>`;
+    single.innerHTML = html`<div class="r-ic">🔧</div><div style="flex:1"><h3>${t('Single service')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Pick one thing you just had done.')}</p></div>`;
     const bSingle = el('button', 'btn', t('Choose'));
     bSingle.onclick = () => { closeModal(); openLogSingleService(); };
     single.appendChild(bSingle);
     card.appendChild(single);
 
     const plan = el('div', 'card plan-setup-banner');
-    plan.innerHTML = `<div class="r-ic">🗓️</div><div style="flex:1"><h3>${t('Plan visit')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('A group of services from your plan, done together.')}</p></div>`;
+    plan.innerHTML = html`<div class="r-ic">🗓️</div><div style="flex:1"><h3>${t('Plan visit')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('A group of services from your plan, done together.')}</p></div>`;
     const bPlan = el('button', 'btn', t('Choose'));
     bPlan.onclick = () => { closeModal(); openLogPlanVisit(); };
     plan.appendChild(bPlan);
@@ -1918,7 +1918,7 @@ function openLogPlanVisit() {
     const list = el('div', 'list');
     milestones.forEach(ms => {
       const it = el('div', 'item');
-      it.innerHTML = `
+      it.innerHTML = html`
         <div class="item-ic">${ms.major ? '🛠️' : '🗓️'}</div>
         <div class="item-main"><h3>${fmt(ms.km)} km${ms.major ? ' · ' + t('Major service') : ''}</h3><p>${ms.items.map(s => t(s.name)).join(', ')}</p></div>
         <div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Log ›')}</span></div>`;
