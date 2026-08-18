@@ -185,3 +185,59 @@ test('every dialog renders in Arabic too', async () => {
   }
   cleanup();
 });
+
+/* Regression for the attribute-injection XSS found on 2026-08-18.
+   field() builds its inputs by interpolating values straight into
+   value="${...}" in an untagged template, across ~51 call sites. A stored
+   value containing a double quote closed the attribute and everything after
+   it became live markup — `" autofocus onfocus="alert(1)` produced a real
+   autofocus handler that fired with no user interaction.
+
+   These assert on ATTRIBUTES rather than on innerHTML text, because the
+   payload's damage is structural: it becomes part of the tag, not content. */
+const ATTR_PAYLOAD = '" autofocus onfocus="alert(1)';
+
+function assertNoAttributeInjection(root, label) {
+  assert.strictEqual(root.querySelectorAll('[onfocus]').length, 0, `${label}: payload became a live onfocus handler`);
+  assert.strictEqual(root.querySelectorAll('[autofocus]').length, 0, `${label}: payload injected an autofocus attribute`);
+  assert.strictEqual(root.querySelectorAll('[onerror]').length, 0, `${label}: payload became a live onerror handler`);
+}
+
+test('a hostile stored value cannot break out of an input attribute', async () => {
+  const { document, api, cleanup } = await bootApp();
+  const c = api.session.current();
+  c.car.nickname = ATTR_PAYLOAD;
+  c.car.make = ATTR_PAYLOAD;
+  c.car.plate = ATTR_PAYLOAD;
+  c.car.vin = ATTR_PAYLOAD;
+
+  api.openSettings();
+  const card = document.querySelector('#modalCard');
+  assertNoAttributeInjection(card, 'openSettings');
+
+  // and the value must survive intact as literal text, not be silently dropped
+  assert.strictEqual(card.querySelector('#c_nick').getAttribute('value'), ATTR_PAYLOAD,
+    'the nickname was escaped away instead of round-tripping');
+  cleanup();
+});
+
+test('a hostile part name cannot break out of the edit-part dialog', async () => {
+  const { document, api, cleanup } = await bootApp();
+  const p = api.session.current().parts[0];
+  p.name = ATTR_PAYLOAD;
+  if (p.options && p.options[0]) {
+    p.options[0].brand = ATTR_PAYLOAD;
+    p.options[0].store = ATTR_PAYLOAD;
+  }
+  api.go('parts');
+  api.openEditPart(p);
+  assertNoAttributeInjection(document.querySelector('#modalCard'), 'openEditPart');
+  cleanup();
+});
+
+test('a hostile document label cannot break out of the add-document dialog', async () => {
+  const { document, api, cleanup } = await bootApp();
+  api.openAddDoc({ type: 'Insurance', name: ATTR_PAYLOAD, number: ATTR_PAYLOAD, expiry: '2027-01-01' });
+  assertNoAttributeInjection(document.querySelector('#modalCard'), 'openAddDoc');
+  cleanup();
+});

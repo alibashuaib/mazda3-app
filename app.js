@@ -521,7 +521,7 @@ function openLogConfirm(services, opts) {
   openModal(opts.title || (services.length > 1 ? 'Log a plan visit' : services[0].name),
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
-      r.append(field('Odometer (km)', `<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : session.current().car.odometer}">`),
+      r.append(field('Odometer (km)', `<input id="lc_odo" type="number" value="${esc(opts.odometer != null ? opts.odometer : session.current().car.odometer)}">`),
         field('Date', `<input id="lc_date" type="date" value="${isoDate(today())}">`));
       card.appendChild(r);
 
@@ -1363,11 +1363,11 @@ function openAddFuel(e) {
   openModal(editing ? 'Edit fill-up' : 'Add fill-up', 'Record a refuel to track economy & cost.', card => {
     const r0 = el('div', 'field-row');
     r0.append(field('Date', `<input id="f_date" type="date" value="${e ? e.date : isoDate(today())}">`),
-      field('Odometer (km)', `<input id="f_odo" type="number" inputmode="numeric" value="${e ? e.odometer : session.current().car.odometer}">`));
+      field('Odometer (km)', `<input id="f_odo" type="number" inputmode="numeric" value="${esc(e ? e.odometer : session.current().car.odometer)}">`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
-    r1.append(field('Litres', `<input id="f_l" type="number" inputmode="decimal" step="0.01" value="${e ? e.litres : ''}" placeholder="${t('e.g. 42')}">`),
-      field('Cost (SAR)', `<input id="f_cost" type="number" inputmode="decimal" value="${e ? e.cost : ''}" placeholder="${t('e.g. 95')}">`));
+    r1.append(field('Litres', `<input id="f_l" type="number" inputmode="decimal" step="0.01" value="${esc(e ? e.litres : '')}" placeholder="${t('e.g. 42')}">`),
+      field('Cost (SAR)', `<input id="f_cost" type="number" inputmode="decimal" value="${esc(e ? e.cost : '')}" placeholder="${t('e.g. 95')}">`));
     card.appendChild(r1);
     card.appendChild(field('Tank', `<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
     const b = el('button', 'btn primary block', t('Save'));
@@ -1422,10 +1422,10 @@ function openAddDoc(d) {
   const types = Object.keys(DOC_ICONS);
   openModal(editing ? 'Edit document' : 'Add document', 'Track renewals so you never miss an expiry.', card => {
     card.appendChild(field('Type', `<select id="d_type">${types.map(ty => `<option value="${ty}" ${d && d.type === ty ? 'selected' : ''}>${t(ty)}</option>`).join('')}</select>`));
-    card.appendChild(field('Label (optional)', `<input id="d_name" value="${d ? (d.name || '') : ''}" placeholder="${t('e.g. Tawuniya comprehensive')}">`));
+    card.appendChild(field('Label (optional)', `<input id="d_name" value="${esc(d ? (d.name || '') : '')}" placeholder="${t('e.g. Tawuniya comprehensive')}">`));
     const r = el('div', 'field-row');
-    r.append(field('Expiry date', `<input id="d_exp" type="date" value="${d ? (d.expiry || '') : ''}">`),
-      field('Reference no. (optional)', `<input id="d_num" value="${d ? (d.number || '') : ''}">`));
+    r.append(field('Expiry date', `<input id="d_exp" type="date" value="${esc(d ? (d.expiry || '') : '')}">`),
+      field('Reference no. (optional)', `<input id="d_num" value="${esc(d ? (d.number || '') : '')}">`));
     card.appendChild(r);
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => {
@@ -1464,8 +1464,8 @@ function field(label, inputHtml) {
 
 function openEditOdo() {
   openModal('Update mileage', 'Keep this current so due dates stay accurate.', card => {
-    card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${session.current().car.odometer}">`));
-    card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${session.current().car.dailyKm}">`));
+    card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${esc(session.current().car.odometer)}">`));
+    card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${esc(session.current().car.dailyKm)}">`));
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => {
       const val = parseInt($('#m_odo').value, 10);
@@ -1610,9 +1610,9 @@ function openSettings() {
     };
     picker.querySelector('#s_rm').onclick = () => { photo = ''; prev.innerHTML = '🚗'; picker.querySelector('#s_pick').textContent = t('Add photo'); picker.querySelector('#s_rm').hidden = true; };
 
-    card.appendChild(field('Nickname (optional)', `<input id="c_nick" value="${c.nickname || ''}" placeholder="${t('e.g. The Gray Ghost')}">`));
+    card.appendChild(field('Nickname (optional)', `<input id="c_nick" value="${esc(c.nickname || '')}" placeholder="${t('e.g. The Gray Ghost')}">`));
     const r1 = el('div', 'field-row');
-    r1.append(field('Make', `<input id="c_make" value="${c.make || ''}">`), field('Model', `<input id="c_model" value="${c.model || ''}">`));
+    r1.append(field('Make', `<input id="c_make" value="${esc(c.make || '')}">`), field('Model', `<input id="c_model" value="${esc(c.model || '')}">`));
     card.appendChild(r1);
     const MAZDA3_COLORS = [
       'Soul Red Metallic (Code 41V)',
@@ -1629,7 +1629,7 @@ function openSettings() {
     let colorSel = MAZDA3_COLORS.find(x => normColor(x) === normColor(c.color));
     if (c.color && !colorSel) { colorOpts = [c.color, ...MAZDA3_COLORS]; colorSel = c.color; }
     const r2 = el('div', 'field-row');
-    r2.append(field('Year', `<input id="c_year" type="number" value="${c.year || ''}">`),
+    r2.append(field('Year', `<input id="c_year" type="number" value="${esc(c.year || '')}">`),
       field('Transmission', `<select id="c_trans">${['Automatic', 'Manual'].map(tr => `<option value="${tr}" ${c.transmission === tr ? 'selected' : ''}>${t(tr)}</option>`).join('')}</select>`));
     card.appendChild(r2);
 
@@ -1669,8 +1669,8 @@ function openSettings() {
     if (c.engine && !engSel) { engOpts = [c.engine, ...ENGINES]; engSel = c.engine; }
     card.appendChild(field('Engine', `<select id="c_engine">${engOpts.map(e => `<option ${e === engSel ? 'selected' : ''}>${e}</option>`).join('')}</select>`));
     const r4 = el('div', 'field-row');
-    r4.append(field('Plate number', `<input id="c_plate" value="${c.plate || ''}" placeholder="${t('e.g. ABC 1234')}">`),
-      field('VIN', `<input id="c_vin" value="${c.vin || ''}" placeholder="${t('17-char VIN')}">`));
+    r4.append(field('Plate number', `<input id="c_plate" value="${esc(c.plate || '')}" placeholder="${t('e.g. ABC 1234')}">`),
+      field('VIN', `<input id="c_vin" value="${esc(c.vin || '')}" placeholder="${t('17-char VIN')}">`));
     card.appendChild(r4);
 
     const b = el('button', 'btn primary block', t('Save profile'));
@@ -1715,7 +1715,7 @@ function openSettings() {
 
 function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
-    card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${session.current().budget.annual}">`));
+    card.appendChild(field('Budget (SAR / year)', `<input id="m_budget" type="number" inputmode="numeric" value="${esc(session.current().budget.annual)}">`));
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) session.current().budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); });
     card.appendChild(b);
@@ -1783,17 +1783,17 @@ function openAddHistory(e, prefill) {
   const p = e || prefill || {}; // prefill = { name, icon, cat, odometer, cost } from the plan
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Other'];
   openModal(editing ? 'Edit service record' : 'Log a past service', editing ? '' : 'Record work already done on your car.', card => {
-    card.appendChild(field('Service', `<input id="h_name" value="${p.name || ''}" placeholder="${t('e.g. Timing chain inspection')}">`));
+    card.appendChild(field('Service', `<input id="h_name" value="${esc(p.name || '')}" placeholder="${t('e.g. Timing chain inspection')}">`));
     const r0 = el('div', 'field-row');
     r0.append(field('Icon (emoji)', `<input id="h_icon" value="${p.icon || '🔧'}" maxlength="2">`),
       field('Category', `<select id="h_cat">${cats.map(c => `<option value="${c}" ${p.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
     r1.append(field('Date', `<input id="h_date" type="date" value="${e ? e.date : isoDate(today())}">`),
-      field('Odometer (km)', `<input id="h_odo" type="number" value="${p.odometer != null ? p.odometer : session.current().car.odometer}">`));
+      field('Odometer (km)', `<input id="h_odo" type="number" value="${esc(p.odometer != null ? p.odometer : session.current().car.odometer)}">`));
     card.appendChild(r1);
-    card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${p.cost != null ? p.cost : 0}">`));
-    card.appendChild(field('Note', `<textarea id="h_note" rows="2">${e ? (e.note || '') : ''}</textarea>`));
+    card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${esc(p.cost != null ? p.cost : 0)}">`));
+    card.appendChild(field('Note', `<textarea id="h_note" rows="2">${esc(e ? (e.note || '') : '')}</textarea>`));
     let hphoto = e ? (e.photo || '') : '';
     card.appendChild(field('Receipt / invoice', ''));
     card.appendChild(photoPicker(hphoto, v => hphoto = v));
@@ -1837,7 +1837,7 @@ function openAddHistory(e, prefill) {
 function openEditService(s) {
   const editing = !!s;
   openModal(editing ? 'Edit service' : 'New service', 'Set the interval and last service point.', card => {
-    card.appendChild(field('Name', `<input id="s_name" value="${s ? s.name : ''}" placeholder="${t('e.g. Timing chain check')}">`));
+    card.appendChild(field('Name', `<input id="s_name" value="${esc(s ? s.name : '')}" placeholder="${t('e.g. Timing chain check')}">`));
     card.appendChild(field('Icon (emoji)', `<input id="s_icon" value="${s ? s.icon : '🔧'}" maxlength="2">`));
     const row1 = el('div', 'field-row');
     row1.append(field('Interval (km)', `<input id="s_ikm" type="number" value="${s ? s.intervalKm : 10000}">`),
@@ -1848,14 +1848,14 @@ function openEditService(s) {
       field('Dealer interval (mo)', `<input id="s_nmo" type="number" value="${s && s.normalMonths ? s.normalMonths : ''}" placeholder="${t('same as above')}">`));
     card.appendChild(row1b);
     const row2 = el('div', 'field-row');
-    row2.append(field('Last done (km)', `<input id="s_lkm" type="number" value="${s ? s.lastKm : session.current().car.odometer}">`),
+    row2.append(field('Last done (km)', `<input id="s_lkm" type="number" value="${esc(s ? s.lastKm : session.current().car.odometer)}">`),
       field('Last done (date)', `<input id="s_ldate" type="date" value="${s ? s.lastDate : isoDate(today())}">`));
     card.appendChild(row2);
     const row3 = el('div', 'field-row');
     row3.append(field('Category', `<input id="s_cat" value="${s ? s.cat : 'General'}">`),
-      field('Est. cost (SAR)', `<input id="s_cost" type="number" value="${s ? s.cost : 0}">`));
+      field('Est. cost (SAR)', `<input id="s_cost" type="number" value="${esc(s ? s.cost : 0)}">`));
     card.appendChild(row3);
-    card.appendChild(field('Note', `<textarea id="s_note" rows="2">${s ? (s.note || '') : ''}</textarea>`));
+    card.appendChild(field('Note', `<textarea id="s_note" rows="2">${esc(s ? (s.note || '') : '')}</textarea>`));
     const b = el('button', 'btn primary block', t('Save service'));
     onAsyncClick(b, async () => {
       const name = $('#s_name').value.trim();
@@ -1938,13 +1938,13 @@ function openAddSpending(e) {
       card.appendChild(field('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>',
         `<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
     }
-    card.appendChild(field('Description', `<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
+    card.appendChild(field('Description', `<input id="x_desc" value="${esc(e ? e.desc : '')}" placeholder="${t('e.g. New front brake pads')}">`));
     const row = el('div', 'field-row');
     row.append(field('Amount (SAR)', `<input id="x_amt" type="number" inputmode="numeric" value="${e ? e.amount : ''}">`),
       field('Date', `<input id="x_date" type="date" value="${e ? e.date : isoDate(today())}">`));
     card.appendChild(row);
     card.appendChild(field('Category', `<select id="x_cat">${cats.map(c => `<option value="${c}" ${e && e.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
-    card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${e ? e.odometer : session.current().car.odometer}">`));
+    card.appendChild(field('Odometer at time (km)', `<input id="x_odo" type="number" value="${esc(e ? e.odometer : session.current().car.odometer)}">`));
     let xphoto = e ? (e.photo || '') : '';
     card.appendChild(field('Receipt / invoice', ''));
     card.appendChild(photoPicker(xphoto, v => xphoto = v));
@@ -1979,7 +1979,7 @@ function openAddSpending(e) {
 function openEditPart(p) {
   const editing = !!p;
   openModal(editing ? 'Edit part' : 'New part', 'Add the OEM option and any alternatives.', card => {
-    card.appendChild(field('Part name', `<input id="p_name" value="${p ? p.name : ''}" placeholder="${t('e.g. Front Brake Pads')}">`));
+    card.appendChild(field('Part name', `<input id="p_name" value="${esc(p ? p.name : '')}" placeholder="${t('e.g. Front Brake Pads')}">`));
     const row = el('div', 'field-row');
     const curCat = p ? p.cat : 'Engine';
     const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...session.current().parts.map(x => x.cat), curCat])];
@@ -2005,12 +2005,12 @@ function openEditPart(p) {
             <div class="field" style="margin:0"><label>${t('Type')}</label><select data-k="tag"><option ${o.tag === 'OEM' ? 'selected' : ''}>OEM</option><option ${o.tag !== 'OEM' ? 'selected' : ''}>ALT</option></select></div>
             <div class="field" style="margin:0"><label>${t('Price (SAR)')}</label><input type="number" data-k="price" value="${o.price}"></div>
           </div>
-          <div class="field" style="margin:0 0 8px"><label>${t('Brand / product')}</label><input data-k="brand" value="${o.brand || ''}"></div>
+          <div class="field" style="margin:0 0 8px"><label>${t('Brand / product')}</label><input data-k="brand" value="${esc(o.brand || '')}"></div>
           <div class="field-row" style="margin-bottom:8px">
-            <div class="field" style="margin:0"><label>${t('Part no.')}</label><input data-k="partNo" value="${o.partNo || ''}"></div>
-            <div class="field" style="margin:0"><label>${t('Store')}</label><input data-k="store" value="${o.store || ''}"></div>
+            <div class="field" style="margin:0"><label>${t('Part no.')}</label><input data-k="partNo" value="${esc(o.partNo || '')}"></div>
+            <div class="field" style="margin:0"><label>${t('Store')}</label><input data-k="store" value="${esc(o.store || '')}"></div>
           </div>
-          <div class="field" style="margin:0"><label>${t('Note')}</label><input data-k="note" value="${o.note || ''}"></div>`;
+          <div class="field" style="margin:0"><label>${t('Note')}</label><input data-k="note" value="${esc(o.note || '')}"></div>`;
         box.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { o[inp.dataset.k] = inp.type === 'number' ? +inp.value : inp.value; });
         if (opts.length > 1) {
           const rm = el('button', 'btn ghost', t('Remove option')); rm.style.cssText = 'margin-top:8px;font-size:12px;padding:7px;color:var(--danger)';
