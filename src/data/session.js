@@ -25,6 +25,7 @@
   let _booted = false;
   let _photos = {};          // photo id -> Blob, for the active session
   let _liveUrls = [];
+  let _generation = 0;       // bumped by clear(); save() checks this before touching session state
 
   /* Browser bits are injected so the whole module is testable under Node,
      and so a future sign-in flow can swap the notifier. */
@@ -144,8 +145,10 @@
     if (!v) return Promise.resolve(false);
     v.data = _state;
     const data = _state;        // `_state` may move before this resolves
+    const gen = _generation;    // clear() during the in-flight write must not touch the next session's state
     const doSave = env.saveVehicle || dep.saveVehicle;
-    return Promise.resolve(doSave(v.id, data, _garage.activeId, dep.uid)).then(res => {
+    return Promise.resolve().then(() => doSave(v.id, data, _garage.activeId, dep.uid)).then(res => {
+      if (gen !== _generation) return false;   // a clear() happened mid-save — stale write, no side effects
       if (res.ok) {
         dep.applyPhotoIds(data, res.data);
         cacheNewPhotos(data, res.photoIds);
@@ -153,6 +156,12 @@
         return true;
       }
       env.notify(dep.isQuotaError(res.error)
+        ? 'Storage is full — your change was NOT saved. Remove some receipt photos.'
+        : 'Could not save your change.', 'warn');
+      return false;
+    }).catch(err => {
+      if (gen !== _generation) return false;   // stale write — resolve false, no notify, no cache writes
+      env.notify(dep.isQuotaError(err)
         ? 'Storage is full — your change was NOT saved. Remove some receipt photos.'
         : 'Could not save your change.', 'warn');
       return false;
@@ -165,6 +174,7 @@
      the previous user's photo stays on screen. Phase 4 adds a storage wipe
      beside this call. */
   function clear() {
+    _generation++;             // invalidates any save() already in flight
     revokeObjectUrls();
     _garage = null;
     _state = null;
