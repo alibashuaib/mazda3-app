@@ -72,15 +72,15 @@ function chooseVehicle(id) {
 function addVehicle() { openAddVehicle(); }
 function openAddVehicle() {
   openModal('Add a Mazda', 'Pick the model and engine — its SkyActiv service plan is set up for you.', card => {
-    card.appendChild(field('Model', `<select id="av_model">${CAR_MODELS.map((m, i) => `<option value="${i}">Mazda ${m.model} · ${m.gen}</option>`).join('')}</select>`));
-    const engField = field('Engine', `<select id="av_eng"></select>`);
+    card.appendChild(field('Model', html`<select id="av_model">${CAR_MODELS.map((m, i) => html`<option value="${i}">Mazda ${m.model} · ${m.gen}</option>`)}</select>`));
+    const engField = field('Engine', html`<select id="av_eng"></select>`);
     card.appendChild(engField);
     const r = el('div', 'field-row');
-    r.append(field('Current odometer (km)', `<input id="av_odo" type="number" inputmode="numeric" value="0">`),
-      field('Year', `<input id="av_year" type="number" inputmode="numeric" placeholder="${t('e.g. 2019')}">`));
+    r.append(field('Current odometer (km)', html`<input id="av_odo" type="number" inputmode="numeric" value="0">`),
+      field('Year', html`<input id="av_year" type="number" inputmode="numeric" placeholder="${t('e.g. 2019')}">`));
     card.appendChild(r);
     const modelSel = card.querySelector('#av_model'), engSel = card.querySelector('#av_eng');
-    const fillEngines = () => { engSel.innerHTML = CAR_MODELS[+modelSel.value].engines.map((e, i) => `<option value="${i}">${e[0]}</option>`).join(''); };
+    const fillEngines = () => { engSel.innerHTML = html`${CAR_MODELS[+modelSel.value].engines.map((e, i) => html`<option value="${i}">${e[0]}</option>`)}`; };
     modelSel.value = '1'; fillEngines();          // default to Mazda 3 BM
     modelSel.onchange = fillEngines;
     const b = el('button', 'btn primary block', t('Add a vehicle'));
@@ -476,7 +476,7 @@ function buildPlan(v) {
       <div class="plan-items">
         ${ms.items.map((s, i) => html`<button class="plan-chip" data-i="${i}"><i>${s.icon || '🔧'}</i>${t(s.name)}</button>`)}
       </div>
-      <button class="plan-log">${raw(iconSvg('check'))}${t('Log this visit')}</button>`;
+      <button class="plan-log">${iconSvg('check')}${t('Log this visit')}</button>`;
     card.querySelectorAll('.plan-chip').forEach(btn => btn.onclick = () => {
       const s = ms.items[+btn.dataset.i];
       openLogConfirm([s], { checklist: true, onDone: () => { go('maintenance'); } });
@@ -521,8 +521,8 @@ function openLogConfirm(services, opts) {
   openModal(opts.title || (services.length > 1 ? 'Log a plan visit' : services[0].name),
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
-      r.append(field('Odometer (km)', `<input id="lc_odo" type="number" value="${esc(opts.odometer != null ? opts.odometer : session.current().car.odometer)}">`),
-        field('Date', `<input id="lc_date" type="date" value="${isoDate(today())}">`));
+      r.append(field('Odometer (km)', html`<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : session.current().car.odometer}">`),
+        field('Date', html`<input id="lc_date" type="date" value="${isoDate(today())}">`));
       card.appendChild(r);
 
       const picks = new Map(); // `${part.id}:${svc.id}` -> <select>
@@ -548,8 +548,9 @@ function openLogConfirm(services, opts) {
           body.appendChild(d);
         }
         lp.forEach(p => {
-          const optsHtml = `<option value="none">— ${t('None — not done')} —</option>` + p.options.map((o, i) => `<option value="${i}">${o.tag} · ${o.brand} · ${sar(o.price)} SAR</option>`).join('');
-          const f = field(t(p.name), `<select>${optsHtml}</select>`);
+          const optsHtml = [html`<option value="none">— ${t('None — not done')} —</option>`,
+            ...p.options.map((o, i) => html`<option value="${i}">${o.tag} · ${o.brand} · ${sar(o.price)} SAR</option>`)];
+          const f = field(t(p.name), html`<select>${optsHtml}</select>`);
           const sel = f.querySelector('select');
           sel.value = String(defIdx(p));
           sel.onchange = recalc;
@@ -1097,7 +1098,7 @@ function renderReports() {
     b.onclick = () => { reportType = k; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
     seg.appendChild(b);
   });
-  const printBtn = el('button', 'btn primary', `<svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>${t('Print / Save PDF')}`);
+  const printBtn = el('button', 'btn primary', html`<svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>${t('Print / Save PDF')}`);
   printBtn.onclick = () => window.print();
   toolbar.append(seg, printBtn);
   v.appendChild(toolbar);
@@ -1458,7 +1459,13 @@ function closeModal() { $('#modalHost').hidden = true; }
    it is a race, and races do not show up in a render. */
 function field(label, inputHtml) {
   const f = el('div', 'field');
-  f.innerHTML = `<label>${t(label)}</label>${inputHtml}`;
+  // label is normally translation-key plain text and must stay escaped. One
+  // caller (openAddSpending's "Quick pick" label) hardcodes a <span> for
+  // styling and passes it pre-wrapped in raw() — t() still runs (both the
+  // English and Arabic strings are markup by design) but the translated
+  // result is re-marked raw so it isn't escaped a second time here.
+  const lbl = label instanceof Raw ? raw(t(String(label))) : t(label);
+  f.innerHTML = html`<label>${lbl}</label>${inputHtml}`;
   return f;
 }
 
@@ -1519,8 +1526,8 @@ function photoPicker(current, onChange, label) {
   let photo = current || '';
   const wrap = el('div', 'photo-picker');
   wrap.style.marginBottom = '14px';
-  wrap.innerHTML = `
-    <div class="photo-preview" data-prev style="cursor:${photo ? 'zoom-in' : 'default'}">${photo ? `<img src="${photo}">` : '🧾'}</div>
+  wrap.innerHTML = html`
+    <div class="photo-preview" data-prev style="cursor:${photo ? 'zoom-in' : 'default'}">${photo ? html`<img src="${photo}">` : '🧾'}</div>
     <div class="photo-actions">
       <button class="btn" type="button" data-pick>${photo ? t('Change receipt') : (label || t('Add receipt photo'))}</button>
       <button class="btn ghost" type="button" data-rm ${photo ? '' : 'hidden'} style="color:var(--danger)">${t('Remove')}</button>
@@ -1529,14 +1536,14 @@ function photoPicker(current, onChange, label) {
   const prev = wrap.querySelector('[data-prev]'), pick = wrap.querySelector('[data-pick]'), rm = wrap.querySelector('[data-rm]'), file = wrap.querySelector('[data-file]');
   pick.onclick = () => file.click();
   prev.onclick = () => { if (photo) openImage(photo); };
-  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = `<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); }); };
+  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = html`<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); }); };
   rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); };
   return wrap;
 }
 function openImage(url) {
   const host = el('div');
   host.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:20px;cursor:zoom-out';
-  host.innerHTML = `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8)">`;
+  host.innerHTML = html`<img src="${url}" style="max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8)">`;
   host.onclick = () => host.remove();
   document.body.appendChild(host);
 }
@@ -1549,10 +1556,10 @@ function openGarage() {
       const c = v.data.car;
       const active = v.id === session.garage().activeId;
       const it = el('div', 'item');
-      it.innerHTML = `
-        <div class="item-ic" style="overflow:hidden">${c.photo ? `<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : '🚗'}</div>
+      it.innerHTML = html`
+        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : '🚗'}</div>
         <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
-        <div class="item-side">${active ? `<span class="pill ok">${t('Active')}</span>` : `<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
+        <div class="item-side">${active ? html`<span class="pill ok">${t('Active')}</span>` : html`<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
       it.onclick = () => { if (active) { closeModal(); openSettings(); } else chooseVehicle(v.id); };
       list.appendChild(it);
     });
@@ -1584,8 +1591,8 @@ function openSettings() {
     const planRow = el('div', 'card plan-setup-banner');
     planRow.style.margin = '0 0 16px';
     planRow.innerHTML = session.current().planSetupDone
-      ? `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`
-      : `<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
+      ? html`<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`
+      : html`<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
     const planBtn = el('button', session.current().planSetupDone ? 'btn ghost' : 'btn', t(session.current().planSetupDone ? 'Edit' : 'Set up'));
     planBtn.onclick = () => { closeModal(); openPlanSetup(); };
     planRow.appendChild(planBtn);
@@ -1594,8 +1601,8 @@ function openSettings() {
     let photo = c.photo || '';
 
     const picker = el('div', 'photo-picker');
-    picker.innerHTML = `
-      <div class="photo-preview" id="s_prev">${photo ? `<img src="${photo}">` : '🚗'}</div>
+    picker.innerHTML = html`
+      <div class="photo-preview" id="s_prev">${photo ? html`<img src="${photo}">` : '🚗'}</div>
       <div class="photo-actions">
         <button class="btn" id="s_pick">${photo ? t('Change photo') : t('Add photo')}</button>
         <button class="btn ghost" id="s_rm" ${photo ? '' : 'hidden'} style="color:var(--danger)">${t('Remove')}</button>
@@ -1606,13 +1613,13 @@ function openSettings() {
     picker.querySelector('#s_pick').onclick = () => picker.querySelector('#s_file').click();
     picker.querySelector('#s_file').onchange = e => {
       const f = e.target.files[0]; if (!f) return;
-      readImageResized(f, url => { photo = url; prev.innerHTML = `<img src="${url}">`; picker.querySelector('#s_pick').textContent = t('Change photo'); picker.querySelector('#s_rm').hidden = false; });
+      readImageResized(f, url => { photo = url; prev.innerHTML = html`<img src="${url}">`; picker.querySelector('#s_pick').textContent = t('Change photo'); picker.querySelector('#s_rm').hidden = false; });
     };
     picker.querySelector('#s_rm').onclick = () => { photo = ''; prev.innerHTML = '🚗'; picker.querySelector('#s_pick').textContent = t('Add photo'); picker.querySelector('#s_rm').hidden = true; };
 
-    card.appendChild(field('Nickname (optional)', `<input id="c_nick" value="${esc(c.nickname || '')}" placeholder="${t('e.g. The Gray Ghost')}">`));
+    card.appendChild(field('Nickname (optional)', html`<input id="c_nick" value="${c.nickname || ''}" placeholder="${t('e.g. The Gray Ghost')}">`));
     const r1 = el('div', 'field-row');
-    r1.append(field('Make', `<input id="c_make" value="${esc(c.make || '')}">`), field('Model', `<input id="c_model" value="${esc(c.model || '')}">`));
+    r1.append(field('Make', html`<input id="c_make" value="${c.make || ''}">`), field('Model', html`<input id="c_model" value="${c.model || ''}">`));
     card.appendChild(r1);
     const MAZDA3_COLORS = [
       'Soul Red Metallic (Code 41V)',
@@ -1629,12 +1636,12 @@ function openSettings() {
     let colorSel = MAZDA3_COLORS.find(x => normColor(x) === normColor(c.color));
     if (c.color && !colorSel) { colorOpts = [c.color, ...MAZDA3_COLORS]; colorSel = c.color; }
     const r2 = el('div', 'field-row');
-    r2.append(field('Year', `<input id="c_year" type="number" value="${esc(c.year || '')}">`),
-      field('Transmission', `<select id="c_trans">${['Automatic', 'Manual'].map(tr => `<option value="${tr}" ${c.transmission === tr ? 'selected' : ''}>${t(tr)}</option>`).join('')}</select>`));
+    r2.append(field('Year', html`<input id="c_year" type="number" value="${c.year || ''}">`),
+      field('Transmission', html`<select id="c_trans">${['Automatic', 'Manual'].map(tr => html`<option value="${tr}" ${c.transmission === tr ? 'selected' : ''}>${t(tr)}</option>`)}</select>`));
     card.appendChild(r2);
 
     // Colour — custom dropdown with a colour sample beside each name (full width)
-    const colorField = field('Color', `
+    const colorField = field('Color', html`
       <div class="color-picker" id="c_colorPick">
         <input type="hidden" id="c_color" value="${colorSel || ''}">
         <button type="button" class="color-trigger">
@@ -1643,7 +1650,7 @@ function openSettings() {
           <svg class="ct-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="color-menu" hidden>
-          ${colorOpts.map(x => `<button type="button" class="color-opt${x === colorSel ? ' sel' : ''}" data-val="${x}"><span class="sw" style="background:${swatchFor(x)}"></span><span>${x}</span></button>`).join('')}
+          ${colorOpts.map(x => html`<button type="button" class="color-opt${x === colorSel ? ' sel' : ''}" data-val="${x}"><span class="sw" style="background:${swatchFor(x)}"></span><span>${x}</span></button>`)}
         </div>
       </div>`);
     card.appendChild(colorField);
@@ -1667,10 +1674,10 @@ function openSettings() {
     let engOpts = ENGINES.slice();
     let engSel = ENGINES.find(e => c.engine && ((c.engine.includes('1.6') && e.includes('1.6')) || (c.engine.includes('2.0') && e.includes('2.0'))));
     if (c.engine && !engSel) { engOpts = [c.engine, ...ENGINES]; engSel = c.engine; }
-    card.appendChild(field('Engine', `<select id="c_engine">${engOpts.map(e => `<option ${e === engSel ? 'selected' : ''}>${e}</option>`).join('')}</select>`));
+    card.appendChild(field('Engine', html`<select id="c_engine">${engOpts.map(e => html`<option ${e === engSel ? 'selected' : ''}>${e}</option>`)}</select>`));
     const r4 = el('div', 'field-row');
-    r4.append(field('Plate number', `<input id="c_plate" value="${esc(c.plate || '')}" placeholder="${t('e.g. ABC 1234')}">`),
-      field('VIN', `<input id="c_vin" value="${esc(c.vin || '')}" placeholder="${t('17-char VIN')}">`));
+    r4.append(field('Plate number', html`<input id="c_plate" value="${c.plate || ''}" placeholder="${t('e.g. ABC 1234')}">`),
+      field('VIN', html`<input id="c_vin" value="${c.vin || ''}" placeholder="${t('17-char VIN')}">`));
     card.appendChild(r4);
 
     const b = el('button', 'btn primary block', t('Save profile'));
@@ -1696,7 +1703,7 @@ function openSettings() {
     }
     const backup = el('div');
     backup.style.cssText = 'margin-top:22px;padding-top:16px;border-top:1px solid var(--stroke)';
-    backup.innerHTML = `<div class="section-title"><div class="section-title-left"><h2>${t('Backup & restore')}</h2></div></div>
+    backup.innerHTML = html`<div class="section-title"><div class="section-title-left"><h2>${t('Backup & restore')}</h2></div></div>
       <p style="font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:12px">${t('A backup file holds every vehicle, service, receipt and photo.')}</p>`;
     const exp = el('button', 'btn block', t('Export backup'));
     exp.onclick = exportGarage;
@@ -1783,17 +1790,17 @@ function openAddHistory(e, prefill) {
   const p = e || prefill || {}; // prefill = { name, icon, cat, odometer, cost } from the plan
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Other'];
   openModal(editing ? 'Edit service record' : 'Log a past service', editing ? '' : 'Record work already done on your car.', card => {
-    card.appendChild(field('Service', `<input id="h_name" value="${esc(p.name || '')}" placeholder="${t('e.g. Timing chain inspection')}">`));
+    card.appendChild(field('Service', html`<input id="h_name" value="${p.name || ''}" placeholder="${t('e.g. Timing chain inspection')}">`));
     const r0 = el('div', 'field-row');
-    r0.append(field('Icon (emoji)', `<input id="h_icon" value="${p.icon || '🔧'}" maxlength="2">`),
-      field('Category', `<select id="h_cat">${cats.map(c => `<option value="${c}" ${p.cat === c ? 'selected' : ''}>${t(c)}</option>`).join('')}</select>`));
+    r0.append(field('Icon (emoji)', html`<input id="h_icon" value="${p.icon || '🔧'}" maxlength="2">`),
+      field('Category', html`<select id="h_cat">${cats.map(c => html`<option value="${c}" ${p.cat === c ? 'selected' : ''}>${t(c)}</option>`)}</select>`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
-    r1.append(field('Date', `<input id="h_date" type="date" value="${e ? e.date : isoDate(today())}">`),
-      field('Odometer (km)', `<input id="h_odo" type="number" value="${esc(p.odometer != null ? p.odometer : session.current().car.odometer)}">`));
+    r1.append(field('Date', html`<input id="h_date" type="date" value="${e ? e.date : isoDate(today())}">`),
+      field('Odometer (km)', html`<input id="h_odo" type="number" value="${p.odometer != null ? p.odometer : session.current().car.odometer}">`));
     card.appendChild(r1);
-    card.appendChild(field('Cost (SAR)', `<input id="h_cost" type="number" value="${esc(p.cost != null ? p.cost : 0)}">`));
-    card.appendChild(field('Note', `<textarea id="h_note" rows="2">${esc(e ? (e.note || '') : '')}</textarea>`));
+    card.appendChild(field('Cost (SAR)', html`<input id="h_cost" type="number" value="${p.cost != null ? p.cost : 0}">`));
+    card.appendChild(field('Note', html`<textarea id="h_note" rows="2">${e ? (e.note || '') : ''}</textarea>`));
     let hphoto = e ? (e.photo || '') : '';
     card.appendChild(field('Receipt / invoice', ''));
     card.appendChild(photoPicker(hphoto, v => hphoto = v));
@@ -1837,25 +1844,25 @@ function openAddHistory(e, prefill) {
 function openEditService(s) {
   const editing = !!s;
   openModal(editing ? 'Edit service' : 'New service', 'Set the interval and last service point.', card => {
-    card.appendChild(field('Name', `<input id="s_name" value="${esc(s ? s.name : '')}" placeholder="${t('e.g. Timing chain check')}">`));
-    card.appendChild(field('Icon (emoji)', `<input id="s_icon" value="${s ? s.icon : '🔧'}" maxlength="2">`));
+    card.appendChild(field('Name', html`<input id="s_name" value="${s ? s.name : ''}" placeholder="${t('e.g. Timing chain check')}">`));
+    card.appendChild(field('Icon (emoji)', html`<input id="s_icon" value="${s ? s.icon : '🔧'}" maxlength="2">`));
     const row1 = el('div', 'field-row');
-    row1.append(field('Interval (km)', `<input id="s_ikm" type="number" value="${s ? s.intervalKm : 10000}">`),
-      field('Interval (months)', `<input id="s_imo" type="number" value="${s ? s.intervalMonths : 12}">`));
+    row1.append(field('Interval (km)', html`<input id="s_ikm" type="number" value="${s ? s.intervalKm : 10000}">`),
+      field('Interval (months)', html`<input id="s_imo" type="number" value="${s ? s.intervalMonths : 12}">`));
     card.appendChild(row1);
     const row1b = el('div', 'field-row');
-    row1b.append(field('Dealer interval (km)', `<input id="s_nkm" type="number" value="${s && s.normalKm ? s.normalKm : ''}" placeholder="${t('same as above')}">`),
-      field('Dealer interval (mo)', `<input id="s_nmo" type="number" value="${s && s.normalMonths ? s.normalMonths : ''}" placeholder="${t('same as above')}">`));
+    row1b.append(field('Dealer interval (km)', html`<input id="s_nkm" type="number" value="${s && s.normalKm ? s.normalKm : ''}" placeholder="${t('same as above')}">`),
+      field('Dealer interval (mo)', html`<input id="s_nmo" type="number" value="${s && s.normalMonths ? s.normalMonths : ''}" placeholder="${t('same as above')}">`));
     card.appendChild(row1b);
     const row2 = el('div', 'field-row');
-    row2.append(field('Last done (km)', `<input id="s_lkm" type="number" value="${esc(s ? s.lastKm : session.current().car.odometer)}">`),
-      field('Last done (date)', `<input id="s_ldate" type="date" value="${s ? s.lastDate : isoDate(today())}">`));
+    row2.append(field('Last done (km)', html`<input id="s_lkm" type="number" value="${s ? s.lastKm : session.current().car.odometer}">`),
+      field('Last done (date)', html`<input id="s_ldate" type="date" value="${s ? s.lastDate : isoDate(today())}">`));
     card.appendChild(row2);
     const row3 = el('div', 'field-row');
-    row3.append(field('Category', `<input id="s_cat" value="${s ? s.cat : 'General'}">`),
-      field('Est. cost (SAR)', `<input id="s_cost" type="number" value="${esc(s ? s.cost : 0)}">`));
+    row3.append(field('Category', html`<input id="s_cat" value="${s ? s.cat : 'General'}">`),
+      field('Est. cost (SAR)', html`<input id="s_cost" type="number" value="${s ? s.cost : 0}">`));
     card.appendChild(row3);
-    card.appendChild(field('Note', `<textarea id="s_note" rows="2">${esc(s ? (s.note || '') : '')}</textarea>`));
+    card.appendChild(field('Note', html`<textarea id="s_note" rows="2">${s ? (s.note || '') : ''}</textarea>`));
     const b = el('button', 'btn primary block', t('Save service'));
     onAsyncClick(b, async () => {
       const name = $('#s_name').value.trim();
@@ -1935,7 +1942,7 @@ function openAddSpending(e) {
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
       const partOpts = session.current().parts.map((p, i) => html`<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`);
-      card.appendChild(field('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>',
+      card.appendChild(field(raw('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>'),
         html`<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
     }
     card.appendChild(field('Description', html`<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
@@ -2061,12 +2068,12 @@ function sectionTitle(title, linkTxt, onLink, badge) {
 function pageIntro(title, sub) {
   const d = el('div');
   d.style.margin = '6px 4px 8px';
-  d.innerHTML = `<h2 style="font-size:22px;font-weight:800;letter-spacing:-.4px">${t(title)}</h2><p class="muted" style="font-size:13px;margin-top:4px;line-height:1.5">${t(sub)}</p>`;
+  d.innerHTML = html`<h2 style="font-size:22px;font-weight:800;letter-spacing:-.4px">${t(title)}</h2><p class="muted" style="font-size:13px;margin-top:4px;line-height:1.5">${t(sub)}</p>`;
   return d;
 }
 function emptyState(emoji, txt) {
   const e = el('div', 'empty');
-  e.innerHTML = `<div class="e-emoji">${emoji}</div><p>${t(txt)}</p>`;
+  e.innerHTML = html`<div class="e-emoji">${emoji}</div><p>${t(txt)}</p>`;
   return e;
 }
 function iconSvg(name) {
@@ -2074,11 +2081,12 @@ function iconSvg(name) {
     plus: '<path d="M12 5v14M5 12h14"/>',
     check: '<path d="M20 6 9 17l-5-5"/>'
   };
-  return `<svg viewBox="0 0 24 24">${paths[name] || ''}</svg>`;
+  // paths is a hardcoded constant map of SVG path data, never user input.
+  return html`<svg viewBox="0 0 24 24">${raw(paths[name] || '')}</svg>`;
 }
 function toast(msg, kind) {
   const host = $('#toastHost');
-  const node = el('div', 'toast', `<span class="dot" style="background:${kind === 'warn' ? 'var(--warn)' : 'var(--ok)'}"></span>${t(msg)}`);
+  const node = el('div', 'toast', html`<span class="dot" style="background:${kind === 'warn' ? 'var(--warn)' : 'var(--ok)'}"></span>${t(msg)}`);
   host.appendChild(node);
   setTimeout(() => { node.style.opacity = '0'; node.style.transform = 'translateY(10px)'; node.style.transition = '.3s'; setTimeout(() => node.remove(), 300); }, 2200);
 }
@@ -2198,7 +2206,7 @@ session.load()
   })
   .catch(err => {
     document.getElementById('view').innerHTML =
-      `<div class="card" style="padding:20px"><h3>${t('Could not open your garage')}</h3><p style="color:var(--text-2);margin-top:8px">${t('Your data is safe. Please reload the page.')}</p></div>`;
+      html`<div class="card" style="padding:20px"><h3>${t('Could not open your garage')}</h3><p style="color:var(--text-2);margin-top:8px">${t('Your data is safe. Please reload the page.')}</p></div>`;
     console.error(err);
   });
 

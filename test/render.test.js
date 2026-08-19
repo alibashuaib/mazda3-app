@@ -280,3 +280,19 @@ test('a hostile document label cannot inject markup into the dashboard document 
   assert.strictEqual(view.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
   cleanup();
 });
+
+/* Regression for Task 8 (2026-08-19): openGarage's vehicle-list row built each
+   item with `it.innerHTML = \`...${vehicleName(c)}...\`` in an untagged
+   template, interpolating the nickname/make/model directly into markup. A
+   vehicle nicknamed `<img src=x onerror=alert(1)>` became a live element the
+   moment the garage switcher opened — the same class of bug as docItem
+   (Task 7), one dialog away from the dashboard's. */
+test('a hostile vehicle name cannot inject markup into the garage vehicle list', async () => {
+  const { document, api, cleanup } = await bootApp();
+  api.session.current().car.nickname = '<img src=x onerror=alert(1)>';
+  api.openGarage();
+  const card = document.querySelector('#modalCard');
+  assert.ok(card.textContent.includes('onerror=alert(1)'), 'the payload never reached #modalCard — this test proves nothing');
+  assert.strictEqual(card.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
+  cleanup();
+});
