@@ -138,21 +138,14 @@ function importGarage(file) {
       return toast(t(parsed.error), 'warn');
     }
     if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
-    // Past this point the photo cache is emptied and refilled with the backup's
-    // Blobs immediately below, but the garage itself isn't swapped in until
-    // session.setVehicles() after the normalize loop. A throw inside that loop
-    // leaves the OLD garage paired with the IMPORTED photo cache, with no toast.
+    // The garage and the photo cache must change together: normalize every
+    // vehicle first (still touching only `parsed`, not session state), THEN
+    // swap the photo cache, THEN call session.setVehicles(). A throw during
+    // normalizing now lands before anything session-owned has been touched,
+    // so the OLD garage is never left paired with the IMPORTED photo cache.
     // parseImport validates the shape; this catches everything else.
     try {
       const priorIds = session.garage().vehicles.map(v => v.id);
-      // session.photos() hands back the live cache; empty it, then refill from
-      // the backup so the imported Blobs are what the session holds.
-      const cache = session.photos();
-      Object.keys(cache).forEach(id => { delete cache[id]; });
-      Object.keys(parsed.photos).forEach(id => {
-        const blob = dataUrlToBlob(parsed.photos[id]);
-        if (blob) cache[id] = blob;
-      });
       // The backup's .photo fields are stale blob: URLs from the exporting session.
       // Restore real data: URLs from the backup's own photos dict, or splitPhotos
       // will treat them as already-stored and persist nothing.
@@ -163,6 +156,16 @@ function importGarage(file) {
         const merged = Object.assign(collectInlinePhotos(v.data), parsed.photos);
         v.data = inlinePhotos(v.data, merged);
         normalizeData(v.data);
+      });
+      // Normalizing succeeded for every vehicle — now swap the photo cache and
+      // the garage together. session.photos() hands back the live cache; empty
+      // it, then refill from the backup so the imported Blobs are what the
+      // session holds.
+      const cache = session.photos();
+      Object.keys(cache).forEach(id => { delete cache[id]; });
+      Object.keys(parsed.photos).forEach(id => {
+        const blob = dataUrlToBlob(parsed.photos[id]);
+        if (blob) cache[id] = blob;
       });
       // setVehicles picks the backup's activeId, or vehicles[0] if it is missing.
       session.setVehicles(parsed.garage.vehicles, parsed.garage.activeId);
