@@ -12,10 +12,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      # fake-indexeddb is the only dependency and it is dev-only — nothing the
-      # browser loads requires it, so the app still ships with no build step.
+          # 22, not 20: `node --test` only learned to expand glob patterns in
+          # Node 21, and the test script passes "test/**/*.test.js" so that
+          # helper files under test/ are not collected as vacuous passing tests.
+          node-version: '22'
+      # fake-indexeddb and linkedom are the only dependencies and both are
+      # dev-only — nothing the browser loads requires them, so the app still
+      # ships with no build step and no runtime packages.
       - run: npm ci
       - run: npm test
-      # Catches syntax errors in the browser-only files, which no test loads.
-      - run: node --check app.js && node --check storage.js && node --check ui.js && node --check schedule.js && node --check sw.js
+      # Catches syntax errors in every shipped file. The suite parses the
+      # modules it requires, but nothing loads app.js or sw.js, and a broken
+      # app.js has twice passed a fully green suite.
+      - run: find . -name '*.js' -not -path './node_modules/*' -not -path './test/*' -print0 | xargs -0 -n1 node --check
