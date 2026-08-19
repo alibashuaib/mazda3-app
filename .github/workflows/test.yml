@@ -25,3 +25,18 @@ jobs:
       # modules it requires, but nothing loads app.js or sw.js, and a broken
       # app.js has twice passed a fully green suite.
       - run: find . -name '*.js' -not -path './node_modules/*' -not -path './test/*' -print0 | xargs -0 -n1 node --check
+
+  # A real browser, because the Node suite runs against linkedom and therefore
+  # cannot load the app the way a user does, cannot reproduce the real HTML
+  # parser, and never touches IndexedDB. Separate job so unit-test feedback is
+  # not held up by a browser download.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
