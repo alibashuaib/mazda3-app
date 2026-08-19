@@ -264,3 +264,19 @@ test('a hostile part icon, category or PartSouq no. cannot break out of the edit
     'the PartSouq part no. was escaped away instead of round-tripping');
   cleanup();
 });
+
+/* Regression for an XSS found in docItem (Task 7, 2026-08-19): the dashboard's
+   document list built each row with `it.innerHTML = \`...${d.name}...\`` in an
+   untagged template, interpolating the label directly into markup rather than
+   into an attribute. A document named `<img src=x onerror=alert(1)>` became a
+   live element the moment the dashboard rendered — no dialog open required. */
+test('a hostile document label cannot inject markup into the dashboard document list', async () => {
+  const { document, api, cleanup } = await bootApp();
+  api.session.current().docs = api.session.current().docs || [];
+  api.session.current().docs.push({ id: 'reg-doc', type: 'Insurance', name: '<img src=x onerror=alert(1)>', expiry: '2027-01-01', number: '' });
+  api.go('dashboard');
+  const view = document.querySelector('#view');
+  assert.ok(view.textContent.includes('onerror=alert(1)'), 'the payload never reached #view — this test proves nothing');
+  assert.strictEqual(view.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
+  cleanup();
+});

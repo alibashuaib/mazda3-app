@@ -1300,7 +1300,7 @@ function renderFuel() {
   const totalFuel = (session.current().fuel).reduce((a, e) => a + (Number(e.cost) || 0), 0);
 
   const tiles = el('div', 'tiles');
-  tiles.innerHTML = `
+  tiles.innerHTML = html`
     <div class="tile"><div class="t-num">${last != null ? last.toFixed(1) : '—'}</div><div class="t-cap">${t('Last L/100km')}</div></div>
     <div class="tile"><div class="t-num">${avg != null ? avg.toFixed(1) : '—'}</div><div class="t-cap">${t('Avg L/100km')}</div></div>
     <div class="tile"><div class="t-num">${lastCPK != null ? lastCPK.toFixed(2) : '—'}</div><div class="t-cap">${t('SAR / km')}</div></div>`;
@@ -1310,7 +1310,7 @@ function renderFuel() {
   if (last != null && avg != null && last > avg * 1.15) {
     const warn = el('div', 'card rec');
     warn.style.borderLeftColor = 'var(--warn)';
-    warn.innerHTML = `<div class="r-ic">⚠️</div><div><h3>${t('Fuel economy has dropped')}</h3><p>${t('Last fill-up was')} ${last.toFixed(1)} L/100km ${t('vs your')} ${avg.toFixed(1)} ${t('average.')} ${t('Common causes: low tire pressure (keep 36 PSI), dirty air filter, worn MAF/O2 sensor, tired spark plugs, or a dragging brake.')}</p></div>`;
+    warn.innerHTML = html`<div class="r-ic">⚠️</div><div><h3>${t('Fuel economy has dropped')}</h3><p>${t('Last fill-up was')} ${last.toFixed(1)} L/100km ${t('vs your')} ${avg.toFixed(1)} ${t('average.')} ${t('Common causes: low tire pressure (keep 36 PSI), dirty air filter, worn MAF/O2 sensor, tired spark plugs, or a dragging brake.')}</p></div>`;
     v.appendChild(warn);
   }
 
@@ -1332,7 +1332,7 @@ function renderFuel() {
   if (!rows.length) list.appendChild(emptyState('⛽', 'No fill-ups logged yet.\nTap "Add fill-up" after your next refuel.'));
   [...rows].reverse().forEach(({ e, l100, km }) => {
     const it = el('div', 'card entry');
-    it.innerHTML = `
+    it.innerHTML = html`
       <div class="e-ic">⛽</div>
       <div class="e-main">
         <h3>${e.litres} L${e.full === false ? ' · ' + t('partial') : ''}${l100 != null ? ` · ${l100.toFixed(1)} L/100km` : ''}</h3>
@@ -1352,7 +1352,7 @@ function fuelBars(points) {
     const isNow = i === points.length - 1;
     const sb = el('div', 'sb' + (isNow ? ' now' : ''));
     const h = Math.max(6, p.l100 / max * 100);
-    sb.innerHTML = `<div class="col" style="height:${h}%"></div><div class="m">${p.l100.toFixed(1)}</div>`;
+    sb.innerHTML = html`<div class="col" style="height:${h}%"></div><div class="m">${p.l100.toFixed(1)}</div>`;
     sb.title = p.l100.toFixed(1) + ' L/100km';
     wrap.appendChild(sb);
   });
@@ -1362,14 +1362,14 @@ function openAddFuel(e) {
   const editing = !!e;
   openModal(editing ? 'Edit fill-up' : 'Add fill-up', 'Record a refuel to track economy & cost.', card => {
     const r0 = el('div', 'field-row');
-    r0.append(field('Date', `<input id="f_date" type="date" value="${e ? e.date : isoDate(today())}">`),
-      field('Odometer (km)', `<input id="f_odo" type="number" inputmode="numeric" value="${esc(e ? e.odometer : session.current().car.odometer)}">`));
+    r0.append(field('Date', html`<input id="f_date" type="date" value="${e ? e.date : isoDate(today())}">`),
+      field('Odometer (km)', html`<input id="f_odo" type="number" inputmode="numeric" value="${e ? e.odometer : session.current().car.odometer}">`));
     card.appendChild(r0);
     const r1 = el('div', 'field-row');
-    r1.append(field('Litres', `<input id="f_l" type="number" inputmode="decimal" step="0.01" value="${esc(e ? e.litres : '')}" placeholder="${t('e.g. 42')}">`),
-      field('Cost (SAR)', `<input id="f_cost" type="number" inputmode="decimal" value="${esc(e ? e.cost : '')}" placeholder="${t('e.g. 95')}">`));
+    r1.append(field('Litres', html`<input id="f_l" type="number" inputmode="decimal" step="0.01" value="${e ? e.litres : ''}" placeholder="${t('e.g. 42')}">`),
+      field('Cost (SAR)', html`<input id="f_cost" type="number" inputmode="decimal" value="${e ? e.cost : ''}" placeholder="${t('e.g. 95')}">`));
     card.appendChild(r1);
-    card.appendChild(field('Tank', `<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
+    card.appendChild(field('Tank', html`<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => {
       const litres = +$('#f_l').value, odo = +$('#f_odo').value;
@@ -1407,7 +1407,7 @@ function docStatus(expiry) {
 function docItem(d) {
   const st = docStatus(d.expiry);
   const it = el('div', 'item');
-  it.innerHTML = `
+  it.innerHTML = html`
     <div class="item-ic">${DOC_ICONS[d.type] || '📄'}</div>
     <div class="item-main">
       <h3>${d.name ? d.name : t(d.type)}</h3>
@@ -1421,11 +1421,11 @@ function openAddDoc(d) {
   const editing = !!d;
   const types = Object.keys(DOC_ICONS);
   openModal(editing ? 'Edit document' : 'Add document', 'Track renewals so you never miss an expiry.', card => {
-    card.appendChild(field('Type', `<select id="d_type">${types.map(ty => `<option value="${ty}" ${d && d.type === ty ? 'selected' : ''}>${t(ty)}</option>`).join('')}</select>`));
-    card.appendChild(field('Label (optional)', `<input id="d_name" value="${esc(d ? (d.name || '') : '')}" placeholder="${t('e.g. Tawuniya comprehensive')}">`));
+    card.appendChild(field('Type', html`<select id="d_type">${types.map(ty => html`<option value="${ty}" ${d && d.type === ty ? 'selected' : ''}>${t(ty)}</option>`)}</select>`));
+    card.appendChild(field('Label (optional)', html`<input id="d_name" value="${d ? (d.name || '') : ''}" placeholder="${t('e.g. Tawuniya comprehensive')}">`));
     const r = el('div', 'field-row');
-    r.append(field('Expiry date', `<input id="d_exp" type="date" value="${esc(d ? (d.expiry || '') : '')}">`),
-      field('Reference no. (optional)', `<input id="d_num" value="${esc(d ? (d.number || '') : '')}">`));
+    r.append(field('Expiry date', html`<input id="d_exp" type="date" value="${d ? (d.expiry || '') : ''}">`),
+      field('Reference no. (optional)', html`<input id="d_num" value="${d ? (d.number || '') : ''}">`));
     card.appendChild(r);
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => {
@@ -1464,8 +1464,8 @@ function field(label, inputHtml) {
 
 function openEditOdo() {
   openModal('Update mileage', 'Keep this current so due dates stay accurate.', card => {
-    card.appendChild(field('Odometer (km)', `<input id="m_odo" type="number" inputmode="numeric" value="${esc(session.current().car.odometer)}">`));
-    card.appendChild(field('Average driving (km / day)', `<input id="m_daily" type="number" inputmode="numeric" value="${esc(session.current().car.dailyKm)}">`));
+    card.appendChild(field('Odometer (km)', html`<input id="m_odo" type="number" inputmode="numeric" value="${session.current().car.odometer}">`));
+    card.appendChild(field('Average driving (km / day)', html`<input id="m_daily" type="number" inputmode="numeric" value="${session.current().car.dailyKm}">`));
     const b = el('button', 'btn primary block', t('Save'));
     onAsyncClick(b, async () => {
       const val = parseInt($('#m_odo').value, 10);
