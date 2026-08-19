@@ -33,16 +33,36 @@ test('raw() use stays bounded', () => {
 });
 
 /* ============================================================
-   ADDITION 1 (Task 9 brief addendum): the template-literal guards above are
-   blind to HTML built by string concatenation instead of a bare backtick —
-   `el(tag, cls, iconSvg('x') + t('y'))` has no backtick, so nothing above
-   catches it, yet it is exactly the same "HTML assembled by ad-hoc string
-   joining" hole the phase closed everywhere else. Ten such sites existed at
-   the start of this task (all `iconSvg(...) + t(...)`, all constants — no
-   live bug) and were converted to html`` rather than merely excluded from
-   this guard. This test asserts that conversion holds by finding any el()
-   call whose third (content) argument contains a top-level `+` that isn't
-   entirely inside a single html`` tagged template.
+   ADDITION 1 (Task 9 brief addendum), widened after a post-merge review
+   found an eighth live XSS at app.js:907 (2026-08-19): the template-literal
+   guards above are blind to HTML built any way other than a bare backtick.
+   Two such forms exist:
+
+     - concatenation: `el(tag, cls, iconSvg('x') + t('y'))` — ten sites,
+       all constants, converted to html`` earlier in this task.
+     - a bare expression: `el(tag, cls, t(c))` — no backtick, no `+`, just
+       a function call or variable handed straight to el()'s raw-HTML
+       sink. This was invisible to every guard in this file: it has no
+       backtick for tests 1/2 to find and no `+` for the concatenation
+       check above to find. app.js:907 built a Parts-page filter chip as
+       `el('button', c === active ? 'on' : '', t(c))`, where `c` is a
+       category string drawn from `session.current().parts.map(p =>
+       p.cat)` — reachable from an imported backup, unescaped, and live
+       the moment the Parts page rendered. 38 such sites existed app.js-wide
+       (see task-9-report.md's classification); all were converted to
+       html`` in this pass, mechanically, regardless of whether the specific
+       argument passed today happens to be a source-code constant — the
+       guard cannot tell a `t('Save')` call (constant, safe) from a `t(c)`
+       call (attacker-influenced, the actual bug) apart at the syntax
+       level, so it must reject the *form* itself, not attempt to judge
+       per-site safety.
+
+   The predicate below therefore requires every el() call's third argument
+   to be EITHER a single html`` tagged template OR a constant single/double
+   -quoted string literal with no interpolation — anything else (string
+   concatenation, a bare function call, a bare identifier, a ternary of
+   non-literal expressions) fails. This subsumes the original
+   concatenation-only check.
 
    A hand-rolled balanced-paren/string scanner is used instead of a regex
    because the third argument can itself contain parens, e.g.
@@ -101,17 +121,18 @@ function findElCalls(src) {
   return calls;
 }
 
-test('no el() call builds its content by string concatenation', () => {
+test('every el() call\'s content argument is html`` or a constant literal — never concatenation or a bare expression', () => {
   const calls = findElCalls(APP);
   assert.ok(calls.length > 100, `only found ${calls.length} el() calls — the scanner is probably broken, not the app`);
   const bad = calls.filter(({ args }) => {
     if (args.length < 3) return false;
     const content = args[2].trim();
     const isHtmlTagged = /^html`/.test(content) && content.endsWith('`');
-    return !isHtmlTagged && /\+/.test(content);
+    const isConstantLiteral = /^'[^']*'$/.test(content) || /^"[^"]*"$/.test(content);
+    return !isHtmlTagged && !isConstantLiteral;
   });
   assert.deepStrictEqual(bad.map(b => b.line), [],
-    `el() calls building content by concatenation at lines: ${bad.map(b => `${b.line}: ${b.args[2].trim()}`).join(' | ')}`);
+    `el() calls with an unsafe content argument (concatenation or bare expression) at lines: ${bad.map(b => `${b.line}: ${b.args[2].trim()}`).join(' | ')}`);
 });
 
 /* ============================================================

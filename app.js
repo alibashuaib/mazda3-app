@@ -83,7 +83,7 @@ function openAddVehicle() {
     const fillEngines = () => { engSel.innerHTML = html`${CAR_MODELS[+modelSel.value].engines.map((e, i) => html`<option value="${i}">${e[0]}</option>`)}`; };
     modelSel.value = '1'; fillEngines();          // default to Mazda 3 BM
     modelSel.onchange = fillEngines;
-    const b = el('button', 'btn primary block', t('Add a vehicle'));
+    const b = el('button', 'btn primary block', html`${t('Add a vehicle')}`);
     onAsyncClick(b, async () => {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '' }));
@@ -426,7 +426,7 @@ function renderMaintenance() {
 
   const modeSeg = el('div', 'seg');
   ['Schedule', 'Plan', 'History'].forEach(m => {
-    const b = el('button', m === maintMode ? 'on' : '', t(m));
+    const b = el('button', m === maintMode ? 'on' : '', html`${t(m)}`);
     b.onclick = () => { if (maintMode === m) return; maintMode = m; [...modeSeg.children].forEach(c => c.classList.toggle('on', c === b)); paintMode(); };
     modeSeg.appendChild(b);
   });
@@ -461,7 +461,7 @@ function buildPlan(v) {
   let lastYear = null;
   shown.forEach((ms, idx) => {
     const yr = ms.date.getFullYear();
-    if (yr !== lastYear) { wrap.appendChild(el('div', 'plan-year', String(yr))); lastYear = yr; }
+    if (yr !== lastYear) { wrap.appendChild(el('div', 'plan-year', html`${String(yr)}`)); lastYear = yr; }
     const isNext = idx === 0;
     const card = el('div', 'card plan-ms' + (ms.major ? ' major' : '') + (isNext ? ' next' : ''));
     card.innerHTML = html`
@@ -561,7 +561,7 @@ function openLogConfirm(services, opts) {
         if (checklist) {
           const toggle = el('div', 'seg log-toggle');
           [['done', 'Done'], ['skip', 'Not yet']].forEach(([code, label]) => {
-            const btn = el('button', code === 'done' ? 'on' : '', t(label));
+            const btn = el('button', code === 'done' ? 'on' : '', html`${t(label)}`);
             btn.onclick = () => {
               const isDone = code === 'done';
               doneState.set(svc.id, isDone);
@@ -649,10 +649,10 @@ function openPlanSetup() {
     const bar = el('div', 'wiz-bar', '<span></span>');
     const body = el('div', 'wiz-card');
     const nav = el('div', 'wiz-nav');
-    const backBtn = el('button', 'btn ghost', t('Back'));
-    const nextBtn = el('button', 'btn primary', t('Next'));
+    const backBtn = el('button', 'btn ghost', html`${t('Back')}`);
+    const nextBtn = el('button', 'btn primary', html`${t('Next')}`);
     nav.appendChild(backBtn); nav.appendChild(nextBtn);
-    const skipAll = el('button', 'btn block ghost wiz-skip', t('Skip for now'));
+    const skipAll = el('button', 'btn block ghost wiz-skip', html`${t('Skip for now')}`);
     card.appendChild(progress); card.appendChild(bar); card.appendChild(body); card.appendChild(nav); card.appendChild(skipAll);
 
     function renderStep() {
@@ -789,7 +789,7 @@ function buildSchedule(v) {
   let active = (navIntent && filters.includes(navIntent.filter)) ? navIntent.filter : 'All';
   navIntent = null; // consumed
   filters.forEach(f => {
-    const b = el('button', f === active ? 'on' : '', t(f));
+    const b = el('button', f === active ? 'on' : '', html`${t(f)}`);
     b.onclick = () => { active = f; [...seg.children].forEach(c => c.classList.toggle('on', c === b)); paint(); };
     seg.appendChild(b);
   });
@@ -811,7 +811,7 @@ function buildSchedule(v) {
     let lastYear = null;
     items.forEach(({ s, st }, i) => {
       const yr = st.dueDate.getFullYear();
-      if (yr !== lastYear) { tl.appendChild(el('div', 'tl-year', String(yr))); lastYear = yr; }
+      if (yr !== lastYear) { tl.appendChild(el('div', 'tl-year', html`${String(yr)}`)); lastYear = yr; }
       tl.appendChild(scheduleTimelineItem(s, st, i === items.length - 1));
     });
   }
@@ -860,7 +860,7 @@ function buildHistory(v) {
   let lastYear = null;
   hist.forEach((e, i) => {
     const yr = e.date.slice(0, 4);
-    if (yr !== lastYear) { tl.appendChild(el('div', 'tl-year', yr)); lastYear = yr; }
+    if (yr !== lastYear) { tl.appendChild(el('div', 'tl-year', html`${yr}`)); lastYear = yr; }
     const item = el('div', 'tl-item' + (i === hist.length - 1 ? ' last' : ''));
     const d = new Date(e.date + 'T00:00:00');
     item.innerHTML = html`
@@ -904,7 +904,7 @@ function renderParts() {
   const seg = el('div', 'seg');
   seg.style.flexWrap = 'wrap';
   cats.forEach(c => {
-    const b = el('button', c === active ? 'on' : '', t(c));
+    const b = el('button', c === active ? 'on' : '', html`${t(c)}`);
     b.onclick = () => { active = c; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
     seg.appendChild(b);
   });
@@ -1094,7 +1094,7 @@ function renderReports() {
   seg.style.flexWrap = 'wrap';
   const types = [['service', 'Service history'], ['purchases', 'Purchases'], ['summary', 'Full summary']];
   types.forEach(([k, label]) => {
-    const b = el('button', k === reportType ? 'on' : '', t(label));
+    const b = el('button', k === reportType ? 'on' : '', html`${t(label)}`);
     b.onclick = () => { reportType = k; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
     seg.appendChild(b);
   });
@@ -1371,7 +1371,7 @@ function openAddFuel(e) {
       field('Cost (SAR)', html`<input id="f_cost" type="number" inputmode="decimal" value="${e ? e.cost : ''}" placeholder="${t('e.g. 95')}">`));
     card.appendChild(r1);
     card.appendChild(field('Tank', html`<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
-    const b = el('button', 'btn primary block', t('Save'));
+    const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => {
       const litres = +$('#f_l').value, odo = +$('#f_odo').value;
       if (!litres) return toast('Litres required', 'warn');
@@ -1384,7 +1384,7 @@ function openAddFuel(e) {
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', t('Delete fill-up'));
+      const del = el('button', 'btn block ghost', html`${t('Delete fill-up')}`);
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
       onAsyncClick(del, async () => { session.current().fuel = session.current().fuel.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); });
       card.appendChild(del);
@@ -1428,7 +1428,7 @@ function openAddDoc(d) {
     r.append(field('Expiry date', html`<input id="d_exp" type="date" value="${d ? (d.expiry || '') : ''}">`),
       field('Reference no. (optional)', html`<input id="d_num" value="${d ? (d.number || '') : ''}">`));
     card.appendChild(r);
-    const b = el('button', 'btn primary block', t('Save'));
+    const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => {
       const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
       if (d) Object.assign(d, obj); else { session.current().docs = session.current().docs || []; session.current().docs.push(obj); }
@@ -1436,7 +1436,7 @@ function openAddDoc(d) {
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', t('Delete document'));
+      const del = el('button', 'btn block ghost', html`${t('Delete document')}`);
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
       onAsyncClick(del, async () => { session.current().docs = session.current().docs.filter(x => x.id !== d.id); const ok = await save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); });
       card.appendChild(del);
@@ -1473,7 +1473,7 @@ function openEditOdo() {
   openModal('Update mileage', 'Keep this current so due dates stay accurate.', card => {
     card.appendChild(field('Odometer (km)', html`<input id="m_odo" type="number" inputmode="numeric" value="${session.current().car.odometer}">`));
     card.appendChild(field('Average driving (km / day)', html`<input id="m_daily" type="number" inputmode="numeric" value="${session.current().car.dailyKm}">`));
-    const b = el('button', 'btn primary block', t('Save'));
+    const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => {
       const val = parseInt($('#m_odo').value, 10);
       if (!isNaN(val)) { session.current().car.odometer = val; session.current().car.odoUpdatedAt = isoDate(today()); }
@@ -1581,7 +1581,7 @@ function openSettings() {
     const langSeg = el('div', 'seg');
     langSeg.style.margin = '0 0 16px';
     [['en', 'English'], ['ar', 'العربية']].forEach(([code, label]) => {
-      const b = el('button', lang === code ? 'on' : '', label);
+      const b = el('button', lang === code ? 'on' : '', html`${label}`);
       b.onclick = () => { selectedLang = code; [...langSeg.children].forEach(x => x.classList.toggle('on', x === b)); };
       langSeg.appendChild(b);
     });
@@ -1593,7 +1593,7 @@ function openSettings() {
     planRow.innerHTML = session.current().planSetupDone
       ? html`<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`
       : html`<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
-    const planBtn = el('button', session.current().planSetupDone ? 'btn ghost' : 'btn', t(session.current().planSetupDone ? 'Edit' : 'Set up'));
+    const planBtn = el('button', session.current().planSetupDone ? 'btn ghost' : 'btn', html`${t(session.current().planSetupDone ? 'Edit' : 'Set up')}`);
     planBtn.onclick = () => { closeModal(); openPlanSetup(); };
     planRow.appendChild(planBtn);
     card.appendChild(planRow);
@@ -1680,7 +1680,7 @@ function openSettings() {
       field('VIN', html`<input id="c_vin" value="${c.vin || ''}" placeholder="${t('17-char VIN')}">`));
     card.appendChild(r4);
 
-    const b = el('button', 'btn primary block', t('Save profile'));
+    const b = el('button', 'btn primary block', html`${t('Save profile')}`);
     onAsyncClick(b, async () => {
       Object.assign(session.current().car, {
         nickname: $('#c_nick').value.trim(), make: $('#c_make').value.trim(), model: $('#c_model').value.trim(),
@@ -1696,7 +1696,7 @@ function openSettings() {
     });
     card.appendChild(b);
     if (session.garage().vehicles.length > 1) {
-      const del = el('button', 'btn block ghost', t('Remove this vehicle'));
+      const del = el('button', 'btn block ghost', html`${t('Remove this vehicle')}`);
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
       del.onclick = () => deleteVehicle(session.garage().activeId);
       card.appendChild(del);
@@ -1705,9 +1705,9 @@ function openSettings() {
     backup.style.cssText = 'margin-top:22px;padding-top:16px;border-top:1px solid var(--stroke)';
     backup.innerHTML = html`<div class="section-title"><div class="section-title-left"><h2>${t('Backup & restore')}</h2></div></div>
       <p style="font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:12px">${t('A backup file holds every vehicle, service, receipt and photo.')}</p>`;
-    const exp = el('button', 'btn block', t('Export backup'));
+    const exp = el('button', 'btn block', html`${t('Export backup')}`);
     exp.onclick = exportGarage;
-    const imp = el('button', 'btn block ghost', t('Import backup'));
+    const imp = el('button', 'btn block ghost', html`${t('Import backup')}`);
     imp.style.marginTop = '8px';
     const impFile = el('input');
     impFile.type = 'file';
@@ -1723,7 +1723,7 @@ function openSettings() {
 function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
     card.appendChild(field('Budget (SAR / year)', html`<input id="m_budget" type="number" inputmode="numeric" value="${session.current().budget.annual}">`));
-    const b = el('button', 'btn primary block', t('Save'));
+    const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) session.current().budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); });
     card.appendChild(b);
   });
@@ -1768,7 +1768,7 @@ function openServiceDetail(s) {
     const done = el('button', 'btn primary', html`${iconSvg('check')}${t('Mark done now')}`);
     done.style.flex = '1';
     done.onclick = () => { closeModal(); openLogConfirm([s], { onDone: () => { go(current); toast(`${t(s.name)} ${t('logged ✓')}`); } }); };
-    const edit = el('button', 'btn', t('Edit'));
+    const edit = el('button', 'btn', html`${t('Edit')}`);
     edit.onclick = () => openEditService(s);
     row.append(done, edit);
     card.appendChild(row);
@@ -1810,7 +1810,7 @@ function openAddHistory(e, prefill) {
         <input type="checkbox" id="h_spend" checked style="width:auto;accent-color:var(--accent)"> ${t('Also add this cost to Budget')}</label>`;
       card.appendChild(chk);
     }
-    const b = el('button', 'btn primary block', editing ? t('Save changes') : t('Add to history'));
+    const b = el('button', 'btn primary block', html`${editing ? t('Save changes') : t('Add to history')}`);
     onAsyncClick(b, async () => {
       const name = $('#h_name').value.trim();
       if (!name) return toast('Service name required', 'warn');
@@ -1833,7 +1833,7 @@ function openAddHistory(e, prefill) {
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', t('Delete record'));
+      const del = el('button', 'btn block ghost', html`${t('Delete record')}`);
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       onAsyncClick(del, async () => { session.current().history = session.current().history.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); });
       card.appendChild(del);
@@ -1863,7 +1863,7 @@ function openEditService(s) {
       field('Est. cost (SAR)', html`<input id="s_cost" type="number" value="${s ? s.cost : 0}">`));
     card.appendChild(row3);
     card.appendChild(field('Note', html`<textarea id="s_note" rows="2">${s ? (s.note || '') : ''}</textarea>`));
-    const b = el('button', 'btn primary block', t('Save service'));
+    const b = el('button', 'btn primary block', html`${t('Save service')}`);
     onAsyncClick(b, async () => {
       const name = $('#s_name').value.trim();
       if (!name) return toast('Name is required', 'warn');
@@ -1880,7 +1880,7 @@ function openEditService(s) {
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', t('Delete service'));
+      const del = el('button', 'btn block ghost', html`${t('Delete service')}`);
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       onAsyncClick(del, async () => { session.current().services = session.current().services.filter(x => x.id !== s.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); });
       card.appendChild(del);
@@ -1892,14 +1892,14 @@ function openLogService() {
   openModal('Log a service', 'A single service, or a whole plan visit at once.', card => {
     const single = el('div', 'card plan-setup-banner');
     single.innerHTML = html`<div class="r-ic">🔧</div><div style="flex:1"><h3>${t('Single service')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Pick one thing you just had done.')}</p></div>`;
-    const bSingle = el('button', 'btn', t('Choose'));
+    const bSingle = el('button', 'btn', html`${t('Choose')}`);
     bSingle.onclick = () => { closeModal(); openLogSingleService(); };
     single.appendChild(bSingle);
     card.appendChild(single);
 
     const plan = el('div', 'card plan-setup-banner');
     plan.innerHTML = html`<div class="r-ic">🗓️</div><div style="flex:1"><h3>${t('Plan visit')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('A group of services from your plan, done together.')}</p></div>`;
-    const bPlan = el('button', 'btn', t('Choose'));
+    const bPlan = el('button', 'btn', html`${t('Choose')}`);
     bPlan.onclick = () => { closeModal(); openLogPlanVisit(); };
     plan.appendChild(bPlan);
     card.appendChild(plan);
@@ -1964,7 +1964,7 @@ function openAddSpending(e) {
         $('#x_cat').value = p.cat === 'Tires' ? 'Tires' : p.cat === 'Electrical' ? 'Electrical' : 'Parts';
       };
     }
-    const b = el('button', 'btn primary block', t('Save'));
+    const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return toast('Description required', 'warn');
@@ -1975,7 +1975,7 @@ function openAddSpending(e) {
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', t('Delete expense'));
+      const del = el('button', 'btn block ghost', html`${t('Delete expense')}`);
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       onAsyncClick(del, async () => { session.current().spending = session.current().spending.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); });
       card.appendChild(del);
@@ -2020,7 +2020,7 @@ function openEditPart(p) {
           <div class="field" style="margin:0"><label>${t('Note')}</label><input data-k="note" value="${o.note || ''}"></div>`;
         box.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { o[inp.dataset.k] = inp.type === 'number' ? +inp.value : inp.value; });
         if (opts.length > 1) {
-          const rm = el('button', 'btn ghost', t('Remove option')); rm.style.cssText = 'margin-top:8px;font-size:12px;padding:7px;color:var(--danger)';
+          const rm = el('button', 'btn ghost', html`${t('Remove option')}`); rm.style.cssText = 'margin-top:8px;font-size:12px;padding:7px;color:var(--danger)';
           rm.onclick = () => { opts.splice(i, 1); drawOpts(); };
           box.appendChild(rm);
         }
@@ -2033,7 +2033,7 @@ function openEditPart(p) {
     addOpt.onclick = () => { opts.push({ tag: 'ALT', brand: '', partNo: '', price: 0, store: '', note: '' }); drawOpts(); };
     card.appendChild(addOpt);
 
-    const b = el('button', 'btn primary block', t('Save part'));
+    const b = el('button', 'btn primary block', html`${t('Save part')}`);
     onAsyncClick(b, async () => {
       const name = $('#p_name').value.trim();
       if (!name) return toast('Part name required', 'warn');
@@ -2045,7 +2045,7 @@ function openEditPart(p) {
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', t('Delete part'));
+      const del = el('button', 'btn block ghost', html`${t('Delete part')}`);
       del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
       onAsyncClick(del, async () => { session.current().parts = session.current().parts.filter(x => x.id !== p.id); const ok = await save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); });
       card.appendChild(del);
@@ -2059,10 +2059,10 @@ function openEditPart(p) {
 function sectionTitle(title, linkTxt, onLink, badge) {
   const s = el('div', 'section-title');
   const left = el('div', 'section-title-left');
-  left.appendChild(el('h2', null, t(title)));
-  if (badge) left.appendChild(el('span', 'section-title-badge', badge));
+  left.appendChild(el('h2', null, html`${t(title)}`));
+  if (badge) left.appendChild(el('span', 'section-title-badge', html`${badge}`));
   s.appendChild(left);
-  if (linkTxt && onLink) { const b = el('button', 'link', t(linkTxt)); b.onclick = onLink; s.appendChild(b); }
+  if (linkTxt && onLink) { const b = el('button', 'link', html`${t(linkTxt)}`); b.onclick = onLink; s.appendChild(b); }
   return s;
 }
 function pageIntro(title, sub) {

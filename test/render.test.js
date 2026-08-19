@@ -336,6 +336,7 @@ function seedHostileData(api, payload) {
 
   const part = c.parts[0];
   part.name = payload;
+  part.cat = payload; // renders as a Parts-page filter chip — see app.js:907, the 8th live XSS this sweep found
   if (part.options && part.options[0]) {
     part.options[0].brand = payload;
     part.options[0].partNo = payload;
@@ -344,7 +345,11 @@ function seedHostileData(api, payload) {
   }
 
   c.history = c.history || [];
-  c.history.push({ id: 'inj-hist', name: payload, icon: '🔧', date: '2026-01-01', odometer: 1000, cost: 10, cat: 'Maintenance', note: payload });
+  // date is sliced to a year label (app.js:863, `yr`) and reaches the same
+  // class of sink as parts[].cat did — covered for completeness even though
+  // it was never a live bug (already html``-wrapped by the time this test
+  // seeds it).
+  c.history.push({ id: 'inj-hist', name: payload, icon: '🔧', date: payload, odometer: 1000, cost: 10, cat: 'Maintenance', note: payload });
 
   c.spending = c.spending || [];
   c.spending.push({ id: 'inj-sp', date: '2026-01-01', cat: 'Maintenance', desc: payload, amount: 10, odometer: 1000 });
