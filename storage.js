@@ -346,15 +346,25 @@
   /* Selects a backend once. Any failure opening IndexedDB — including the
      SecurityError browsers throw on opaque origins — falls back to
      localStorage rather than leaving the user with no app at all. */
+  /* Closes a previously opened IndexedDB connection. Guarded: an
+     already-closed or errored handle must not stop backend selection from
+     completing (this runs ahead of a *new* connection replacing `backend`). */
+  function closePrevious() {
+    if (backend && backend.kind === 'idb' && backend.db) {
+      try { backend.db.close(); } catch (e) {}
+    }
+  }
+
   function openStorage(env) {
     env = env || { protocol: location.protocol, hasIndexedDb: typeof indexedDB !== 'undefined' };
     if (!shouldTryIndexedDb(env.protocol, env.hasIndexedDb)) {
+      closePrevious();
       backend = { kind: 'local' };
       return Promise.resolve(backend);
     }
     return idbOpen()
-      .then(db => { backend = { kind: 'idb', db }; return backend; })
-      .catch(() => { backend = { kind: 'local' }; return backend; });
+      .then(db => { closePrevious(); backend = { kind: 'idb', db }; return backend; })
+      .catch(() => { closePrevious(); backend = { kind: 'local' }; return backend; });
   }
 
   /* Reads everything into the shape app.js already expects. On the IndexedDB
