@@ -312,6 +312,51 @@ sites, not merely the ~60 interpolations that carry user-supplied text — becau
 guarantee worth having is that an unescaped interpolation requires typing `raw()`, and
 that property only holds if every site goes through the builder.
 
+## Outcome of Phase 3b, and what the escaping guarantee does not cover
+
+Phase 3b converted every HTML-construction site in `app.js` to `html\`\``. It also
+found and fixed **eight live XSS vulnerabilities**, none of which were visible before
+`app.js` was executed by a test for the first time. In order: the dashboard car card;
+`field()`'s `value="${…}"` attributes across ~51 call sites; three inputs in
+`openEditPart`; `docItem` in the dashboard document list; `openGarage`'s vehicle rows;
+`toast()`; `openModal`'s title, reached through a user-editable service name; and the
+Parts category filter, where a part category flowed into `el()`'s unescaped third
+argument.
+
+Two lessons are worth keeping, because both cost real time to learn.
+
+**An attribute-breakout payload cannot detect a text-context sink.** The probe
+`" autofocus onfocus="alert(1)` contains no `<`, so it is inert anywhere the value
+lands as text rather than inside an attribute. Eight consecutive sweeps reported "zero
+live injections" over the Parts bug for exactly this reason. Any injection sweep must
+run both that payload and `<img src=x onerror=alert(1)>`.
+
+**Static analysis was wrong every time it disagreed with execution.** Three separate
+scanners — two written during review — reported clean over live vulnerabilities. The
+check that has actually found bugs is: set hostile data on the seeded records, render
+through `test/helpers/boot.js`, then assert on
+`querySelectorAll('[onfocus],[autofocus],[onerror]')`. The guard tests in
+`test/no-raw-templates.test.js` are a cheap complement to that sweep, not a substitute.
+
+### Known limits of the guarantee
+
+- **`el(tag, cls, content)` is an HTML sink**, because `el` assigns its third argument
+  to `innerHTML`. All 54 call sites now pass either an `html\`\`` result or a constant
+  literal, and a guard enforces it — but the sink itself remains, one layer below the
+  escaping module.
+- **`field()` accepts a `Raw` label**, and a future caller passing `raw(userText)`
+  would reopen the hole. Only a comment enforces this today.
+- **The guards cannot see multi-line `el()` or `innerHTML` calls.** Every current one
+  is single-line; a multi-line site added later would be invisible to them.
+- **`raw()` is bounded at 12 against a real count of 9.** The bound exists to force a
+  conversation, not to be raised whenever it fails.
+- **Injection classes other than attribute and element injection are untested** —
+  `javascript:` and `data:` URLs, and CSS-based exfiltration.
+- **No browser has ever run this branch.** All verification is `linkedom` under Node.
+- **The IndexedDB backend is never exercised by a render test**: `test/helpers/boot.js`
+  pins `location.protocol = 'file:'`, so every render test runs the `localStorage`
+  path. A failure specific to the IndexedDB path would pass here and fail in a browser.
+
 ## Non-goals
 
 - **The tab merge.** Four tabs instead of six, and merging Schedule and Plan into
