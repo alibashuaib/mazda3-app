@@ -200,7 +200,7 @@ function importGarage(file) {
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
   const bad = servicesRanked().filter(r => r.st.level !== 'ok');
-  openModal('Health score', `${healthScore()} / 100 — ${t('what is affecting it')}`, card => {
+  openModal('Health score', html`${healthScore()} / 100 — ${t('what is affecting it')}`, card => {
     if (!bad.length) { card.appendChild(emptyState('✅', 'Everything is on track.')); return; }
     const list = el('div', 'list');
     bad.forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
@@ -360,9 +360,9 @@ function renderDashboard() {
 
   // quick actions
   const row = el('div', 'fab-row');
-  const bLog = el('button', 'btn primary block', iconSvg('check') + t('Log a service'));
+  const bLog = el('button', 'btn primary block', html`${iconSvg('check')}${t('Log a service')}`);
   bLog.onclick = () => openLogService();
-  const bSpend = el('button', 'btn block', iconSvg('plus') + t('Add spending'));
+  const bSpend = el('button', 'btn block', html`${iconSvg('plus')}${t('Add spending')}`);
   bSpend.onclick = () => openAddSpending();
   row.append(bLog, bSpend);
   v.appendChild(row);
@@ -590,7 +590,7 @@ function openLogConfirm(services, opts) {
       recalc();
       card.appendChild(totalEl);
 
-      const b = el('button', 'btn primary block', iconSvg('check') + t('Log it'));
+      const b = el('button', 'btn primary block', html`${iconSvg('check')}${t('Log it')}`);
       onAsyncClick(b, async () => {
         const odo = +$('#lc_odo').value || session.current().car.odometer;
         const date = $('#lc_date').value || isoDate(today());
@@ -817,7 +817,7 @@ function buildSchedule(v) {
   }
   paint();
 
-  const add = el('button', 'btn block ghost', iconSvg('plus') + t('Add a custom service'));
+  const add = el('button', 'btn block ghost', html`${iconSvg('plus')}${t('Add a custom service')}`);
   add.style.marginTop = '16px';
   add.onclick = () => openEditService(null);
   v.appendChild(add);
@@ -849,7 +849,7 @@ function buildHistory(v) {
     <div class="tile"><div class="t-num" style="font-size:15px;line-height:1.9">${last ? new Date(last.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'}</div><div class="t-cap">${t('Last service')}</div></div>`;
   v.appendChild(tiles);
 
-  const add = el('button', 'btn block primary', iconSvg('plus') + t('Log a past service'));
+  const add = el('button', 'btn block primary', html`${iconSvg('plus')}${t('Log a past service')}`);
   add.style.margin = '14px 0 6px';
   add.onclick = () => openAddHistory(null);
   v.appendChild(add);
@@ -928,7 +928,7 @@ function renderParts() {
     }, 60);
   }
 
-  const add = el('button', 'btn block ghost', iconSvg('plus') + t('Add a part'));
+  const add = el('button', 'btn block ghost', html`${iconSvg('plus')}${t('Add a part')}`);
   add.style.marginTop = '16px';
   add.onclick = () => openEditPart(null);
   v.appendChild(add);
@@ -1315,7 +1315,7 @@ function renderFuel() {
     v.appendChild(warn);
   }
 
-  const add = el('button', 'btn primary block', iconSvg('plus') + t('Add fill-up'));
+  const add = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add fill-up')}`);
   add.style.margin = '14px 0 4px';
   add.onclick = () => openAddFuel(null);
   v.appendChild(add);
@@ -1447,8 +1447,8 @@ function openAddDoc(d) {
 function openModal(title, sub, bodyBuilder) {
   const host = $('#modalHost'), card = $('#modalCard');
   card.innerHTML = '<div class="modal-grip"></div>';
-  const h = el('h2', null, t(title)); card.appendChild(h);
-  if (sub) card.appendChild(el('p', 'sub', t(sub)));
+  const h = el('h2', null, html`${t(title)}`); card.appendChild(h);
+  if (sub) card.appendChild(el('p', 'sub', html`${t(sub)}`));
   bodyBuilder(card);
   host.hidden = false;
   host.querySelector('[data-close]').onclick = closeModal;
@@ -1564,7 +1564,7 @@ function openGarage() {
       list.appendChild(it);
     });
     card.appendChild(list);
-    const add = el('button', 'btn primary block', iconSvg('plus') + t('Add a vehicle'));
+    const add = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add a vehicle')}`);
     add.style.marginTop = '14px';
     add.onclick = () => addVehicle();
     card.appendChild(add);
@@ -1765,7 +1765,7 @@ function openServiceDetail(s) {
 
     const row = el('div', 'fab-row');
     row.style.marginTop = '18px';
-    const done = el('button', 'btn primary', iconSvg('check') + t('Mark done now'));
+    const done = el('button', 'btn primary', html`${iconSvg('check')}${t('Mark done now')}`);
     done.style.flex = '1';
     done.onclick = () => { closeModal(); openLogConfirm([s], { onDone: () => { go(current); toast(`${t(s.name)} ${t('logged ✓')}`); } }); };
     const edit = el('button', 'btn', t('Edit'));
@@ -2028,7 +2028,7 @@ function openEditPart(p) {
       });
     }
     drawOpts();
-    const addOpt = el('button', 'btn block ghost', iconSvg('plus') + t('Add option'));
+    const addOpt = el('button', 'btn block ghost', html`${iconSvg('plus')}${t('Add option')}`);
     addOpt.style.marginBottom = '14px';
     addOpt.onclick = () => { opts.push({ tag: 'ALT', brand: '', partNo: '', price: 0, store: '', note: '' }); drawOpts(); };
     card.appendChild(addOpt);

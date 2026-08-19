@@ -296,3 +296,98 @@ test('a hostile vehicle name cannot inject markup into the garage vehicle list',
   assert.strictEqual(card.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
   cleanup();
 });
+
+/* ============================================================
+   INJECTION SWEEP (Task 9, Addition 3)
+
+   Every static check in this phase — the html`` conversion, the render
+   smoke tests above, even the guard tests in test/no-raw-templates.test.js
+   — has a blind spot: none of them execute the app with hostile data
+   across every surface at once. What has actually caught every live bug
+   found in this phase (docItem, openGarage's vehicle list, the two
+   attribute-injection holes) was exactly that: seed hostile data, render,
+   check for a live handler. This sweep generalizes the pattern across
+   every user-editable field the app has, every route (including both
+   maintenance sub-modes that show history and all three report types),
+   and every dialog in DIALOGS above — with two payload shapes: an
+   attribute breakout and a markup injection.
+
+   Fields intentionally NOT covered: fuel entries carry no free-text field
+   in the current data model (litres/cost/odometer are numeric, date is a
+   date string) — there is nothing named `note` or `station` on a fuel
+   record for app.js to render, despite the task brief mentioning one. See
+   task-9-report.md. */
+const MARKUP_PAYLOAD = '<img src=x onerror=alert(1)>';
+
+function seedHostileData(api, payload) {
+  const c = api.session.current();
+  c.car.nickname = payload;
+  c.car.make = payload;
+  c.car.model = payload;
+  c.car.year = payload;
+  c.car.plate = payload;
+  c.car.vin = payload;
+  c.car.color = payload;
+  c.car.engine = payload;
+
+  const svc = c.services[0];
+  svc.name = payload;
+  svc.note = payload;
+
+  const part = c.parts[0];
+  part.name = payload;
+  if (part.options && part.options[0]) {
+    part.options[0].brand = payload;
+    part.options[0].partNo = payload;
+    part.options[0].store = payload;
+    part.options[0].note = payload;
+  }
+
+  c.history = c.history || [];
+  c.history.push({ id: 'inj-hist', name: payload, icon: '🔧', date: '2026-01-01', odometer: 1000, cost: 10, cat: 'Maintenance', note: payload });
+
+  c.spending = c.spending || [];
+  c.spending.push({ id: 'inj-sp', date: '2026-01-01', cat: 'Maintenance', desc: payload, amount: 10, odometer: 1000 });
+
+  c.docs = c.docs || [];
+  c.docs.push({ id: 'inj-doc', type: 'Insurance', name: payload, expiry: '2027-01-01', number: payload });
+}
+
+for (const [label, payload] of [['attribute breakout', ATTR_PAYLOAD], ['markup injection', MARKUP_PAYLOAD]]) {
+  test(`injection sweep (${label}): every route renders the payload as inert text`, async () => {
+    const { document, api, evalInApp, cleanup } = await bootApp();
+    seedHostileData(api, payload);
+
+    for (const route of ROUTES) {
+      api.go(route);
+      assertNoAttributeInjection(document.querySelector('#view'), `${route} route (${label})`);
+    }
+    // maintenance History mode is where a hostile history name/note renders;
+    // Plan mode is exercised for completeness alongside the default Schedule.
+    for (const mode of ['Schedule', 'Plan', 'History']) {
+      evalInApp(`maintMode = ${JSON.stringify(mode)}`);
+      api.go('maintenance');
+      assertNoAttributeInjection(document.querySelector('#view'), `maintenance (${mode}) (${label})`);
+    }
+    // reports: 'service' renders history notes, 'purchases' renders spending desc
+    for (const type of ['service', 'purchases', 'summary']) {
+      evalInApp(`reportType = ${JSON.stringify(type)}`);
+      api.go('reports');
+      assertNoAttributeInjection(document.querySelector('#view'), `${type} report (${label})`);
+    }
+    cleanup();
+  });
+
+  test(`injection sweep (${label}): every dialog renders the payload as inert text`, async () => {
+    const { document, api, cleanup } = await bootApp();
+    seedHostileData(api, payload);
+
+    for (const [name, route, invoke] of DIALOGS) {
+      if (route) api.go(route);
+      invoke(api);
+      assertNoAttributeInjection(document.querySelector('#modalCard'), `${name} dialog (${label})`);
+      api.closeModal();
+    }
+    cleanup();
+  });
+}
