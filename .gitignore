@@ -10,3 +10,7 @@ Thumbs.db
 
 # subagent-driven-development scratch (ledger, briefs, review packages)
 .superpowers/
+
+# playwright
+test-results/
+playwright-report/
