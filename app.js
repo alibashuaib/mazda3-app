@@ -1462,13 +1462,11 @@ function closeModal() { $('#modalHost').hidden = true; }
    it is a race, and races do not show up in a render. */
 function field(label, inputHtml) {
   const f = el('div', 'field');
-  // label is normally translation-key plain text and must stay escaped. One
-  // caller (openAddSpending's "Quick pick" label) hardcodes a <span> for
-  // styling and passes it pre-wrapped in raw() — t() still runs (both the
-  // English and Arabic strings are markup by design) but the translated
-  // result is re-marked raw so it isn't escaped a second time here.
-  const lbl = label instanceof Raw ? raw(t(String(label))) : t(label);
-  f.innerHTML = html`<label>${lbl}</label>${inputHtml}`;
+  // label is always plain text and always escaped — there is no raw-markup
+  // escape hatch here. A caller that wants markup in its label (see
+  // openAddSpending's "Quick pick" note) builds it itself, after this
+  // returns, as real DOM nodes appended to the <label> element.
+  f.innerHTML = html`<label>${t(label)}</label>${inputHtml}`;
   return f;
 }
 
@@ -1945,8 +1943,17 @@ function openAddSpending(e) {
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
       const partOpts = session.current().parts.map((p, i) => html`<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`);
-      card.appendChild(field(raw('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>'),
-        html`<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
+      const quickPick = field('Quick pick',
+        html`<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`);
+      // The "— autofill from a part" note is styled markup, not plain text —
+      // build it as a real DOM node and append it to the label rather than
+      // asking field() to accept raw markup (see field()'s comment).
+      const note = document.createElement('span');
+      note.className = 'muted';
+      note.setAttribute('style', 'font-weight:500');
+      note.textContent = t('— autofill from a part');
+      quickPick.querySelector('label').append(' ', note);
+      card.appendChild(quickPick);
     }
     card.appendChild(field('Description', html`<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
     const row = el('div', 'field-row');
@@ -2085,7 +2092,11 @@ function iconSvg(name) {
     check: '<path d="M20 6 9 17l-5-5"/>'
   };
   // paths is a hardcoded constant map of SVG path data, never user input.
-  return html`<svg viewBox="0 0 24 24">${raw(paths[name] || '')}</svg>`;
+  // Object.prototype.hasOwnProperty guards against a name like 'constructor'
+  // resolving to an inherited Object.prototype value that raw() would then
+  // mark as trusted markup.
+  const d = Object.prototype.hasOwnProperty.call(paths, name) ? paths[name] : '';
+  return html`<svg viewBox="0 0 24 24">${raw(d)}</svg>`;
 }
 function toast(msg, kind) {
   const host = $('#toastHost');

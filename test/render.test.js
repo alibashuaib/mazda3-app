@@ -5,6 +5,23 @@ const { bootApp } = require('./helpers/boot.js');
 
 const ROUTES = ['dashboard', 'maintenance', 'parts', 'fuel', 'budget', 'reports'];
 
+/* Every test needs bootApp()'s cleanup() to run even when an assertion
+   throws partway through the body — otherwise the next test's setupDom()
+   overwrites most globals, but URL.createObjectURL is installed under an
+   `if (!globalThis.URL.createObjectURL)` guard in test/helpers/dom.js, so a
+   stale one survives a failure and produces cascading noise in every test
+   after the first real one. withBoot() centralizes the try/finally so no
+   individual test can forget it. */
+async function withBoot(opts, fn) {
+  if (typeof opts === 'function') { fn = opts; opts = undefined; }
+  const ctx = await bootApp(opts);
+  try {
+    await fn(ctx);
+  } finally {
+    ctx.cleanup();
+  }
+}
+
 /* A length check alone cannot see an escaping regression, which is exactly what
    Tasks 4-8 risk introducing. Forgetting raw() around iconSvg() makes the output
    LONGER (3507 -> 5403 chars on the dashboard) while every icon on the page turns
@@ -35,54 +52,45 @@ function assertHealthyRender(view, label, opts = {}) {
 /* app.js's boot chain catches every rejection and writes a 172-char error card
    into #view, which clears any `length > 100` bar. So this test has to name the
    error text it must NOT see, and something only a real dashboard produces. */
-test('the app boots without throwing and lands on the dashboard', async () => {
-  const { document, cleanup } = await bootApp();
+test('the app boots without throwing and lands on the dashboard', () => withBoot(async ({ document }) => {
   const view = document.querySelector('#view');
   assert.ok(!view.textContent.includes('Could not open your garage'), 'boot failed and left the error card in #view');
   assert.ok(view.querySelector('.car-card'), 'no car card — this is not the rendered dashboard');
   assert.ok(view.querySelector('.hero'), 'no hero card — this is not the rendered dashboard');
   assertHealthyRender(view, 'dashboard');
-  cleanup();
-});
+}));
 
 /* One test per tab. Phase 3a shipped five ReferenceErrors that blanked four of
    these six pages, with a fully green suite, because nothing rendered them. */
 for (const route of ROUTES) {
-  test(`the ${route} page renders without throwing`, async () => {
-    const { document, api, cleanup } = await bootApp();
+  test(`the ${route} page renders without throwing`, () => withBoot(async ({ document, api }) => {
     api.go(route);
     assertHealthyRender(document.querySelector('#view'), route);
-    cleanup();
-  });
+  }));
 }
 
-test('every page renders in Arabic too', async () => {
-  const { document, api, cleanup } = await bootApp({ lang: 'ar' });
+test('every page renders in Arabic too', () => withBoot({ lang: 'ar' }, async ({ document, api }) => {
   for (const route of ROUTES) {
     api.go(route);
     assertHealthyRender(document.querySelector('#view'), `${route} (ar)`);
   }
-  cleanup();
-});
+}));
 
 /* maintMode is a top-level `let`, so it is a global lexical binding and NOT a
    property of globalThis. It must be set through evalInApp; assigning
    api.maintMode would create an unrelated property and change nothing. */
-test('the maintenance History mode renders', async () => {
-  const { document, api, evalInApp, cleanup } = await bootApp();
+test('the maintenance History mode renders', () => withBoot(async ({ document, api, evalInApp }) => {
   evalInApp('maintMode = "History"');
   api.go('maintenance');
   assertHealthyRender(document.querySelector('#view'), 'maintenance (History)');
-  cleanup();
-});
+}));
 
 /* The Plan mode is the third maintMode and was the real hole behind the
    "app.js:479 stayed green" finding: buildPlan() renders only in this mode, so
    neither the default Schedule nor History test ever reached it. Measured:
    Plan renders 5 .plan-log buttons and 5 <svg>, against 1 <svg> for the other
    two modes. */
-test('all three maintenance modes render', async () => {
-  const { document, api, evalInApp, cleanup } = await bootApp();
+test('all three maintenance modes render', () => withBoot(async ({ document, api, evalInApp }) => {
   for (const mode of ['Schedule', 'Plan', 'History']) {
     evalInApp(`maintMode = ${JSON.stringify(mode)}`);
     api.go('maintenance');
@@ -92,18 +100,15 @@ test('all three maintenance modes render', async () => {
   api.go('maintenance');
   assert.ok(document.querySelector('#view').querySelectorAll('.plan-log').length > 0,
     'the Plan mode rendered no plan-visit buttons — buildPlan did not run');
-  cleanup();
-});
+}));
 
-test('all three report types render', async () => {
-  const { document, api, evalInApp, cleanup } = await bootApp();
+test('all three report types render', () => withBoot(async ({ document, api, evalInApp }) => {
   for (const type of ['service', 'purchases', 'summary']) {
     evalInApp(`reportType = ${JSON.stringify(type)}`);
     api.go('reports');
     assertHealthyRender(document.querySelector('#view'), `${type} report`);
   }
-  cleanup();
-});
+}));
 
 /* The escaping acceptance criterion, end to end through a real render.
 
@@ -111,16 +116,14 @@ test('all three report types render', async () => {
    seeded car has no photo, so a nickname alone renders nothing and the
    assertion below would hold vacuously. Setting a photo is what makes this a
    test. It caught a live XSS on the dashboard the first time it ran. */
-test('a hostile vehicle nickname renders as text, not markup', async () => {
-  const { document, api, cleanup } = await bootApp();
+test('a hostile vehicle nickname renders as text, not markup', () => withBoot(async ({ document, api }) => {
   api.session.current().car.photo = 'blob:test/car';
   api.session.current().car.nickname = '<img src=x onerror=alert(1)>';
   api.go('dashboard');
   const view = document.querySelector('#view');
   assert.ok(view.textContent.includes('onerror=alert(1)'), 'the payload never reached #view — this test proves nothing');
   assert.strictEqual(view.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
-  cleanup();
-});
+}));
 
 /* ============================================================
    DIALOGS
@@ -158,8 +161,7 @@ const DIALOGS = [
 ];
 
 for (const [name, route, invoke, svgCount] of DIALOGS) {
-  test(`${name} renders its dialog without throwing`, async () => {
-    const { document, api, cleanup } = await bootApp();
+  test(`${name} renders its dialog without throwing`, () => withBoot(async ({ document, api }) => {
     if (route) api.go(route);
     invoke(api);
 
@@ -169,12 +171,10 @@ for (const [name, route, invoke, svgCount] of DIALOGS) {
        dialog's own bodyBuilder ran, which a length check would not. */
     assert.ok(card.children.length > 2, `${name} opened an empty dialog — its bodyBuilder appended nothing`);
     assertHealthyRender(card, `${name} dialog`, { svg: svgCount > 0 });
-    cleanup();
-  });
+  }));
 }
 
-test('every dialog renders in Arabic too', async () => {
-  const { document, api, cleanup } = await bootApp({ lang: 'ar' });
+test('every dialog renders in Arabic too', () => withBoot({ lang: 'ar' }, async ({ document, api }) => {
   for (const [name, route, invoke, svgCount] of DIALOGS) {
     if (route) api.go(route);
     invoke(api);
@@ -183,8 +183,7 @@ test('every dialog renders in Arabic too', async () => {
     assertHealthyRender(card, `${name} dialog (ar)`, { svg: svgCount > 0 });
     api.closeModal();
   }
-  cleanup();
-});
+}));
 
 /* Regression for the attribute-injection XSS found on 2026-08-18.
    field() builds its inputs by interpolating values straight into
@@ -203,8 +202,7 @@ function assertNoAttributeInjection(root, label) {
   assert.strictEqual(root.querySelectorAll('[onerror]').length, 0, `${label}: payload became a live onerror handler`);
 }
 
-test('a hostile stored value cannot break out of an input attribute', async () => {
-  const { document, api, cleanup } = await bootApp();
+test('a hostile stored value cannot break out of an input attribute', () => withBoot(async ({ document, api }) => {
   const c = api.session.current();
   c.car.nickname = ATTR_PAYLOAD;
   c.car.make = ATTR_PAYLOAD;
@@ -218,11 +216,9 @@ test('a hostile stored value cannot break out of an input attribute', async () =
   // and the value must survive intact as literal text, not be silently dropped
   assert.strictEqual(card.querySelector('#c_nick').getAttribute('value'), ATTR_PAYLOAD,
     'the nickname was escaped away instead of round-tripping');
-  cleanup();
-});
+}));
 
-test('a hostile part name cannot break out of the edit-part dialog', async () => {
-  const { document, api, cleanup } = await bootApp();
+test('a hostile part name cannot break out of the edit-part dialog', () => withBoot(async ({ document, api }) => {
   const p = api.session.current().parts[0];
   p.name = ATTR_PAYLOAD;
   if (p.options && p.options[0]) {
@@ -232,15 +228,12 @@ test('a hostile part name cannot break out of the edit-part dialog', async () =>
   api.go('parts');
   api.openEditPart(p);
   assertNoAttributeInjection(document.querySelector('#modalCard'), 'openEditPart');
-  cleanup();
-});
+}));
 
-test('a hostile document label cannot break out of the add-document dialog', async () => {
-  const { document, api, cleanup } = await bootApp();
+test('a hostile document label cannot break out of the add-document dialog', () => withBoot(async ({ document, api }) => {
   api.openAddDoc({ type: 'Insurance', name: ATTR_PAYLOAD, number: ATTR_PAYLOAD, expiry: '2027-01-01' });
   assertNoAttributeInjection(document.querySelector('#modalCard'), 'openAddDoc');
-  cleanup();
-});
+}));
 
 /* Regression for a second attribute-injection hole found in openEditPart on
    2026-08-18, after the first pass at converting this dialog: the icon,
@@ -250,8 +243,7 @@ test('a hostile document label cannot break out of the add-document dialog', asy
    (icon and PartSouq no. are free-text fields; category is drawn from
    user-created parts' `cat` values) and all three are settable via an
    imported backup. */
-test('a hostile part icon, category or PartSouq no. cannot break out of the edit-part dialog', async () => {
-  const { document, api, cleanup } = await bootApp();
+test('a hostile part icon, category or PartSouq no. cannot break out of the edit-part dialog', () => withBoot(async ({ document, api }) => {
   const p = api.session.current().parts[0];
   p.icon = ATTR_PAYLOAD;
   p.cat = ATTR_PAYLOAD;
@@ -262,24 +254,21 @@ test('a hostile part icon, category or PartSouq no. cannot break out of the edit
   assertNoAttributeInjection(card, 'openEditPart (icon/cat/partsouq)');
   assert.strictEqual(card.querySelector('#p_psq').getAttribute('value'), ATTR_PAYLOAD,
     'the PartSouq part no. was escaped away instead of round-tripping');
-  cleanup();
-});
+}));
 
 /* Regression for an XSS found in docItem (Task 7, 2026-08-19): the dashboard's
    document list built each row with `it.innerHTML = \`...${d.name}...\`` in an
    untagged template, interpolating the label directly into markup rather than
    into an attribute. A document named `<img src=x onerror=alert(1)>` became a
    live element the moment the dashboard rendered — no dialog open required. */
-test('a hostile document label cannot inject markup into the dashboard document list', async () => {
-  const { document, api, cleanup } = await bootApp();
+test('a hostile document label cannot inject markup into the dashboard document list', () => withBoot(async ({ document, api }) => {
   api.session.current().docs = api.session.current().docs || [];
   api.session.current().docs.push({ id: 'reg-doc', type: 'Insurance', name: '<img src=x onerror=alert(1)>', expiry: '2027-01-01', number: '' });
   api.go('dashboard');
   const view = document.querySelector('#view');
   assert.ok(view.textContent.includes('onerror=alert(1)'), 'the payload never reached #view — this test proves nothing');
   assert.strictEqual(view.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
-  cleanup();
-});
+}));
 
 /* Regression for Task 8 (2026-08-19): openGarage's vehicle-list row built each
    item with `it.innerHTML = \`...${vehicleName(c)}...\`` in an untagged
@@ -287,15 +276,13 @@ test('a hostile document label cannot inject markup into the dashboard document 
    vehicle nicknamed `<img src=x onerror=alert(1)>` became a live element the
    moment the garage switcher opened — the same class of bug as docItem
    (Task 7), one dialog away from the dashboard's. */
-test('a hostile vehicle name cannot inject markup into the garage vehicle list', async () => {
-  const { document, api, cleanup } = await bootApp();
+test('a hostile vehicle name cannot inject markup into the garage vehicle list', () => withBoot(async ({ document, api }) => {
   api.session.current().car.nickname = '<img src=x onerror=alert(1)>';
   api.openGarage();
   const card = document.querySelector('#modalCard');
   assert.ok(card.textContent.includes('onerror=alert(1)'), 'the payload never reached #modalCard — this test proves nothing');
   assert.strictEqual(card.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
-  cleanup();
-});
+}));
 
 /* ============================================================
    INJECTION SWEEP (Task 9, Addition 3)
@@ -359,8 +346,7 @@ function seedHostileData(api, payload) {
 }
 
 for (const [label, payload] of [['attribute breakout', ATTR_PAYLOAD], ['markup injection', MARKUP_PAYLOAD]]) {
-  test(`injection sweep (${label}): every route renders the payload as inert text`, async () => {
-    const { document, api, evalInApp, cleanup } = await bootApp();
+  test(`injection sweep (${label}): every route renders the payload as inert text`, () => withBoot(async ({ document, api, evalInApp }) => {
     seedHostileData(api, payload);
 
     for (const route of ROUTES) {
@@ -380,11 +366,9 @@ for (const [label, payload] of [['attribute breakout', ATTR_PAYLOAD], ['markup i
       api.go('reports');
       assertNoAttributeInjection(document.querySelector('#view'), `${type} report (${label})`);
     }
-    cleanup();
-  });
+  }));
 
-  test(`injection sweep (${label}): every dialog renders the payload as inert text`, async () => {
-    const { document, api, cleanup } = await bootApp();
+  test(`injection sweep (${label}): every dialog renders the payload as inert text`, () => withBoot(async ({ document, api }) => {
     seedHostileData(api, payload);
 
     for (const [name, route, invoke] of DIALOGS) {
@@ -393,6 +377,5 @@ for (const [label, payload] of [['attribute breakout', ATTR_PAYLOAD], ['markup i
       assertNoAttributeInjection(document.querySelector('#modalCard'), `${name} dialog (${label})`);
       api.closeModal();
     }
-    cleanup();
-  });
+  }));
 }

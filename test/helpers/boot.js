@@ -55,10 +55,25 @@ const SCRIPTS = [
   'app.js'
 ];
 
-/* Guards against index.html and this list drifting apart. */
+/* Guards against index.html and this list drifting apart.
+
+   Matches any <script ...src="..."...></script> tag that names a local file
+   (no scheme, so CDN/inline scripts are skipped) — tolerant of attribute
+   order (src before or after defer/async/etc.), single or double quotes
+   around the src value, and any other boolean/valued attribute on the tag.
+   A single, unanchored `src=(["'])([^"']+)\1` capture inside a loosely
+   bounded `<script ...>...<\/script>` match is enough: index.html's script
+   tags are all one-line and self-closing pairs, so there is no risk of one
+   tag's attributes bleeding into the next. */
 function assertScriptOrderMatchesIndexHtml() {
   const htmlSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const inHtml = [...htmlSrc.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+  const inHtml = [...htmlSrc.matchAll(/<script\b([^>]*)><\/script>/g)]
+    .map(m => {
+      const attrs = m[1];
+      const srcMatch = attrs.match(/\bsrc=(["'])([^"']+)\1/);
+      return srcMatch ? srcMatch[2] : null;
+    })
+    .filter(src => src != null);
   if (inHtml.join(',') !== SCRIPTS.join(',')) {
     throw new Error(`test/helpers/boot.js SCRIPTS is out of sync with index.html.\n  index.html: ${inHtml.join(', ')}\n  boot.js:    ${SCRIPTS.join(', ')}`);
   }
