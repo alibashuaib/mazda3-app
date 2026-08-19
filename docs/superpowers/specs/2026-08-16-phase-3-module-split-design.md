@@ -352,7 +352,13 @@ through `test/helpers/boot.js`, then assert on
   conversation, not to be raised whenever it fails.
 - **Injection classes other than attribute and element injection are untested** —
   `javascript:` and `data:` URLs, and CSS-based exfiltration.
-- **No browser has ever run this branch.** All verification is `linkedom` under Node.
+- **Automated verification is `linkedom` under Node**, not a browser. A manual pass
+  was done by the owner on 2026-08-19, after merge, covering: opening `index.html`
+  from disk (all ten scripts load in order from a `file://` origin), all six tabs
+  rendering, the Arabic/RTL switch and back, an export/import round-trip (the only
+  exercise the IndexedDB backend has had), and a `<b>test</b>` nickname rendering as
+  literal text and round-tripping unchanged in the settings field. All passed. That
+  pass is a snapshot, not a regression test — nothing re-runs it.
 - **The IndexedDB backend is never exercised by a render test**: `test/helpers/boot.js`
   pins `location.protocol = 'file:'`, so every render test runs the `localStorage`
   path. A failure specific to the IndexedDB path would pass here and fail in a browser.
