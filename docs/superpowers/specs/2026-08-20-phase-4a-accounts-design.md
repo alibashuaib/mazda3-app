@@ -234,8 +234,13 @@ existing `res.ok` branch, which is already guarded by the `_generation` check
 (`session.js:151`). A save in flight across a sign-out therefore cannot push into the
 next account.
 
-`account.onSaved` upserts the row. On failure it adds the id to a dirty list in the
-existing `meta` store.
+`account.onSaved` upserts the row. On failure it adds the id to a dirty list under the
+`localStorage` key `garage.sync.dirty`.
+
+Not the `meta` store: `meta` is an IndexedDB object store, and the `localStorage` backend
+has no equivalent — `loadAll()` returns early for it without touching meta at all
+(`storage.js:375-377`). A `localStorage` key works on both backends, and `wipe()` clears
+it along with everything else.
 
 ### Sign-out
 
@@ -324,7 +329,12 @@ a fake with `auth.signInWithPassword / signOut / getSession` and `from().select/
 never for a save whose generation is stale.
 
 **`test/storage.test.js`** — `wipe()` empties `vehicles`, `photos` and `meta`, *and*
-removes the legacy v1 `localStorage` key.
+removes the legacy v1 `localStorage` key, the v2 garage key and the dirty list.
+
+**`test/helpers/boot.js`** — gains a `protocol` option, because it pins
+`location.protocol = 'file:'` today and `available()` is false there. It also excludes
+`vendor/` from the list it checks against `index.html`, since the real client never loads
+under Node.
 
 **DOM harness** — seed a garage with a car photo, render, sign out, then assert no `<img>`
 from the previous garage survives in the document and no vehicle text remains. This is
