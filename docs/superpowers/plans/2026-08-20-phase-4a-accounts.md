@@ -1524,10 +1524,13 @@ session.configure({
 /* The re-render half of sign-out. session.clear() revokes object URLs, but a
    decoded <img> stays painted until something rebuilds the view — so account.js
    never calls clear() without calling this after it. */
+/* Gate on the protocol directly. account.available() also requires a client,
+   and this expression is what SUPPLIES the client — calling it here would
+   always see env.client === null and never build one. */
+const canSignIn = typeof supabase !== 'undefined' && location.protocol !== 'file:';
+
 account.configure({
-  client: (typeof supabase !== 'undefined' && account.available())
-    ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY)
-    : null,
+  client: canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null,
   rerender: () => { renderTopbar(); go(current); },
   notify: (msg, kind) => toast(t(msg), kind),
   choose: askWhichGarage
@@ -1547,7 +1550,7 @@ Then extend the boot chain, replacing the `.then(() => { applyAccent(); ... })` 
   })
 ```
 
-Note `account.configure` must come **after** `available()` can see the protocol — it reads `location.protocol` directly, so no ordering concern beyond being in the boot block.
+**Do not gate the client construction on `account.available()`.** That call is evaluated as an argument to `configure()`, before `configure()` assigns `env.client`, so it always sees `null` and never builds a client — leaving the feature dead on every origin while still looking correct on `file://`. Gate on `location.protocol` directly, as above.
 
 - [ ] **Step 5: Run the suite**
 
