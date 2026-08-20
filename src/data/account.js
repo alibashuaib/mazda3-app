@@ -73,9 +73,58 @@
   }
   function clearDirty(id) { setDirty(dirty().filter(x => x !== id)); }
 
+  /* Photos stay local in Phase 4a: the Blobs live in IndexedDB and only their
+     ids cross the wire. Deep-copied so the live record keeps its object URL —
+     the dashboard is still rendering from it. */
+  function stripPhotos(data) {
+    const copy = JSON.parse(JSON.stringify(data || {}));
+    [copy.car].concat(copy.history || [], copy.spending || [])
+      .filter(Boolean)
+      .forEach(o => { delete o.photo; });
+    return copy;
+  }
+
+  function nowIso() { return new Date().toISOString(); }
+
+  /* user_id is filled by the column default (auth.uid()), so it is never sent
+     and never trusted from the client. The upsert conflicts on the table's
+     primary key, (user_id, id). */
+  function pushVehicle(id, data) {
+    return Promise.resolve(env.client.from('vehicles').upsert({
+      id, data: stripPhotos(data), updated_at: nowIso(), deleted_at: null
+    })).then(res => {
+      if (res && res.error) throw res.error;
+      return true;
+    });
+  }
+
+  function pushGarage(activeId) {
+    return Promise.resolve(env.client.from('garage').upsert({
+      active_id: activeId, updated_at: nowIso()
+    })).then(res => {
+      if (res && res.error) throw res.error;
+      return true;
+    });
+  }
+
+  /* session.js calls this through env.afterSave, after a successful LOCAL
+     write. Never rejects and never notifies: logging fuel at a petrol station
+     with no signal is normal operation, not an error worth interrupting for.
+     The dirty list is what makes it recoverable. */
+  function onSaved(id, data) {
+    if (!_user || !env.client) return Promise.resolve(false);
+    return pushVehicle(id, data)
+      .then(() => { clearDirty(id); return true; })
+      .catch(() => { markDirty(id); return false; });
+  }
+
+  /* Test seam only. Production code reaches _user through signIn/start. */
+  function setUserForTest(u) { _user = u; }
+
   return {
-    configure, reset, available, user,
+    configure, reset, available, user, setUserForTest,
     dirty, markDirty, clearDirty,
+    stripPhotos, pushVehicle, pushGarage, onSaved,
     SUPABASE_URL, SUPABASE_ANON_KEY
   };
 });
