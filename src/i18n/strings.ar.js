@@ -360,6 +360,27 @@ const AR = {
   'That is not a Garage backup file.': 'هذا ليس ملف نسخة احتياطية للمرآب.',
   'That backup file is incomplete.': 'ملف النسخة الاحتياطية غير مكتمل.',
   'Could not read that file.': 'تعذّرت قراءة هذا الملف.',
+
+  // accounts
+  'Account': 'الحساب',
+  'Sign in': 'تسجيل الدخول',
+  'Sign up': 'إنشاء حساب',
+  'Sign out': 'تسجيل الخروج',
+  'Email': 'البريد الإلكتروني',
+  'Password': 'كلمة المرور',
+  'Signed in as': 'مسجّل الدخول باسم',
+  'Not signed in': 'غير مسجّل الدخول',
+  'Your garage stays on this device.': 'تبقى بياناتك على هذا الجهاز.',
+  'Synced': 'تمت المزامنة',
+  'Waiting to sync': 'في انتظار المزامنة',
+  'Couldn’t reach your garage. Check your connection and try again.': 'تعذّر الوصول إلى بياناتك. تحقّق من اتصالك وحاول مرة أخرى.',
+  'Check your email to confirm your account.': 'تحقّق من بريدك لتأكيد حسابك.',
+  'Wrong email or password.': 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+  'Password must be at least 6 characters.': 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.',
+  'Keep this device’s garage': 'الاحتفاظ ببيانات هذا الجهاز',
+  'Use my account’s garage': 'استخدام بيانات حسابي',
+  'You have data here and in your account': 'لديك بيانات هنا وفي حسابك',
+  'Choose which one to keep. The other is replaced.': 'اختر أيهما تريد الاحتفاظ به. سيتم استبدال الآخر.'
 };
 
   return { AR };
