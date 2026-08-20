@@ -18,6 +18,13 @@ function installBrowserGlobals() {
     removeItem: k => { store.delete(k); },
     _store: store
   };
+  /* storage.js's openStorage() defaults to location.protocol when called with
+     no argument, which is exactly how session.js's real load() calls it.
+     Every other test in this file either uses a spy in place of session, or
+     calls storage.openStorage({protocol,...}) explicitly first — the
+     save-in-flight test below is the first to drive account.signOut() through
+     the REAL session module end to end, so location has to exist globally. */
+  global.location = { protocol: 'https:' };
 }
 installBrowserGlobals();
 
@@ -448,4 +455,41 @@ test('start() keeps the user signed in when the pull fails offline', async () =>
 
   assert.strictEqual(await account.start(), false);
   assert.ok(account.user(), 'an unreachable server is not an expired session');
+});
+
+/* What session.clear() uniquely provides in the sign-out sequence, and the
+   render test in test/render.test.js structurally cannot: the _generation
+   bump. wipe() + load() leave an identical end state whether or not clear()
+   ran, so a screen-based assertion can never tell them apart — but a save
+   already in flight when sign-out happens is a different story. Without the
+   generation check, that save's .then() would land in the NEXT signed-in
+   user's session after sign-out completes. This exercises the real
+   session.js module directly (not a spy), because the generation counter
+   lives there and is the thing under test. */
+test('a save in flight when sign-out happens cannot land in the next session', async () => {
+  account.reset();
+  const session2 = require('../src/data/session.js');
+  session2.clear();
+
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const pushed = [];
+  session2.configure({
+    saveVehicle: () => gate.then(() => ({ ok: true, data: { car: { nickname: 'StaleUser' } }, photoIds: [] })),
+    afterSave: (id, data) => pushed.push([id, data])
+  });
+  session2.setVehicles([{ id: 'v1', data: { car: { nickname: 'StaleUser' }, services: [], parts: [], history: [], spending: [], fuel: [], docs: [] } }], 'v1');
+
+  const inFlight = session2.save();
+
+  const client = fullClient({});
+  client.auth.signOut = () => Promise.resolve({ error: null });
+  account.configure({ client, protocol: 'https:', rerender: () => {}, wipe: () => Promise.resolve(true) });
+  account.setUserForTest({ id: 'u1' });
+  await account.signOut();
+
+  release();
+
+  assert.strictEqual(await inFlight, false, 'a save spanning sign-out must resolve false');
+  assert.deepStrictEqual(pushed, [], 'and must never reach the push hook — that is the previous user data landing in the next account');
 });

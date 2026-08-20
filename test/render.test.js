@@ -402,12 +402,19 @@ test('signing out leaves no trace of the previous garage on screen', async () =>
 
     assert.ok(document.body.textContent.includes('PreviousUserCar'), 'precondition: the car is on screen');
 
-    /* wipe() + session.load() alone would already blank the screen, so the two
-       screen assertions below cannot tell a signOut that dropped
-       session.clear() from one that kept it — both look identical once the
-       new (empty) session has rendered. Track a real object URL through
-       session.js's own objectUrl()/configure() seam and prove clear()'s
-       revocation sweep actually released it, independent of what got painted. */
+    /* Pins that sign-out leaves no live object URLs behind, tracked through
+       session.js's own objectUrl()/configure() seam rather than inferred from
+       the DOM. NOT proof that session.clear() specifically did the revoking:
+       go() (app.js) calls session.revokeObjectUrls() unconditionally on every
+       navigation, and rerender() below calls go() as part of reproducing the
+       real app.js wiring — so this assertion is satisfied either way and
+       cannot attribute the revocation to clear() vs. the next navigation.
+       Nothing in this file can make that attribution: wipe()+session.load()
+       alone leave an identical end state whether or not clear() ran, so a
+       screen/DOM-based test structurally cannot distinguish them. The
+       property that IS distinguishable — clear()'s _generation bump stopping
+       a save in flight from landing in the next session — is covered
+       directly in test/account.test.js instead. */
     const revoked = [];
     api.session.configure({
       makeObjectUrl: b => `blob:tracked-${b && b.tag ? b.tag : 'x'}`,
