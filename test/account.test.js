@@ -16,6 +16,10 @@ function installBrowserGlobals() {
     getItem: k => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => { store.set(k, String(v)); },
     removeItem: k => { store.delete(k); },
+    /* key()/length are part of the Storage interface and storage.js's wipe()
+       enumerates with them to find supabase's sb-<ref>-auth-token key. */
+    key: i => [...store.keys()][i] ?? null,
+    get length() { return store.size; },
     _store: store
   };
   /* storage.js's openStorage() defaults to location.protocol when called with

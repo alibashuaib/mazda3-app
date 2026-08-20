@@ -28,6 +28,10 @@ function freshStorage(seedLocal) {
     getItem: k => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => { store.set(k, String(v)); },
     removeItem: k => { store.delete(k); },
+    /* key()/length are part of the Storage interface and storage.js's wipe()
+       enumerates with them to find supabase's sb-<ref>-auth-token key. */
+    key: i => [...store.keys()][i] ?? null,
+    get length() { return store.size; },
     _store: store
   };
   delete require.cache[STORAGE];
@@ -299,6 +303,26 @@ test('wipe() leaves unrelated keys alone', async () => {
 
   await storage.wipe();
 
+  assert.strictEqual(global.localStorage.getItem('garage.theme'), 'light');
+  assert.strictEqual(global.localStorage.getItem('garage.lang'), 'ar');
+});
+
+/* auth.signOut() RESOLVES with {error} on a network failure and can return
+   before clearing its stored session. If sb-<ref>-auth-token survives a wipe,
+   the next launch's getSession() restores the PREVIOUS user's session and
+   adopt() writes their whole garage onto the device — with no sign-in prompt.
+   That defeats the phase's central cross-user property. */
+test('wipe() removes the stored supabase auth token, and nothing else', async () => {
+  const storage = freshStorage();
+  global.localStorage.setItem('sb-abcdef-auth-token', JSON.stringify({ access_token: 'x' }));
+  global.localStorage.setItem('garage.theme', 'light');
+  global.localStorage.setItem('garage.lang', 'ar');
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  await storage.wipe();
+
+  assert.strictEqual(global.localStorage.getItem('sb-abcdef-auth-token'), null,
+    'an offline sign-out that leaves the token behind hands the device back to the previous user');
   assert.strictEqual(global.localStorage.getItem('garage.theme'), 'light');
   assert.strictEqual(global.localStorage.getItem('garage.lang'), 'ar');
 });

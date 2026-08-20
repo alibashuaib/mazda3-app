@@ -284,8 +284,15 @@
      The ONLY caller of session.clear() in the codebase, and it always ends
      with a re-render: revoking a blob URL does not blank a decoded <img>. */
   function signOut() {
-    return Promise.resolve(env.client && env.client.auth.signOut())
-      .catch(() => {})                       // a failed remote sign-out must not strand local state
+    /* auth.signOut() RESOLVES with {error} rather than rejecting, so the catch
+       below covers only a synchronous throw. Either way the local wipe runs:
+       a remote sign-out that failed is exactly the case where the stored token
+       may still be on disk, and stranding local state there is the bug. */
+    let remoteFailed = false;
+    return Promise.resolve()
+      .then(() => env.client && env.client.auth.signOut())
+      .then(res => { remoteFailed = !!(res && res.error); })
+      .catch(() => { remoteFailed = true; })  // a failed remote sign-out must not strand local state
       .then(() => {
         _user = null;
         deps.session.clear();
@@ -293,7 +300,11 @@
       })
       .then(() => deps.session.load())
       .then(firstRun => (firstRun ? deps.session.save() : null))
-      .then(() => { env.rerender(); return true; });
+      /* The local half always completed by the time this resolves; the boolean
+         reports only whether the REMOTE sign-out succeeded. wipe() removes the
+         stored sb-<ref>-auth-token either way, so a false here does not mean a
+         session survived on this device. */
+      .then(() => { env.rerender(); return !remoteFailed; });
   }
 
   /* Token expired or refresh failed. Drop to anonymous and KEEP EVERYTHING:
