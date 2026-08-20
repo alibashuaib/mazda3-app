@@ -108,6 +108,9 @@ test('onSaved pushes the vehicle and leaves the dirty list empty', async () => {
   account.configure({ client, protocol: 'https:' });
   account.setUserForTest({ id: 'u1' });
 
+  account.markDirty('v1');
+  assert.deepStrictEqual(account.dirty(), ['v1'], 'precondition: v1 starts dirty');
+
   const ok = await account.onSaved('v1', { car: { nickname: 'Red', photo: 'blob:x' } });
 
   assert.strictEqual(ok, true);
