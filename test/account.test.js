@@ -326,3 +326,126 @@ test('adopt persists the activeId session settled on, not the raw pulled one', a
   const after = await storage2.loadAll();
   assert.strictEqual(after.garage.activeId, 'srv1', 'disk must agree with memory');
 });
+
+/* Records the order of lifecycle calls, which is the whole point of these
+   tests: clear() before wipe() before load() before rerender(). */
+function lifecycleSpy() {
+  const order = [];
+  return {
+    order,
+    session: {
+      clear: () => order.push('clear'),
+      load: () => { order.push('load'); return Promise.resolve(false); },
+      save: () => { order.push('save'); return Promise.resolve(true); },
+      garage: () => seedGarage(),
+      setVehicles: () => order.push('setVehicles')
+    },
+    wipe: () => { order.push('wipe'); return Promise.resolve(true); },
+    rerender: () => order.push('rerender')
+  };
+}
+
+test('signOut clears, wipes, reloads and re-renders, in that order', async () => {
+  account.reset();
+  const spy = lifecycleSpy();
+  const client = fullClient({});
+  client.auth.signOut = () => Promise.resolve({ error: null });
+  account.configure({ client, protocol: 'https:', rerender: spy.rerender, session: spy.session, wipe: spy.wipe });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.signOut();
+
+  assert.deepStrictEqual(spy.order, ['clear', 'wipe', 'load', 'rerender']);
+  assert.strictEqual(account.user(), null);
+});
+
+/* The data-loss guard. A phone offline for a fortnight must not lose a garage. */
+test('expire() drops to anonymous and never wipes', () => {
+  account.reset();
+  const spy = lifecycleSpy();
+  account.configure({ client: fullClient({}), protocol: 'https:', rerender: spy.rerender, session: spy.session, wipe: spy.wipe });
+  account.setUserForTest({ id: 'u1' });
+
+  account.expire();
+
+  assert.strictEqual(account.user(), null);
+  assert.ok(spy.order.indexOf('wipe') < 0, 'an expired token must never wipe local data');
+  assert.ok(spy.order.indexOf('clear') < 0, 'nor clear the in-memory garage');
+  assert.deepStrictEqual(spy.order, ['rerender']);
+});
+
+test('signIn refuses and stays anonymous when the pull fails', async () => {
+  account.reset();
+  const client = fullClient({ failSelect: true });
+  client.auth.signInWithPassword = () => Promise.resolve({ data: { user: { id: 'u1' } }, error: null });
+  account.configure({ client, protocol: 'https:' });
+
+  await assert.rejects(() => account.signIn('a@b.c', 'pw'), /PULL_FAILED/);
+  assert.strictEqual(account.user(), null, 'a half-signed-in state is worse than none');
+});
+
+test('signIn surfaces the provider error and stays anonymous', async () => {
+  account.reset();
+  const client = fullClient({});
+  client.auth.signInWithPassword = () => Promise.resolve({ data: null, error: new Error('Invalid login credentials') });
+  account.configure({ client, protocol: 'https:' });
+
+  await assert.rejects(() => account.signIn('a@b.c', 'wrong'), /Invalid login credentials/);
+  assert.strictEqual(account.user(), null);
+});
+
+test('signIn with signUp:true calls signUp, not signInWithPassword', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  let used = null;
+  client.auth.signUp = () => { used = 'signUp'; return Promise.resolve({ data: { user: { id: 'u1' } }, error: null }); };
+  client.auth.signInWithPassword = () => { used = 'signIn'; return Promise.resolve({ data: { user: { id: 'u1' } }, error: null }); };
+  account.configure({ client, protocol: 'https:' });
+  session.clear();
+  const g = seedGarage();
+  session.setVehicles(g.vehicles, g.activeId);
+
+  await account.signIn('a@b.c', 'pw', { signUp: true });
+
+  assert.strictEqual(used, 'signUp');
+});
+
+test('start() pushes dirty vehicles before pulling', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  localStorage.setItem('garage.sync.dirty', JSON.stringify(['local1']));
+  const client = fullClient({ rows: [{ id: 'local1', data: { car: { nickname: 'Server' }, history: [], fuel: [], spending: [], docs: [] } }], activeId: 'local1' });
+  client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
+  account.configure({ client, protocol: 'https:' });
+  session.clear();
+  const g = seedGarage();
+  session.setVehicles(g.vehicles, g.activeId);
+
+  const ok = await account.start();
+
+  assert.strictEqual(ok, true);
+  assert.strictEqual(client.calls.vehicles.length, 1, 'the dirty vehicle was pushed');
+  assert.deepStrictEqual(account.dirty(), [], 'and cleared from the list');
+});
+
+test('start() with no stored session stays anonymous', async () => {
+  account.reset();
+  const client = fullClient({});
+  client.auth.getSession = () => Promise.resolve({ data: { session: null }, error: null });
+  account.configure({ client, protocol: 'https:' });
+
+  assert.strictEqual(await account.start(), false);
+  assert.strictEqual(account.user(), null);
+});
+
+/* Offline boot: the token is fine, the network is not. Stay signed in, keep
+   rendering from local, push nothing away. */
+test('start() keeps the user signed in when the pull fails offline', async () => {
+  account.reset();
+  const client = fullClient({ failSelect: true });
+  client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
+  account.configure({ client, protocol: 'https:' });
+
+  assert.strictEqual(await account.start(), false);
+  assert.ok(account.user(), 'an unreachable server is not an expired session');
+});

@@ -42,8 +42,27 @@
   };
   let env = Object.assign({}, DEFAULTS);
 
-  function configure(next) { env = Object.assign({}, env, next || {}); }
-  function reset() { _user = null; env = Object.assign({}, DEFAULTS); }
+  let deps = dep;
+
+  function configure(next) {
+    next = next || {};
+    env = Object.assign({}, env, next);
+    /* Injected the way session.js takes saveVehicle. Tests pass spies so the
+       sign-out lifecycle ORDER can be asserted, which is the property that
+       matters most in this module. */
+    if (next.session || next.wipe) {
+      deps = Object.assign({}, deps, {
+        session: next.session || deps.session,
+        wipe: next.wipe || deps.wipe
+      });
+    }
+  }
+
+  function reset() {
+    _user = null;
+    env = Object.assign({}, DEFAULTS);
+    deps = dep;
+  }
 
   function protocol() {
     if (env.protocol) return env.protocol;
@@ -153,17 +172,17 @@
      Pulled vehicles are written BEFORE stale ones are removed, so an
      interruption leaves a superset rather than an empty garage. */
   function adopt(pulled) {
-    const previous = dep.session.garage();
+    const previous = deps.session.garage();
     const priorIds = previous ? previous.vehicles.map(v => v.id) : [];
-    dep.session.setVehicles(pulled.vehicles, pulled.activeId);
-    const activeId = dep.session.garage() ? dep.session.garage().activeId : null;
+    deps.session.setVehicles(pulled.vehicles, pulled.activeId);
+    const activeId = deps.session.garage() ? deps.session.garage().activeId : null;
     const keep = pulled.vehicles.map(v => v.id);
     const stale = priorIds.filter(id => keep.indexOf(id) < 0);
     return pulled.vehicles.reduce(
-      (p, v) => p.then(() => dep.saveVehicle(v.id, v.data, activeId, dep.uid)),
+      (p, v) => p.then(() => deps.saveVehicle(v.id, v.data, activeId, deps.uid)),
       Promise.resolve()
     ).then(() => stale.reduce(
-      (p, id) => p.then(() => dep.removeVehicle(id, activeId)),
+      (p, id) => p.then(() => deps.removeVehicle(id, activeId)),
       Promise.resolve()
     )).then(() => {});
   }
@@ -180,10 +199,82 @@
      the same user, dirty vehicles have already been pushed, so the server is
      current by construction and there is nothing to ask about. */
   function reconcile(pulled) {
-    const local = dep.session.garage();
+    const local = deps.session.garage();
     if (!pulled.vehicles.length) return uploadAll(local);
     if (isUntouchedSeed(local)) return adopt(pulled);
     return Promise.resolve(env.choose()).then(keep => keep === 'local' ? uploadAll(local) : adopt(pulled));
+  }
+
+  function drain() {
+    const ids = dirty();
+    if (!ids.length) return Promise.resolve(0);
+    const g = deps.session.garage();
+    return ids.reduce((p, id) => p.then(() => {
+      const v = g && g.vehicles.find(x => x.id === id);
+      if (!v) { clearDirty(id); return null; }      // deleted since; nothing to push
+      return pushVehicle(id, v.data).then(() => clearDirty(id)).catch(() => {});
+    }), Promise.resolve()).then(() => dirty().length);
+  }
+
+  function signIn(email, password, opts) {
+    opts = opts || {};
+    const call = opts.signUp
+      ? env.client.auth.signUp({ email, password })
+      : env.client.auth.signInWithPassword({ email, password });
+    return Promise.resolve(call).then(res => {
+      if (res && res.error) throw res.error;
+      const u = res && res.data && res.data.user;
+      if (!u) throw new Error('EMAIL_NOT_CONFIRMED');
+      _user = u;
+      /* The merge decision cannot be made without knowing what the server
+         holds, so an unreachable server fails the sign-in outright rather
+         than leaving a half-signed-in state that would upload over it. */
+      return pull().catch(() => { _user = null; throw new Error('PULL_FAILED'); });
+    }).then(pulled => reconcile(pulled))
+      .then(() => { env.rerender(); return true; });
+  }
+
+  /* Deliberate sign-out. Wipes. Contrast expire(), which must not.
+     The ONLY caller of session.clear() in the codebase, and it always ends
+     with a re-render: revoking a blob URL does not blank a decoded <img>. */
+  function signOut() {
+    return Promise.resolve(env.client && env.client.auth.signOut())
+      .catch(() => {})                       // a failed remote sign-out must not strand local state
+      .then(() => {
+        _user = null;
+        deps.session.clear();
+        return deps.wipe();
+      })
+      .then(() => deps.session.load())
+      .then(firstRun => (firstRun ? deps.session.save() : null))
+      .then(() => { env.rerender(); return true; });
+  }
+
+  /* Token expired or refresh failed. Drop to anonymous and KEEP EVERYTHING:
+     wiping here would destroy a garage because a phone was offline for a
+     fortnight, or because of a transient 401. The next successful sign-in
+     goes through the normal merge, which will ask. */
+  function expire() {
+    _user = null;
+    env.rerender();
+  }
+
+  function start() {
+    if (!available()) return Promise.resolve(false);
+    return Promise.resolve(env.client.auth.getSession()).then(res => {
+      if (res && res.error) throw res.error;
+      const s = res && res.data && res.data.session;
+      if (!s || !s.user) { _user = null; return false; }
+      _user = s.user;
+      /* Dirty first, then pull: the local writes that never made it up are
+         newer than anything the server holds, and pulling first would adopt a
+         garage that is missing them. */
+      return drain()
+        .then(() => pull())
+        .then(pulled => adopt(pulled))
+        .then(() => { env.rerender(); return true; })
+        .catch(() => false);   // offline boot: stay signed in, keep rendering from local
+    }).catch(() => { _user = null; return false; });
   }
 
   return {
@@ -191,6 +282,7 @@
     dirty, markDirty, clearDirty,
     stripPhotos, pushVehicle, pushGarage, onSaved,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
+    drain, signIn, signOut, expire, start,
     SUPABASE_URL, SUPABASE_ANON_KEY
   };
 });
