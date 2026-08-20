@@ -2320,9 +2320,6 @@ session.configure({
   afterSave: (id, data) => account.onSaved(id, data)
 });
 
-/* The re-render half of sign-out. session.clear() revokes object URLs, but a
-   decoded <img> stays painted until something rebuilds the view — so account.js
-   never calls clear() without calling this after it. */
 /* Gate on the protocol directly. account.available() also requires a client,
    and this expression is what SUPPLIES the client — calling it here would
    always see env.client === null and never build one. */
@@ -2330,8 +2327,10 @@ const canSignIn = typeof supabase !== 'undefined' && location.protocol !== 'file
 
 account.configure({
   client: canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null,
+  /* The re-render half of sign-out. session.clear() revokes object URLs, but a
+     decoded <img> stays painted until something rebuilds the view — so
+     account.js never calls clear() without calling this after it. */
   rerender: () => { renderTopbar(); go(current); },
-  notify: (msg, kind) => toast(t(msg), kind),
   choose: askWhichGarage
 });
 

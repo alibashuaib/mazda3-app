@@ -779,3 +779,17 @@ test('start() tolerates a client with no onAuthStateChange', async () => {
 
   assert.ok(account.user(), 'the boot must still complete signed in');
 });
+
+/* deleteVehicle() calls pushTombstone un-awaited and outside any try/catch,
+   so a synchronous throw here would escape into the delete path and skip the
+   "Vehicle removed" toast. */
+test('pushTombstone cannot throw synchronously', async () => {
+  account.reset();
+  const client = { auth: {}, from: () => { throw new Error('client exploded'); } };
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  let result;
+  assert.doesNotThrow(() => { result = account.pushTombstone('v1'); });
+  assert.strictEqual(await result, false);
+});

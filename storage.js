@@ -245,7 +245,10 @@
   const DB_VERSION = 1;
   const LS_KEY = 'garage.mazda3.v2';   // same key the app used before Phase 2
   const LEGACY_V1_KEY = 'garage.mazda3.v1';
-  const DIRTY_KEY = 'garage.sync.dirty';   // account.js's outbox-lite; wiped with everything else
+  /* account.js's outbox-lite. EXPORTED, not duplicated: account.js reads it
+     through its dependency object, so renaming it here cannot leave wipe()
+     silently clearing a key nothing writes any more. */
+  const DIRTY_KEY = 'garage.sync.dirty';
   const META_KEY = 'meta';
 
   /* Before the garage existed the app stored ONE car's data object directly
@@ -556,7 +559,7 @@
   return {
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
-    parseLegacyV1, readLegacyV1, migrationPlan,
+    parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind
   };
 });

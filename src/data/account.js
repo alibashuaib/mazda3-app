@@ -33,7 +33,10 @@
   const SUPABASE_URL = 'https://REPLACE_ME.supabase.co';
   const SUPABASE_ANON_KEY = 'REPLACE_ME';
 
-  const DIRTY_KEY = 'garage.sync.dirty';
+  /* Owned by storage.js, because wipe() is what clears it — a literal in both
+     files means renaming one leaves the wipe pointing at a dead key. `dep`,
+     not `deps`: this is read once at module scope, before configure() runs. */
+  const DIRTY_KEY = dep.DIRTY_KEY;
 
   let _user = null;
   let _watching = false;      // one auth subscription per configured client, never two
@@ -41,7 +44,11 @@
   const DEFAULTS = {
     client: null,
     rerender: () => {},
-    notify: () => {},
+    /* No `notify`. Every failure this module can produce is either silent by
+       design (a failed push marks the vehicle dirty; Settings carries the
+       status) or surfaced inline by the caller (the auth form's error line).
+       An unread hook on the configure surface only invites a future caller to
+       assume it does something. */
     choose: () => Promise.resolve('server'),
     protocol: null            // null means "read location.protocol"
   };
@@ -143,7 +150,13 @@
   function pushTombstone(id) {
     if (!_user || !env.client) return Promise.resolve(false);
     const stamp = nowIso();
-    return Promise.resolve(env.client.from('vehicles').upsert({
+    /* The client call goes INSIDE the promise chain, unlike pushVehicle's.
+       deleteVehicle() calls this un-awaited and outside any try/catch
+       (app.js:114), so a synchronous throw from env.client.from(...) would
+       escape into the delete path and skip the "Vehicle removed" toast.
+       pushVehicle has the same shape but every caller already runs it inside a
+       .then() or a try/catch, so it is contained where this was not. */
+    return Promise.resolve().then(() => env.client.from('vehicles').upsert({
       id, data: {}, updated_at: stamp, deleted_at: stamp
     })).then(res => {
       if (res && res.error) throw res.error;
