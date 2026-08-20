@@ -245,6 +245,7 @@
   const DB_VERSION = 1;
   const LS_KEY = 'garage.mazda3.v2';   // same key the app used before Phase 2
   const LEGACY_V1_KEY = 'garage.mazda3.v1';
+  const DIRTY_KEY = 'garage.sync.dirty';   // account.js's outbox-lite; wiped with everything else
   const META_KEY = 'meta';
 
   /* Before the garage existed the app stored ONE car's data object directly
@@ -502,12 +503,34 @@
     }).then(() => true).catch(() => false);
   }
 
+  /* Sign-out's storage half. Clears both backends unconditionally, not just
+     the active one: a user may have run on IndexedDB over http and on
+     localStorage from disk, and leaving either populated hands the next user
+     the previous user's garage.
+
+     LEGACY_V1_KEY goes too, and that is load-bearing. hydrate() falls back to
+     readLegacyV1() whenever the garage is empty, so without this delete the
+     next sign-in would seed a fresh user from the previous one's pre-garage
+     car. Phase 2's migration copied that key into the garage long ago, so
+     nothing reachable is lost. */
+  function wipe() {
+    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY].forEach(k => {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+    if (!backend || backend.kind !== 'idb') return Promise.resolve(true);
+    return idbTx(backend.db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
+      tx.objectStore('meta').clear();
+      tx.objectStore('vehicles').clear();
+      tx.objectStore('photos').clear();
+    }).then(() => true).catch(() => false);
+  }
+
   function backendKind() { return backend ? backend.kind : null; }
 
   return {
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
     parseLegacyV1, readLegacyV1, migrationPlan,
-    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
+    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind
   };
 });
