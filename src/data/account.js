@@ -36,6 +36,7 @@
   const DIRTY_KEY = 'garage.sync.dirty';
 
   let _user = null;
+  let _watching = false;      // one auth subscription per configured client, never two
 
   const DEFAULTS = {
     client: null,
@@ -64,6 +65,7 @@
 
   function reset() {
     _user = null;
+    _watching = false;
     env = Object.assign({}, DEFAULTS);
     deps = dep;
   }
@@ -341,6 +343,34 @@
     env.rerender();
   }
 
+  /* expire()'s only caller. Without it expire() is dead code and a mid-session
+     token expiry is invisible: Settings keeps saying "Signed in as", and every
+     save quietly piles onto the dirty list until the next launch.
+
+     The event names are read off vendor/supabase.js, which emits SIGNED_IN,
+     SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, PASSWORD_RECOVERY and
+     INITIAL_SESSION. gotrue-js has no dedicated "refresh failed" event — it
+     emits SIGNED_OUT once a refresh gives up. A TOKEN_REFRESHED carrying no
+     session is the other shape that means the token is gone.
+
+     expire() must never destroy local data, and signOut() stays the module's
+     single storage-clearing call site. The `!_user` guard also means our
+     own signOut(), which nulls _user before auth.signOut() echoes SIGNED_OUT
+     back, cannot re-enter this path. */
+  function watchAuth() {
+    if (_watching) return;
+    const auth = env.client && env.client.auth;
+    // Every fake in the Node suite omits this; a missing subscription is not a failure.
+    if (!auth || typeof auth.onAuthStateChange !== 'function') return;
+    _watching = true;
+    try {
+      auth.onAuthStateChange((event, session) => {
+        if (!_user) return;                  // already anonymous — nothing to drop
+        if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) expire();
+      });
+    } catch (e) { _watching = false; }
+  }
+
   function start() {
     if (!available()) return Promise.resolve(false);
     return Promise.resolve(env.client.auth.getSession()).then(res => {
@@ -348,6 +378,7 @@
       const s = res && res.data && res.data.session;
       if (!s || !s.user) { _user = null; return false; }
       _user = s.user;
+      watchAuth();
       /* Dirty first, then pull: the local writes that never made it up are
          newer than anything the server holds, and pulling first would adopt a
          garage that is missing them. */

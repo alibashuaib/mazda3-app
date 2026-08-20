@@ -698,3 +698,69 @@ test('adopt normalizes pulled records', async () => {
     assert.ok(Array.isArray(d[k]), `${k} must be an array after adopt — the renderer maps over it`);
   });
 });
+
+/* expire() had no caller: nothing subscribed to auth state, so a mid-session
+   token expiry left the module believing it was signed in. The constraint that
+   matters more than the fix: this path must NEVER wipe. */
+test('a signed-out auth event drops to anonymous and never wipes', async () => {
+  account.reset();
+  const spy = lifecycleSpy();
+  const client = fullClient({ rows: [] });
+  let handler = null;
+  client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
+  client.auth.onAuthStateChange = fn => { handler = fn; return { data: { subscription: { unsubscribe() {} } } }; };
+  account.configure({ client, protocol: 'https:', rerender: spy.rerender, session: spy.session, wipe: spy.wipe });
+
+  await account.start();
+  assert.ok(account.user(), 'precondition: start() restored the session');
+  assert.strictEqual(typeof handler, 'function', 'start() must subscribe to auth state changes');
+
+  handler('SIGNED_OUT', null);
+
+  assert.strictEqual(account.user(), null, 'an expired session must drop to anonymous');
+  assert.ok(spy.order.indexOf('wipe') < 0, 'an expired token must never wipe local data');
+  assert.ok(spy.order.indexOf('clear') < 0, 'nor clear the in-memory garage');
+});
+
+test('a failed token refresh also drops to anonymous', async () => {
+  account.reset();
+  const spy = lifecycleSpy();
+  const client = fullClient({ rows: [] });
+  let handler = null;
+  client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
+  client.auth.onAuthStateChange = fn => { handler = fn; return {}; };
+  account.configure({ client, protocol: 'https:', rerender: spy.rerender, session: spy.session, wipe: spy.wipe });
+
+  await account.start();
+  handler('TOKEN_REFRESHED', null);
+
+  assert.strictEqual(account.user(), null);
+  assert.ok(spy.order.indexOf('wipe') < 0);
+});
+
+test('start() subscribes to auth state only once', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  let subs = 0;
+  client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
+  client.auth.onAuthStateChange = () => { subs++; return {}; };
+  account.configure({ client, protocol: 'https:', session: lifecycleSpy().session, wipe: () => Promise.resolve(true) });
+
+  await account.start();
+  await account.start();
+
+  assert.strictEqual(subs, 1, 'a second boot path must not register a second listener');
+});
+
+/* Every existing fake omits onAuthStateChange, and so will a hand-rolled one
+   in any future test. A missing subscription is not a boot failure. */
+test('start() tolerates a client with no onAuthStateChange', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
+  account.configure({ client, protocol: 'https:', session: lifecycleSpy().session, wipe: () => Promise.resolve(true) });
+
+  await account.start();
+
+  assert.ok(account.user(), 'the boot must still complete signed in');
+});
