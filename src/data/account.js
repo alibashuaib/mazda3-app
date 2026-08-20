@@ -183,10 +183,29 @@
   /* The default vehicle hydrate() invents on a fresh device: one car, nothing
      logged against it. Derived from data already in memory rather than tracked
      with a flag — there is no state to keep in sync and nothing to migrate. */
+  const SEED_ODOMETER = 316000;   // normalize.js's seed(): buildProfile(..., { odometer: 316000 })
+
   function isUntouchedSeed(garage) {
     if (!garage || !Array.isArray(garage.vehicles) || garage.vehicles.length !== 1) return false;
     const d = garage.vehicles[0].data || {};
-    return ['history', 'fuel', 'spending', 'docs'].every(k => !(Array.isArray(d[k]) && d[k].length));
+    if (!['history', 'fuel', 'spending', 'docs'].every(k => !(Array.isArray(d[k]) && d[k].length))) return false;
+    /* The record lists alone are not enough. The plan wizard rewrites `services`
+       and `parts` — which are never empty, so their length says nothing — and a
+       user who finished onboarding without logging anything yet would be
+       classified as an untouched seed and have their setup silently replaced
+       by the server's garage, with no prompt.
+
+       The judgement here is deliberately lopsided. A false negative only costs
+       a prompt the user can answer; a false positive destroys data. So a
+       nickname the user typed, or an odometer they moved off the seed's own
+       default, also disqualify. Cosmetic choices that a fresh install also
+       makes — theme, colour, language — do not: treating those as "touched"
+       would turn the untouched-seed path into dead code. */
+    if (d.planSetupDone) return false;
+    const car = d.car || {};
+    if (car.nickname) return false;
+    if (car.odometer != null && car.odometer !== SEED_ODOMETER) return false;
+    return true;
   }
 
   /* Replace the local garage with the server's, in memory and on disk.

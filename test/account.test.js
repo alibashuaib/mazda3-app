@@ -212,6 +212,21 @@ test('isUntouchedSeed is false once any record exists', () => {
   assert.strictEqual(account.isUntouchedSeed(seedGarage({ docs: [{ id: 'd1' }] })), false);
 });
 
+/* The plan wizard writes `services` and `parts`, which are never empty and so
+   say nothing on their own — planSetupDone is the only durable trace that a
+   user configured this garage. Misreading that as an untouched seed replaces
+   their setup with the server's, silently. */
+test('isUntouchedSeed is false once the plan wizard has been completed', () => {
+  account.reset();
+  assert.strictEqual(account.isUntouchedSeed(seedGarage({ planSetupDone: true })), false);
+});
+
+test('isUntouchedSeed is false once the car itself has been configured', () => {
+  account.reset();
+  assert.strictEqual(account.isUntouchedSeed(seedGarage({ car: { nickname: 'Red', odometer: 316000 } })), false);
+  assert.strictEqual(account.isUntouchedSeed(seedGarage({ car: { nickname: '', odometer: 12000 } })), false);
+});
+
 test('isUntouchedSeed is false for more than one vehicle', () => {
   account.reset();
   const g = seedGarage();
