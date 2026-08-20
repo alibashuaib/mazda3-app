@@ -379,3 +379,41 @@ for (const [label, payload] of [['attribute breakout', ATTR_PAYLOAD], ['markup i
     }
   }));
 }
+
+/* Phase 3 left this open: clear() revokes object URLs, but revoking a blob URL
+   does not blank an already-decoded <img>. The previous user's car photo stays
+   on screen until something re-renders. This asserts signOut() does both. */
+test('signing out leaves no trace of the previous garage on screen', async () => {
+  const app = await bootApp({ protocol: 'https:' });
+  try {
+    const { api, document } = app;
+
+    api.session.setVehicles([{
+      id: 'v1',
+      data: {
+        car: { nickname: 'PreviousUserCar', odometer: 1000, photo: 'blob:previous-photo' },
+        // renderDashboard reads budget.annual unguarded; setVehicles does not
+        // normalize (unlike load()), so the fixture must supply it directly.
+        budget: { annual: 6000 },
+        services: [], parts: [], history: [], spending: [], fuel: [], docs: []
+      }
+    }], 'v1');
+    api.go('dashboard');
+
+    assert.ok(document.body.textContent.includes('PreviousUserCar'), 'precondition: the car is on screen');
+
+    api.account.configure({
+      client: { auth: { signOut: () => Promise.resolve({ error: null }) }, from: () => ({}) },
+      protocol: 'https:',
+      rerender: () => { api.renderTopbar(); api.go(app.evalInApp('current')); }
+    });
+    api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+
+    await api.account.signOut();
+
+    assert.ok(!document.body.textContent.includes('PreviousUserCar'),
+      'the previous garage must not survive a sign-out on screen');
+    assert.ok(![...document.querySelectorAll('img')].some(i => (i.getAttribute('src') || '').includes('previous-photo')),
+      'no revoked blob URL may remain in the DOM');
+  } finally { app.cleanup(); }
+});
