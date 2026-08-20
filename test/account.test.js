@@ -658,3 +658,43 @@ test('a failure after a successful pull still leaves the user anonymous', async 
   await assert.rejects(() => account.signIn('a@b.c', 'pw'));
   assert.strictEqual(account.user(), null, 'sign-in must refuse rather than half-succeed');
 });
+
+/* adopt() bypasses hydrate(), so nothing re-resolves photo ids into object
+   URLs. For a signed-in online user that means every boot paints the car photo
+   from local storage and then removes it when the pull lands — the blob is
+   still on disk, the record just lost its `.photo`. */
+test('adopt re-resolves photo object URLs for the vehicles it pulls', async () => {
+  account.reset();
+  const storage2 = require('../storage.js');
+  await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  account.configure({ client: fullClient({}), protocol: 'https:' });
+  session.configure({ makeObjectUrl: b => 'blob:' + b.tag, revokeObjectUrl: () => {} });
+  session.clear();
+  session.setVehicles([{ id: 'old', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }], 'old');
+  session.photos()['p1'] = { tag: 'car-photo' };      // the blob is on this device already
+
+  await account.adopt({
+    vehicles: [{ id: 'srv1', data: { car: { nickname: 'A', photoId: 'p1' }, history: [], fuel: [], spending: [], docs: [] } }],
+    activeId: 'srv1'
+  });
+
+  assert.strictEqual(session.current().car.photo, 'blob:car-photo',
+    'the pulled record carries photoId but no .photo — adopt must resolve it or the photo vanishes');
+});
+
+/* A server row written by an older build must be healed, not rendered raw. */
+test('adopt normalizes pulled records', async () => {
+  account.reset();
+  const storage2 = require('../storage.js');
+  await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  account.configure({ client: fullClient({}), protocol: 'https:' });
+  session.clear();
+  session.setVehicles([{ id: 'old', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }], 'old');
+
+  await account.adopt({ vehicles: [{ id: 'srv1', data: { car: { nickname: 'A' } } }], activeId: 'srv1' });
+
+  const d = session.current();
+  ['history', 'fuel', 'spending', 'docs', 'services', 'parts'].forEach(k => {
+    assert.ok(Array.isArray(d[k]), `${k} must be an array after adopt — the renderer maps over it`);
+  });
+});

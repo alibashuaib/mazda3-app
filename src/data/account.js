@@ -17,7 +17,11 @@
 (function (root, factory) {
   const isNode = typeof module !== 'undefined' && module.exports;
   const dep = isNode
-    ? Object.assign({}, require('../../storage.js'), require('../core/helpers.js'), { session: require('./session.js') })
+    /* normalize.js is here for adopt(): a pulled row may have been written by
+       an older build, and it must be healed before it reaches the renderer.
+       In the browser the same accessor resolves off the global, where
+       normalize.js publishes with Object.assign(root, api). */
+    ? Object.assign({}, require('../../storage.js'), require('../core/helpers.js'), require('./normalize.js'), { session: require('./session.js') })
     : root;
   const api = factory(dep);
   if (isNode) module.exports = api;
@@ -194,7 +198,16 @@
   function adopt(pulled) {
     const previous = deps.session.garage();
     const priorIds = previous ? previous.vehicles.map(v => v.id) : [];
+    /* setVehicles() is a plain assignment — unlike hydrate() it neither
+       normalises nor resolves photos. Both have to happen here or every boot
+       for a signed-in user paints the dashboard from local storage, then
+       swaps in server records that carry photoId but no .photo, and the car
+       photo disappears until the next reload does it again. normalizeData is
+       idempotent, so running it on an already-current row costs nothing and
+       heals one written by an older build. */
+    if (deps.normalizeData) pulled.vehicles.forEach(v => { deps.normalizeData(v.data); });
     deps.session.setVehicles(pulled.vehicles, pulled.activeId);
+    if (deps.session.refreshPhotoUrls) deps.session.refreshPhotoUrls();
     const activeId = deps.session.garage() ? deps.session.garage().activeId : null;
     const keep = pulled.vehicles.map(v => v.id);
     const stale = priorIds.filter(id => keep.indexOf(id) < 0);
