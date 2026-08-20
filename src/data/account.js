@@ -144,16 +144,28 @@
     return ['history', 'fuel', 'spending', 'docs'].every(k => !(Array.isArray(d[k]) && d[k].length));
   }
 
-  /* Replace the local garage with the server's, in memory and on disk, before
-     anything renders. setVehicles() already falls back to the first vehicle
-     when activeId names none. */
+  /* Replace the local garage with the server's, in memory and on disk.
+     Vehicles the server does not have must be DELETED, not merely left
+     unwritten: loadAll() enumerates the whole vehicles store with no
+     membership filter, so a leftover record reappears on the next boot,
+     after the user was told their garage had been replaced.
+
+     Pulled vehicles are written BEFORE stale ones are removed, so an
+     interruption leaves a superset rather than an empty garage. */
   function adopt(pulled) {
+    const previous = dep.session.garage();
+    const priorIds = previous ? previous.vehicles.map(v => v.id) : [];
     dep.session.setVehicles(pulled.vehicles, pulled.activeId);
     const activeId = dep.session.garage() ? dep.session.garage().activeId : null;
+    const keep = pulled.vehicles.map(v => v.id);
+    const stale = priorIds.filter(id => keep.indexOf(id) < 0);
     return pulled.vehicles.reduce(
       (p, v) => p.then(() => dep.saveVehicle(v.id, v.data, activeId, dep.uid)),
       Promise.resolve()
-    ).then(() => {});
+    ).then(() => stale.reduce(
+      (p, id) => p.then(() => dep.removeVehicle(id, activeId)),
+      Promise.resolve()
+    )).then(() => {});
   }
 
   function uploadAll(garage) {

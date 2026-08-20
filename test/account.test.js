@@ -289,3 +289,40 @@ test('pull rejects when the server is unreachable', async () => {
   account.setUserForTest({ id: 'u1' });
   await assert.rejects(() => account.pull());
 });
+
+test('adopting the server garage deletes local vehicles the server does not have', async () => {
+  account.reset();
+  const storage2 = require('../storage.js');
+  await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage2.saveVehicle('local1', { car: { nickname: 'Stale' }, history: [], fuel: [], spending: [], docs: [] }, 'local1', () => 'p1');
+  account.configure({ client: fullClient({}), protocol: 'https:' });
+  session.clear();
+  session.setVehicles([{ id: 'local1', data: { car: { nickname: 'Stale' }, history: [], fuel: [], spending: [], docs: [] } }], 'local1');
+
+  await account.adopt({
+    vehicles: [{ id: 'srv1', data: { car: { nickname: 'From server' }, history: [], fuel: [], spending: [], docs: [] } }],
+    activeId: 'srv1'
+  });
+
+  const after = await storage2.loadAll();
+  const ids = after.garage.vehicles.map(v => v.id);
+  assert.deepStrictEqual(ids, ['srv1'], 'the stale local vehicle must not survive on disk');
+});
+
+test('adopt persists the activeId session settled on, not the raw pulled one', async () => {
+  account.reset();
+  const storage2 = require('../storage.js');
+  await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  account.configure({ client: fullClient({}), protocol: 'https:' });
+  session.clear();
+  session.setVehicles([{ id: 'x', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }], 'x');
+
+  await account.adopt({
+    vehicles: [{ id: 'srv1', data: { car: { nickname: 'A' }, history: [], fuel: [], spending: [], docs: [] } }],
+    activeId: 'ghost'
+  });
+
+  assert.strictEqual(session.garage().activeId, 'srv1');
+  const after = await storage2.loadAll();
+  assert.strictEqual(after.garage.activeId, 'srv1', 'disk must agree with memory');
+});
