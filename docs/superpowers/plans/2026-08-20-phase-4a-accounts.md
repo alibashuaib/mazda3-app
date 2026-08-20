@@ -975,8 +975,7 @@ test('signOut clears, wipes, reloads and re-renders, in that order', async () =>
   const spy = lifecycleSpy();
   const client = fullClient({});
   client.auth.signOut = () => Promise.resolve({ error: null });
-  account.configure({ client, protocol: 'https:', rerender: spy.rerender });
-  account.setDepsForTest({ session: spy.session, wipe: spy.wipe });
+  account.configure({ client, protocol: 'https:', rerender: spy.rerender, session: spy.session, wipe: spy.wipe });
   account.setUserForTest({ id: 'u1' });
 
   await account.signOut();
@@ -989,8 +988,7 @@ test('signOut clears, wipes, reloads and re-renders, in that order', async () =>
 test('expire() drops to anonymous and never wipes', () => {
   account.reset();
   const spy = lifecycleSpy();
-  account.configure({ client: fullClient({}), protocol: 'https:', rerender: spy.rerender });
-  account.setDepsForTest({ session: spy.session, wipe: spy.wipe });
+  account.configure({ client: fullClient({}), protocol: 'https:', rerender: spy.rerender, session: spy.session, wipe: spy.wipe });
   account.setUserForTest({ id: 'u1' });
 
   account.expire();
@@ -1081,24 +1079,39 @@ test('start() keeps the user signed in when the pull fails offline', async () =>
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `npm test -- --test-name-pattern="signOut|expire|signIn|start\(\)"`
-Expected: FAIL with `account.setDepsForTest is not a function`.
+Expected: FAIL with `account.signOut is not a function`.
 
 - [ ] **Step 3: Implement**
 
-The dual-mode `dep` is frozen at load time, so add an override seam next to `setUserForTest`:
+The dual-mode `dep` is frozen at load time, so `session` and `wipe` become injectable — through `configure()`, not a separate test-only export. This is the same seam `session.js` uses for `env.saveVehicle` (`session.js:36`): production passes nothing and gets the real dependency; a test passes a spy.
+
+Replace `configure` and `reset` from Task 3 with:
 
 ```js
-  /* Test seam only. Lets a test swap session/wipe for spies so the lifecycle
-     ORDER can be asserted — which is the property that matters here. */
   let deps = dep;
-  function setDepsForTest(next) { deps = Object.assign({}, dep, next || {}); }
+
+  function configure(next) {
+    next = next || {};
+    env = Object.assign({}, env, next);
+    /* Injected the way session.js takes saveVehicle. Tests pass spies so the
+       sign-out lifecycle ORDER can be asserted, which is the property that
+       matters most in this module. */
+    if (next.session || next.wipe) {
+      deps = Object.assign({}, deps, {
+        session: next.session || deps.session,
+        wipe: next.wipe || deps.wipe
+      });
+    }
+  }
+
+  function reset() {
+    _user = null;
+    env = Object.assign({}, DEFAULTS);
+    deps = dep;
+  }
 ```
 
-Then replace every `dep.` reference added in Tasks 4 and 5 with `deps.` (`deps.session`, `deps.saveVehicle`, `deps.uid`), and reset it in `reset()`:
-
-```js
-  function reset() { _user = null; env = Object.assign({}, DEFAULTS); deps = dep; }
-```
+Then replace every `dep.` reference added in Tasks 4 and 5 with `deps.` — `deps.session`, `deps.saveVehicle`, `deps.uid`.
 
 Add the lifecycle:
 
@@ -1176,7 +1189,7 @@ Add the lifecycle:
   }
 ```
 
-Extend the exports with `setDepsForTest, drain, signIn, signOut, expire, start`.
+Extend the exports with `drain, signIn, signOut, expire, start`. There is no `setDepsForTest` — `session` and `wipe` are injected through `configure`.
 
 - [ ] **Step 4: Run the tests**
 
@@ -1400,10 +1413,17 @@ function askWhichGarage() {
     });
     /* Dismissing the modal must still resolve, or signIn() hangs forever
        holding a user that has already authenticated. The server copy is the
-       safe default: the local one is still on disk either way. */
-    const host = $('#modalHost');
-    const observer = () => { if (!answered && host.hidden) { answered = true; resolve('server'); } };
-    setTimeout(function poll() { observer(); if (!answered) setTimeout(poll, 200); }, 200);
+       safe default: the local garage is still on disk either way.
+
+       openModal() assigns the backdrop handler as its last statement
+       (app.js:1457), so overriding it here wins. closeModal() itself has no
+       dismissal hook to subscribe to. */
+    $('#modalHost').querySelector('[data-close]').onclick = () => {
+      if (answered) return;
+      answered = true;
+      closeModal();
+      resolve('server');
+    };
   });
 }
 
