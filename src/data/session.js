@@ -33,7 +33,8 @@
     notify: () => {},
     makeObjectUrl: b => URL.createObjectURL(b),
     revokeObjectUrl: u => URL.revokeObjectURL(u),
-    saveVehicle: null        // null means "use dep.saveVehicle"
+    saveVehicle: null,       // null means "use dep.saveVehicle"
+    afterSave: () => {}      // account.js pushes from here; no-op when signed out
   };
   function configure(next) { env = Object.assign({}, env, next || {}); }
 
@@ -153,6 +154,11 @@
         dep.applyPhotoIds(data, res.data);
         cacheNewPhotos(data, res.photoIds);
         prunePhotoBlobs();
+        /* Inside the ok branch and behind the generation check above, so a
+           write started before a sign-out can never push into the account
+           that signed in after it. Throwing here must not turn a successful
+           local save into a failure. */
+        try { env.afterSave(v.id, res.data); } catch (e) {}
         return true;
       }
       env.notify(dep.isQuotaError(res.error)

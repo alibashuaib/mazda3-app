@@ -164,3 +164,56 @@ test('clear() during an in-flight save leaves photos() empty and the save resolv
   assert.deepStrictEqual(session.photos(), {}, "the previous session's photo must not land in the fresh cache");
   assert.strictEqual(notes.length, 0, 'a stale write must not notify on the new session either');
 });
+
+test('afterSave fires with the stored data after a successful write', async () => {
+  session.clear();
+  const calls = [];
+  session.configure({
+    afterSave: (id, data) => calls.push([id, data]),
+    saveVehicle: (id, data) => Promise.resolve({ ok: true, data: { car: { nickname: 'Red', photoId: 'p1' } }, photoIds: [] })
+  });
+  session.setVehicles([vehicle('a', 'Red')], 'a');
+
+  const ok = await session.save();
+
+  assert.strictEqual(ok, true);
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0][0], 'a');
+  assert.strictEqual(calls[0][1].car.photoId, 'p1', 'the hook receives the stored form, not the live one');
+});
+
+test('afterSave does not fire for a failed write', async () => {
+  session.clear();
+  const calls = [];
+  session.configure({
+    afterSave: (id) => calls.push(id),
+    saveVehicle: () => Promise.resolve({ ok: false, error: new Error('nope') })
+  });
+  session.setVehicles([vehicle('a', 'Red')], 'a');
+
+  const ok = await session.save();
+
+  assert.strictEqual(ok, false);
+  assert.deepStrictEqual(calls, [], 'a failed local write must not be pushed');
+});
+
+/* The precondition that made accounts safe: a save started before sign-out
+   must not push into the account that signed in after it. */
+test('afterSave does not fire for a save whose generation is stale', async () => {
+  session.clear();
+  const calls = [];
+  let release;
+  const gate = new Promise(r => { release = r; });
+  session.configure({
+    afterSave: (id) => calls.push(id),
+    saveVehicle: () => gate.then(() => ({ ok: true, data: {}, photoIds: [] }))
+  });
+  session.setVehicles([vehicle('a', 'Red')], 'a');
+
+  const pending = session.save();
+  session.clear();          // sign-out lands mid-write
+  release();
+
+  assert.strictEqual(await pending, false);
+  assert.deepStrictEqual(calls, [], 'a stale write must have no side effects at all');
+});
