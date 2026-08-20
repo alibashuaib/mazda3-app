@@ -547,3 +547,30 @@ test('pushTombstone resolves false and does not reject when the upsert fails', a
 
   assert.strictEqual(ok, false);
 });
+
+/* Documents the consequence of a local write that never reached the server:
+   adopt() has no way to tell "added on this device a moment ago" from
+   "deleted on another device", and the spec's replace-local semantics make it
+   delete. That is why every direct saveVehicle() call site in app.js must
+   push explicitly — see the app-level test in test/render.test.js. */
+test('a vehicle that was never pushed is deleted by the next adopt()', async () => {
+  account.reset();
+  const storage2 = require('../storage.js');
+  await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  const blank = () => ({ car: {}, history: [], fuel: [], spending: [], docs: [] });
+  await storage2.saveVehicle('srv1', blank(), 'srv1', () => 'p1');
+  await storage2.saveVehicle('unpushed', blank(), 'srv1', () => 'p2');
+  account.configure({ client: fullClient({}), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  session.clear();
+  session.setVehicles([{ id: 'srv1', data: blank() }, { id: 'unpushed', data: blank() }], 'srv1');
+
+  await account.adopt({ vehicles: [{ id: 'srv1', data: blank() }], activeId: 'srv1' });
+
+  assert.deepStrictEqual(session.garage().vehicles.map(v => v.id), ['srv1']);
+  const after = await storage2.loadAll();
+  const ids = after.garage.vehicles.map(v => v.id);
+  assert.ok(ids.indexOf('srv1') >= 0, 'the server vehicle was written to disk');
+  assert.ok(ids.indexOf('unpushed') < 0,
+    'an un-pushed local vehicle does not survive a pull — the push is not optional');
+});

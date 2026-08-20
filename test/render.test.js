@@ -439,3 +439,45 @@ test('signing out leaves no trace of the previous garage on screen', async () =>
       'sign-out must revoke the previous session\'s object URLs, not merely re-render over them');
   } finally { app.cleanup(); }
 });
+
+/* ============================================================
+   The app's own write paths must reach account.onSaved().
+
+   Every account test drives account.js directly, so a push that the APP
+   never triggers still passes them. openAddVehicle() persists with a direct
+   saveVehicle() rather than session.save(), which means it does not fire
+   session.js's afterSave hook — and afterSave is the only wiring between a
+   save and a push. Without an explicit onSaved() call the new vehicle is
+   never on the server, so the next boot's adopt() sees it as stale and
+   deletes it. This boots the real app against a recording client and asserts
+   the upsert actually crossed the wire.
+   ============================================================ */
+test('adding a vehicle while signed in pushes it to the server', async () => {
+  const upserts = { vehicles: [], garage: [] };
+  const stub = {
+    createClient: () => ({
+      /* No stored session: start() stays anonymous so the boot pull cannot
+         adopt an empty server garage over the fixture. The signed-in state is
+         installed afterwards, which is what the add path actually reads. */
+      auth: { getSession: () => Promise.resolve({ data: { session: null }, error: null }) },
+      from: table => ({
+        upsert(row) { upserts[table].push(row); return Promise.resolve({ error: null }); }
+      })
+    })
+  };
+  const app = await bootApp({ protocol: 'https:', supabaseStub: stub });
+  try {
+    const { document, api } = app;
+    api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+    const before = api.session.garage().vehicles.map(v => v.id);
+
+    api.openAddVehicle();
+    const btn = [...document.querySelectorAll('#modalCard button')].pop();
+    await btn.onclick({ preventDefault() {} });
+
+    const added = api.session.garage().vehicles.map(v => v.id).filter(id => before.indexOf(id) < 0);
+    assert.strictEqual(added.length, 1, 'precondition: the dialog added exactly one vehicle');
+    assert.ok(upserts.vehicles.some(r => r.id === added[0]),
+      'the new vehicle was never pushed — the next boot\'s adopt() would delete it as stale');
+  } finally { app.cleanup(); }
+});

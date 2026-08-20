@@ -91,7 +91,13 @@ function openAddVehicle() {
       session.setVehicles(session.garage().vehicles.concat([v]), v.id);
       const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
       const ok = res.ok;
-      if (ok) applyPhotoIds(v.data, res.data);
+      /* A direct saveVehicle() bypasses session.save(), and session.save() is
+         the only thing that fires the afterSave hook account.js pushes from.
+         Without an explicit push the new vehicle never reaches the server, so
+         the next boot's pull() hands back a garage that does not contain it and
+         adopt() classifies it as stale — deleting it, and its photos, with no
+         prompt. onSaved() no-ops when signed out and never rejects. */
+      if (ok) { applyPhotoIds(v.data, res.data); account.onSaved(v.id, res.data); }
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
       if (ok) toast(t('Vehicle added'));
       else toast(isQuotaError(res.error)
@@ -178,6 +184,10 @@ function importGarage(file) {
       for (const v of session.garage().vehicles) {
         const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
         if (!res.ok) ok = false;
+        // Same reason as openAddVehicle: a direct saveVehicle() never reaches
+        // session.save()'s afterSave hook, so an imported vehicle would be
+        // deleted as stale by the next boot's adopt().
+        else account.onSaved(v.id, res.data);
       }
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
