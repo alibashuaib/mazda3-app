@@ -384,7 +384,7 @@ test('expire() drops to anonymous and never wipes', () => {
 test('signIn refuses and stays anonymous when the pull fails', async () => {
   account.reset();
   const client = fullClient({ failSelect: true });
-  client.auth.signInWithPassword = () => Promise.resolve({ data: { user: { id: 'u1' } }, error: null });
+  client.auth.signInWithPassword = () => Promise.resolve({ data: { session: { user: { id: 'u1' } }, user: { id: 'u1' } }, error: null });
   account.configure({ client, protocol: 'https:' });
 
   await assert.rejects(() => account.signIn('a@b.c', 'pw'), /PULL_FAILED/);
@@ -405,8 +405,8 @@ test('signIn with signUp:true calls signUp, not signInWithPassword', async () =>
   account.reset();
   const client = fullClient({ rows: [] });
   let used = null;
-  client.auth.signUp = () => { used = 'signUp'; return Promise.resolve({ data: { user: { id: 'u1' } }, error: null }); };
-  client.auth.signInWithPassword = () => { used = 'signIn'; return Promise.resolve({ data: { user: { id: 'u1' } }, error: null }); };
+  client.auth.signUp = () => { used = 'signUp'; return Promise.resolve({ data: { session: { user: { id: 'u1' } }, user: { id: 'u1', identities: [{ id: 'i1' }] } }, error: null }); };
+  client.auth.signInWithPassword = () => { used = 'signIn'; return Promise.resolve({ data: { session: { user: { id: 'u1' } }, user: { id: 'u1' } }, error: null }); };
   account.configure({ client, protocol: 'https:' });
   session.clear();
   const g = seedGarage();
@@ -573,4 +573,60 @@ test('a vehicle that was never pushed is deleted by the next adopt()', async () 
   assert.ok(ids.indexOf('srv1') >= 0, 'the server vehicle was written to disk');
   assert.ok(ids.indexOf('unpushed') < 0,
     'an un-pushed local vehicle does not survive a pull — the push is not optional');
+});
+
+/* Sign-up with confirmation pending: supabase-js resolves a truthy user with a
+   NULL session. Gating on the user rather than the session signs the app in as
+   `anon`, where RLS answers every select with an empty array and every upsert
+   with a refusal. */
+test('sign-up with a pending confirmation rejects and stays anonymous', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  client.auth.signUp = () => Promise.resolve({
+    data: { session: null, user: { id: 'u1', email: 'a@b.c', identities: [{ id: 'i1' }] } },
+    error: null
+  });
+  account.configure({ client, protocol: 'https:' });
+
+  await assert.rejects(() => account.signIn('a@b.c', 'pw', { signUp: true }), /EMAIL_NOT_CONFIRMED/);
+  assert.strictEqual(account.user(), null, 'a session-less user is not signed in');
+  assert.strictEqual(client.calls.vehicles.length, 0, 'and nothing may be uploaded as anon');
+});
+
+/* supabase-js hides duplicate signups behind an empty identities array. */
+test('sign-up for an existing address reports EMAIL_ALREADY_REGISTERED', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  client.auth.signUp = () => Promise.resolve({
+    data: { session: null, user: { id: 'u1', email: 'a@b.c', identities: [] } },
+    error: null
+  });
+  account.configure({ client, protocol: 'https:' });
+
+  await assert.rejects(() => account.signIn('a@b.c', 'pw', { signUp: true }), /EMAIL_ALREADY_REGISTERED/);
+  assert.strictEqual(account.user(), null);
+});
+
+/* _user used to be reset only inside the PULL_FAILED catch, so a rejection
+   anywhere later — an RLS-refused upload, a throwing choose() — escaped with
+   the module still believing it was signed in. */
+test('a failure after a successful pull still leaves the user anonymous', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  client.auth.signInWithPassword = () => Promise.resolve({
+    data: { session: { user: { id: 'u1' } }, user: { id: 'u1' } }, error: null
+  });
+  /* Server empty -> uploadAll(), and the upsert is refused the way RLS refuses
+     a token-less request. */
+  const realFrom = client.from;
+  client.from = table => Object.assign(realFrom(table), {
+    upsert: () => Promise.resolve({ error: new Error('new row violates row-level security policy') })
+  });
+  account.configure({ client, protocol: 'https:' });
+  session.clear();
+  const g = seedGarage();
+  session.setVehicles(g.vehicles, g.activeId);
+
+  await assert.rejects(() => account.signIn('a@b.c', 'pw'));
+  assert.strictEqual(account.user(), null, 'sign-in must refuse rather than half-succeed');
 });

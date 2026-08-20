@@ -376,6 +376,7 @@ const AR = {
   'Couldn’t reach your garage. Check your connection and try again.': 'تعذّر الوصول إلى بياناتك. تحقّق من اتصالك وحاول مرة أخرى.',
   'Check your email to confirm your account.': 'تحقّق من بريدك لتأكيد حسابك.',
   'Wrong email or password.': 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+  'That email is already registered. Sign in instead.': 'هذا البريد الإلكتروني مسجّل بالفعل. سجّل الدخول بدلاً من ذلك.',
   'Password must be at least 6 characters.': 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.',
   'Keep this device’s garage': 'الاحتفاظ ببيانات هذا الجهاز',
   'Use my account’s garage': 'استخدام بيانات حسابي',

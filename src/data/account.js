@@ -236,22 +236,48 @@
     }), Promise.resolve()).then(() => dirty().length);
   }
 
+  /* supabase-js obfuscates a duplicate signup rather than confirming that an
+     address exists: it resolves with a user carrying an EMPTY identities array
+     and no session. Some project configurations return an explicit error
+     instead, so both shapes are recognised. */
+  function isAlreadyRegistered(res) {
+    const u = res && res.data && res.data.user;
+    return !!(u && Array.isArray(u.identities) && u.identities.length === 0);
+  }
+
   function signIn(email, password, opts) {
     opts = opts || {};
     const call = opts.signUp
       ? env.client.auth.signUp({ email, password })
       : env.client.auth.signInWithPassword({ email, password });
     return Promise.resolve(call).then(res => {
-      if (res && res.error) throw res.error;
-      const u = res && res.data && res.data.user;
-      if (!u) throw new Error('EMAIL_NOT_CONFIRMED');
-      _user = u;
+      if (res && res.error) {
+        if (/already registered|already exists/i.test(String(res.error.message || ''))) {
+          throw new Error('EMAIL_ALREADY_REGISTERED');
+        }
+        throw res.error;
+      }
+      if (opts.signUp && isAlreadyRegistered(res)) throw new Error('EMAIL_ALREADY_REGISTERED');
+      /* Gate on the SESSION, not the user. With e-mail confirmation pending
+         supabase-js resolves { session: null, user: <user> } — a truthy user
+         with no access token. Setting _user from that signs the app in as
+         `anon`: RLS then returns an empty vehicle list with no error, the
+         server-empty branch of reconcile() runs, and the upload is refused. */
+      const s = res && res.data && res.data.session;
+      if (!s || !s.user) throw new Error('EMAIL_NOT_CONFIRMED');
+      _user = s.user;
       /* The merge decision cannot be made without knowing what the server
          holds, so an unreachable server fails the sign-in outright rather
          than leaving a half-signed-in state that would upload over it. */
-      return pull().catch(() => { _user = null; throw new Error('PULL_FAILED'); });
-    }).then(pulled => reconcile(pulled))
-      .then(() => { env.rerender(); return true; });
+      return pull().catch(() => { throw new Error('PULL_FAILED'); })
+        .then(pulled => reconcile(pulled))
+        .then(() => { env.rerender(); return true; })
+        /* EVERY post-auth failure, not just the pull: the spec's rule is that
+           sign-in refuses rather than leaving a half-signed-in state, and a
+           rejected reconcile/upload used to escape with _user still set —
+           the UI said "wrong password" while Settings said "signed in as". */
+        .catch(err => { _user = null; throw err; });
+    });
   }
 
   /* Deliberate sign-out. Wipes. Contrast expire(), which must not.

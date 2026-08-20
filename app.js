@@ -1653,6 +1653,7 @@ function openAccount() {
           const m = String(e && e.message || '');
           if (m === 'PULL_FAILED') return show('Couldn’t reach your garage. Check your connection and try again.');
           if (m === 'EMAIL_NOT_CONFIRMED') return show('Check your email to confirm your account.');
+          if (m === 'EMAIL_ALREADY_REGISTERED') return show('That email is already registered. Sign in instead.');
           show('Wrong email or password.');
         });
     };
