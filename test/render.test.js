@@ -402,6 +402,19 @@ test('signing out leaves no trace of the previous garage on screen', async () =>
 
     assert.ok(document.body.textContent.includes('PreviousUserCar'), 'precondition: the car is on screen');
 
+    /* wipe() + session.load() alone would already blank the screen, so the two
+       screen assertions below cannot tell a signOut that dropped
+       session.clear() from one that kept it — both look identical once the
+       new (empty) session has rendered. Track a real object URL through
+       session.js's own objectUrl()/configure() seam and prove clear()'s
+       revocation sweep actually released it, independent of what got painted. */
+    const revoked = [];
+    api.session.configure({
+      makeObjectUrl: b => `blob:tracked-${b && b.tag ? b.tag : 'x'}`,
+      revokeObjectUrl: u => revoked.push(u)
+    });
+    const registered = api.session.objectUrl({ tag: 'previous-photo' });
+
     api.account.configure({
       client: { auth: { signOut: () => Promise.resolve({ error: null }) }, from: () => ({}) },
       protocol: 'https:',
@@ -415,5 +428,7 @@ test('signing out leaves no trace of the previous garage on screen', async () =>
       'the previous garage must not survive a sign-out on screen');
     assert.ok(![...document.querySelectorAll('img')].some(i => (i.getAttribute('src') || '').includes('previous-photo')),
       'no revoked blob URL may remain in the DOM');
+    assert.ok(revoked.includes(registered),
+      'sign-out must revoke the previous session\'s object URLs, not merely re-render over them');
   } finally { app.cleanup(); }
 });
