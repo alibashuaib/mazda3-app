@@ -215,6 +215,18 @@
     ).then(() => pushGarage(garage.activeId)).then(() => {});
   }
 
+  /* The mirror of adopt(): make the SERVER match this device. uploadAll() alone
+     is a merge, not a replace — a server-only vehicle it never touches is
+     pulled straight back by the next boot's adopt(), after the user was told
+     "the other is replaced". Tombstones are how a delete travels in this
+     schema, so every pulled id the local garage does not have gets one. */
+  function replaceServer(pulled, local) {
+    const keep = (local && local.vehicles ? local.vehicles : []).map(v => v.id);
+    const gone = pulled.vehicles.map(v => v.id).filter(id => keep.indexOf(id) < 0);
+    return gone.reduce((p, id) => p.then(() => pushTombstone(id)), Promise.resolve())
+      .then(() => uploadAll(local));
+  }
+
   /* Sign-in only. Boot takes the adopt() path directly: at boot both sides are
      the same user, dirty vehicles have already been pushed, so the server is
      current by construction and there is nothing to ask about. */
@@ -222,7 +234,7 @@
     const local = deps.session.garage();
     if (!pulled.vehicles.length) return uploadAll(local);
     if (isUntouchedSeed(local)) return adopt(pulled);
-    return Promise.resolve(env.choose()).then(keep => keep === 'local' ? uploadAll(local) : adopt(pulled));
+    return Promise.resolve(env.choose()).then(keep => keep === 'local' ? replaceServer(pulled, local) : adopt(pulled));
   }
 
   function drain() {

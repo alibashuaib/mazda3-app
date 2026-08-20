@@ -273,7 +273,31 @@ test('reconcile asks when both sides have real data, and honours "local"', async
 
   assert.strictEqual(asked, 1);
   assert.strictEqual(session.current().car.nickname, '', 'the local garage was kept');
-  assert.strictEqual(client.calls.vehicles.length, 1, 'and uploaded');
+  assert.ok(client.calls.vehicles.some(r => r.id === 'local1' && !r.deleted_at), 'and uploaded');
+});
+
+/* "Keep this device's garage. The other is replaced." — uploadAll() only
+   upserts what is local, so a server-only vehicle used to survive and come
+   straight back on the next boot's pull. The modal promised a replace; this
+   makes it one. */
+test('choosing "local" tombstones the vehicles only the server has', async () => {
+  account.reset();
+  const client = fullClient({});
+  account.configure({ client, protocol: 'https:', choose: () => Promise.resolve('local') });
+  account.setUserForTest({ id: 'u1' });
+  session.clear();
+  const g = seedGarage({ fuel: [{ id: 'f1', litres: 40 }] });
+  session.setVehicles(g.vehicles, g.activeId);
+
+  await account.reconcile({
+    vehicles: [{ id: 'srv1', data: { car: { nickname: 'From server' }, history: [], fuel: [], spending: [], docs: [] } }],
+    activeId: 'srv1'
+  });
+
+  const tomb = client.calls.vehicles.find(r => r.id === 'srv1');
+  assert.ok(tomb, 'the server-only vehicle was never touched — it returns on the next pull');
+  assert.ok(tomb.deleted_at, 'and it must be a tombstone, not an upsert of its data');
+  assert.ok(client.calls.vehicles.some(r => r.id === 'local1'), 'the local garage still uploads');
 });
 
 test('reconcile honours "server"', async () => {
