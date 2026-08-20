@@ -250,6 +250,12 @@ mechanical passes do not overlap in the same lines.
 
 ## Phase 4 preconditions discovered during Phase 3a implementation
 
+> **Updated 2026-08-19.** Everything in this section that could be fixed without a
+> sign-out caller has been fixed. What each entry below now says about its own status
+> is marked inline. **Two items remain open for Phase 4**, both because they need a
+> concept of "a user" that does not exist yet: `hydrate()`'s legacy-data scoping, and
+> pairing `clear()` with a re-render.
+
 The pre-merge review of the module split surfaced four issues in `src/data/session.js`
 and `storage.js` that are correct today, with a single garage and no sign-out, and become
 real defects the moment Phase 4 adds accounts. They are recorded here because Phase 4
@@ -266,11 +272,19 @@ B's screen. It is harmless now because nothing ever calls `clear()`. The fix is 
 generation counter that `clear()` increments and that the `.then` body checks before
 acting on `data` or firing a notification.
 
+**Fixed 2026-08-19.** `session.js` holds a `_generation` counter, incremented by
+`clear()` and captured by `save()` before the write. Both the `.then` and the `.catch`
+compare it and, on a mismatch, resolve `false` without touching `_photos`, calling
+`prunePhotoBlobs()` or notifying. Covered by a test that clears mid-save.
+
 `hydrate()` seeds one user from another's legacy data. When the loaded garage is empty it
 falls back to `readLegacyV1()`, which reads a device-scoped `localStorage` key with no
 user scoping. After a sign-out, a second user with no vehicles of their own would be
 seeded with the first user's pre-garage car. Sign-in must scope or skip the legacy
 fallback rather than calling `hydrate()` unchanged.
+
+**Still open — Phase 4 must handle this.** It cannot be fixed before there is a user
+identity to scope the fallback by.
 
 `clear()` is not the whole of sign-out while the DOM is still painted. It revokes object
 URLs, but revoking a blob URL does not blank an already-decoded `<img>` — the previous
@@ -279,6 +293,9 @@ user's car photo stays on screen until something re-renders. The docstring calli
 that it clears session state and must be paired with a re-render, since sign-out is not
 complete until both happen.
 
+**Still open — Phase 4 must handle this.** The docstring is corrected, but pairing
+`clear()` with a re-render needs a sign-out caller to pair it with.
+
 Two cleanups are deliberately deferred rather than fixed now. `importGarage` in `app.js`
 should move its photo-cache swap below `session.setVehicles` so the garage and the cache
 are replaced together, closing the window described in the comment above that code today.
@@ -286,12 +303,22 @@ And repeated imports leak one idle IndexedDB connection each, because `session.l
 calls `openStorage()` and `storage.js` reassigns its backend without closing the previous
 `db`; that fix belongs in `storage.js`, not the session.
 
+**Both fixed 2026-08-19.** `importGarage` now normalises first, then swaps the cache and
+calls `setVehicles` together, so a throw mid-import can no longer leave the old garage
+paired with the imported cache; its comment was rewritten to match. `openStorage()` closes
+any previous IndexedDB connection before replacing the backend, on both the success and
+fallback paths, with the `close()` guarded so an already-closed handle cannot break
+backend selection.
+
 One further gap predates this phase and was carried through unchanged. `save()`'s promise
 chain has no `.catch`, so a storage backend that throws rejects the returned promise
 instead of resolving `false`. Phase 1's guarantee still holds — no success message is
 shown, because the `.then` body never runs — but the `Promise<boolean>` contract is
 narrower than it looks, and the nineteen `await save()` call sites would propagate the
 rejection. Whichever phase takes ownership of storage error handling should close it.
+
+**Fixed 2026-08-19.** `save()` has a `.catch` that notifies and resolves `false`, so the
+`Promise<boolean>` contract now holds for a throwing backend as well as a rejecting one.
 
 ## Amendment, 2026-08-17: a dev-only DOM harness
 
@@ -344,24 +371,29 @@ through `test/helpers/boot.js`, then assert on
   to `innerHTML`. All 54 call sites now pass either an `html\`\`` result or a constant
   literal, and a guard enforces it — but the sink itself remains, one layer below the
   escaping module.
-- **`field()` accepts a `Raw` label**, and a future caller passing `raw(userText)`
-  would reopen the hole. Only a comment enforces this today.
+- ~~**`field()` accepts a `Raw` label.**~~ **Closed 2026-08-19.** The branch is gone;
+  the label is always escaped. Its one markup-label caller builds the styled note as a
+  DOM node appended to the `<label>` instead.
 - **The guards cannot see multi-line `el()` or `innerHTML` calls.** Every current one
   is single-line; a multi-line site added later would be invisible to them.
 - **`raw()` is bounded at 12 against a real count of 9.** The bound exists to force a
   conversation, not to be raised whenever it fails.
 - **Injection classes other than attribute and element injection are untested** —
   `javascript:` and `data:` URLs, and CSS-based exfiltration.
-- **Automated verification is `linkedom` under Node**, not a browser. A manual pass
-  was done by the owner on 2026-08-19, after merge, covering: opening `index.html`
-  from disk (all ten scripts load in order from a `file://` origin), all six tabs
-  rendering, the Arabic/RTL switch and back, an export/import round-trip (the only
-  exercise the IndexedDB backend has had), and a `<b>test</b>` nickname rendering as
-  literal text and round-tripping unchanged in the settings field. All passed. That
-  pass is a snapshot, not a regression test — nothing re-runs it.
-- **The IndexedDB backend is never exercised by a render test**: `test/helpers/boot.js`
-  pins `location.protocol = 'file:'`, so every render test runs the `localStorage`
-  path. A failure specific to the IndexedDB path would pass here and fail in a browser.
+- ~~**No browser has ever run this code.**~~ **Closed 2026-08-19.** The owner ran a
+  manual pass, and it is now automated: `e2e/smoke.spec.js` runs twelve Playwright
+  tests in Chromium on every push, as a separate CI job. The Node suite still runs
+  against `linkedom`, which remains the right trade for speed — but it is no longer the
+  only thing verifying this app.
+- ~~**The IndexedDB backend is never exercised by a render test.**~~ **Closed
+  2026-08-19.** `test/helpers/boot.js` still pins `location.protocol = 'file:'`, so
+  every *Node* render test takes the `localStorage` path. The browser suite closes the
+  gap by running the same checks twice: once from `file://`, and once over `http` from
+  a dependency-free static server in `e2e/`, where `storage.js` selects IndexedDB. One
+  test asserts each origin actually uses the backend it should.
+- **The browser suite covers smoke paths, not appearance.** It proves pages render,
+  markup is not escaped into visible source text, and payloads stay inert. It does not
+  check that anything *looks* right.
 
 ## Non-goals
 
