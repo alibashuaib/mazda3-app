@@ -51,6 +51,7 @@ const SCRIPTS = [
   'src/data/normalize.js',
   'src/data/session.js',
   'src/data/status.js',
+  'src/data/account.js',
   'ui.js',
   'app.js'
 ];
@@ -73,7 +74,12 @@ function assertScriptOrderMatchesIndexHtml() {
       const srcMatch = attrs.match(/\bsrc=(["'])([^"']+)\1/);
       return srcMatch ? srcMatch[2] : null;
     })
-    .filter(src => src != null);
+    /* vendor/ is excluded deliberately. The real Supabase client is a large
+       browser bundle that reaches for fetch and window internals the harness
+       does not provide, and account.js never uses the global under Node — it
+       takes its client through configure({ client }). Excluding it here keeps
+       the order assertion meaningful for everything the tests DO run. */
+    .filter(src => src != null && src.indexOf('vendor/') !== 0);
   if (inHtml.join(',') !== SCRIPTS.join(',')) {
     throw new Error(`test/helpers/boot.js SCRIPTS is out of sync with index.html.\n  index.html: ${inHtml.join(', ')}\n  boot.js:    ${SCRIPTS.join(', ')}`);
   }
@@ -90,7 +96,8 @@ const HOST_GLOBALS = [
   'performance', 'crypto', 'AbortController', 'Event', 'EventTarget'
 ];
 
-function makeContext(dom) {
+function makeContext(dom, opts) {
+  opts = opts || {};
   const context = vm.createContext({}, { name: 'garage-app' });
   const g = vm.runInContext('this', context);   // the context's global object
 
@@ -109,7 +116,11 @@ function makeContext(dom) {
      even try IndexedDB, and go() calls window.scrollTo on every navigation.
      'file:' is the documented double-click-index.html case, and it selects the
      localStorage backend — deterministic, and no indexedDB stub required. */
-  g.location = { protocol: 'file:', href: 'file:///index.html' };
+  /* 'file:' is the documented double-click case and selects the localStorage
+     backend. Tests that need account UI pass protocol: 'https:' — account.js's
+     available() is false on file:// by design. */
+  const proto = opts.protocol || 'file:';
+  g.location = { protocol: proto, href: proto === 'file:' ? 'file:///index.html' : proto + '//localhost/index.html' };
   if (typeof dom.window.scrollTo !== 'function') dom.window.scrollTo = () => {};
   if (typeof dom.window.matchMedia !== 'function') dom.window.matchMedia = globalThis.matchMedia;
 
@@ -160,7 +171,7 @@ async function bootApp(opts = {}) {
 
   if (opts.lang) globalThis.localStorage.setItem('garage.lang', opts.lang);
 
-  const { context, g } = makeContext(dom);
+  const { context, g } = makeContext(dom, { protocol: opts.protocol });
   for (const rel of SCRIPTS) {
     const code = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     vm.runInContext(code, context, { filename: rel });

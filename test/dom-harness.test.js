@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { setupDom } = require('./helpers/dom.js');
+const { bootApp, assertScriptOrderMatchesIndexHtml } = require('./helpers/boot.js');
 
 test('setupDom installs a usable document', () => {
   const { document, cleanup } = setupDom();
@@ -44,4 +45,16 @@ test('cleanup removes the globals so tests do not leak into each other', () => {
   cleanup();
   assert.strictEqual(globalThis.document, undefined);
   assert.strictEqual(globalThis.localStorage, undefined);
+});
+
+test('the harness can boot on an https origin', async () => {
+  const app = await bootApp({ protocol: 'https:' });
+  try {
+    assert.strictEqual(app.api.location.protocol, 'https:');
+    assert.ok(app.api.account, 'account.js is loaded by the harness');
+  } finally { app.cleanup(); }
+});
+
+test('the script order assertion ignores vendor/', () => {
+  assert.doesNotThrow(assertScriptOrderMatchesIndexHtml);
 });
