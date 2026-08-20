@@ -493,3 +493,57 @@ test('a save in flight when sign-out happens cannot land in the next session', a
   assert.strictEqual(await inFlight, false, 'a save spanning sign-out must resolve false');
   assert.deepStrictEqual(pushed, [], 'and must never reach the push hook — that is the previous user data landing in the next account');
 });
+
+test('pushTombstone upserts a non-null deleted_at and updated_at for the right id', async () => {
+  account.reset();
+  const client = tableClient();
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  const ok = await account.pushTombstone('v1');
+
+  assert.strictEqual(ok, true);
+  assert.strictEqual(client.calls.vehicles.length, 1);
+  assert.strictEqual(client.calls.vehicles[0].id, 'v1');
+  assert.ok(client.calls.vehicles[0].deleted_at, 'deleted_at must be set, not null');
+  assert.ok(client.calls.vehicles[0].updated_at, 'updated_at must be set');
+});
+
+test('pushTombstone clears the vehicle from the dirty list', async () => {
+  account.reset();
+  localStorage.removeItem('garage.sync.dirty');
+  const client = tableClient();
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  account.markDirty('v1');
+  assert.deepStrictEqual(account.dirty(), ['v1'], 'precondition: v1 starts dirty');
+
+  await account.pushTombstone('v1');
+
+  assert.deepStrictEqual(account.dirty(), []);
+});
+
+test('pushTombstone is a no-op when signed out', async () => {
+  account.reset();
+  localStorage.removeItem('garage.sync.dirty');
+  const client = tableClient();
+  account.configure({ client, protocol: 'https:' });
+  account.markDirty('v1');
+
+  const ok = await account.pushTombstone('v1');
+
+  assert.strictEqual(ok, false);
+  assert.strictEqual(client.calls.vehicles.length, 0, 'no upsert must be attempted');
+  assert.deepStrictEqual(account.dirty(), ['v1'], 'the dirty list must be untouched');
+});
+
+test('pushTombstone resolves false and does not reject when the upsert fails', async () => {
+  account.reset();
+  const client = tableClient({ failUpsert: true });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  const ok = await account.pushTombstone('v1');
+
+  assert.strictEqual(ok, false);
+});

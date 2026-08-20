@@ -126,6 +126,26 @@
     });
   }
 
+  /* Deleting a vehicle must leave a tombstone, not merely stop pushing it.
+     pull() filters on `deleted_at is null`, so a row left untouched is pulled
+     straight back by the next boot's adopt() and the vehicle resurrects — on
+     the same device, on the next launch.
+
+     The payload is dropped rather than preserved: a tombstone needs the id,
+     not the contents, and not keeping a deleted vehicle's data on the server
+     is the better default. */
+  function pushTombstone(id) {
+    if (!_user || !env.client) return Promise.resolve(false);
+    const stamp = nowIso();
+    return Promise.resolve(env.client.from('vehicles').upsert({
+      id, data: {}, updated_at: stamp, deleted_at: stamp
+    })).then(res => {
+      if (res && res.error) throw res.error;
+      clearDirty(id);        // a pending data push for a deleted vehicle is moot
+      return true;
+    }).catch(() => false);
+  }
+
   /* session.js calls this through env.afterSave, after a successful LOCAL
      write. Never rejects and never notifies: logging fuel at a petrol station
      with no signal is normal operation, not an error worth interrupting for.
@@ -280,7 +300,7 @@
   return {
     configure, reset, available, user, setUserForTest,
     dirty, markDirty, clearDirty,
-    stripPhotos, pushVehicle, pushGarage, onSaved,
+    stripPhotos, pushVehicle, pushGarage, pushTombstone, onSaved,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
     drain, signIn, signOut, expire, start,
     SUPABASE_URL, SUPABASE_ANON_KEY

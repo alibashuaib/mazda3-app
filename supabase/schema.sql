@@ -36,3 +36,9 @@ create policy own_vehicles on public.vehicles for all
 drop policy if exists own_garage on public.garage;
 create policy own_garage on public.garage for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- PostgREST reaches these tables as the `authenticated` role. Supabase's
+-- default privileges normally cover this, but stating it makes the file
+-- self-contained: without a grant the tables apply cleanly and stay invisible
+-- to the API, which presents as "RLS is blocking everything".
+grant select, insert, update, delete on public.vehicles, public.garage to authenticated;

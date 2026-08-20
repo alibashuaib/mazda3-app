@@ -107,6 +107,11 @@ async function deleteVehicle(id) {
   // setVehicles falls back to kept[0] when the removed vehicle was the active one.
   session.setVehicles(kept, session.garage().activeId === id ? kept[0].id : session.garage().activeId);
   const ok = await removeVehicle(id, session.garage().activeId); session.prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
+  // Best-effort, not awaited: the local delete already succeeded and the UI has
+  // moved on. There is no outbox yet, so a failed tombstone push is simply lost —
+  // the vehicle will come back from the server on the next pull. account.pushTombstone
+  // is a no-op when signed out and never rejects, so this can't throw into the delete path.
+  account.pushTombstone(id);
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
@@ -177,7 +182,7 @@ function importGarage(file) {
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) await removeVehicle(id, session.garage().activeId);
+        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.pushTombstone(id); }
       }
       // The save loop minted fresh photo ids, so re-read from storage to bring
       // memory back in sync with what was actually persisted. session.load()
