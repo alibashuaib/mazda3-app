@@ -121,10 +121,64 @@
   /* Test seam only. Production code reaches _user through signIn/start. */
   function setUserForTest(u) { _user = u; }
 
+  function pull() {
+    return Promise.all([
+      Promise.resolve(env.client.from('vehicles').select('id,data,updated_at').is('deleted_at', null)),
+      Promise.resolve(env.client.from('garage').select('active_id').maybeSingle())
+    ]).then(([v, g]) => {
+      if (v && v.error) throw v.error;
+      if (g && g.error) throw g.error;
+      return {
+        vehicles: (v.data || []).map(r => ({ id: r.id, data: r.data })),
+        activeId: (g && g.data && g.data.active_id) || null
+      };
+    });
+  }
+
+  /* The default vehicle hydrate() invents on a fresh device: one car, nothing
+     logged against it. Derived from data already in memory rather than tracked
+     with a flag — there is no state to keep in sync and nothing to migrate. */
+  function isUntouchedSeed(garage) {
+    if (!garage || !Array.isArray(garage.vehicles) || garage.vehicles.length !== 1) return false;
+    const d = garage.vehicles[0].data || {};
+    return ['history', 'fuel', 'spending', 'docs'].every(k => !(Array.isArray(d[k]) && d[k].length));
+  }
+
+  /* Replace the local garage with the server's, in memory and on disk, before
+     anything renders. setVehicles() already falls back to the first vehicle
+     when activeId names none. */
+  function adopt(pulled) {
+    dep.session.setVehicles(pulled.vehicles, pulled.activeId);
+    const activeId = dep.session.garage() ? dep.session.garage().activeId : null;
+    return pulled.vehicles.reduce(
+      (p, v) => p.then(() => dep.saveVehicle(v.id, v.data, activeId, dep.uid)),
+      Promise.resolve()
+    ).then(() => {});
+  }
+
+  function uploadAll(garage) {
+    if (!garage || !garage.vehicles) return Promise.resolve();
+    return garage.vehicles.reduce(
+      (p, v) => p.then(() => pushVehicle(v.id, v.data)),
+      Promise.resolve()
+    ).then(() => pushGarage(garage.activeId)).then(() => {});
+  }
+
+  /* Sign-in only. Boot takes the adopt() path directly: at boot both sides are
+     the same user, dirty vehicles have already been pushed, so the server is
+     current by construction and there is nothing to ask about. */
+  function reconcile(pulled) {
+    const local = dep.session.garage();
+    if (!pulled.vehicles.length) return uploadAll(local);
+    if (isUntouchedSeed(local)) return adopt(pulled);
+    return Promise.resolve(env.choose()).then(keep => keep === 'local' ? uploadAll(local) : adopt(pulled));
+  }
+
   return {
     configure, reset, available, user, setUserForTest,
     dirty, markDirty, clearDirty,
     stripPhotos, pushVehicle, pushGarage, onSaved,
+    pull, isUntouchedSeed, adopt, uploadAll, reconcile,
     SUPABASE_URL, SUPABASE_ANON_KEY
   };
 });

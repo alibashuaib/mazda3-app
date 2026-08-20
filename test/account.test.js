@@ -145,3 +145,147 @@ test('onSaved does nothing at all when signed out', async () => {
   assert.strictEqual(client.calls.vehicles.length, 0);
   assert.deepStrictEqual(account.dirty(), [], 'an anonymous save is not a pending sync');
 });
+
+const session = require('../src/data/session.js');
+const storage = require('../storage.js');
+
+/* Extends tableClient with reads. `rows` is what the server holds. */
+function fullClient(opts) {
+  opts = opts || {};
+  const calls = { vehicles: [], garage: [] };
+  const rows = opts.rows || [];
+  const activeId = opts.activeId || null;
+  return {
+    calls,
+    auth: {},
+    from(table) {
+      return {
+        upsert(row) {
+          calls[table].push(row);
+          return Promise.resolve({ error: null });
+        },
+        select() {
+          const q = {
+            is: () => Promise.resolve(opts.failSelect ? { error: new Error('offline') } : { data: rows, error: null }),
+            maybeSingle: () => Promise.resolve(opts.failSelect
+              ? { error: new Error('offline') }
+              : { data: activeId ? { active_id: activeId } : null, error: null })
+          };
+          return q;
+        }
+      };
+    }
+  };
+}
+
+function seedGarage(extra) {
+  return {
+    vehicles: [{ id: 'local1', data: Object.assign({
+      car: { nickname: '', odometer: 316000 },
+      services: [], parts: [], history: [], spending: [], fuel: [], docs: []
+    }, extra || {}) }],
+    activeId: 'local1'
+  };
+}
+
+test('isUntouchedSeed is true for one vehicle with no records', () => {
+  account.reset();
+  assert.strictEqual(account.isUntouchedSeed(seedGarage()), true);
+});
+
+test('isUntouchedSeed is false once any record exists', () => {
+  account.reset();
+  assert.strictEqual(account.isUntouchedSeed(seedGarage({ fuel: [{ id: 'f1' }] })), false);
+  assert.strictEqual(account.isUntouchedSeed(seedGarage({ history: [{ id: 'h1' }] })), false);
+  assert.strictEqual(account.isUntouchedSeed(seedGarage({ spending: [{ id: 's1' }] })), false);
+  assert.strictEqual(account.isUntouchedSeed(seedGarage({ docs: [{ id: 'd1' }] })), false);
+});
+
+test('isUntouchedSeed is false for more than one vehicle', () => {
+  account.reset();
+  const g = seedGarage();
+  g.vehicles.push({ id: 'local2', data: { history: [], fuel: [], spending: [], docs: [] } });
+  assert.strictEqual(account.isUntouchedSeed(g), false);
+});
+
+test('reconcile uploads the local garage when the server is empty', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  session.clear();
+  const g = seedGarage({ fuel: [{ id: 'f1', litres: 40 }] });
+  session.setVehicles(g.vehicles, g.activeId);
+
+  await account.reconcile({ vehicles: [], activeId: null });
+
+  assert.strictEqual(client.calls.vehicles.length, 1);
+  assert.strictEqual(client.calls.vehicles[0].id, 'local1');
+  assert.strictEqual(client.calls.garage.length, 1);
+  assert.strictEqual(client.calls.garage[0].active_id, 'local1');
+});
+
+test('reconcile replaces an untouched local seed with the server garage', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  const client = fullClient({});
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  session.clear();
+  const g = seedGarage();
+  session.setVehicles(g.vehicles, g.activeId);
+
+  await account.reconcile({
+    vehicles: [{ id: 'srv1', data: { car: { nickname: 'From server' }, history: [], fuel: [], spending: [], docs: [] } }],
+    activeId: 'srv1'
+  });
+
+  assert.strictEqual(session.garage().vehicles.length, 1);
+  assert.strictEqual(session.current().car.nickname, 'From server');
+  assert.strictEqual(client.calls.vehicles.length, 0, 'adopting must not push the seed back up');
+});
+
+test('reconcile asks when both sides have real data, and honours "local"', async () => {
+  account.reset();
+  const client = fullClient({});
+  let asked = 0;
+  account.configure({ client, protocol: 'https:', choose: () => { asked++; return Promise.resolve('local'); } });
+  account.setUserForTest({ id: 'u1' });
+  session.clear();
+  const g = seedGarage({ fuel: [{ id: 'f1', litres: 40 }] });
+  session.setVehicles(g.vehicles, g.activeId);
+
+  await account.reconcile({
+    vehicles: [{ id: 'srv1', data: { car: { nickname: 'From server' }, history: [], fuel: [], spending: [], docs: [] } }],
+    activeId: 'srv1'
+  });
+
+  assert.strictEqual(asked, 1);
+  assert.strictEqual(session.current().car.nickname, '', 'the local garage was kept');
+  assert.strictEqual(client.calls.vehicles.length, 1, 'and uploaded');
+});
+
+test('reconcile honours "server"', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  const client = fullClient({});
+  account.configure({ client, protocol: 'https:', choose: () => Promise.resolve('server') });
+  account.setUserForTest({ id: 'u1' });
+  session.clear();
+  const g = seedGarage({ fuel: [{ id: 'f1', litres: 40 }] });
+  session.setVehicles(g.vehicles, g.activeId);
+
+  await account.reconcile({
+    vehicles: [{ id: 'srv1', data: { car: { nickname: 'From server' }, history: [], fuel: [], spending: [], docs: [] } }],
+    activeId: 'srv1'
+  });
+
+  assert.strictEqual(session.current().car.nickname, 'From server');
+});
+
+test('pull rejects when the server is unreachable', async () => {
+  account.reset();
+  account.configure({ client: fullClient({ failSelect: true }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await assert.rejects(() => account.pull());
+});
