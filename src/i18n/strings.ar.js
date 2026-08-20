@@ -188,7 +188,7 @@ const AR = {
   'Last done (km)': 'آخر مرة (كم)', 'Last done (date)': 'آخر مرة (تاريخ)', 'Est. cost (SAR)': 'التكلفة التقديرية (ريال)',
   'Odometer at time (km)': 'العداد وقتها (كم)', 'Part name': 'اسم القطعة',
   'PartSouq part no. (optional — enables live-price link)': 'رقم قطعة PartSouq (اختياري — يفعّل رابط السعر المباشر)',
-  'Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>': 'اختيار سريع <span class="muted" style="font-weight:500">— تعبئة تلقائية من قطعة</span>',
+  'Quick pick': 'اختيار سريع', '— autofill from a part': '— تعبئة تلقائية من قطعة',
   'Price (SAR)': 'السعر (ريال)', 'Brand / product': 'الماركة / المنتج', 'Part no.': 'رقم القطعة', 'Store': 'المتجر',
   'Options': 'الخيارات', 'Options (OEM & alternatives)': 'الخيارات (الأصلي والبدائل)', 'Also add this cost to Budget': 'أضف هذه التكلفة إلى الميزانية أيضاً',
   // select options / pickers

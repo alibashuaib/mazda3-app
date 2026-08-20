@@ -24,11 +24,20 @@
 
   const ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
-  function esc(v) {
+  // Real call sites nest one level deep at most (an array of option/row
+  // strings). This bounds a self-referential or pathologically nested array
+  // from overflowing the stack, without touching the common (depth 0-1) path.
+  const MAX_ESC_DEPTH = 50;
+
+  function esc(v, depth) {
     if (v == null) return '';
     if (v instanceof Raw) return String(v);
     // Arrays keep the existing .map(...).join('') call sites working unchanged.
-    if (Array.isArray(v)) return v.map(esc).join('');
+    if (Array.isArray(v)) {
+      const d = depth || 0;
+      if (d >= MAX_ESC_DEPTH) return '';
+      return v.map(x => esc(x, d + 1)).join('');
+    }
     return String(v).replace(/[&<>"']/g, c => ENTITIES[c]);
   }
 

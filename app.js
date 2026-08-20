@@ -138,21 +138,14 @@ function importGarage(file) {
       return toast(t(parsed.error), 'warn');
     }
     if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
-    // Past this point the photo cache is emptied and refilled with the backup's
-    // Blobs immediately below, but the garage itself isn't swapped in until
-    // session.setVehicles() after the normalize loop. A throw inside that loop
-    // leaves the OLD garage paired with the IMPORTED photo cache, with no toast.
+    // The garage and the photo cache must change together: normalize every
+    // vehicle first (still touching only `parsed`, not session state), THEN
+    // swap the photo cache, THEN call session.setVehicles(). A throw during
+    // normalizing now lands before anything session-owned has been touched,
+    // so the OLD garage is never left paired with the IMPORTED photo cache.
     // parseImport validates the shape; this catches everything else.
     try {
       const priorIds = session.garage().vehicles.map(v => v.id);
-      // session.photos() hands back the live cache; empty it, then refill from
-      // the backup so the imported Blobs are what the session holds.
-      const cache = session.photos();
-      Object.keys(cache).forEach(id => { delete cache[id]; });
-      Object.keys(parsed.photos).forEach(id => {
-        const blob = dataUrlToBlob(parsed.photos[id]);
-        if (blob) cache[id] = blob;
-      });
       // The backup's .photo fields are stale blob: URLs from the exporting session.
       // Restore real data: URLs from the backup's own photos dict, or splitPhotos
       // will treat them as already-stored and persist nothing.
@@ -163,6 +156,16 @@ function importGarage(file) {
         const merged = Object.assign(collectInlinePhotos(v.data), parsed.photos);
         v.data = inlinePhotos(v.data, merged);
         normalizeData(v.data);
+      });
+      // Normalizing succeeded for every vehicle — now swap the photo cache and
+      // the garage together. session.photos() hands back the live cache; empty
+      // it, then refill from the backup so the imported Blobs are what the
+      // session holds.
+      const cache = session.photos();
+      Object.keys(cache).forEach(id => { delete cache[id]; });
+      Object.keys(parsed.photos).forEach(id => {
+        const blob = dataUrlToBlob(parsed.photos[id]);
+        if (blob) cache[id] = blob;
       });
       // setVehicles picks the backup's activeId, or vehicles[0] if it is missing.
       session.setVehicles(parsed.garage.vehicles, parsed.garage.activeId);
@@ -1459,13 +1462,11 @@ function closeModal() { $('#modalHost').hidden = true; }
    it is a race, and races do not show up in a render. */
 function field(label, inputHtml) {
   const f = el('div', 'field');
-  // label is normally translation-key plain text and must stay escaped. One
-  // caller (openAddSpending's "Quick pick" label) hardcodes a <span> for
-  // styling and passes it pre-wrapped in raw() — t() still runs (both the
-  // English and Arabic strings are markup by design) but the translated
-  // result is re-marked raw so it isn't escaped a second time here.
-  const lbl = label instanceof Raw ? raw(t(String(label))) : t(label);
-  f.innerHTML = html`<label>${lbl}</label>${inputHtml}`;
+  // label is always plain text and always escaped — there is no raw-markup
+  // escape hatch here. A caller that wants markup in its label (see
+  // openAddSpending's "Quick pick" note) builds it itself, after this
+  // returns, as real DOM nodes appended to the <label> element.
+  f.innerHTML = html`<label>${t(label)}</label>${inputHtml}`;
   return f;
 }
 
@@ -1942,8 +1943,17 @@ function openAddSpending(e) {
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
       const partOpts = session.current().parts.map((p, i) => html`<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`);
-      card.appendChild(field(raw('Quick pick <span class="muted" style="font-weight:500">— autofill from a part</span>'),
-        html`<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`));
+      const quickPick = field('Quick pick',
+        html`<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`);
+      // The "— autofill from a part" note is styled markup, not plain text —
+      // build it as a real DOM node and append it to the label rather than
+      // asking field() to accept raw markup (see field()'s comment).
+      const note = document.createElement('span');
+      note.className = 'muted';
+      note.setAttribute('style', 'font-weight:500');
+      note.textContent = t('— autofill from a part');
+      quickPick.querySelector('label').append(' ', note);
+      card.appendChild(quickPick);
     }
     card.appendChild(field('Description', html`<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
     const row = el('div', 'field-row');
@@ -2082,7 +2092,11 @@ function iconSvg(name) {
     check: '<path d="M20 6 9 17l-5-5"/>'
   };
   // paths is a hardcoded constant map of SVG path data, never user input.
-  return html`<svg viewBox="0 0 24 24">${raw(paths[name] || '')}</svg>`;
+  // Object.prototype.hasOwnProperty guards against a name like 'constructor'
+  // resolving to an inherited Object.prototype value that raw() would then
+  // mark as trusted markup.
+  const d = Object.prototype.hasOwnProperty.call(paths, name) ? paths[name] : '';
+  return html`<svg viewBox="0 0 24 24">${raw(d)}</svg>`;
 }
 function toast(msg, kind) {
   const host = $('#toastHost');

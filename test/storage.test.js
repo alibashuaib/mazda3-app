@@ -6,6 +6,7 @@ const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../storage.js')
 const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults } = require('../storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
 const { collectInlinePhotos } = require('../storage.js');
+const { openStorage } = require('../storage.js');
 
 const DATA_URL = 'data:image/jpeg;base64,AAAA';
 
@@ -405,4 +406,50 @@ test('collectInlinePhotos picks up only slots with both a photoId and a data: UR
 test('collectInlinePhotos ignores a blob: URL', () => {
   const data = { car: { photo: 'blob:http://x/abc', photoId: 'p1' } };
   assert.deepStrictEqual(collectInlinePhotos(data), {});
+});
+
+/* Fix 4: repeated imports re-hydrate through session.load() -> openStorage(),
+   so every call after the first must close the connection it is replacing —
+   a minimal fake here rather than fake-indexeddb (used in test/idb.test.js),
+   since all that is needed is a trackable close(). */
+function fakeIndexedDb() {
+  return {
+    open: () => {
+      const req = {};
+      const db = { objectStoreNames: { contains: () => true }, closed: false, close() { this.closed = true; } };
+      setTimeout(() => { req.result = db; if (req.onsuccess) req.onsuccess(); }, 0);
+      return req;
+    }
+  };
+}
+
+test('openStorage closes the previous IndexedDB connection when called again', async () => {
+  const originalIndexedDB = global.indexedDB;
+  global.indexedDB = fakeIndexedDb();
+  try {
+    const first = await openStorage({ protocol: 'https:', hasIndexedDb: true });
+    assert.strictEqual(first.kind, 'idb');
+    assert.strictEqual(first.db.closed, false);
+
+    const second = await openStorage({ protocol: 'https:', hasIndexedDb: true });
+    assert.strictEqual(second.kind, 'idb');
+    assert.strictEqual(first.db.closed, true, 'the previous connection must be closed before being replaced');
+    assert.notStrictEqual(second.db, first.db);
+  } finally {
+    if (originalIndexedDB === undefined) delete global.indexedDB; else global.indexedDB = originalIndexedDB;
+  }
+});
+
+test('openStorage tolerates a close() that throws on the previous connection', async () => {
+  const originalIndexedDB = global.indexedDB;
+  global.indexedDB = fakeIndexedDb();
+  try {
+    const first = await openStorage({ protocol: 'https:', hasIndexedDb: true });
+    first.db.close = () => { throw new Error('already closed'); };
+
+    const second = await openStorage({ protocol: 'https:', hasIndexedDb: true });
+    assert.strictEqual(second.kind, 'idb', 'a throwing close() must not break backend selection');
+  } finally {
+    if (originalIndexedDB === undefined) delete global.indexedDB; else global.indexedDB = originalIndexedDB;
+  }
 });

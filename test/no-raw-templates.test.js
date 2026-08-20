@@ -15,11 +15,22 @@ test('no innerHTML assignment takes an untagged template literal', () => {
   assert.deepStrictEqual(bad.map(b => b.n), [], `untagged innerHTML templates at lines: ${bad.map(b => `${b.n}: ${b.line.trim()}`).join(' | ')}`);
 });
 
+/* Was a regex, `/\bel\([^)]*,\s*`/`, whose `[^)]*` breaks the moment an
+   earlier argument contains a `)` — e.g. `el('div', cls(x), \`...\`)` — so an
+   untagged template on such a call would pass silently. findElCalls (below)
+   is a proper balanced-paren/string scanner already used by the "content
+   argument" test further down; reuse it here instead of a second regex. */
 test('no el() call takes an untagged template literal', () => {
-  const bad = APP.split('\n')
-    .map((line, i) => ({ line, n: i + 1 }))
-    .filter(({ line }) => /\bel\([^)]*,\s*`/.test(line) && !/el\([^)]*,\s*html`/.test(line));
-  assert.deepStrictEqual(bad.map(b => b.n), [], `untagged el() templates at lines: ${bad.map(b => `${b.n}: ${b.line.trim()}`).join(' | ')}`);
+  const calls = findElCalls(APP);
+  assert.ok(calls.length > 100, `only found ${calls.length} el() calls — the scanner is probably broken, not the app`);
+  const bad = [];
+  for (const { line, args } of calls) {
+    for (const rawArg of args) {
+      const a = rawArg.trim();
+      if (/^`/.test(a) && a.endsWith('`') && !/^html`/.test(a)) bad.push({ line, arg: a });
+    }
+  }
+  assert.deepStrictEqual(bad.map(b => b.line), [], `untagged el() templates at lines: ${bad.map(b => `${b.line}: ${b.arg}`).join(' | ')}`);
 });
 
 /* raw() is the sanctioned escape hatch, so it must stay small and reviewable.

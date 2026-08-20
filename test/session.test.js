@@ -109,3 +109,58 @@ test('save() returns true on a successful write', async () => {
   assert.strictEqual(await session.save(), true);
   assert.strictEqual(notes.length, 0, 'a successful write must not warn');
 });
+
+/* Fix 1: save()'s documented contract is Promise<boolean>. A backend that
+   throws instead of resolving { ok: false } must not turn that into a
+   rejection at all nineteen `await save()` call sites. */
+test('save() resolves false and notifies when the backend throws synchronously', async () => {
+  session.clear();
+  const notes = [];
+  session.configure({
+    notify: (msg, kind) => notes.push({ msg, kind }),
+    saveVehicle: () => { throw new Error('boom'); }
+  });
+  session.setVehicles([vehicle('a', 'Red')], 'a');
+
+  assert.strictEqual(await session.save(), false, 'a thrown error must resolve false, not reject');
+  assert.strictEqual(notes.length, 1);
+  assert.strictEqual(notes[0].kind, 'warn');
+});
+
+test('save() resolves false and notifies when the backend returns a rejected promise', async () => {
+  session.clear();
+  const notes = [];
+  session.configure({
+    notify: (msg, kind) => notes.push({ msg, kind }),
+    saveVehicle: async () => { throw new Error('boom'); }
+  });
+  session.setVehicles([vehicle('a', 'Red')], 'a');
+
+  assert.strictEqual(await session.save(), false, 'a rejected promise must resolve false, not reject');
+  assert.strictEqual(notes.length, 1);
+  assert.strictEqual(notes[0].kind, 'warn');
+});
+
+/* Fix 2: a clear() (future sign-out) that lands while a save() is still in
+   flight must not let that stale write touch the FRESH session — no photo
+   Blob crossing into the next user's cache, and no toast on their screen. */
+test('clear() during an in-flight save leaves photos() empty and the save resolves false', async () => {
+  session.clear();
+  const notes = [];
+  let resolveSave;
+  session.configure({
+    notify: (msg, kind) => notes.push({ msg, kind }),
+    saveVehicle: () => new Promise(resolve => { resolveSave = resolve; })
+  });
+  session.setVehicles([vehicle('a', 'Red')], 'a');
+
+  const pending = session.save();
+  await Promise.resolve();   // let save() reach the backend call and capture resolveSave
+  session.clear();   // sign-out lands while the write above is still in flight
+
+  resolveSave({ ok: true, data: { car: { photoId: 'p1' } }, photoIds: ['p1'] });
+
+  assert.strictEqual(await pending, false, 'a stale write must not report success');
+  assert.deepStrictEqual(session.photos(), {}, "the previous session's photo must not land in the fresh cache");
+  assert.strictEqual(notes.length, 0, 'a stale write must not notify on the new session either');
+});
