@@ -58,3 +58,23 @@ test('the harness can boot on an https origin', async () => {
 test('the script order assertion ignores vendor/', () => {
   assert.doesNotThrow(assertScriptOrderMatchesIndexHtml);
 });
+
+test('booting on https with a client available makes sign-in reachable', async () => {
+  const created = [];
+  const stub = { createClient: (url, key) => { created.push([url, key]); return { auth: {}, from: () => ({}) }; } };
+  const app = await bootApp({ protocol: 'https:', supabaseStub: stub });
+  try {
+    assert.strictEqual(created.length, 1, 'boot must construct exactly one client on https');
+    assert.strictEqual(app.api.account.available(), true, 'sign-in must be reachable once a client exists');
+  } finally { app.cleanup(); }
+});
+
+test('booting from file:// constructs no client and hides sign-in', async () => {
+  const created = [];
+  const stub = { createClient: () => { created.push(1); return { auth: {}, from: () => ({}) }; } };
+  const app = await bootApp({ protocol: 'file:', supabaseStub: stub });
+  try {
+    assert.strictEqual(created.length, 0, 'no auth client may be constructed from disk');
+    assert.strictEqual(app.api.account.available(), false);
+  } finally { app.cleanup(); }
+});

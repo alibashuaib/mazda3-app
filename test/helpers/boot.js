@@ -136,6 +136,11 @@ function makeContext(dom, opts) {
 
   patchSelectValueSetter(dom);
 
+  /* vendor/supabase.js is excluded from the harness (see SCRIPTS), so the
+     boot block's client construction is unreachable under Node without a
+     stand-in. Tests that need a signed-in-capable boot pass one. */
+  if (opts.supabaseStub) g.supabase = opts.supabaseStub;
+
   return { context, g };
 }
 
@@ -171,7 +176,7 @@ async function bootApp(opts = {}) {
 
   if (opts.lang) globalThis.localStorage.setItem('garage.lang', opts.lang);
 
-  const { context, g } = makeContext(dom, { protocol: opts.protocol });
+  const { context, g } = makeContext(dom, { protocol: opts.protocol, supabaseStub: opts.supabaseStub });
   for (const rel of SCRIPTS) {
     const code = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     vm.runInContext(code, context, { filename: rel });
