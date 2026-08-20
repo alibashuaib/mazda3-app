@@ -217,6 +217,11 @@ scoped by `user_id`, so guessing an id reaches nothing. Recorded, not fixed.
      garage* or *use my account's garage*.
 4. `env.rerender()`.
 
+Replacing local means `session.setVehicles(pulled, garageRow.active_id)` followed by
+writing each vehicle through `storage.saveVehicle`, so the local copy matches the server
+before anything renders. If the pulled `active_id` names no vehicle, `setVehicles()`
+already falls back to the first one (`session.js:115`).
+
 An untouched seed is derived, not flagged: one vehicle whose `history`, `fuel`,
 `spending` and `docs` are all empty. That is the default vehicle `hydrate()` invents on a
 fresh device, and it is read from data already in memory — no new flag and no new write
@@ -261,7 +266,8 @@ pull, re-render only if something changed.
 
 **A failed push is silent.** It marks the vehicle dirty and moves on. Logging fuel at a
 petrol station with no signal is normal operation, not an error worth interrupting for.
-Settings carries the status instead: *Synced* / *N changes waiting*.
+Settings carries the status instead: *Synced* / *N vehicles waiting to sync* — the dirty
+list holds vehicle ids, not individual edits.
 
 **A failed pull at boot is silent.** The app already rendered from local storage.
 
