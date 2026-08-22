@@ -62,6 +62,8 @@ const SCRIPTS = [
   'src/pages/parts.js',
   'src/pages/fuel.js',
   'src/pages/budget.js',
+  'src/pages/reports.js',
+  'src/pages/documents.js',
   'app.js'
 ];
 
