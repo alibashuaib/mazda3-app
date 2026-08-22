@@ -44,6 +44,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const SCRIPTS = [
   'src/core/helpers.js',
   'src/ui/html.js',
+  'src/ui/modal.js',
+  'src/ui/photo.js',
   'src/data/catalog.js',
   'src/i18n/strings.ar.js',
   'src/i18n/lang.js',

@@ -1484,28 +1484,7 @@ function openAddDoc(d) {
   });
 }
 
-function openModal(title, sub, bodyBuilder) {
-  const host = $('#modalHost'), card = $('#modalCard');
-  card.innerHTML = '<div class="modal-grip"></div>';
-  const h = el('h2', null, html`${t(title)}`); card.appendChild(h);
-  if (sub) card.appendChild(el('p', 'sub', html`${t(sub)}`));
-  bodyBuilder(card);
-  host.hidden = false;
-  host.querySelector('[data-close]').onclick = closeModal;
-}
-function closeModal() { $('#modalHost').hidden = true; }
-
-/* onAsyncClick lives in ui.js so the re-entry guard is covered by the tests —
-   it is a race, and races do not show up in a render. */
-function field(label, inputHtml) {
-  const f = el('div', 'field');
-  // label is always plain text and always escaped — there is no raw-markup
-  // escape hatch here. A caller that wants markup in its label (see
-  // openAddSpending's "Quick pick" note) builds it itself, after this
-  // returns, as real DOM nodes appended to the <label> element.
-  f.innerHTML = html`<label>${t(label)}</label>${inputHtml}`;
-  return f;
-}
+/* openModal, closeModal, field now live in src/ui/modal.js. */
 
 function openEditOdo() {
   openModal('Update mileage', 'Keep this current so due dates stay accurate.', card => {
@@ -1540,51 +1519,7 @@ function renderTopbar() {
   else { badge.classList.remove('has-photo'); badge.textContent = carInitials(); }
 }
 
-// downscale an uploaded image to keep localStorage small; returns a JPEG data URL
-function readImageResized(file, cb) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const max = 900;
-      let { width: w, height: h } = img;
-      if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
-      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-      cv.getContext('2d').drawImage(img, 0, 0, w, h);
-      cb(cv.toDataURL('image/jpeg', 0.82));
-    };
-    img.onerror = () => toast('Could not read that image', 'warn');
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-/* reusable receipt/photo attachment field (resizes, tap thumbnail to enlarge) */
-function photoPicker(current, onChange, label) {
-  let photo = current || '';
-  const wrap = el('div', 'photo-picker');
-  wrap.style.marginBottom = '14px';
-  wrap.innerHTML = html`
-    <div class="photo-preview" data-prev style="cursor:${photo ? 'zoom-in' : 'default'}">${photo ? html`<img src="${photo}">` : '🧾'}</div>
-    <div class="photo-actions">
-      <button class="btn" type="button" data-pick>${photo ? t('Change receipt') : (label || t('Add receipt photo'))}</button>
-      <button class="btn ghost" type="button" data-rm ${photo ? '' : 'hidden'} style="color:var(--danger)">${t('Remove')}</button>
-      <input type="file" accept="image/*" data-file hidden>
-    </div>`;
-  const prev = wrap.querySelector('[data-prev]'), pick = wrap.querySelector('[data-pick]'), rm = wrap.querySelector('[data-rm]'), file = wrap.querySelector('[data-file]');
-  pick.onclick = () => file.click();
-  prev.onclick = () => { if (photo) openImage(photo); };
-  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = html`<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); }); };
-  rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); };
-  return wrap;
-}
-function openImage(url) {
-  const host = el('div');
-  host.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:20px;cursor:zoom-out';
-  host.innerHTML = html`<img src="${url}" style="max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8)">`;
-  host.onclick = () => host.remove();
-  document.body.appendChild(host);
-}
+/* readImageResized, photoPicker, openImage now live in src/ui/photo.js. */
 
 function openGarage() {
   if (!session.booted()) return;
