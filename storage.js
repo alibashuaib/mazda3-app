@@ -242,13 +242,14 @@
   }
 
   const DB_NAME = 'garage';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;   // was 1 — adds the `outbox` store
   const LS_KEY = 'garage.mazda3.v2';   // same key the app used before Phase 2
   const LEGACY_V1_KEY = 'garage.mazda3.v1';
   /* account.js's outbox-lite. EXPORTED, not duplicated: account.js reads it
      through its dependency object, so renaming it here cannot leave wipe()
      silently clearing a key nothing writes any more. */
   const DIRTY_KEY = 'garage.sync.dirty';
+  const OUTBOX_KEY = 'garage.sync.outbox';   // localStorage-backend fallback, JSON array
   const META_KEY = 'meta';
 
   /* Before the garage existed the app stored ONE car's data object directly
@@ -298,6 +299,7 @@
         if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
         if (!db.objectStoreNames.contains('vehicles')) db.createObjectStore('vehicles', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { keyPath: 'id' });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -506,6 +508,35 @@
     }).then(() => true).catch(() => false);
   }
 
+  function outboxLsRead() {
+    try { const v = JSON.parse(localStorage.getItem(OUTBOX_KEY)); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function outboxLsWrite(entries) {
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(entries)); return true; }
+    catch (e) { return false; }
+  }
+
+  function outboxAdd(entry) {
+    if (backend.kind === 'local') {
+      const q = outboxLsRead(); q.push(entry);
+      return Promise.resolve(outboxLsWrite(q));
+    }
+    return idbTx(backend.db, ['outbox'], 'readwrite', tx => { tx.objectStore('outbox').put(entry); })
+      .then(() => true).catch(() => false);
+  }
+
+  function outboxAll() {
+    if (backend.kind === 'local') return Promise.resolve(outboxLsRead());
+    return idbGetAll(backend.db, 'outbox');
+  }
+
+  function outboxRemove(id) {
+    if (backend.kind === 'local') return Promise.resolve(outboxLsWrite(outboxLsRead().filter(e => e.id !== id)));
+    return idbTx(backend.db, ['outbox'], 'readwrite', tx => { tx.objectStore('outbox').delete(id); })
+      .then(() => true).catch(() => false);
+  }
+
   /* Every localStorage key the garage owns is cleared unconditionally — a user
      may have run on IndexedDB over http and on localStorage from disk, and
      leaving either populated hands the next user the previous one's garage.
@@ -543,14 +574,15 @@
 
   function wipe() {
     const authKeys = localStorageKeys().filter(k => AUTH_TOKEN_KEY.test(k));
-    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY].concat(authKeys).forEach(k => {
+    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY, OUTBOX_KEY].concat(authKeys).forEach(k => {
       try { localStorage.removeItem(k); } catch (e) {}
     });
     if (!backend || backend.kind !== 'idb') return Promise.resolve(true);
-    return idbTx(backend.db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
+    return idbTx(backend.db, ['meta', 'vehicles', 'photos', 'outbox'], 'readwrite', tx => {
       tx.objectStore('meta').clear();
       tx.objectStore('vehicles').clear();
       tx.objectStore('photos').clear();
+      tx.objectStore('outbox').clear();
     }).then(() => true).catch(() => false);
   }
 
@@ -560,6 +592,7 @@
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
     parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
-    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind
+    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind,
+    outboxAdd, outboxAll, outboxRemove
   };
 });
