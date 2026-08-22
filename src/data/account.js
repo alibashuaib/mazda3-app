@@ -176,8 +176,23 @@
     return enqueue({ kind: 'vehicle', vehicleId: id, data: stripPhotos(data) });
   }
 
+  /* A pending 'vehicle' push for THIS id is moot once a tombstone is queued
+     for it — Phase 4a's old pushTombstone had the equivalent guard
+     (clearDirty(id), "a pending data push for a deleted vehicle is moot")
+     against the dirty list; the outbox replaced that list without carrying
+     the protection forward. Without this, an older still-queued 'vehicle'
+     entry (e.g. one whose earlier drain attempt failed and stayed queued)
+     can drain AFTER the tombstone and set deleted_at back to null on the
+     server, resurrecting a vehicle the user just deleted. This is a plain
+     filter, not an assumption the entry still exists — a vehicle entry
+     already drained/removed by the time this runs is simply not found and
+     nothing happens. */
   function enqueueTombstone(id) {
-    return enqueue({ kind: 'tombstone', vehicleId: id });
+    if (!_user || !env.client) return Promise.resolve(false);
+    return deps.outboxAll().then(entries => {
+      const stale = entries.filter(e => e.kind === 'vehicle' && e.vehicleId === id);
+      return stale.reduce((p, e) => p.then(() => deps.outboxRemove(e.id)), Promise.resolve());
+    }).then(() => enqueue({ kind: 'tombstone', vehicleId: id }));
   }
 
   function enqueuePhoto(id) {
@@ -209,7 +224,8 @@
     if (!_user || !env.client) return Promise.resolve(0);
     return deps.outboxAll().then(entries => {
       const sorted = entries.slice().sort((a, b) =>
-        (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) || (a.createdAt < b.createdAt ? -1 : 1));
+        (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) ||
+        (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
       return sorted.reduce((p, e) => p.then(() => drainOne(e)), Promise.resolve());
     }).then(() => deps.outboxAll()).then(remaining => remaining.length);
   }
@@ -337,8 +353,22 @@
      advance the cursor past a row that was never actually written, which is
      silent, permanent data loss on this device. So every write here is
      checked for that resolved-but-failed shape and turned into a rejection,
-     which stops pullIncremental's reduce chain before metaSet runs. */
-  function applyPulledRow(row, activeId) {
+     which stops pullIncremental's reduce chain before metaSet runs.
+
+     `expectedUser` is the sign-out-race guard: the user captured by
+     pullIncremental() when the sync attempt started. session.js's own
+     save() has the analogous protection on the push side (a `_generation`
+     token, tested by "a save in flight when sign-out happens cannot land in
+     the next session"); this is the same class of bug on the pull side. A
+     network round-trip can outlive a signOut() that runs mid-flight —
+     signOut() sets _user = null and then wipes storage — so without this
+     check a pulled row from the PREVIOUS user can still be written into the
+     just-wiped store. undefined skips the check (direct callers/tests that
+     do not pass one keep today's behavior). */
+  function applyPulledRow(row, activeId, expectedUser) {
+    if (expectedUser !== undefined && _user !== expectedUser) {
+      return Promise.reject(new Error('SIGNED_OUT_MID_SYNC'));
+    }
     if (row.deleted_at) {
       return deps.removeVehicle(row.id, activeId).then(res => {
         if (res === false) throw new Error('removeVehicle failed for ' + row.id);
@@ -357,7 +387,16 @@
      "what changed since I last checked" for a device that already has this
      user's garage — never runs before that first resolution. */
   function pullIncremental() {
+    const expectedUser = _user;
     return deps.metaGet().then(m => {
+      /* adopt() (sign-in path, above) never calls ensurePhotosLocal — a new
+         device gets its photos only as a side effect of THIS default: with no
+         lastPulledAt yet, the epoch cursor makes the first post-sign-in
+         pullIncremental() re-pull and re-apply every row from scratch, and
+         applyPulledRow()'s ensurePhotosLocal call is what actually downloads
+         them. Seeding lastPulledAt at sign-in time (e.g. to skip a redundant
+         first sync) would silently break photo sync on new devices — this
+         coupling has to move with any such change, not be assumed away. */
       const cursor = m.lastPulledAt || '1970-01-01T00:00:00.000Z';
       return Promise.resolve(env.client.from('vehicles').select('id,data,updated_at,deleted_at').gt('updated_at', cursor))
         .then(res => {
@@ -374,7 +413,7 @@
              with the .gt() filter and has no clock-skew exposure. ISO 8601
              strings sort lexically the same as chronologically. */
           let maxUpdatedAt = cursor;
-          return rows.reduce((p, row) => p.then(() => applyPulledRow(row, activeId)).then(() => {
+          return rows.reduce((p, row) => p.then(() => applyPulledRow(row, activeId, expectedUser)).then(() => {
             if (row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
           }), Promise.resolve())
             .then(() => deps.metaSet({ lastPulledAt: maxUpdatedAt }))
@@ -493,8 +532,10 @@
   }
 
   /* expire()'s only caller. Without it expire() is dead code and a mid-session
-     token expiry is invisible: Settings keeps saying "Signed in as", and every
-     save quietly piles onto the outbox until the next launch.
+     token expiry is invisible: Settings keeps saying "Signed in as", while
+     enqueue() actually guards on `_user` being set — so once _user is nulled
+     here, nothing queues at all. Post-expiry edits are local-only until the
+     next successful sign-in.
 
      The event names are read off vendor/supabase.js, which emits SIGNED_IN,
      SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, PASSWORD_RECOVERY and

@@ -1057,3 +1057,82 @@ test('a pulled vehicle referencing a photo already local does not download it', 
 
   assert.strictEqual(downloads, 0);
 });
+
+/* ============================================================
+   Fix 2: a deleted vehicle can resurrect across drains.
+
+   enqueueTombstone(id) must remove any already-queued 'vehicle' entry for
+   the same vehicleId — Phase 4a's old pushTombstone had the equivalent
+   clearDirty(id) guard, lost when the outbox replaced the dirty list.
+   ============================================================ */
+test('enqueueTombstone removes an already-queued vehicle entry for the same id', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueVehicle('v1', { car: { nickname: 'A' } });
+  await account.enqueueTombstone('v1');
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 1, 'the stale vehicle entry must be dropped — only the tombstone remains');
+  assert.strictEqual(entries[0].kind, 'tombstone');
+  assert.strictEqual(entries[0].vehicleId, 'v1');
+});
+
+test('enqueueTombstone is a no-op filter when no vehicle entry is queued for the id', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  // An unrelated vehicle entry must survive untouched — the filter targets
+  // only entries matching THIS vehicleId, not "any vehicle entry".
+  await account.enqueueVehicle('other', { car: {} });
+  await account.enqueueTombstone('v1');   // no 'v1' vehicle entry is queued — must not throw or assume one exists
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 2);
+  assert.ok(entries.some(e => e.kind === 'vehicle' && e.vehicleId === 'other'), 'the unrelated vehicle entry must survive');
+  assert.ok(entries.some(e => e.kind === 'tombstone' && e.vehicleId === 'v1'));
+});
+
+/* ============================================================
+   Fix 3: a sign-out mid-sync can write pulled data into a wiped store.
+
+   pullIncremental() captures the signed-in user when it starts; if the user
+   changes (signOut() nulling _user) partway through a multi-row batch,
+   applyPulledRow() must refuse to run for the remaining rows and the cursor
+   must not advance — the pull-side analogue of session.js's `_generation`
+   guard on the push side.
+   ============================================================ */
+test('a user change mid-sync (sign-out race) stops applying the rest of the batch and does not advance the cursor', async () => {
+  account.reset();
+  const rows = [
+    { id: 'v1', data: {}, updated_at: '2020-01-01T00:00:00.000Z', deleted_at: null },
+    { id: 'v2', data: {}, updated_at: '2020-06-01T00:00:00.000Z', deleted_at: null }
+  ];
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': rows } });
+  const savedIds = [];
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: id => {
+      savedIds.push(id);
+      // Simulates signOut() running while this row's write is in flight.
+      if (id === 'v1') account.setUserForTest(null);
+      return Promise.resolve({ ok: true, photoIds: [], data: {} });
+    },
+    metaGet: () => Promise.resolve({}),
+    metaSet: () => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  const result = await account.sync();
+
+  assert.deepStrictEqual(savedIds, ['v1'], 'the row after the user changed must never reach saveVehicle');
+  assert.strictEqual(metaSetCalls, 0, 'the cursor must not advance when the batch is aborted mid-way');
+  assert.strictEqual(result, false, 'sync() must resolve false, not throw, when the sign-out race aborts the batch');
+});
