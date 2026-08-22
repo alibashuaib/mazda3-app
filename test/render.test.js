@@ -379,3 +379,105 @@ for (const [label, payload] of [['attribute breakout', ATTR_PAYLOAD], ['markup i
     }
   }));
 }
+
+/* Phase 3 left this open: clear() revokes object URLs, but revoking a blob URL
+   does not blank an already-decoded <img>. The previous user's car photo stays
+   on screen until something re-renders. This asserts signOut() does both. */
+test('signing out leaves no trace of the previous garage on screen', async () => {
+  const app = await bootApp({ protocol: 'https:' });
+  try {
+    const { api, document } = app;
+
+    api.session.setVehicles([{
+      id: 'v1',
+      data: {
+        car: { nickname: 'PreviousUserCar', odometer: 1000, photo: 'blob:previous-photo' },
+        // renderDashboard reads budget.annual unguarded; setVehicles does not
+        // normalize (unlike load()), so the fixture must supply it directly.
+        budget: { annual: 6000 },
+        services: [], parts: [], history: [], spending: [], fuel: [], docs: []
+      }
+    }], 'v1');
+    api.go('dashboard');
+
+    assert.ok(document.body.textContent.includes('PreviousUserCar'), 'precondition: the car is on screen');
+
+    /* Pins that sign-out leaves no live object URLs behind, tracked through
+       session.js's own objectUrl()/configure() seam rather than inferred from
+       the DOM. NOT proof that session.clear() specifically did the revoking:
+       go() (app.js) calls session.revokeObjectUrls() unconditionally on every
+       navigation, and rerender() below calls go() as part of reproducing the
+       real app.js wiring — so this assertion is satisfied either way and
+       cannot attribute the revocation to clear() vs. the next navigation.
+       Nothing in this file can make that attribution: wipe()+session.load()
+       alone leave an identical end state whether or not clear() ran, so a
+       screen/DOM-based test structurally cannot distinguish them. The
+       property that IS distinguishable — clear()'s _generation bump stopping
+       a save in flight from landing in the next session — is covered
+       directly in test/account.test.js instead. */
+    const revoked = [];
+    api.session.configure({
+      makeObjectUrl: b => `blob:tracked-${b && b.tag ? b.tag : 'x'}`,
+      revokeObjectUrl: u => revoked.push(u)
+    });
+    const registered = api.session.objectUrl({ tag: 'previous-photo' });
+
+    api.account.configure({
+      client: { auth: { signOut: () => Promise.resolve({ error: null }) }, from: () => ({}) },
+      protocol: 'https:',
+      rerender: () => { api.renderTopbar(); api.go(app.evalInApp('current')); }
+    });
+    api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+
+    await api.account.signOut();
+
+    assert.ok(!document.body.textContent.includes('PreviousUserCar'),
+      'the previous garage must not survive a sign-out on screen');
+    assert.ok(![...document.querySelectorAll('img')].some(i => (i.getAttribute('src') || '').includes('previous-photo')),
+      'no revoked blob URL may remain in the DOM');
+    assert.ok(revoked.includes(registered),
+      'sign-out must revoke the previous session\'s object URLs, not merely re-render over them');
+  } finally { app.cleanup(); }
+});
+
+/* ============================================================
+   The app's own write paths must reach account.onSaved().
+
+   Every account test drives account.js directly, so a push that the APP
+   never triggers still passes them. openAddVehicle() persists with a direct
+   saveVehicle() rather than session.save(), which means it does not fire
+   session.js's afterSave hook — and afterSave is the only wiring between a
+   save and a push. Without an explicit onSaved() call the new vehicle is
+   never on the server, so the next boot's adopt() sees it as stale and
+   deletes it. This boots the real app against a recording client and asserts
+   the upsert actually crossed the wire.
+   ============================================================ */
+test('adding a vehicle while signed in pushes it to the server', async () => {
+  const upserts = { vehicles: [], garage: [] };
+  const stub = {
+    createClient: () => ({
+      /* No stored session: start() stays anonymous so the boot pull cannot
+         adopt an empty server garage over the fixture. The signed-in state is
+         installed afterwards, which is what the add path actually reads. */
+      auth: { getSession: () => Promise.resolve({ data: { session: null }, error: null }) },
+      from: table => ({
+        upsert(row) { upserts[table].push(row); return Promise.resolve({ error: null }); }
+      })
+    })
+  };
+  const app = await bootApp({ protocol: 'https:', supabaseStub: stub });
+  try {
+    const { document, api } = app;
+    api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+    const before = api.session.garage().vehicles.map(v => v.id);
+
+    api.openAddVehicle();
+    const btn = [...document.querySelectorAll('#modalCard button')].pop();
+    await btn.onclick({ preventDefault() {} });
+
+    const added = api.session.garage().vehicles.map(v => v.id).filter(id => before.indexOf(id) < 0);
+    assert.strictEqual(added.length, 1, 'precondition: the dialog added exactly one vehicle');
+    assert.ok(upserts.vehicles.some(r => r.id === added[0]),
+      'the new vehicle was never pushed — the next boot\'s adopt() would delete it as stale');
+  } finally { app.cleanup(); }
+});

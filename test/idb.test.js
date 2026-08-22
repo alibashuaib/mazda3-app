@@ -28,6 +28,10 @@ function freshStorage(seedLocal) {
     getItem: k => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => { store.set(k, String(v)); },
     removeItem: k => { store.delete(k); },
+    /* key()/length are part of the Storage interface and storage.js's wipe()
+       enumerates with them to find supabase's sb-<ref>-auth-token key. */
+    key: i => [...store.keys()][i] ?? null,
+    get length() { return store.size; },
     _store: store
   };
   delete require.cache[STORAGE];
@@ -261,4 +265,74 @@ test('the localStorage backend round-trips a vehicle with its photo inline', asy
   assert.strictEqual(res.ok, true);
   const { garage } = await s.loadAll();
   assert.strictEqual(garage.vehicles[0].data.car.photo, DATA_URL, 'inlined, since there is no blob store');
+});
+
+test('wipe() clears every local key, including the legacy one', async () => {
+  const storage = freshStorage();
+  global.localStorage.setItem('garage.mazda3.v1', JSON.stringify({ car: { nickname: 'Legacy' } }));
+  global.localStorage.setItem('garage.mazda3.v2', JSON.stringify({ vehicles: [{ id: 'a', data: {} }], activeId: 'a' }));
+  global.localStorage.setItem('garage.sync.dirty', JSON.stringify(['a']));
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  const ok = await storage.wipe();
+
+  assert.strictEqual(ok, true);
+  assert.strictEqual(global.localStorage.getItem('garage.mazda3.v1'), null);
+  assert.strictEqual(global.localStorage.getItem('garage.mazda3.v2'), null);
+  assert.strictEqual(global.localStorage.getItem('garage.sync.dirty'), null);
+  assert.strictEqual(storage.readLegacyV1(), null, 'the legacy fallback must be unreachable after a wipe');
+});
+
+test('wipe() empties the IndexedDB stores', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.saveVehicle('v1', { car: { nickname: 'Red' } }, 'v1', () => 'p1');
+
+  await storage.wipe();
+
+  const after = await storage.loadAll();
+  assert.ok(!after.garage || !after.garage.vehicles.length, 'no vehicles survive a wipe');
+  assert.deepStrictEqual(after.photos, {}, 'no photos survive a wipe');
+});
+
+test('wipe() leaves unrelated keys alone', async () => {
+  const storage = freshStorage();
+  global.localStorage.setItem('garage.theme', 'light');
+  global.localStorage.setItem('garage.lang', 'ar');
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  await storage.wipe();
+
+  assert.strictEqual(global.localStorage.getItem('garage.theme'), 'light');
+  assert.strictEqual(global.localStorage.getItem('garage.lang'), 'ar');
+});
+
+/* auth.signOut() RESOLVES with {error} on a network failure and can return
+   before clearing its stored session. If sb-<ref>-auth-token survives a wipe,
+   the next launch's getSession() restores the PREVIOUS user's session and
+   adopt() writes their whole garage onto the device — with no sign-in prompt.
+   That defeats the phase's central cross-user property. */
+test('wipe() removes the stored supabase auth token, and nothing else', async () => {
+  const storage = freshStorage();
+  global.localStorage.setItem('sb-abcdef-auth-token', JSON.stringify({ access_token: 'x' }));
+  global.localStorage.setItem('garage.theme', 'light');
+  global.localStorage.setItem('garage.lang', 'ar');
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  await storage.wipe();
+
+  assert.strictEqual(global.localStorage.getItem('sb-abcdef-auth-token'), null,
+    'an offline sign-out that leaves the token behind hands the device back to the previous user');
+  assert.strictEqual(global.localStorage.getItem('garage.theme'), 'light');
+  assert.strictEqual(global.localStorage.getItem('garage.lang'), 'ar');
+});
+
+test('wipe() succeeds on the localStorage backend too', async () => {
+  const storage = freshStorage({ vehicles: [{ id: 'a', data: {} }], activeId: 'a' });
+  await storage.openStorage({ protocol: 'file:', hasIndexedDb: false });
+
+  assert.strictEqual(await storage.wipe(), true);
+
+  const after = await storage.loadAll();
+  assert.strictEqual(after.garage, null);
 });

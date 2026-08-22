@@ -149,6 +149,38 @@ test('export then import reproduces the garage', async ({ page }, testInfo) => {
   await expect(page.locator('#carTitle')).toHaveText(marker, { timeout: 15000 });
 });
 
+test('the account row is absent from file://', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'file', 'checks the file:// origin only');
+  await open(page, testInfo);
+
+  await page.click('#settingsBtn');
+  await expect(page.locator('#modalCard')).toBeVisible();
+  // account.available() is false on file:// by design (opaque origin, no auth
+  // code active) — the whole account row must be omitted, not merely hidden.
+  await expect(page.locator('#modalCard').getByText('Account', { exact: true })).toHaveCount(0);
+});
+
+test('the account row is present over http', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'http', 'checks the http origin only');
+  await open(page, testInfo);
+
+  await page.click('#settingsBtn');
+  await expect(page.locator('#modalCard')).toBeVisible();
+  // Same locator as the file:// test above: proves the selector actually
+  // matches something here, so that test's zero-count assertion means what
+  // it claims rather than passing because the selector never matched anything.
+  await expect(page.locator('#modalCard').getByText('Account', { exact: true }).first()).toBeVisible();
+});
+
+test('the vendored client loads and does not break boot', async ({ page }, testInfo) => {
+  // vendor/supabase.js is an unconditional <script> tag, so the SDK global
+  // exists on both origins even though only http constructs a client from it.
+  const errors = await open(page, testInfo);
+
+  expect(await page.evaluate(() => typeof window.supabase)).toBe('object');
+  expect(errors, `uncaught page errors: ${errors.join(' | ')}`).toEqual([]);
+});
+
 test('uses the backend this origin is supposed to use', async ({ page }, testInfo) => {
   await open(page, testInfo);
 

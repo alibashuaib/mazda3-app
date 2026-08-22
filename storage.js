@@ -245,6 +245,10 @@
   const DB_VERSION = 1;
   const LS_KEY = 'garage.mazda3.v2';   // same key the app used before Phase 2
   const LEGACY_V1_KEY = 'garage.mazda3.v1';
+  /* account.js's outbox-lite. EXPORTED, not duplicated: account.js reads it
+     through its dependency object, so renaming it here cannot leave wipe()
+     silently clearing a key nothing writes any more. */
+  const DIRTY_KEY = 'garage.sync.dirty';
   const META_KEY = 'meta';
 
   /* Before the garage existed the app stored ONE car's data object directly
@@ -502,12 +506,60 @@
     }).then(() => true).catch(() => false);
   }
 
+  /* Every localStorage key the garage owns is cleared unconditionally — a user
+     may have run on IndexedDB over http and on localStorage from disk, and
+     leaving either populated hands the next user the previous one's garage.
+     The IndexedDB stores are only reachable when that backend is the one
+     openStorage() selected, so the second half returns early otherwise.
+
+     LEGACY_V1_KEY goes too, and that is load-bearing. hydrate() falls back to
+     readLegacyV1() whenever the garage is empty, so without this delete the
+     next sign-in would seed a fresh user from the previous one's pre-garage
+     car. Phase 2's migration copied that key into the garage long ago, so
+     nothing reachable is lost.
+
+     So does supabase-js's own stored session (`sb-<project-ref>-auth-token`).
+     auth.signOut() RESOLVES with {error} on a network failure and can return
+     before removing it, so without this the next launch restores the previous
+     user's still-valid session and adopt() writes their whole garage onto a
+     device that was just wiped — no sign-in prompt anywhere. */
+  const AUTH_TOKEN_KEY = /^sb-.*-auth-token$/;
+
+  /* Neither enumeration route is guaranteed: the Node suite's shims and some
+     privacy modes implement only getItem/setItem/removeItem. Try the standard
+     key(i)/length pair first, fall back to own-property enumeration, and
+     tolerate both being absent rather than throwing out of sign-out. */
+  function localStorageKeys() {
+    const out = [];
+    try {
+      if (typeof localStorage.key === 'function' && typeof localStorage.length === 'number') {
+        for (let i = 0; i < localStorage.length; i++) out.push(localStorage.key(i));
+      } else {
+        Object.keys(localStorage).forEach(k => out.push(k));
+      }
+    } catch (e) {}
+    return out.filter(k => typeof k === 'string');
+  }
+
+  function wipe() {
+    const authKeys = localStorageKeys().filter(k => AUTH_TOKEN_KEY.test(k));
+    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY].concat(authKeys).forEach(k => {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+    if (!backend || backend.kind !== 'idb') return Promise.resolve(true);
+    return idbTx(backend.db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
+      tx.objectStore('meta').clear();
+      tx.objectStore('vehicles').clear();
+      tx.objectStore('photos').clear();
+    }).then(() => true).catch(() => false);
+  }
+
   function backendKind() { return backend ? backend.kind : null; }
 
   return {
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
-    parseLegacyV1, readLegacyV1, migrationPlan,
-    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, backendKind
+    parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
+    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind
   };
 });

@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { setupDom } = require('./helpers/dom.js');
+const { bootApp, assertScriptOrderMatchesIndexHtml } = require('./helpers/boot.js');
 
 test('setupDom installs a usable document', () => {
   const { document, cleanup } = setupDom();
@@ -44,4 +45,36 @@ test('cleanup removes the globals so tests do not leak into each other', () => {
   cleanup();
   assert.strictEqual(globalThis.document, undefined);
   assert.strictEqual(globalThis.localStorage, undefined);
+});
+
+test('the harness can boot on an https origin', async () => {
+  const app = await bootApp({ protocol: 'https:' });
+  try {
+    assert.strictEqual(app.api.location.protocol, 'https:');
+    assert.ok(app.api.account, 'account.js is loaded by the harness');
+  } finally { app.cleanup(); }
+});
+
+test('the script order assertion ignores vendor/', () => {
+  assert.doesNotThrow(assertScriptOrderMatchesIndexHtml);
+});
+
+test('booting on https with a client available makes sign-in reachable', async () => {
+  const created = [];
+  const stub = { createClient: (url, key) => { created.push([url, key]); return { auth: {}, from: () => ({}) }; } };
+  const app = await bootApp({ protocol: 'https:', supabaseStub: stub });
+  try {
+    assert.strictEqual(created.length, 1, 'boot must construct exactly one client on https');
+    assert.strictEqual(app.api.account.available(), true, 'sign-in must be reachable once a client exists');
+  } finally { app.cleanup(); }
+});
+
+test('booting from file:// constructs no client and hides sign-in', async () => {
+  const created = [];
+  const stub = { createClient: () => { created.push(1); return { auth: {}, from: () => ({}) }; } };
+  const app = await bootApp({ protocol: 'file:', supabaseStub: stub });
+  try {
+    assert.strictEqual(created.length, 0, 'no auth client may be constructed from disk');
+    assert.strictEqual(app.api.account.available(), false);
+  } finally { app.cleanup(); }
 });

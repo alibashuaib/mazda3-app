@@ -91,7 +91,13 @@ function openAddVehicle() {
       session.setVehicles(session.garage().vehicles.concat([v]), v.id);
       const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
       const ok = res.ok;
-      if (ok) applyPhotoIds(v.data, res.data);
+      /* A direct saveVehicle() bypasses session.save(), and session.save() is
+         the only thing that fires the afterSave hook account.js pushes from.
+         Without an explicit push the new vehicle never reaches the server, so
+         the next boot's pull() hands back a garage that does not contain it and
+         adopt() classifies it as stale — deleting it, and its photos, with no
+         prompt. onSaved() no-ops when signed out and never rejects. */
+      if (ok) { applyPhotoIds(v.data, res.data); account.onSaved(v.id, res.data); }
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
       if (ok) toast(t('Vehicle added'));
       else toast(isQuotaError(res.error)
@@ -107,6 +113,11 @@ async function deleteVehicle(id) {
   // setVehicles falls back to kept[0] when the removed vehicle was the active one.
   session.setVehicles(kept, session.garage().activeId === id ? kept[0].id : session.garage().activeId);
   const ok = await removeVehicle(id, session.garage().activeId); session.prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
+  // Best-effort, not awaited: the local delete already succeeded and the UI has
+  // moved on. There is no outbox yet, so a failed tombstone push is simply lost —
+  // the vehicle will come back from the server on the next pull. account.pushTombstone
+  // is a no-op when signed out and never rejects, so this can't throw into the delete path.
+  account.pushTombstone(id);
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
@@ -173,11 +184,15 @@ function importGarage(file) {
       for (const v of session.garage().vehicles) {
         const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
         if (!res.ok) ok = false;
+        // Same reason as openAddVehicle: a direct saveVehicle() never reaches
+        // session.save()'s afterSave hook, so an imported vehicle would be
+        // deleted as stale by the next boot's adopt().
+        else account.onSaved(v.id, res.data);
       }
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) await removeVehicle(id, session.garage().activeId);
+        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.pushTombstone(id); }
       }
       // The save loop minted fresh photo ids, so re-read from storage to bring
       // memory back in sync with what was actually persisted. session.load()
@@ -1572,6 +1587,86 @@ function openGarage() {
   });
 }
 
+/* The merge prompt. Resolves 'local' or 'server'; the caller replaces the
+   other side entirely, so the wording has to be unambiguous about that. */
+function askWhichGarage() {
+  return new Promise(resolve => {
+    let answered = false;
+    openModal(t('You have data here and in your account'), t('Choose which one to keep. The other is replaced.'), card => {
+      const wrap = el('div', 'stack');
+      const keepLocal = el('button', 'btn', html`${t('Keep this device’s garage')}`);
+      const keepServer = el('button', 'btn ghost', html`${t('Use my account’s garage')}`);
+      keepLocal.onclick = () => { answered = true; closeModal(); resolve('local'); };
+      keepServer.onclick = () => { answered = true; closeModal(); resolve('server'); };
+      wrap.appendChild(keepLocal);
+      wrap.appendChild(keepServer);
+      card.appendChild(wrap);
+    });
+    /* Dismissing the modal must still resolve, or signIn() hangs forever
+       holding a user that has already authenticated. The server copy is the
+       safe default: the local garage is still on disk either way.
+
+       openModal() assigns the backdrop handler as its last statement
+       (app.js:1457), so overriding it here wins. closeModal() itself has no
+       dismissal hook to subscribe to. */
+    $('#modalHost').querySelector('[data-close]').onclick = () => {
+      if (answered) return;
+      answered = true;
+      closeModal();
+      resolve('server');
+    };
+  });
+}
+
+function openAccount() {
+  const signedIn = !!account.user();
+  openModal(t('Account'), signedIn ? t('Signed in as') + ' ' + account.user().email : t('Your garage stays on this device.'), card => {
+    if (signedIn) {
+      const pending = account.dirty().length;
+      const status = el('p', 'muted', html`${pending ? t('Waiting to sync') + ' · ' + pending : t('Synced')}`);
+      card.appendChild(status);
+      const out = el('button', 'btn ghost', html`${t('Sign out')}`);
+      out.style.color = 'var(--danger)';
+      out.onclick = () => { closeModal(); account.signOut(); };
+      card.appendChild(out);
+      return;
+    }
+
+    const form = el('div', 'stack');
+    form.innerHTML = html`
+      <label class="field"><span>${t('Email')}</span><input type="email" id="ac_email" autocomplete="email"></label>
+      <label class="field"><span>${t('Password')}</span><input type="password" id="ac_pw" autocomplete="current-password"></label>
+      <p class="muted" id="ac_err" hidden></p>`;
+    card.appendChild(form);
+
+    const err = form.querySelector('#ac_err');
+    const show = msg => { err.textContent = t(msg); err.hidden = false; };
+
+    const submit = mode => () => {
+      err.hidden = true;
+      const email = form.querySelector('#ac_email').value.trim();
+      const pw = form.querySelector('#ac_pw').value;
+      if (pw.length < 6) return show('Password must be at least 6 characters.');
+      account.signIn(email, pw, { signUp: mode === 'up' })
+        .then(() => closeModal())
+        .catch(e => {
+          const m = String(e && e.message || '');
+          if (m === 'PULL_FAILED') return show('Couldn’t reach your garage. Check your connection and try again.');
+          if (m === 'EMAIL_NOT_CONFIRMED') return show('Check your email to confirm your account.');
+          if (m === 'EMAIL_ALREADY_REGISTERED') return show('That email is already registered. Sign in instead.');
+          show('Wrong email or password.');
+        });
+    };
+
+    const inBtn = el('button', 'btn', html`${t('Sign in')}`);
+    inBtn.onclick = submit('in');
+    const upBtn = el('button', 'btn ghost', html`${t('Sign up')}`);
+    upBtn.onclick = submit('up');
+    card.appendChild(inBtn);
+    card.appendChild(upBtn);
+  });
+}
+
 function openSettings() {
   if (!session.booted()) return;
   openModal('Car profile', 'These details personalise the app and its badge.', card => {
@@ -1587,6 +1682,17 @@ function openSettings() {
       langSeg.appendChild(b);
     });
     card.appendChild(langSeg);
+
+    // account row — absent entirely from file://, where sign-in cannot work
+    if (account.available()) {
+      const acctRow = el('div', 'card plan-setup-banner');
+      acctRow.style.margin = '0 0 16px';
+      acctRow.innerHTML = html`<div class="r-ic">👤</div><div style="flex:1"><h3>${t('Account')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${account.user() ? account.user().email : t('Not signed in')}</p></div>`;
+      const acctBtn = el('button', account.user() ? 'btn ghost' : 'btn', html`${account.user() ? t('Account') : t('Sign in')}`);
+      acctBtn.onclick = () => { closeModal(); openAccount(); };
+      acctRow.appendChild(acctBtn);
+      card.appendChild(acctRow);
+    }
 
     // plan setup wizard — schedule basis, odometer & service history
     const planRow = el('div', 'card plan-setup-banner');
@@ -2209,7 +2315,24 @@ applyNavLabels();
 
 /* session.js emits its failure messages untranslated; t() here is what keeps
    the Arabic save-failure toasts working. */
-session.configure({ notify: (msg, kind) => toast(t(msg), kind) });
+session.configure({
+  notify: (msg, kind) => toast(t(msg), kind),
+  afterSave: (id, data) => account.onSaved(id, data)
+});
+
+/* Gate on the protocol directly. account.available() also requires a client,
+   and this expression is what SUPPLIES the client — calling it here would
+   always see env.client === null and never build one. */
+const canSignIn = typeof supabase !== 'undefined' && location.protocol !== 'file:';
+
+account.configure({
+  client: canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null,
+  /* The re-render half of sign-out. session.clear() revokes object URLs, but a
+     decoded <img> stays painted until something rebuilds the view — so
+     account.js never calls clear() without calling this after it. */
+  rerender: () => { renderTopbar(); go(current); },
+  choose: askWhichGarage
+});
 
 session.load()
   .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist the seed
@@ -2217,6 +2340,9 @@ session.load()
     applyAccent();
     renderTopbar();
     go('dashboard');
+    /* After the first paint, never before: a slow or absent network must not
+       delay the app a user can already use offline. */
+    return account.start();
   })
   .catch(err => {
     document.getElementById('view').innerHTML =
