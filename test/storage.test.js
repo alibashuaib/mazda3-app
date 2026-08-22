@@ -487,3 +487,16 @@ test('outboxAdd upserts on duplicate id, matching IndexedDB put() semantics', as
   assert.strictEqual(all[0].kind, 'photo', 'the second entry must overwrite the first one');
   assert.strictEqual(all[0].photoId, 'p1');
 });
+
+test('metaGet/metaSet round-trip on the localStorage backend', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../storage.js')];
+  const storage = require('../storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  await storage.metaSet({ lastPulledAt: 'x' });
+  assert.strictEqual((await storage.metaGet()).lastPulledAt, 'x');
+});

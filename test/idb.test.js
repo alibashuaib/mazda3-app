@@ -375,3 +375,25 @@ test('outboxAdd upserts on duplicate id via put() semantics', async () => {
   assert.strictEqual(all[0].kind, 'photo', 'the second entry must overwrite the first one');
   assert.strictEqual(all[0].photoId, 'p1');
 });
+
+test('metaGet/metaSet round-trip on the IndexedDB backend', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  assert.deepStrictEqual(await storage.metaGet(), {});
+
+  await storage.metaSet({ lastPulledAt: '2026-08-22T00:00:00.000Z' });
+  assert.strictEqual((await storage.metaGet()).lastPulledAt, '2026-08-22T00:00:00.000Z');
+});
+
+test('metaSet merges rather than replacing', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.metaSet({ lastPulledAt: 'a' });
+
+  await storage.metaSet({ somethingElse: 'b' });
+
+  const m = await storage.metaGet();
+  assert.strictEqual(m.lastPulledAt, 'a');
+  assert.strictEqual(m.somethingElse, 'b');
+});

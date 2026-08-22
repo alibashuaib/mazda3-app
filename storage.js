@@ -251,6 +251,7 @@
   const DIRTY_KEY = 'garage.sync.dirty';
   const OUTBOX_KEY = 'garage.sync.outbox';   // localStorage-backend fallback, JSON array
   const META_KEY = 'meta';
+  const META_LS_KEY = 'garage.sync.meta';   // localStorage-backend meta, since that backend has no `meta` store
 
   /* Before the garage existed the app stored ONE car's data object directly
      under the v1 key. A user who has not opened the app since then still has
@@ -537,6 +538,26 @@
       .then(() => true).catch(() => false);
   }
 
+  function metaGet() {
+    if (backend.kind === 'local') {
+      try { return Promise.resolve(JSON.parse(localStorage.getItem(META_LS_KEY)) || {}); }
+      catch (e) { return Promise.resolve({}); }
+    }
+    return idbGetAll(backend.db, 'meta').then(rows => rows.find(x => x.key === META_KEY) || {});
+  }
+
+  function metaSet(patch) {
+    if (backend.kind === 'local') {
+      try {
+        const prev = JSON.parse(localStorage.getItem(META_LS_KEY)) || {};
+        localStorage.setItem(META_LS_KEY, JSON.stringify(Object.assign({}, prev, patch)));
+        return Promise.resolve(true);
+      } catch (e) { return Promise.resolve(false); }
+    }
+    return idbTx(backend.db, ['meta'], 'readwrite', tx => putMetaPreserving(tx, patch))
+      .then(() => true).catch(() => false);
+  }
+
   /* Every localStorage key the garage owns is cleared unconditionally — a user
      may have run on IndexedDB over http and on localStorage from disk, and
      leaving either populated hands the next user the previous one's garage.
@@ -574,7 +595,7 @@
 
   function wipe() {
     const authKeys = localStorageKeys().filter(k => AUTH_TOKEN_KEY.test(k));
-    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY, OUTBOX_KEY].concat(authKeys).forEach(k => {
+    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY, OUTBOX_KEY, META_LS_KEY].concat(authKeys).forEach(k => {
       try { localStorage.removeItem(k); } catch (e) {}
     });
     if (!backend || backend.kind !== 'idb') return Promise.resolve(true);
@@ -593,6 +614,6 @@
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
     parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind,
-    outboxAdd, outboxAll, outboxRemove
+    outboxAdd, outboxAll, outboxRemove, metaGet, metaSet
   };
 });
