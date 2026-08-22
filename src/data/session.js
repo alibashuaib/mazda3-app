@@ -158,7 +158,7 @@
            write started before a sign-out can never push into the account
            that signed in after it. Throwing here must not turn a successful
            local save into a failure. */
-        try { env.afterSave(v.id, res.data); } catch (e) {}
+        try { env.afterSave(v.id, res.data, res.photoIds); } catch (e) {}
         return true;
       }
       env.notify(dep.isQuotaError(res.error)

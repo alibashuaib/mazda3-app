@@ -93,11 +93,11 @@ function openAddVehicle() {
       const ok = res.ok;
       /* A direct saveVehicle() bypasses session.save(), and session.save() is
          the only thing that fires the afterSave hook account.js pushes from.
-         Without an explicit push the new vehicle never reaches the server, so
+         Without an explicit enqueue the new vehicle never reaches the server, so
          the next boot's pull() hands back a garage that does not contain it and
          adopt() classifies it as stale — deleting it, and its photos, with no
-         prompt. onSaved() no-ops when signed out and never rejects. */
-      if (ok) { applyPhotoIds(v.data, res.data); account.onSaved(v.id, res.data); }
+         prompt. enqueueVehicle() no-ops when signed out and never rejects. */
+      if (ok) { applyPhotoIds(v.data, res.data); account.enqueueVehicle(v.id, res.data); }
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
       if (ok) toast(t('Vehicle added'));
       else toast(isQuotaError(res.error)
@@ -114,10 +114,9 @@ async function deleteVehicle(id) {
   session.setVehicles(kept, session.garage().activeId === id ? kept[0].id : session.garage().activeId);
   const ok = await removeVehicle(id, session.garage().activeId); session.prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
   // Best-effort, not awaited: the local delete already succeeded and the UI has
-  // moved on. There is no outbox yet, so a failed tombstone push is simply lost —
-  // the vehicle will come back from the server on the next pull. account.pushTombstone
-  // is a no-op when signed out and never rejects, so this can't throw into the delete path.
-  account.pushTombstone(id);
+  // moved on. enqueueTombstone() writes to the outbox and returns; the next
+  // drain() (on reconnect, or the next boot) actually pushes it.
+  account.enqueueTombstone(id);
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
@@ -187,12 +186,12 @@ function importGarage(file) {
         // Same reason as openAddVehicle: a direct saveVehicle() never reaches
         // session.save()'s afterSave hook, so an imported vehicle would be
         // deleted as stale by the next boot's adopt().
-        else account.onSaved(v.id, res.data);
+        else account.enqueueVehicle(v.id, res.data);
       }
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.pushTombstone(id); }
+        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.enqueueTombstone(id); }
       }
       // The save loop minted fresh photo ids, so re-read from storage to bring
       // memory back in sync with what was actually persisted. session.load()
@@ -1622,8 +1621,8 @@ function openAccount() {
   const signedIn = !!account.user();
   openModal(t('Account'), signedIn ? t('Signed in as') + ' ' + account.user().email : t('Your garage stays on this device.'), card => {
     if (signedIn) {
-      const pending = account.dirty().length;
-      const status = el('p', 'muted', html`${pending ? t('Waiting to sync') + ' · ' + pending : t('Synced')}`);
+      const status = el('p', 'muted');
+      account.outboxSize().then(pending => { status.textContent = pending ? t('Waiting to sync') + ' · ' + pending : t('Synced'); });
       card.appendChild(status);
       const out = el('button', 'btn ghost', html`${t('Sign out')}`);
       out.style.color = 'var(--danger)';
@@ -2317,7 +2316,7 @@ applyNavLabels();
    the Arabic save-failure toasts working. */
 session.configure({
   notify: (msg, kind) => toast(t(msg), kind),
-  afterSave: (id, data) => account.onSaved(id, data)
+  afterSave: (id, data) => account.enqueueVehicle(id, data)
 });
 
 /* Gate on the protocol directly. account.available() also requires a client,

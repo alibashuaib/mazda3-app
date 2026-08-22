@@ -33,11 +33,6 @@
   const SUPABASE_URL = 'https://REPLACE_ME.supabase.co';
   const SUPABASE_ANON_KEY = 'REPLACE_ME';
 
-  /* Owned by storage.js, because wipe() is what clears it — a literal in both
-     files means renaming one leaves the wipe pointing at a dead key. `dep`,
-     not `deps`: this is read once at module scope, before configure() runs. */
-  const DIRTY_KEY = dep.DIRTY_KEY;
-
   let _user = null;
   let _watching = false;      // one auth subscription per configured client, never two
 
@@ -45,8 +40,8 @@
     client: null,
     rerender: () => {},
     /* No `notify`. Every failure this module can produce is either silent by
-       design (a failed push marks the vehicle dirty; Settings carries the
-       status) or surfaced inline by the caller (the auth form's error line).
+       design (a failed push leaves its outbox entry queued; Settings carries
+       the status) or surfaced inline by the caller (the auth form's error line).
        An unread hook on the configure surface only invites a future caller to
        assume it does something. */
     choose: () => Promise.resolve('server'),
@@ -90,21 +85,6 @@
 
   function user() { return _user; }
 
-  function dirty() {
-    try {
-      const v = JSON.parse(localStorage.getItem(DIRTY_KEY));
-      return Array.isArray(v) ? v : [];
-    } catch (e) { return []; }
-  }
-  function setDirty(ids) {
-    try { localStorage.setItem(DIRTY_KEY, JSON.stringify(ids)); } catch (e) {}
-  }
-  function markDirty(id) {
-    const d = dirty();
-    if (d.indexOf(id) < 0) { d.push(id); setDirty(d); }
-  }
-  function clearDirty(id) { setDirty(dirty().filter(x => x !== id)); }
-
   /* Photos stay local in Phase 4a: the Blobs live in IndexedDB and only their
      ids cross the wire. Deep-copied so the live record keeps its object URL —
      the dashboard is still rendering from it. */
@@ -146,34 +126,63 @@
 
      The payload is dropped rather than preserved: a tombstone needs the id,
      not the contents, and not keeping a deleted vehicle's data on the server
-     is the better default. */
-  function pushTombstone(id) {
+     is the better default.
+
+     This is the drain-time push for a tombstone entry. No dirty-list side
+     effect — the outbox entry IS the record of "this still needs pushing";
+     drain() removes it on success, same as a vehicle entry. */
+  function pushTombstoneRow(id) {
     if (!_user || !env.client) return Promise.resolve(false);
     const stamp = nowIso();
-    /* The client call goes INSIDE the promise chain, unlike pushVehicle's.
-       deleteVehicle() calls this un-awaited and outside any try/catch
-       (app.js:114), so a synchronous throw from env.client.from(...) would
-       escape into the delete path and skip the "Vehicle removed" toast.
-       pushVehicle has the same shape but every caller already runs it inside a
-       .then() or a try/catch, so it is contained where this was not. */
     return Promise.resolve().then(() => env.client.from('vehicles').upsert({
       id, data: {}, updated_at: stamp, deleted_at: stamp
     })).then(res => {
       if (res && res.error) throw res.error;
-      clearDirty(id);        // a pending data push for a deleted vehicle is moot
       return true;
     }).catch(() => false);
   }
 
-  /* session.js calls this through env.afterSave, after a successful LOCAL
-     write. Never rejects and never notifies: logging fuel at a petrol station
-     with no signal is normal operation, not an error worth interrupting for.
-     The dirty list is what makes it recoverable. */
-  function onSaved(id, data) {
+  /* One outbox entry. `id` is the entry's own id, distinct from vehicleId —
+     a vehicle and its photo can both be queued under the same vehicleId. */
+  function enqueue(entry) {
     if (!_user || !env.client) return Promise.resolve(false);
-    return pushVehicle(id, data)
-      .then(() => { clearDirty(id); return true; })
-      .catch(() => { markDirty(id); return false; });
+    return deps.outboxAdd(Object.assign({ id: deps.uid(), createdAt: nowIso() }, entry));
+  }
+
+  /* session.js's afterSave hook calls this after a successful LOCAL write.
+     Snapshots the stripped data now, not at drain time — the live record may
+     have changed again, or the vehicle may have been deleted, before the
+     outbox is next drained. */
+  function enqueueVehicle(id, data) {
+    return enqueue({ kind: 'vehicle', vehicleId: id, data: stripPhotos(data) });
+  }
+
+  function enqueueTombstone(id) {
+    return enqueue({ kind: 'tombstone', vehicleId: id });
+  }
+
+  function outboxSize() {
+    return deps.outboxAll().then(entries => entries.length);
+  }
+
+  /* photo < vehicle < tombstone — a photo a vehicle row references must exist
+     on the server before the row does; a tombstone drains last so an edit
+     enqueued just before a delete of the same vehicle cannot resurrect it. */
+  const KIND_ORDER = { photo: 0, vehicle: 1, tombstone: 2 };
+
+  function drainOne(entry) {
+    const run = entry.kind === 'tombstone' ? pushTombstoneRow(entry.vehicleId)
+      : pushVehicle(entry.vehicleId, entry.data);
+    return run.then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
+  }
+
+  function drain() {
+    if (!_user || !env.client) return Promise.resolve(0);
+    return deps.outboxAll().then(entries => {
+      const sorted = entries.slice().sort((a, b) =>
+        (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) || (a.createdAt < b.createdAt ? -1 : 1));
+      return sorted.reduce((p, e) => p.then(() => drainOne(e)), Promise.resolve());
+    }).then(() => deps.outboxAll()).then(remaining => remaining.length);
   }
 
   /* Test seam only. Production code reaches _user through signIn/start. */
@@ -270,29 +279,18 @@
   function replaceServer(pulled, local) {
     const keep = (local && local.vehicles ? local.vehicles : []).map(v => v.id);
     const gone = pulled.vehicles.map(v => v.id).filter(id => keep.indexOf(id) < 0);
-    return gone.reduce((p, id) => p.then(() => pushTombstone(id)), Promise.resolve())
+    return gone.reduce((p, id) => p.then(() => pushTombstoneRow(id)), Promise.resolve())
       .then(() => uploadAll(local));
   }
 
   /* Sign-in only. Boot takes the adopt() path directly: at boot both sides are
-     the same user, dirty vehicles have already been pushed, so the server is
+     the same user, the outbox has already been drained, so the server is
      current by construction and there is nothing to ask about. */
   function reconcile(pulled) {
     const local = deps.session.garage();
     if (!pulled.vehicles.length) return uploadAll(local);
     if (isUntouchedSeed(local)) return adopt(pulled);
     return Promise.resolve(env.choose()).then(keep => keep === 'local' ? replaceServer(pulled, local) : adopt(pulled));
-  }
-
-  function drain() {
-    const ids = dirty();
-    if (!ids.length) return Promise.resolve(0);
-    const g = deps.session.garage();
-    return ids.reduce((p, id) => p.then(() => {
-      const v = g && g.vehicles.find(x => x.id === id);
-      if (!v) { clearDirty(id); return null; }      // deleted since; nothing to push
-      return pushVehicle(id, v.data).then(() => clearDirty(id)).catch(() => {});
-    }), Promise.resolve()).then(() => dirty().length);
   }
 
   /* supabase-js obfuscates a duplicate signup rather than confirming that an
@@ -382,7 +380,7 @@
 
   /* expire()'s only caller. Without it expire() is dead code and a mid-session
      token expiry is invisible: Settings keeps saying "Signed in as", and every
-     save quietly piles onto the dirty list until the next launch.
+     save quietly piles onto the outbox until the next launch.
 
      The event names are read off vendor/supabase.js, which emits SIGNED_IN,
      SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, PASSWORD_RECOVERY and
@@ -416,7 +414,7 @@
       if (!s || !s.user) { _user = null; return false; }
       _user = s.user;
       watchAuth();
-      /* Dirty first, then pull: the local writes that never made it up are
+      /* Drain first, then pull: the local writes queued in the outbox are
          newer than anything the server holds, and pulling first would adopt a
          garage that is missing them. */
       return drain()
@@ -429,10 +427,10 @@
 
   return {
     configure, reset, available, user, setUserForTest,
-    dirty, markDirty, clearDirty,
-    stripPhotos, pushVehicle, pushGarage, pushTombstone, onSaved,
+    stripPhotos, pushVehicle, pushGarage,
+    enqueueVehicle, enqueueTombstone, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
-    drain, signIn, signOut, expire, start,
+    signIn, signOut, expire, start,
     SUPABASE_URL, SUPABASE_ANON_KEY
   };
 });

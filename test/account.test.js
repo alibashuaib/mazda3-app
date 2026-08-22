@@ -59,24 +59,6 @@ test('user() is null before sign-in', () => {
   assert.strictEqual(account.user(), null);
 });
 
-test('the dirty list round-trips and de-duplicates', () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  assert.deepStrictEqual(account.dirty(), []);
-  account.markDirty('a');
-  account.markDirty('a');
-  account.markDirty('b');
-  assert.deepStrictEqual(account.dirty(), ['a', 'b']);
-  account.clearDirty('a');
-  assert.deepStrictEqual(account.dirty(), ['b']);
-});
-
-test('the dirty list survives unparseable storage', () => {
-  account.reset();
-  localStorage.setItem('garage.sync.dirty', 'not json');
-  assert.deepStrictEqual(account.dirty(), []);
-});
-
 /* A fake PostgREST-shaped client. Records every upsert so tests can assert on
    what actually crossed the wire. */
 function tableClient(opts) {
@@ -112,51 +94,6 @@ test('stripPhotos removes photo payloads but keeps photo ids', () => {
   assert.strictEqual(data.car.photo, 'blob:abc', 'the original must not be mutated');
 });
 
-test('onSaved pushes the vehicle and leaves the dirty list empty', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
-
-  account.markDirty('v1');
-  assert.deepStrictEqual(account.dirty(), ['v1'], 'precondition: v1 starts dirty');
-
-  const ok = await account.onSaved('v1', { car: { nickname: 'Red', photo: 'blob:x' } });
-
-  assert.strictEqual(ok, true);
-  assert.strictEqual(client.calls.vehicles.length, 1);
-  assert.strictEqual(client.calls.vehicles[0].id, 'v1');
-  assert.strictEqual(client.calls.vehicles[0].data.car.photo, undefined, 'photos stay local in 4a');
-  assert.ok(client.calls.vehicles[0].updated_at, 'every row carries updated_at');
-  assert.deepStrictEqual(account.dirty(), []);
-});
-
-test('onSaved marks the vehicle dirty when the push fails', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  account.configure({ client: tableClient({ failUpsert: true }), protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
-
-  const ok = await account.onSaved('v1', { car: {} });
-
-  assert.strictEqual(ok, false, 'a failed push resolves false, it does not reject');
-  assert.deepStrictEqual(account.dirty(), ['v1']);
-});
-
-test('onSaved does nothing at all when signed out', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-
-  const ok = await account.onSaved('v1', { car: {} });
-
-  assert.strictEqual(ok, false);
-  assert.strictEqual(client.calls.vehicles.length, 0);
-  assert.deepStrictEqual(account.dirty(), [], 'an anonymous save is not a pending sync');
-});
-
 const session = require('../src/data/session.js');
 const storage = require('../storage.js');
 
@@ -188,6 +125,79 @@ function fullClient(opts) {
     }
   };
 }
+
+test('enqueueVehicle adds a vehicle entry to the outbox', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueVehicle('v1', { car: { nickname: 'A' } });
+
+  assert.strictEqual(await account.outboxSize(), 1);
+});
+
+test('enqueueVehicle is a no-op when signed out', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+
+  await account.enqueueVehicle('v1', { car: {} });
+
+  assert.strictEqual(await account.outboxSize(), 0);
+});
+
+test('drain() pushes a queued vehicle entry and removes it on success', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('v1', { car: { nickname: 'A' } });
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.strictEqual(client.calls.vehicles.length, 1);
+  assert.strictEqual(client.calls.vehicles[0].id, 'v1');
+});
+
+test('drain() leaves a failed push queued for the next drain', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [], failSelect: false });
+  client.from = table => ({
+    upsert: () => Promise.resolve({ error: new Error('offline') }),
+    select: () => ({ is: () => Promise.resolve({ data: [], error: null }), maybeSingle: () => Promise.resolve({ data: null, error: null }) })
+  });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('v1', { car: {} });
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1, 'a failed push must stay in the outbox, not be dropped');
+});
+
+test('enqueueTombstone drains as a delete-marker upsert', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1');
+
+  await account.drain();
+
+  assert.strictEqual(client.calls.vehicles.length, 1);
+  assert.ok(client.calls.vehicles[0].deleted_at, 'a tombstone entry must upsert a non-null deleted_at');
+  assert.strictEqual(await account.outboxSize(), 0);
+});
 
 function seedGarage(extra) {
   return {
@@ -493,10 +503,11 @@ test('signing in after start() does not register a second listener', async () =>
   assert.strictEqual(subs, 1, 'watchAuth() is idempotent — a prior start() must not be followed by a second subscription');
 });
 
-test('start() pushes dirty vehicles before pulling', async () => {
+test('start() pushes queued outbox entries before pulling', async () => {
   account.reset();
   await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
-  localStorage.setItem('garage.sync.dirty', JSON.stringify(['local1']));
+  await storage.wipe();
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'local1', data: { car: { nickname: 'Local' } }, createdAt: new Date().toISOString() });
   const client = fullClient({ rows: [{ id: 'local1', data: { car: { nickname: 'Server' }, history: [], fuel: [], spending: [], docs: [] } }], activeId: 'local1' });
   client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
   account.configure({ client, protocol: 'https:' });
@@ -507,8 +518,8 @@ test('start() pushes dirty vehicles before pulling', async () => {
   const ok = await account.start();
 
   assert.strictEqual(ok, true);
-  assert.strictEqual(client.calls.vehicles.length, 1, 'the dirty vehicle was pushed');
-  assert.deepStrictEqual(account.dirty(), [], 'and cleared from the list');
+  assert.strictEqual(client.calls.vehicles.length, 1, 'the queued vehicle was pushed');
+  assert.strictEqual(await account.outboxSize(), 0, 'and removed from the outbox');
 });
 
 test('start() with no stored session stays anonymous', async () => {
@@ -570,58 +581,32 @@ test('a save in flight when sign-out happens cannot land in the next session', a
   assert.deepStrictEqual(pushed, [], 'and must never reach the push hook — that is the previous user data landing in the next account');
 });
 
-test('pushTombstone upserts a non-null deleted_at and updated_at for the right id', async () => {
+test('enqueueTombstone is a no-op when signed out', async () => {
   account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
   const client = tableClient();
   account.configure({ client, protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
 
-  const ok = await account.pushTombstone('v1');
-
-  assert.strictEqual(ok, true);
-  assert.strictEqual(client.calls.vehicles.length, 1);
-  assert.strictEqual(client.calls.vehicles[0].id, 'v1');
-  assert.ok(client.calls.vehicles[0].deleted_at, 'deleted_at must be set, not null');
-  assert.ok(client.calls.vehicles[0].updated_at, 'updated_at must be set');
-});
-
-test('pushTombstone clears the vehicle from the dirty list', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
-  account.markDirty('v1');
-  assert.deepStrictEqual(account.dirty(), ['v1'], 'precondition: v1 starts dirty');
-
-  await account.pushTombstone('v1');
-
-  assert.deepStrictEqual(account.dirty(), []);
-});
-
-test('pushTombstone is a no-op when signed out', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-  account.markDirty('v1');
-
-  const ok = await account.pushTombstone('v1');
+  const ok = await account.enqueueTombstone('v1');
 
   assert.strictEqual(ok, false);
   assert.strictEqual(client.calls.vehicles.length, 0, 'no upsert must be attempted');
-  assert.deepStrictEqual(account.dirty(), ['v1'], 'the dirty list must be untouched');
+  assert.strictEqual(await account.outboxSize(), 0, 'nothing was queued while signed out');
 });
 
-test('pushTombstone resolves false and does not reject when the upsert fails', async () => {
+test('drain() leaves a failed tombstone push queued for the next drain', async () => {
   account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
   const client = tableClient({ failUpsert: true });
   account.configure({ client, protocol: 'https:' });
   account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1');
 
-  const ok = await account.pushTombstone('v1');
+  const remaining = await account.drain();
 
-  assert.strictEqual(ok, false);
+  assert.strictEqual(remaining, 1, 'a failed tombstone push must stay in the outbox, not be dropped');
 });
 
 /* Documents the consequence of a local write that never reached the server:
@@ -813,16 +798,20 @@ test('start() tolerates a client with no onAuthStateChange', async () => {
   assert.ok(account.user(), 'the boot must still complete signed in');
 });
 
-/* deleteVehicle() calls pushTombstone un-awaited and outside any try/catch,
-   so a synchronous throw here would escape into the delete path and skip the
-   "Vehicle removed" toast. */
-test('pushTombstone cannot throw synchronously', async () => {
+/* deleteVehicle() calls enqueueTombstone un-awaited and outside any try/catch.
+   Unlike the old direct pushTombstone(), enqueueTombstone only writes to the
+   outbox — it never touches env.client — so a client that throws synchronously
+   from .from() cannot reach this call site at all; that risk now lives only in
+   drainOne(), which every caller already reaches through drain()'s promise chain. */
+test('enqueueTombstone cannot throw synchronously even with an exploding client', async () => {
   account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
   const client = { auth: {}, from: () => { throw new Error('client exploded'); } };
   account.configure({ client, protocol: 'https:' });
   account.setUserForTest({ id: 'u1' });
 
   let result;
-  assert.doesNotThrow(() => { result = account.pushTombstone('v1'); });
-  assert.strictEqual(await result, false);
+  assert.doesNotThrow(() => { result = account.enqueueTombstone('v1'); });
+  assert.strictEqual(await result, true);
 });

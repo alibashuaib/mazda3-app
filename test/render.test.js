@@ -441,18 +441,19 @@ test('signing out leaves no trace of the previous garage on screen', async () =>
 });
 
 /* ============================================================
-   The app's own write paths must reach account.onSaved().
+   The app's own write paths must reach account.enqueueVehicle().
 
    Every account test drives account.js directly, so a push that the APP
    never triggers still passes them. openAddVehicle() persists with a direct
    saveVehicle() rather than session.save(), which means it does not fire
    session.js's afterSave hook — and afterSave is the only wiring between a
-   save and a push. Without an explicit onSaved() call the new vehicle is
-   never on the server, so the next boot's adopt() sees it as stale and
-   deletes it. This boots the real app against a recording client and asserts
-   the upsert actually crossed the wire.
+   save and an enqueue. Without an explicit enqueueVehicle() call the new
+   vehicle is never queued, so the next boot's adopt() sees it as stale and
+   deletes it. This boots the real app against a recording client, confirms
+   the vehicle landed in the outbox, then drains it and asserts the upsert
+   actually crossed the wire.
    ============================================================ */
-test('adding a vehicle while signed in pushes it to the server', async () => {
+test('adding a vehicle while signed in queues it, and draining pushes it to the server', async () => {
   const upserts = { vehicles: [], garage: [] };
   const stub = {
     createClient: () => ({
@@ -477,7 +478,11 @@ test('adding a vehicle while signed in pushes it to the server', async () => {
 
     const added = api.session.garage().vehicles.map(v => v.id).filter(id => before.indexOf(id) < 0);
     assert.strictEqual(added.length, 1, 'precondition: the dialog added exactly one vehicle');
-    assert.ok(upserts.vehicles.some(r => r.id === added[0]),
-      'the new vehicle was never pushed — the next boot\'s adopt() would delete it as stale');
+    assert.strictEqual(await api.account.outboxSize(), 1,
+      'the new vehicle was never queued — the next boot\'s adopt() would delete it as stale');
+
+    await api.account.drain();
+
+    assert.ok(upserts.vehicles.some(r => r.id === added[0]), 'draining the outbox must push the queued vehicle');
   } finally { app.cleanup(); }
 });
