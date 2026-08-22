@@ -331,11 +331,26 @@
     }), Promise.resolve());
   }
 
+  /* saveVehicle/removeVehicle never REJECT on a storage failure — they
+     resolve { ok: false } / false, the same convention session.js's own
+     writers use. A pull that treated "the promise resolved" as success would
+     advance the cursor past a row that was never actually written, which is
+     silent, permanent data loss on this device. So every write here is
+     checked for that resolved-but-failed shape and turned into a rejection,
+     which stops pullIncremental's reduce chain before metaSet runs. */
   function applyPulledRow(row, activeId) {
-    if (row.deleted_at) return deps.removeVehicle(row.id, activeId);
+    if (row.deleted_at) {
+      return deps.removeVehicle(row.id, activeId).then(res => {
+        if (res === false) throw new Error('removeVehicle failed for ' + row.id);
+        return res;
+      });
+    }
     const data = row.data;
     if (deps.normalizeData) deps.normalizeData(data);
-    return ensurePhotosLocal(data).then(() => deps.saveVehicle(row.id, data, activeId, deps.uid));
+    return ensurePhotosLocal(data).then(() => deps.saveVehicle(row.id, data, activeId, deps.uid)).then(res => {
+      if (res && res.ok === false) throw (res.error || new Error('saveVehicle failed for ' + row.id));
+      return res;
+    });
   }
 
   /* Additive to pull()/adopt() (4a, sign-in only, unchanged). This answers
@@ -351,19 +366,35 @@
           if (!rows.length) return false;
           const g = deps.session.garage();
           const activeId = g ? g.activeId : null;
-          return rows.reduce((p, row) => p.then(() => applyPulledRow(row, activeId)), Promise.resolve())
-            .then(() => deps.metaSet({ lastPulledAt: nowIso() }))
+          /* The cursor must be server-authored, not this device's wall clock:
+             nowIso() would either skip a row written between the .gt() query
+             and this line (clock behind the server) or miss every later
+             change until the server's clock caught back up (clock ahead).
+             The max updated_at actually applied in THIS batch is monotone
+             with the .gt() filter and has no clock-skew exposure. ISO 8601
+             strings sort lexically the same as chronologically. */
+          let maxUpdatedAt = cursor;
+          return rows.reduce((p, row) => p.then(() => applyPulledRow(row, activeId)).then(() => {
+            if (row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
+          }), Promise.resolve())
+            .then(() => deps.metaSet({ lastPulledAt: maxUpdatedAt }))
             .then(() => true);
         });
     });
   }
 
+  /* Returns false only for "could not run at all" (signed out, no client, or
+     a failure anywhere in drain/pull — mirrors start()'s own catch-to-false
+     convention so an offline blip from Task 7's online-event handler never
+     surfaces as an unhandled rejection). true covers BOTH "ran clean with
+     nothing new" and "ran clean and applied changes" — callers that need to
+     tell those apart cannot do so from this return value alone. */
   function sync() {
     if (!_user || !env.client) return Promise.resolve(false);
     return drain().then(() => pullIncremental()).then(changed => {
       if (!changed) return true;
       return deps.session.load().then(() => { env.rerender(); return true; });
-    });
+    }).catch(() => false);
   }
 
   /* Sign-in only. Boot takes the adopt() path directly: at boot both sides are

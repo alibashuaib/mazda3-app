@@ -894,15 +894,23 @@ test('sync() drains the outbox, then pulls incrementally', async () => {
   account.reset();
   const storage2 = require('../storage.js');
   await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage2.wipe();
   session.clear();
   session.setVehicles([{ id: 'local1', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }], 'local1');
   const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v2', data: { car: { nickname: 'B' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
   account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve(null), metaGet: storage2.metaGet, metaSet: storage2.metaSet });
   account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('local1', { car: {} });
+  assert.strictEqual(await account.outboxSize(), 1, 'sanity: the outbox has something to drain before sync() runs');
 
   const changed = await account.sync();
 
   assert.strictEqual(changed, true);
+  assert.strictEqual(await account.outboxSize(), 0, 'sync() must drain the outbox, not merely pull');
+  const ids = session.garage().vehicles.map(v => v.id);
+  assert.ok(ids.indexOf('v2') >= 0, 'the pulled vehicle must be reflected in the re-hydrated session');
+  const pulled = session.garage().vehicles.find(v => v.id === 'v2');
+  assert.strictEqual(pulled.data.car.nickname, 'B');
 });
 
 test('an incremental pull applies a tombstone by removing the vehicle', async () => {
@@ -934,6 +942,81 @@ test('lastPulledAt only advances after every row in the batch is applied', async
 
   assert.ok(saved);
   assert.strictEqual(metaSetCalls, 0, 'a batch that fails partway through must not advance the cursor');
+});
+
+/* saveVehicle/removeVehicle never REJECT on a storage failure in real usage —
+   they RESOLVE { ok: false } / false. A pull that only checked for a rejected
+   promise would treat this as success, advance the cursor, and silently drop
+   the row forever. This drives applyPulledRow through that exact resolved
+   shape, not a rejection, to prove the resolved-but-failed case is caught too. */
+test('a save that resolves { ok: false } does not advance the cursor and is retried next pull', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let saveCalls = 0;
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: () => { saveCalls++; return Promise.resolve({ ok: false, error: new Error('quota exceeded') }); },
+    metaGet: () => Promise.resolve({}),
+    metaSet: () => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(saveCalls, 1, 'the write must actually have been attempted');
+  assert.strictEqual(metaSetCalls, 0, 'a resolved-but-failed write must not advance the cursor');
+});
+
+test('a removeVehicle that resolves false does not advance the cursor', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: '2026-08-22T00:00:00.000Z' }] } });
+  let removeCalls = 0;
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    removeVehicle: () => { removeCalls++; return Promise.resolve(false); },
+    metaGet: () => Promise.resolve({}),
+    metaSet: () => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(removeCalls, 1);
+  assert.strictEqual(metaSetCalls, 0, 'a resolved-but-failed tombstone removal must not advance the cursor');
+});
+
+test('lastPulledAt advances to the max updated_at in the batch, not the local clock', async () => {
+  account.reset();
+  const rows = [
+    { id: 'v1', data: {}, updated_at: '2020-01-01T00:00:00.000Z', deleted_at: null },
+    { id: 'v2', data: {}, updated_at: '2020-06-01T00:00:00.000Z', deleted_at: null }
+  ];
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': rows } });
+  let patched = null;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve({}),
+    metaSet: patch => { patched = patch; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(patched.lastPulledAt, '2020-06-01T00:00:00.000Z', 'the cursor must be the max updated_at in the batch, not the wall clock');
+});
+
+test('sync() resolves false rather than rejecting when the pull fails', async () => {
+  account.reset();
+  const client = fullClient({ failSelect: true });
+  account.configure({ client, protocol: 'https:', metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) });
+  account.setUserForTest({ id: 'u1' });
+
+  let result;
+  await assert.doesNotReject(async () => { result = await account.sync(); });
+  assert.strictEqual(result, false);
 });
 
 test('a pulled vehicle referencing a missing photo triggers exactly one download', async () => {
