@@ -58,6 +58,7 @@ const SCRIPTS = [
   'src/data/account.js',
   'ui.js',
   'src/pages/dashboard.js',
+  'src/pages/maintenance.js',
   'app.js'
 ];
 

@@ -1,6 +1,6 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-v12';
-const ASSETS = ['./', './index.html', './styles.css', './src/core/helpers.js', './src/ui/html.js', './src/ui/modal.js', './src/ui/photo.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js', './src/i18n/lang.js', './schedule.js', './storage.js', './src/data/normalize.js', './src/data/session.js', './src/data/status.js', './vendor/supabase.js', './src/data/account.js', './ui.js', './src/pages/dashboard.js', './app.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'garage-v13';
+const ASSETS = ['./', './index.html', './styles.css', './src/core/helpers.js', './src/ui/html.js', './src/ui/modal.js', './src/ui/photo.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js', './src/i18n/lang.js', './schedule.js', './storage.js', './src/data/normalize.js', './src/data/session.js', './src/data/status.js', './vendor/supabase.js', './src/data/account.js', './ui.js', './src/pages/dashboard.js', './src/pages/maintenance.js', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
