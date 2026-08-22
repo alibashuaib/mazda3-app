@@ -538,6 +538,14 @@
       .then(() => true).catch(() => false);
   }
 
+  /* Backend asymmetry: the IDB backend returns the FULL shared `meta` record
+     — `key`, `schemaVersion`, `migratedAt`, `activeId`, and anything else ever
+     stored there, not just sync fields — while the localStorage backend
+     returns only whatever was ever passed through metaSet (a sync-only
+     slice, e.g. `{ lastPulledAt }`). A caller reading one specific field
+     (`.lastPulledAt`) sees the same value either way and is safe. A caller
+     that compares the whole returned object across backends, or enumerates
+     its keys, is not. */
   function metaGet() {
     if (backend.kind === 'local') {
       try { return Promise.resolve(JSON.parse(localStorage.getItem(META_LS_KEY)) || {}); }
