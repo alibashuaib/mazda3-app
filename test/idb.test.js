@@ -362,3 +362,16 @@ test('wipe() empties the outbox store', async () => {
 
   assert.deepStrictEqual(await storage.outboxAll(), []);
 });
+
+test('outboxAdd upserts on duplicate id via put() semantics', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'v1', data: { car: {} }, createdAt: '2026-08-22T00:00:00.000Z' });
+  await storage.outboxAdd({ id: 'o1', kind: 'photo', photoId: 'p1', createdAt: '2026-08-22T00:00:01.000Z' });
+
+  const all = await storage.outboxAll();
+  assert.strictEqual(all.length, 1, 'adding a duplicate id must not create a second entry');
+  assert.strictEqual(all[0].kind, 'photo', 'the second entry must overwrite the first one');
+  assert.strictEqual(all[0].photoId, 'p1');
+});

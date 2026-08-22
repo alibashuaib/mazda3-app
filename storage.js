@@ -519,7 +519,7 @@
 
   function outboxAdd(entry) {
     if (backend.kind === 'local') {
-      const q = outboxLsRead(); q.push(entry);
+      const q = outboxLsRead().filter(e => e.id !== entry.id); q.push(entry);
       return Promise.resolve(outboxLsWrite(q));
     }
     return idbTx(backend.db, ['outbox'], 'readwrite', tx => { tx.objectStore('outbox').put(entry); })
