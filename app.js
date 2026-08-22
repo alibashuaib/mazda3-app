@@ -2349,6 +2349,11 @@ session.load()
     console.error(err);
   });
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => { account.sync(); });
+  window.__hasOnlineSyncListener = true;   // e2e presence check only
+}
+
 /* ---------- PWA: offline + installable ---------- */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

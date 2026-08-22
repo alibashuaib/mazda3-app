@@ -172,6 +172,13 @@ test('the account row is present over http', async ({ page }, testInfo) => {
   await expect(page.locator('#modalCard').getByText('Account', { exact: true }).first()).toBeVisible();
 });
 
+test('an online listener is registered after boot, over http', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'http', 'checks the http origin only');
+  await open(page, testInfo);
+  const hasListener = await page.evaluate(() => window.__hasOnlineSyncListener === true);
+  expect(hasListener).toBe(true);
+});
+
 test('the vendored client loads and does not break boot', async ({ page }, testInfo) => {
   // vendor/supabase.js is an unconditional <script> tag, so the SDK global
   // exists on both origins even though only http constructs a client from it.
