@@ -60,6 +60,8 @@ const SCRIPTS = [
   'src/pages/dashboard.js',
   'src/pages/maintenance.js',
   'src/pages/parts.js',
+  'src/pages/fuel.js',
+  'src/pages/budget.js',
   'app.js'
 ];
 
