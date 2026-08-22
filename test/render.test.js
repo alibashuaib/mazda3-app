@@ -486,3 +486,53 @@ test('adding a vehicle while signed in queues it, and draining pushes it to the 
     assert.ok(upserts.vehicles.some(r => r.id === added[0]), 'draining the outbox must push the queued vehicle');
   } finally { app.cleanup(); }
 });
+
+/* ============================================================
+   Fix 1: nothing drains the outbox after a save on an always-online tab.
+
+   The ONLY triggers for drain()/sync() before this fix were account.start()
+   at boot and the `online` event listener — which fires only on a
+   transition into the online state. A tab that stays connected the whole
+   session never fires it, so a save enqueued and never pushed until reload.
+   This proves a save reaches the server WITHOUT any `online` event firing —
+   i.e. kickSync()'s un-awaited drain() runs automatically right after the
+   enqueue.
+   ============================================================ */
+test('adding a vehicle while signed in automatically drains without any online event', async () => {
+  const upserts = { vehicles: [], garage: [] };
+  const stub = {
+    createClient: () => ({
+      auth: { getSession: () => Promise.resolve({ data: { session: null }, error: null }) },
+      from: table => ({
+        upsert(row) { upserts[table].push(row); return Promise.resolve({ error: null }); }
+      })
+    })
+  };
+  const app = await bootApp({ protocol: 'https:', supabaseStub: stub });
+  try {
+    const { document, api } = app;
+    api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+    const before = api.session.garage().vehicles.map(v => v.id);
+
+    api.openAddVehicle();
+    const btn = [...document.querySelectorAll('#modalCard button')].pop();
+    await btn.onclick({ preventDefault() {} });
+
+    const added = api.session.garage().vehicles.map(v => v.id).filter(id => before.indexOf(id) < 0);
+    assert.strictEqual(added.length, 1, 'precondition: the dialog added exactly one vehicle');
+
+    // kickSync()'s drain() is deliberately un-awaited by the save path, and no
+    // `online` event is dispatched anywhere in this test — poll briefly for
+    // the automatic drain to land instead of awaiting a promise directly.
+    const deadline = Date.now() + 2000;
+    let size = await api.account.outboxSize();
+    while (size !== 0 && Date.now() < deadline) {
+      await new Promise(r => setImmediate(r));
+      size = await api.account.outboxSize();
+    }
+
+    assert.ok(upserts.vehicles.some(r => r.id === added[0]),
+      'a save must trigger an automatic drain (kickSync) without waiting for an `online` event');
+    assert.strictEqual(size, 0, 'the automatic drain must have emptied the outbox');
+  } finally { app.cleanup(); }
+});

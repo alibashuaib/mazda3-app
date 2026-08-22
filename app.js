@@ -97,7 +97,7 @@ function openAddVehicle() {
          the next boot's pull() hands back a garage that does not contain it and
          adopt() classifies it as stale — deleting it, and its photos, with no
          prompt. enqueueVehicle() no-ops when signed out and never rejects. */
-      if (ok) { applyPhotoIds(v.data, res.data); account.enqueueVehicle(v.id, res.data); }
+      if (ok) { applyPhotoIds(v.data, res.data); account.enqueueVehicle(v.id, res.data); kickSync(); }
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
       if (ok) toast(t('Vehicle added'));
       else toast(isQuotaError(res.error)
@@ -114,13 +114,29 @@ async function deleteVehicle(id) {
   session.setVehicles(kept, session.garage().activeId === id ? kept[0].id : session.garage().activeId);
   const ok = await removeVehicle(id, session.garage().activeId); session.prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
   // Best-effort, not awaited: the local delete already succeeded and the UI has
-  // moved on. enqueueTombstone() writes to the outbox and returns; the next
-  // drain() (on reconnect, or the next boot) actually pushes it.
+  // moved on. enqueueTombstone() writes to the outbox and returns; kickSync()
+  // (below) fires the actual push, with reconnect/next-boot as the fallback
+  // if this device is offline right now.
   account.enqueueTombstone(id);
+  kickSync();
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
 function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle'; }
+
+/* Best-effort, un-awaited drain kick after every enqueue point. The `online`
+   event only fires on a transition into the online state, so a tab that
+   stays connected the whole session would otherwise never push a save until
+   the next reload — this is what restores Phase 4a's push-on-save behavior
+   for the outbox. Guarded on navigator.onLine so an offline device does not
+   burn a doomed network round-trip on every save; `!== false` degrades
+   gracefully where navigator.onLine is undefined (e.g. in tests). Never
+   awaited: the local save/delete/import UI flow must not block on network,
+   and drain() already swallows its own failures (no retry counter to
+   corrupt), so there is nothing here to catch. */
+function kickSync() {
+  if (typeof navigator === 'undefined' || navigator.onLine !== false) account.drain();
+}
 
 /* A backup the user controls, before any server exists. Photos are inlined
    as base64 so a single file is the whole garage. */
@@ -186,12 +202,12 @@ function importGarage(file) {
         // Same reason as openAddVehicle: a direct saveVehicle() never reaches
         // session.save()'s afterSave hook, so an imported vehicle would be
         // deleted as stale by the next boot's adopt().
-        else account.enqueueVehicle(v.id, res.data);
+        else { account.enqueueVehicle(v.id, res.data); kickSync(); }
       }
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.enqueueTombstone(id); }
+        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.enqueueTombstone(id); kickSync(); }
       }
       // The save loop minted fresh photo ids, so re-read from storage to bring
       // memory back in sync with what was actually persisted. session.load()
@@ -2316,7 +2332,7 @@ applyNavLabels();
    the Arabic save-failure toasts working. */
 session.configure({
   notify: (msg, kind) => toast(t(msg), kind),
-  afterSave: (id, data, photoIds) => { account.enqueueVehicle(id, data); (photoIds || []).forEach(pid => account.enqueuePhoto(pid)); }
+  afterSave: (id, data, photoIds) => { account.enqueueVehicle(id, data); (photoIds || []).forEach(pid => account.enqueuePhoto(pid)); kickSync(); }
 });
 
 /* Gate on the protocol directly. account.available() also requires a client,
@@ -2351,7 +2367,7 @@ session.load()
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => { account.sync(); });
-  window.__hasOnlineSyncListener = true;   // e2e presence check only
+  window.__hasOnlineSyncListener = true;   /* Test seam only. e2e presence check only. */
 }
 
 /* ---------- PWA: offline + installable ---------- */
