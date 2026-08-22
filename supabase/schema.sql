@@ -42,3 +42,15 @@ create policy own_garage on public.garage for all
 -- self-contained: without a grant the tables apply cleanly and stay invisible
 -- to the API, which presents as "RLS is blocking everything".
 grant select, insert, update, delete on public.vehicles, public.garage to authenticated;
+
+-- Phase 4b: photo storage. Same shape as own_vehicles/own_garage — the
+-- boundary is the Storage policy, not application code checking whose
+-- photo it is.
+insert into storage.buckets (id, name, public)
+  values ('photos', 'photos', false)
+  on conflict (id) do nothing;
+
+drop policy if exists own_photos on storage.objects;
+create policy own_photos on storage.objects for all
+  using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
