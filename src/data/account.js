@@ -57,11 +57,17 @@
     /* Injected the way session.js takes saveVehicle. Tests pass spies so the
        sign-out lifecycle ORDER can be asserted, which is the property that
        matters most in this module. */
-    if (next.session || next.wipe || next.getPhotoBlob) {
+    if (next.session || next.wipe || next.getPhotoBlob || next.putPhotoBlob ||
+        next.saveVehicle || next.removeVehicle || next.metaGet || next.metaSet) {
       deps = Object.assign({}, deps, {
         session: next.session || deps.session,
         wipe: next.wipe || deps.wipe,
-        getPhotoBlob: next.getPhotoBlob || deps.getPhotoBlob
+        getPhotoBlob: next.getPhotoBlob || deps.getPhotoBlob,
+        putPhotoBlob: next.putPhotoBlob || deps.putPhotoBlob,
+        saveVehicle: next.saveVehicle || deps.saveVehicle,
+        removeVehicle: next.removeVehicle || deps.removeVehicle,
+        metaGet: next.metaGet || deps.metaGet,
+        metaSet: next.metaSet || deps.metaSet
       });
     }
   }
@@ -306,6 +312,60 @@
       .then(() => uploadAll(local));
   }
 
+  function downloadPhoto(id) {
+    if (!_user || !env.client || !env.client.storage) return Promise.resolve(null);
+    return Promise.resolve(env.client.storage.from('photos').download(photoPath(id)))
+      .then(res => (res && !res.error && res.data) ? res.data : null)
+      .catch(() => null);
+  }
+
+  /* Every photoId a pulled row references that this device does not already
+     have gets fetched once and written into the local photo store, before
+     the row is saved — otherwise resolvePhotos() finds nothing and the
+     image silently stays blank (4a's own documented gap, closed here). */
+  function ensurePhotosLocal(data) {
+    const ids = deps.photoIdsIn ? deps.photoIdsIn(data) : [];
+    return ids.reduce((p, id) => p.then(() => deps.getPhotoBlob(id)).then(existing => {
+      if (existing) return null;
+      return downloadPhoto(id).then(blob => blob && deps.putPhotoBlob(id, blob));
+    }), Promise.resolve());
+  }
+
+  function applyPulledRow(row, activeId) {
+    if (row.deleted_at) return deps.removeVehicle(row.id, activeId);
+    const data = row.data;
+    if (deps.normalizeData) deps.normalizeData(data);
+    return ensurePhotosLocal(data).then(() => deps.saveVehicle(row.id, data, activeId, deps.uid));
+  }
+
+  /* Additive to pull()/adopt() (4a, sign-in only, unchanged). This answers
+     "what changed since I last checked" for a device that already has this
+     user's garage — never runs before that first resolution. */
+  function pullIncremental() {
+    return deps.metaGet().then(m => {
+      const cursor = m.lastPulledAt || '1970-01-01T00:00:00.000Z';
+      return Promise.resolve(env.client.from('vehicles').select('id,data,updated_at,deleted_at').gt('updated_at', cursor))
+        .then(res => {
+          if (res && res.error) throw res.error;
+          const rows = res.data || [];
+          if (!rows.length) return false;
+          const g = deps.session.garage();
+          const activeId = g ? g.activeId : null;
+          return rows.reduce((p, row) => p.then(() => applyPulledRow(row, activeId)), Promise.resolve())
+            .then(() => deps.metaSet({ lastPulledAt: nowIso() }))
+            .then(() => true);
+        });
+    });
+  }
+
+  function sync() {
+    if (!_user || !env.client) return Promise.resolve(false);
+    return drain().then(() => pullIncremental()).then(changed => {
+      if (!changed) return true;
+      return deps.session.load().then(() => { env.rerender(); return true; });
+    });
+  }
+
   /* Sign-in only. Boot takes the adopt() path directly: at boot both sides are
      the same user, the outbox has already been drained, so the server is
      current by construction and there is nothing to ask about. */
@@ -453,7 +513,7 @@
     stripPhotos, pushVehicle, pushGarage,
     enqueueVehicle, enqueueTombstone, enqueuePhoto, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
-    signIn, signOut, expire, start,
+    signIn, signOut, expire, start, sync,
     SUPABASE_URL, SUPABASE_ANON_KEY
   };
 });

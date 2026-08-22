@@ -115,6 +115,7 @@ function fullClient(opts) {
         select() {
           const q = {
             is: () => Promise.resolve(opts.failSelect ? { error: new Error('offline') } : { data: rows, error: null }),
+            gt: (col, val) => Promise.resolve(opts.failSelect ? { error: new Error('offline') } : { data: (opts.since || {})[val] || [], error: null }),
             maybeSingle: () => Promise.resolve(opts.failSelect
               ? { error: new Error('offline') }
               : { data: activeId ? { active_id: activeId } : null, error: null })
@@ -887,4 +888,89 @@ test('enqueueTombstone cannot throw synchronously even with an exploding client'
   let result;
   assert.doesNotThrow(() => { result = account.enqueueTombstone('v1'); });
   assert.strictEqual(await result, true);
+});
+
+test('sync() drains the outbox, then pulls incrementally', async () => {
+  account.reset();
+  const storage2 = require('../storage.js');
+  await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  session.clear();
+  session.setVehicles([{ id: 'local1', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }], 'local1');
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v2', data: { car: { nickname: 'B' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve(null), metaGet: storage2.metaGet, metaSet: storage2.metaSet });
+  account.setUserForTest({ id: 'u1' });
+
+  const changed = await account.sync();
+
+  assert.strictEqual(changed, true);
+});
+
+test('an incremental pull applies a tombstone by removing the vehicle', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: '2026-08-22T00:00:00.000Z' }] } });
+  const removed = [];
+  account.configure({ client, protocol: 'https:', removeVehicle: id => { removed.push(id); return Promise.resolve(true); }, metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.deepStrictEqual(removed, ['v1']);
+});
+
+test('lastPulledAt only advances after every row in the batch is applied', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let saved = false;
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: () => { saved = true; return Promise.reject(new Error('write failed')); },
+    metaGet: () => Promise.resolve({}),
+    metaSet: patch => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync().catch(() => {});
+
+  assert.ok(saved);
+  assert.strictEqual(metaSetCalls, 0, 'a batch that fails partway through must not advance the cursor');
+});
+
+test('a pulled vehicle referencing a missing photo triggers exactly one download', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: { car: { photoId: 'p1' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let downloads = 0;
+  client.storage = { from: () => ({ download: () => { downloads++; return Promise.resolve({ data: { type: 'image/jpeg' }, error: null }); } }) };
+  const putCalls = [];
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve(null),
+    putPhotoBlob: (id, blob) => { putCalls.push(id); return Promise.resolve(true); },
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true)
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(downloads, 1);
+  assert.deepStrictEqual(putCalls, ['p1']);
+});
+
+test('a pulled vehicle referencing a photo already local does not download it', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: { car: { photoId: 'p1' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let downloads = 0;
+  client.storage = { from: () => ({ download: () => { downloads++; return Promise.resolve({ data: {}, error: null }); } }) };
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }),
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true)
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(downloads, 0);
 });
