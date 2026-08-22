@@ -221,8 +221,14 @@
     return deps.outboxAll().then(entries => {
       const stale = entries.filter(e => e.kind === 'vehicle' && e.vehicleId === id);
       return stale.reduce((p, e) => p.then(() => deps.outboxRemove(e.id)), Promise.resolve());
-    }).then(() => enqueue({ kind: 'tombstone', vehicleId: id })).then(() =>
+    }).then(() => enqueue({ kind: 'tombstone', vehicleId: id })).then(result =>
+      /* Resolve with the tombstone enqueue's own result (its established
+         contract, asserted by callers), not whatever this reduce happens to
+         produce — an empty photoIds list resolves the reduce's own
+         Promise.resolve() to `undefined`, which would silently replace a
+         `true` here. */
       (photoIds || []).reduce((p, pid) => p.then(() => enqueue({ kind: 'photo-delete', photoId: pid })), Promise.resolve())
+        .then(() => result)
     );
   }
 
