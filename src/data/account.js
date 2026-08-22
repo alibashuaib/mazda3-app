@@ -325,6 +325,11 @@
       const s = res && res.data && res.data.session;
       if (!s || !s.user) throw new Error('EMAIL_NOT_CONFIRMED');
       _user = s.user;
+      /* start() is not the only path into a signed-in state: a fresh sign-in
+         needs the same subscription or its token's later expiry is invisible.
+         watchAuth() is idempotent, so a prior start() is not followed by a
+         second listener. */
+      watchAuth();
       /* The merge decision cannot be made without knowing what the server
          holds, so an unreachable server fails the sign-in outright rather
          than leaving a half-signed-in state that would upload over it. */

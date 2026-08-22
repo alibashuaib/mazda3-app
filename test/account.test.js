@@ -460,6 +460,39 @@ test('signIn with signUp:true calls signUp, not signInWithPassword', async () =>
   assert.strictEqual(used, 'signUp');
 });
 
+/* watchAuth() was only ever called from start(): a session established via
+   signIn() during the current run had no onAuthStateChange subscription, so
+   a token that expired later was invisible — the same "Settings keeps saying
+   Signed in as" symptom expire()'s own comment describes, just reached from
+   the sign-in path instead of boot. */
+test('signIn subscribes to auth state changes', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  let subs = 0;
+  client.auth.signInWithPassword = () => Promise.resolve({ data: { session: { user: { id: 'u1' } }, user: { id: 'u1' } }, error: null });
+  client.auth.onAuthStateChange = () => { subs++; return {}; };
+  account.configure({ client, protocol: 'https:' });
+
+  await account.signIn('a@b.c', 'pw');
+
+  assert.strictEqual(subs, 1, 'signIn() must register the same auth-state listener as start()');
+});
+
+test('signing in after start() does not register a second listener', async () => {
+  account.reset();
+  const client = fullClient({ rows: [] });
+  let subs = 0;
+  client.auth.getSession = () => Promise.resolve({ data: { session: null }, error: null });
+  client.auth.signInWithPassword = () => Promise.resolve({ data: { session: { user: { id: 'u1' } }, user: { id: 'u1' } }, error: null });
+  client.auth.onAuthStateChange = () => { subs++; return {}; };
+  account.configure({ client, protocol: 'https:' });
+
+  await account.start();
+  await account.signIn('a@b.c', 'pw');
+
+  assert.strictEqual(subs, 1, 'watchAuth() is idempotent — a prior start() must not be followed by a second subscription');
+});
+
 test('start() pushes dirty vehicles before pulling', async () => {
   account.reset();
   await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
