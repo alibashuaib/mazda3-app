@@ -500,3 +500,16 @@ test('metaGet/metaSet round-trip on the localStorage backend', async () => {
   await storage.metaSet({ lastPulledAt: 'x' });
   assert.strictEqual((await storage.metaGet()).lastPulledAt, 'x');
 });
+
+test('getPhotoBlob/putPhotoBlob are no-ops on the localStorage backend', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../storage.js')];
+  const storage = require('../storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  assert.strictEqual(await storage.putPhotoBlob('p1', {}), false);
+  assert.strictEqual(await storage.getPhotoBlob('p1'), null);
+});

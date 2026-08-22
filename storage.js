@@ -558,6 +558,21 @@
       .then(() => true).catch(() => false);
   }
 
+  function getPhotoBlob(id) {
+    if (!backend || backend.kind !== 'idb') return Promise.resolve(null);
+    return new Promise(resolve => {
+      const req = backend.db.transaction('photos', 'readonly').objectStore('photos').get(id);
+      req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+      req.onerror = () => resolve(null);
+    });
+  }
+
+  function putPhotoBlob(id, blob) {
+    if (!backend || backend.kind !== 'idb') return Promise.resolve(false);
+    return idbTx(backend.db, ['photos'], 'readwrite', tx => { tx.objectStore('photos').put({ id, blob }); })
+      .then(() => true).catch(() => false);
+  }
+
   /* Every localStorage key the garage owns is cleared unconditionally — a user
      may have run on IndexedDB over http and on localStorage from disk, and
      leaving either populated hands the next user the previous one's garage.
@@ -614,6 +629,6 @@
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
     parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind,
-    outboxAdd, outboxAll, outboxRemove, metaGet, metaSet
+    outboxAdd, outboxAll, outboxRemove, metaGet, metaSet, getPhotoBlob, putPhotoBlob
   };
 });

@@ -397,3 +397,15 @@ test('metaSet merges rather than replacing', async () => {
   assert.strictEqual(m.lastPulledAt, 'a');
   assert.strictEqual(m.somethingElse, 'b');
 });
+
+test('getPhotoBlob/putPhotoBlob round-trip on the IndexedDB backend', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  const blob = storage.dataUrlToBlob(DATA_URL);
+
+  assert.strictEqual(await storage.getPhotoBlob('p1'), null);
+
+  await storage.putPhotoBlob('p1', blob);
+  const got = await storage.getPhotoBlob('p1');
+  assert.strictEqual(got.type, blob.type);
+});
