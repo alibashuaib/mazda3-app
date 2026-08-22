@@ -32,6 +32,32 @@ create index if not exists vehicles_user_live_idx
 create index if not exists vehicles_user_updated_idx
   on public.vehicles (user_id, updated_at);
 
+-- updated_at must be server-authored, not whatever the client's own clock
+-- reads. The client sends a value (the column is `not null`), but this
+-- trigger overwrites it with the database's `now()` on every insert/update,
+-- regardless of what was sent. Without it, pullIncremental()'s
+-- `updated_at > cursor` comparison trusts each device's own clock: a fast
+-- device's writes could be skipped by others once their cursor passes a
+-- timestamp that never actually elapsed on the server, and a slow device's
+-- writes could sit forever below every other device's cursor. Applies to
+-- both tables `updated_at` is compared on.
+create or replace function public.set_updated_at() returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists vehicles_set_updated_at on public.vehicles;
+create trigger vehicles_set_updated_at
+  before insert or update on public.vehicles
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists garage_set_updated_at on public.garage;
+create trigger garage_set_updated_at
+  before insert or update on public.garage
+  for each row execute function public.set_updated_at();
+
 alter table public.vehicles enable row level security;
 alter table public.garage   enable row level security;
 

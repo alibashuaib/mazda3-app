@@ -1136,3 +1136,169 @@ test('a user change mid-sync (sign-out race) stops applying the rest of the batc
   assert.strictEqual(metaSetCalls, 0, 'the cursor must not advance when the batch is aborted mid-way');
   assert.strictEqual(result, false, 'sync() must resolve false, not throw, when the sign-out race aborts the batch');
 });
+
+/* ============================================================
+   Fix 4: a deleted vehicle's photos were never removed from Storage.
+
+   enqueueTombstone(id, photoIds) must queue one 'photo-delete' outbox entry
+   per photoId, and drain() must delete each one from the 'photos' bucket.
+   ============================================================ */
+test('enqueueTombstone(id, photoIds) queues a photo-delete entry per id', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueTombstone('v1', ['p1', 'p2']);
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 3, 'the tombstone plus one photo-delete entry per photoId');
+  assert.strictEqual(entries.filter(e => e.kind === 'tombstone').length, 1);
+  const deletes = entries.filter(e => e.kind === 'photo-delete').map(e => e.photoId).sort();
+  assert.deepStrictEqual(deletes, ['p1', 'p2']);
+});
+
+test('enqueueTombstone with no photoIds queues no photo-delete entries', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueTombstone('v1');
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 1);
+  assert.strictEqual(entries[0].kind, 'tombstone');
+});
+
+test('a photo-delete entry drains by removing the object from Storage', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  const removed = [];
+  client.storage = { from: () => ({ remove: paths => { removed.push(paths); return Promise.resolve({ error: null }); } }) };
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1', ['p1']);
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.deepStrictEqual(removed, [['u1/p1']]);
+});
+
+test('a failed photo-delete leaves the entry queued for the next drain', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  client.storage = { from: () => ({ remove: () => Promise.resolve({ error: new Error('offline') }) }) };
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1', ['p1']);
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1, 'the tombstone drained, but the photo-delete must stay queued');
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 1);
+  assert.strictEqual(entries[0].kind, 'photo-delete');
+});
+
+/* ============================================================
+   Fix 5: a transient photo-download failure could become permanent.
+
+   Before this fix, a photo that failed to download on one pull was only
+   ever retried if its vehicle's updated_at moved past the cursor again — a
+   photo-only failure never causes that, so the gap never closed on its
+   own. Failed ids now persist to meta.pendingPhotoDownloads and are retried
+   on every sync regardless of what (if anything) the cursor pulls.
+   ============================================================ */
+test('a failed photo download is recorded in meta.pendingPhotoDownloads', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: { car: { photoId: 'p1' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  client.storage = { from: () => ({ download: () => Promise.resolve({ data: null, error: new Error('offline') }) }) };
+  let meta = {};
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve(null),
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve(meta),
+    metaSet: patch => { meta = Object.assign({}, meta, patch); return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, ['p1']);
+});
+
+test('a pending photo download is retried on the next sync and cleared once it succeeds', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ since: {} });  // no new rows on either sync
+  let downloads = 0;
+  const putCalls = [];
+  client.storage = {
+    from: () => ({
+      download: () => {
+        downloads++;
+        return Promise.resolve(downloads === 1 ? { data: null, error: new Error('offline') } : { data: { type: 'image/jpeg' }, error: null });
+      }
+    })
+  };
+  let meta = { pendingPhotoDownloads: ['p1'], lastPulledAt: '2026-08-22T00:00:00.000Z' };
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve(null),
+    putPhotoBlob: (id) => { putCalls.push(id); return Promise.resolve(true); },
+    metaGet: () => Promise.resolve(meta),
+    metaSet: patch => { meta = Object.assign({}, meta, patch); return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  // sync() resolves true for both "ran clean, nothing new" and "ran clean,
+  // applied changes" (see its own doc comment) — it cannot tell the two
+  // apart from the outside, so both syncs below resolve true regardless of
+  // whether the retry succeeded. The retry's actual outcome is asserted
+  // through `meta` and `downloads`/`putCalls`, not sync()'s return value.
+  const first = await account.sync();
+  assert.strictEqual(downloads, 1);
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, ['p1'], 'still missing after a failed retry');
+  assert.strictEqual(first, true);
+
+  const second = await account.sync();
+
+  assert.strictEqual(downloads, 2);
+  assert.deepStrictEqual(putCalls, ['p1']);
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, [], 'cleared once the retry succeeds');
+  assert.strictEqual(second, true);
+});
+
+test('a photo already present locally is dropped from pendingPhotoDownloads without a network call', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ since: {} });
+  let downloads = 0;
+  client.storage = { from: () => ({ download: () => { downloads++; return Promise.resolve({ data: {}, error: null }); } }) };
+  let meta = { pendingPhotoDownloads: ['p1'] };
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }),  // already local
+    metaGet: () => Promise.resolve(meta),
+    metaSet: patch => { meta = Object.assign({}, meta, patch); return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(downloads, 0);
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, []);
+});

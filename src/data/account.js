@@ -107,7 +107,16 @@
 
   /* user_id is filled by the column default (auth.uid()), so it is never sent
      and never trusted from the client. The upsert conflicts on the table's
-     primary key, (user_id, id). */
+     primary key, (user_id, id).
+
+     `updated_at` below is this device's clock, sent because the column is
+     `not null` — but it is advisory only: `set_updated_at()` in
+     supabase/schema.sql overwrites it with the database's own `now()` on
+     every insert/update, regardless of what the client sent. pullIncremental's
+     cursor compares `updated_at` across devices, so a value any one device's
+     clock produced would let a fast or slow clock skip rows or hide them from
+     other devices; the trigger removes that dependency on client clocks
+     entirely. */
   function pushVehicle(id, data) {
     return Promise.resolve(env.client.from('vehicles').upsert({
       id, data: stripPhotos(data), updated_at: nowIso(), deleted_at: null
@@ -161,6 +170,17 @@
       .catch(() => false);
   }
 
+  /* The mirror of uploadPhoto(), for a 'photo-delete' outbox entry. Same
+     silent-failure/leave-queued convention as every other drain path — an
+     object that fails to delete (offline, a transient Storage error) is
+     retried on the next drain, not abandoned. */
+  function deletePhotoRemote(id) {
+    if (!_user || !env.client || !env.client.storage) return Promise.resolve(false);
+    return Promise.resolve(env.client.storage.from('photos').remove([photoPath(id)]))
+      .then(res => { if (res && res.error) throw res.error; return true; })
+      .catch(() => false);
+  }
+
   /* One outbox entry. `id` is the entry's own id, distinct from vehicleId —
      a vehicle and its photo can both be queued under the same vehicleId. */
   function enqueue(entry) {
@@ -186,13 +206,24 @@
      server, resurrecting a vehicle the user just deleted. This is a plain
      filter, not an assumption the entry still exists — a vehicle entry
      already drained/removed by the time this runs is simply not found and
-     nothing happens. */
-  function enqueueTombstone(id) {
+     nothing happens.
+
+     `photoIds`, if given, are queued as 'photo-delete' entries alongside the
+     tombstone — the caller must capture them from the vehicle's data BEFORE
+     deleting it locally (removeVehicle() deletes the local blobs, and by the
+     time drain() runs the vehicle is gone from every local structure that
+     could tell it which photos it once had). Without this a deleted
+     vehicle's photos stay in Storage forever — the vehicles row is
+     tombstoned and stops being pulled, but nothing ever asks Storage to
+     forget the objects it pointed at. */
+  function enqueueTombstone(id, photoIds) {
     if (!_user || !env.client) return Promise.resolve(false);
     return deps.outboxAll().then(entries => {
       const stale = entries.filter(e => e.kind === 'vehicle' && e.vehicleId === id);
       return stale.reduce((p, e) => p.then(() => deps.outboxRemove(e.id)), Promise.resolve());
-    }).then(() => enqueue({ kind: 'tombstone', vehicleId: id }));
+    }).then(() => enqueue({ kind: 'tombstone', vehicleId: id })).then(() =>
+      (photoIds || []).reduce((p, pid) => p.then(() => enqueue({ kind: 'photo-delete', photoId: pid })), Promise.resolve())
+    );
   }
 
   function enqueuePhoto(id) {
@@ -203,10 +234,13 @@
     return deps.outboxAll().then(entries => entries.length);
   }
 
-  /* photo < vehicle < tombstone — a photo a vehicle row references must exist
-     on the server before the row does; a tombstone drains last so an edit
-     enqueued just before a delete of the same vehicle cannot resurrect it. */
-  const KIND_ORDER = { photo: 0, vehicle: 1, tombstone: 2 };
+  /* photo < vehicle < tombstone < photo-delete — a photo a vehicle row
+     references must exist on the server before the row does; a tombstone
+     drains last among the push kinds so an edit enqueued just before a
+     delete of the same vehicle cannot resurrect it; a photo's own deletion
+     from Storage drains after that, once the row that referenced it is
+     already gone server-side. */
+  const KIND_ORDER = { photo: 0, vehicle: 1, tombstone: 2, 'photo-delete': 3 };
 
   function drainOne(entry) {
     if (entry.kind === 'photo') {
@@ -214,6 +248,9 @@
         const run = blob ? uploadPhoto(entry.photoId, blob) : Promise.resolve(true);
         return run.then(ok => ok && deps.outboxRemove(entry.id));
       }).catch(() => {});
+    }
+    if (entry.kind === 'photo-delete') {
+      return deletePhotoRemote(entry.photoId).then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
     }
     const run = entry.kind === 'tombstone' ? pushTombstoneRow(entry.vehicleId)
       : pushVehicle(entry.vehicleId, entry.data);
@@ -335,16 +372,35 @@
       .catch(() => null);
   }
 
+  /* Fetches every id in `ids` that is not already local, writing each
+     successful download into the photo store. Returns the ids that are
+     STILL missing afterwards — a transient failure (offline mid-sync, a
+     Storage hiccup) does not throw and does not block the caller; it comes
+     back in this list instead, so the caller can persist it for a retry
+     that does not depend on the row ever being re-pulled (see
+     `pullIncremental`'s use of `meta.pendingPhotoDownloads`). Without that
+     persistence a photo that failed to download once would only ever be
+     retried if the vehicle's `updated_at` moved past the cursor again —
+     which a photo-only failure never causes — so the gap would otherwise be
+     permanent, not merely transient. */
+  function downloadMissingPhotos(ids) {
+    const stillMissing = [];
+    return (ids || []).reduce((p, id) => p.then(() => deps.getPhotoBlob(id)).then(existing => {
+      if (existing) return null;
+      return downloadPhoto(id).then(blob => {
+        if (blob) return deps.putPhotoBlob(id, blob);
+        stillMissing.push(id);
+        return null;
+      });
+    }), Promise.resolve()).then(() => stillMissing);
+  }
+
   /* Every photoId a pulled row references that this device does not already
      have gets fetched once and written into the local photo store, before
      the row is saved — otherwise resolvePhotos() finds nothing and the
      image silently stays blank (4a's own documented gap, closed here). */
   function ensurePhotosLocal(data) {
-    const ids = deps.photoIdsIn ? deps.photoIdsIn(data) : [];
-    return ids.reduce((p, id) => p.then(() => deps.getPhotoBlob(id)).then(existing => {
-      if (existing) return null;
-      return downloadPhoto(id).then(blob => blob && deps.putPhotoBlob(id, blob));
-    }), Promise.resolve());
+    return downloadMissingPhotos(deps.photoIdsIn ? deps.photoIdsIn(data) : []);
   }
 
   /* saveVehicle/removeVehicle never REJECT on a storage failure — they
@@ -365,7 +421,11 @@
      check a pulled row from the PREVIOUS user can still be written into the
      just-wiped store. undefined skips the check (direct callers/tests that
      do not pass one keep today's behavior). */
-  function applyPulledRow(row, activeId, expectedUser) {
+  /* `pendingOut`, if given, collects any photoId that ensurePhotosLocal could
+     not resolve for this row — pullIncremental persists it to
+     `meta.pendingPhotoDownloads` so the failure is retried on every future
+     sync rather than only when this vehicle happens to be pulled again. */
+  function applyPulledRow(row, activeId, expectedUser, pendingOut) {
     if (expectedUser !== undefined && _user !== expectedUser) {
       return Promise.reject(new Error('SIGNED_OUT_MID_SYNC'));
     }
@@ -377,7 +437,10 @@
     }
     const data = row.data;
     if (deps.normalizeData) deps.normalizeData(data);
-    return ensurePhotosLocal(data).then(() => deps.saveVehicle(row.id, data, activeId, deps.uid)).then(res => {
+    return ensurePhotosLocal(data).then(missing => {
+      if (pendingOut) missing.forEach(id => { if (pendingOut.indexOf(id) < 0) pendingOut.push(id); });
+      return deps.saveVehicle(row.id, data, activeId, deps.uid);
+    }).then(res => {
       if (res && res.ok === false) throw (res.error || new Error('saveVehicle failed for ' + row.id));
       return res;
     });
@@ -398,27 +461,37 @@
          first sync) would silently break photo sync on new devices — this
          coupling has to move with any such change, not be assumed away. */
       const cursor = m.lastPulledAt || '1970-01-01T00:00:00.000Z';
-      return Promise.resolve(env.client.from('vehicles').select('id,data,updated_at,deleted_at').gt('updated_at', cursor))
-        .then(res => {
-          if (res && res.error) throw res.error;
-          const rows = res.data || [];
-          if (!rows.length) return false;
-          const g = deps.session.garage();
-          const activeId = g ? g.activeId : null;
-          /* The cursor must be server-authored, not this device's wall clock:
-             nowIso() would either skip a row written between the .gt() query
-             and this line (clock behind the server) or miss every later
-             change until the server's clock caught back up (clock ahead).
-             The max updated_at actually applied in THIS batch is monotone
-             with the .gt() filter and has no clock-skew exposure. ISO 8601
-             strings sort lexically the same as chronologically. */
-          let maxUpdatedAt = cursor;
-          return rows.reduce((p, row) => p.then(() => applyPulledRow(row, activeId, expectedUser)).then(() => {
-            if (row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
-          }), Promise.resolve())
-            .then(() => deps.metaSet({ lastPulledAt: maxUpdatedAt }))
-            .then(() => true);
-        });
+      /* Photo ids that a PREVIOUS sync failed to download and could not
+         retire — retried here on every sync regardless of whether this
+         batch pulls any rows at all, because nothing about a stuck download
+         is fixed by the vehicle row changing again. */
+      const pendingBefore = m.pendingPhotoDownloads || [];
+      return downloadMissingPhotos(pendingBefore).then(pendingOut =>
+        Promise.resolve(env.client.from('vehicles').select('id,data,updated_at,deleted_at').gt('updated_at', cursor))
+          .then(res => {
+            if (res && res.error) throw res.error;
+            const rows = res.data || [];
+            const resolvedSome = pendingOut.length < pendingBefore.length;
+            if (!rows.length) {
+              return deps.metaSet({ pendingPhotoDownloads: pendingOut }).then(() => resolvedSome);
+            }
+            const g = deps.session.garage();
+            const activeId = g ? g.activeId : null;
+            /* The cursor must be server-authored, not this device's wall clock:
+               nowIso() would either skip a row written between the .gt() query
+               and this line (clock behind the server) or miss every later
+               change until the server's clock caught back up (clock ahead).
+               The max updated_at actually applied in THIS batch is monotone
+               with the .gt() filter and has no clock-skew exposure. ISO 8601
+               strings sort lexically the same as chronologically. */
+            let maxUpdatedAt = cursor;
+            return rows.reduce((p, row) => p.then(() => applyPulledRow(row, activeId, expectedUser, pendingOut)).then(() => {
+              if (row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
+            }), Promise.resolve())
+              .then(() => deps.metaSet({ lastPulledAt: maxUpdatedAt, pendingPhotoDownloads: pendingOut }))
+              .then(() => true);
+          })
+      );
     });
   }
 

@@ -109,6 +109,12 @@ function openAddVehicle() {
 }
 async function deleteVehicle(id) {
   if (session.garage().vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
+  // Captured BEFORE setVehicles/removeVehicle below — both drop this vehicle
+  // from every local structure that could still answer "which photos did it
+  // have", and enqueueTombstone needs that list to queue their remote
+  // deletion. Reading it after either call would always see an empty list.
+  const doomed = session.garage().vehicles.find(v => v.id === id);
+  const photoIds = doomed ? photoIdsIn(doomed.data) : [];
   const kept = session.garage().vehicles.filter(v => v.id !== id);
   // setVehicles falls back to kept[0] when the removed vehicle was the active one.
   session.setVehicles(kept, session.garage().activeId === id ? kept[0].id : session.garage().activeId);
@@ -120,7 +126,7 @@ async function deleteVehicle(id) {
   // outbox before the tombstone was actually written to it. enqueueTombstone()
   // never rejects on its own no-op paths, so no .catch() is needed here.
   // reconnect/next-boot remains the fallback if this device is offline now.
-  account.enqueueTombstone(id).then(kickSync);
+  account.enqueueTombstone(id, photoIds).then(kickSync);
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
@@ -173,7 +179,11 @@ function importGarage(file) {
     // so the OLD garage is never left paired with the IMPORTED photo cache.
     // parseImport validates the shape; this catches everything else.
     try {
-      const priorIds = session.garage().vehicles.map(v => v.id);
+      // Kept as full records, not just ids: the loop below that tombstones
+      // dropped vehicles needs each one's photoIds, and by then setVehicles()
+      // has already replaced session.garage() with the imported data.
+      const priorVehicles = session.garage().vehicles;
+      const priorIds = priorVehicles.map(v => v.id);
       // The backup's .photo fields are stale blob: URLs from the exporting session.
       // Restore real data: URLs from the backup's own photos dict, or splitPhotos
       // will treat them as already-stored and persist nothing.
@@ -209,7 +219,12 @@ function importGarage(file) {
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.enqueueTombstone(id).then(kickSync); }
+        if (keptIds.indexOf(id) < 0) {
+          const doomed = priorVehicles.find(v => v.id === id);
+          const photoIds = doomed ? photoIdsIn(doomed.data) : [];
+          await removeVehicle(id, session.garage().activeId);
+          account.enqueueTombstone(id, photoIds).then(kickSync);
+        }
       }
       // The save loop minted fresh photo ids, so re-read from storage to bring
       // memory back in sync with what was actually persisted. session.load()
