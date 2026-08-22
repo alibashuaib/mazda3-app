@@ -46,6 +46,7 @@ const SCRIPTS = [
   'src/ui/html.js',
   'src/data/catalog.js',
   'src/i18n/strings.ar.js',
+  'src/i18n/lang.js',
   'schedule.js',
   'storage.js',
   'src/data/normalize.js',
