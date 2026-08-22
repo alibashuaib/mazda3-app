@@ -59,6 +59,7 @@ const SCRIPTS = [
   'ui.js',
   'src/pages/dashboard.js',
   'src/pages/maintenance.js',
+  'src/pages/parts.js',
   'app.js'
 ];
 
