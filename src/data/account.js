@@ -57,10 +57,11 @@
     /* Injected the way session.js takes saveVehicle. Tests pass spies so the
        sign-out lifecycle ORDER can be asserted, which is the property that
        matters most in this module. */
-    if (next.session || next.wipe) {
+    if (next.session || next.wipe || next.getPhotoBlob) {
       deps = Object.assign({}, deps, {
         session: next.session || deps.session,
-        wipe: next.wipe || deps.wipe
+        wipe: next.wipe || deps.wipe,
+        getPhotoBlob: next.getPhotoBlob || deps.getPhotoBlob
       });
     }
   }
@@ -142,6 +143,18 @@
     }).catch(() => false);
   }
 
+  /* {user_id}/{photoId} — mirrors the RLS path convention for the vehicles
+     table, enforced by the storage policy in supabase/schema.sql instead of
+     application code. */
+  function photoPath(id) { return `${_user.id}/${id}`; }
+
+  function uploadPhoto(id, blob) {
+    if (!_user || !env.client || !env.client.storage) return Promise.resolve(false);
+    return Promise.resolve(env.client.storage.from('photos').upload(photoPath(id), blob, { upsert: true }))
+      .then(res => { if (res && res.error) throw res.error; return true; })
+      .catch(() => false);
+  }
+
   /* One outbox entry. `id` is the entry's own id, distinct from vehicleId —
      a vehicle and its photo can both be queued under the same vehicleId. */
   function enqueue(entry) {
@@ -161,6 +174,10 @@
     return enqueue({ kind: 'tombstone', vehicleId: id });
   }
 
+  function enqueuePhoto(id) {
+    return enqueue({ kind: 'photo', photoId: id });
+  }
+
   function outboxSize() {
     return deps.outboxAll().then(entries => entries.length);
   }
@@ -171,6 +188,12 @@
   const KIND_ORDER = { photo: 0, vehicle: 1, tombstone: 2 };
 
   function drainOne(entry) {
+    if (entry.kind === 'photo') {
+      return deps.getPhotoBlob(entry.photoId).then(blob => {
+        const run = blob ? uploadPhoto(entry.photoId, blob) : Promise.resolve(true);
+        return run.then(ok => ok && deps.outboxRemove(entry.id));
+      }).catch(() => {});
+    }
     const run = entry.kind === 'tombstone' ? pushTombstoneRow(entry.vehicleId)
       : pushVehicle(entry.vehicleId, entry.data);
     return run.then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
@@ -428,7 +451,7 @@
   return {
     configure, reset, available, user, setUserForTest,
     stripPhotos, pushVehicle, pushGarage,
-    enqueueVehicle, enqueueTombstone, drain, outboxSize,
+    enqueueVehicle, enqueueTombstone, enqueuePhoto, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
     signIn, signOut, expire, start,
     SUPABASE_URL, SUPABASE_ANON_KEY

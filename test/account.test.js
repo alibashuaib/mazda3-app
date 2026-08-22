@@ -199,6 +199,79 @@ test('enqueueTombstone drains as a delete-marker upsert', async () => {
   assert.strictEqual(await account.outboxSize(), 0);
 });
 
+test('enqueuePhoto drains by uploading the blob and removing the entry', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  const uploads = [];
+  client.storage = { from: () => ({ upload: (path, blob) => { uploads.push({ path, blob }); return Promise.resolve({ error: null }); } }) };
+  const blob = { type: 'image/jpeg' };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve(blob) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueuePhoto('p1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.strictEqual(uploads.length, 1);
+  assert.strictEqual(uploads[0].path, 'u1/p1');
+});
+
+test('a photo entry with no local blob left to upload drains as a no-op', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  client.storage = { from: () => ({ upload: () => { throw new Error('must not be called'); } }) };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve(null) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueuePhoto('p1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0, 'nothing to upload is not a failure — the entry still clears');
+});
+
+test('a failed upload leaves the photo entry queued', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  client.storage = { from: () => ({ upload: () => Promise.resolve({ error: new Error('quota') }) }) };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueuePhoto('p1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1);
+});
+
+test('a photo entry uploads before a vehicle entry queued after it', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  const order = [];
+  client.storage = { from: () => ({ upload: () => { order.push('photo'); return Promise.resolve({ error: null }); } }) };
+  const origFrom = client.from.bind(client);
+  client.from = table => {
+    const t = origFrom(table);
+    const origUpsert = t.upsert.bind(t);
+    t.upsert = row => { order.push('vehicle'); return origUpsert(row); };
+    return t;
+  };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('v1', { car: { photoId: 'p1' } });
+  await account.enqueuePhoto('p1');
+
+  await account.drain();
+
+  assert.deepStrictEqual(order, ['photo', 'vehicle']);
+});
+
 function seedGarage(extra) {
   return {
     vehicles: [{ id: 'local1', data: Object.assign({

@@ -2316,7 +2316,7 @@ applyNavLabels();
    the Arabic save-failure toasts working. */
 session.configure({
   notify: (msg, kind) => toast(t(msg), kind),
-  afterSave: (id, data) => account.enqueueVehicle(id, data)
+  afterSave: (id, data, photoIds) => { account.enqueueVehicle(id, data); (photoIds || []).forEach(pid => account.enqueuePhoto(pid)); }
 });
 
 /* Gate on the protocol directly. account.available() also requires a client,
