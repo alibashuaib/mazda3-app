@@ -165,21 +165,22 @@ test('clear() during an in-flight save leaves photos() empty and the save resolv
   assert.strictEqual(notes.length, 0, 'a stale write must not notify on the new session either');
 });
 
-test('afterSave fires with the stored data after a successful write', async () => {
+test('afterSave fires with the stored data and photoIds after a successful write', async () => {
   session.clear();
-  const calls = [];
+  let afterSaveArgs = null;
   session.configure({
-    afterSave: (id, data) => calls.push([id, data]),
-    saveVehicle: (id, data) => Promise.resolve({ ok: true, data: { car: { nickname: 'Red', photoId: 'p1' } }, photoIds: [] })
+    afterSave: (...args) => { afterSaveArgs = args; },
+    saveVehicle: (id, data) => Promise.resolve({ ok: true, data: { car: { nickname: 'Red', photoId: 'p1' } }, photoIds: ['p1'] })
   });
   session.setVehicles([vehicle('a', 'Red')], 'a');
 
   const ok = await session.save();
 
   assert.strictEqual(ok, true);
-  assert.strictEqual(calls.length, 1);
-  assert.strictEqual(calls[0][0], 'a');
-  assert.strictEqual(calls[0][1].car.photoId, 'p1', 'the hook receives the stored form, not the live one');
+  assert.strictEqual(afterSaveArgs[0], 'a');
+  assert.strictEqual(afterSaveArgs[1].car.photoId, 'p1', 'the hook receives the stored form, not the live one');
+  assert.ok(Array.isArray(afterSaveArgs[2]), 'afterSave must receive photoIds as its third argument');
+  assert.deepStrictEqual(afterSaveArgs[2], ['p1']);
 });
 
 test('afterSave does not fire for a failed write', async () => {

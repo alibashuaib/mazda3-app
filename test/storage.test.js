@@ -453,3 +453,63 @@ test('openStorage tolerates a close() that throws on the previous connection', a
     if (originalIndexedDB === undefined) delete global.indexedDB; else global.indexedDB = originalIndexedDB;
   }
 });
+
+test('outbox round-trips on the localStorage backend', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../storage.js')];
+  const storage = require('../storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  await storage.outboxAdd({ id: 'o1', kind: 'photo', photoId: 'p1', createdAt: '2026-08-22T00:00:00.000Z' });
+  assert.strictEqual((await storage.outboxAll()).length, 1);
+
+  await storage.outboxRemove('o1');
+  assert.deepStrictEqual(await storage.outboxAll(), []);
+});
+
+test('outboxAdd upserts on duplicate id, matching IndexedDB put() semantics', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../storage.js')];
+  const storage = require('../storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'v1', data: { car: {} }, createdAt: '2026-08-22T00:00:00.000Z' });
+  await storage.outboxAdd({ id: 'o1', kind: 'photo', photoId: 'p1', createdAt: '2026-08-22T00:00:01.000Z' });
+
+  const all = await storage.outboxAll();
+  assert.strictEqual(all.length, 1, 'adding a duplicate id must not create a second entry');
+  assert.strictEqual(all[0].kind, 'photo', 'the second entry must overwrite the first one');
+  assert.strictEqual(all[0].photoId, 'p1');
+});
+
+test('metaGet/metaSet round-trip on the localStorage backend', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../storage.js')];
+  const storage = require('../storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  await storage.metaSet({ lastPulledAt: 'x' });
+  assert.strictEqual((await storage.metaGet()).lastPulledAt, 'x');
+});
+
+test('getPhotoBlob/putPhotoBlob are no-ops on the localStorage backend', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../storage.js')];
+  const storage = require('../storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  assert.strictEqual(await storage.putPhotoBlob('p1', {}), false);
+  assert.strictEqual(await storage.getPhotoBlob('p1'), null);
+});

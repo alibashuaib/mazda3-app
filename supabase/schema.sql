@@ -20,9 +20,43 @@ create table if not exists public.garage (
   updated_at timestamptz not null default now()
 );
 
--- Pulls filter on deleted_at and order by nothing else.
+-- Two query patterns now exist. pull() (sign-in, Phase 4a) filters on
+-- deleted_at and orders by nothing else — this partial index covers it.
+-- pullIncremental() (Phase 4b) filters on `updated_at > cursor` and
+-- deliberately INCLUDES deleted rows (a tombstone must still be pulled), so
+-- it cannot use a `where deleted_at is null` index — vehicles_user_updated_idx
+-- below covers that pattern instead.
 create index if not exists vehicles_user_live_idx
   on public.vehicles (user_id) where deleted_at is null;
+
+create index if not exists vehicles_user_updated_idx
+  on public.vehicles (user_id, updated_at);
+
+-- updated_at must be server-authored, not whatever the client's own clock
+-- reads. The client sends a value (the column is `not null`), but this
+-- trigger overwrites it with the database's `now()` on every insert/update,
+-- regardless of what was sent. Without it, pullIncremental()'s
+-- `updated_at > cursor` comparison trusts each device's own clock: a fast
+-- device's writes could be skipped by others once their cursor passes a
+-- timestamp that never actually elapsed on the server, and a slow device's
+-- writes could sit forever below every other device's cursor. Applies to
+-- both tables `updated_at` is compared on.
+create or replace function public.set_updated_at() returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists vehicles_set_updated_at on public.vehicles;
+create trigger vehicles_set_updated_at
+  before insert or update on public.vehicles
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists garage_set_updated_at on public.garage;
+create trigger garage_set_updated_at
+  before insert or update on public.garage
+  for each row execute function public.set_updated_at();
 
 alter table public.vehicles enable row level security;
 alter table public.garage   enable row level security;
@@ -42,3 +76,23 @@ create policy own_garage on public.garage for all
 -- self-contained: without a grant the tables apply cleanly and stay invisible
 -- to the API, which presents as "RLS is blocking everything".
 grant select, insert, update, delete on public.vehicles, public.garage to authenticated;
+
+-- Phase 4b: photo storage. Same shape as own_vehicles/own_garage — the
+-- boundary is the Storage policy, not application code checking whose
+-- photo it is.
+-- 10MB cap, receipt/car-photo mime types only. `do update set` rather than
+-- `do nothing` on conflict: this file is documented as safe to re-run, and a
+-- bucket already created (e.g. by an earlier version of this script, before
+-- these limits existed) must still pick up the limits on a re-run — `do
+-- nothing` would leave a pre-existing row's file_size_limit/allowed_mime_types
+-- untouched forever.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('photos', 'photos', false, 10485760, array['image/jpeg','image/png','image/webp'])
+  on conflict (id) do update set
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists own_photos on storage.objects;
+create policy own_photos on storage.objects for all
+  using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);

@@ -242,14 +242,16 @@
   }
 
   const DB_NAME = 'garage';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;   // was 1 — adds the `outbox` store
   const LS_KEY = 'garage.mazda3.v2';   // same key the app used before Phase 2
   const LEGACY_V1_KEY = 'garage.mazda3.v1';
   /* account.js's outbox-lite. EXPORTED, not duplicated: account.js reads it
      through its dependency object, so renaming it here cannot leave wipe()
      silently clearing a key nothing writes any more. */
   const DIRTY_KEY = 'garage.sync.dirty';
+  const OUTBOX_KEY = 'garage.sync.outbox';   // localStorage-backend fallback, JSON array
   const META_KEY = 'meta';
+  const META_LS_KEY = 'garage.sync.meta';   // localStorage-backend meta, since that backend has no `meta` store
 
   /* Before the garage existed the app stored ONE car's data object directly
      under the v1 key. A user who has not opened the app since then still has
@@ -298,6 +300,7 @@
         if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
         if (!db.objectStoreNames.contains('vehicles')) db.createObjectStore('vehicles', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { keyPath: 'id' });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -506,6 +509,78 @@
     }).then(() => true).catch(() => false);
   }
 
+  function outboxLsRead() {
+    try { const v = JSON.parse(localStorage.getItem(OUTBOX_KEY)); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function outboxLsWrite(entries) {
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(entries)); return true; }
+    catch (e) { return false; }
+  }
+
+  function outboxAdd(entry) {
+    if (backend.kind === 'local') {
+      const q = outboxLsRead().filter(e => e.id !== entry.id); q.push(entry);
+      return Promise.resolve(outboxLsWrite(q));
+    }
+    return idbTx(backend.db, ['outbox'], 'readwrite', tx => { tx.objectStore('outbox').put(entry); })
+      .then(() => true).catch(() => false);
+  }
+
+  function outboxAll() {
+    if (backend.kind === 'local') return Promise.resolve(outboxLsRead());
+    return idbGetAll(backend.db, 'outbox');
+  }
+
+  function outboxRemove(id) {
+    if (backend.kind === 'local') return Promise.resolve(outboxLsWrite(outboxLsRead().filter(e => e.id !== id)));
+    return idbTx(backend.db, ['outbox'], 'readwrite', tx => { tx.objectStore('outbox').delete(id); })
+      .then(() => true).catch(() => false);
+  }
+
+  /* Backend asymmetry: the IDB backend returns the FULL shared `meta` record
+     — `key`, `schemaVersion`, `migratedAt`, `activeId`, and anything else ever
+     stored there, not just sync fields — while the localStorage backend
+     returns only whatever was ever passed through metaSet (a sync-only
+     slice, e.g. `{ lastPulledAt }`). A caller reading one specific field
+     (`.lastPulledAt`) sees the same value either way and is safe. A caller
+     that compares the whole returned object across backends, or enumerates
+     its keys, is not. */
+  function metaGet() {
+    if (backend.kind === 'local') {
+      try { return Promise.resolve(JSON.parse(localStorage.getItem(META_LS_KEY)) || {}); }
+      catch (e) { return Promise.resolve({}); }
+    }
+    return idbGetAll(backend.db, 'meta').then(rows => rows.find(x => x.key === META_KEY) || {});
+  }
+
+  function metaSet(patch) {
+    if (backend.kind === 'local') {
+      try {
+        const prev = JSON.parse(localStorage.getItem(META_LS_KEY)) || {};
+        localStorage.setItem(META_LS_KEY, JSON.stringify(Object.assign({}, prev, patch)));
+        return Promise.resolve(true);
+      } catch (e) { return Promise.resolve(false); }
+    }
+    return idbTx(backend.db, ['meta'], 'readwrite', tx => putMetaPreserving(tx, patch))
+      .then(() => true).catch(() => false);
+  }
+
+  function getPhotoBlob(id) {
+    if (!backend || backend.kind !== 'idb') return Promise.resolve(null);
+    return new Promise(resolve => {
+      const req = backend.db.transaction('photos', 'readonly').objectStore('photos').get(id);
+      req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+      req.onerror = () => resolve(null);
+    });
+  }
+
+  function putPhotoBlob(id, blob) {
+    if (!backend || backend.kind !== 'idb') return Promise.resolve(false);
+    return idbTx(backend.db, ['photos'], 'readwrite', tx => { tx.objectStore('photos').put({ id, blob }); })
+      .then(() => true).catch(() => false);
+  }
+
   /* Every localStorage key the garage owns is cleared unconditionally — a user
      may have run on IndexedDB over http and on localStorage from disk, and
      leaving either populated hands the next user the previous one's garage.
@@ -543,14 +618,15 @@
 
   function wipe() {
     const authKeys = localStorageKeys().filter(k => AUTH_TOKEN_KEY.test(k));
-    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY].concat(authKeys).forEach(k => {
+    [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY, OUTBOX_KEY, META_LS_KEY].concat(authKeys).forEach(k => {
       try { localStorage.removeItem(k); } catch (e) {}
     });
     if (!backend || backend.kind !== 'idb') return Promise.resolve(true);
-    return idbTx(backend.db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
+    return idbTx(backend.db, ['meta', 'vehicles', 'photos', 'outbox'], 'readwrite', tx => {
       tx.objectStore('meta').clear();
       tx.objectStore('vehicles').clear();
       tx.objectStore('photos').clear();
+      tx.objectStore('outbox').clear();
     }).then(() => true).catch(() => false);
   }
 
@@ -560,6 +636,7 @@
     shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
     parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
-    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind
+    dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind,
+    outboxAdd, outboxAll, outboxRemove, metaGet, metaSet, getPhotoBlob, putPhotoBlob
   };
 });

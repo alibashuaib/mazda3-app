@@ -39,7 +39,7 @@ function freshStorage(seedLocal) {
 }
 
 const idb = () => new Promise((resolve, reject) => {
-  const req = global.indexedDB.open('garage', 1);
+  const req = global.indexedDB.open('garage', 2);
   req.onsuccess = () => resolve(req.result);
   req.onerror = () => reject(req.error);
 });
@@ -335,4 +335,77 @@ test('wipe() succeeds on the localStorage backend too', async () => {
 
   const after = await storage.loadAll();
   assert.strictEqual(after.garage, null);
+});
+
+test('outboxAdd/outboxAll/outboxRemove round-trip on the IndexedDB backend', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'v1', data: { car: {} }, createdAt: '2026-08-22T00:00:00.000Z' });
+  await storage.outboxAdd({ id: 'o2', kind: 'tombstone', vehicleId: 'v2', createdAt: '2026-08-22T00:00:01.000Z' });
+
+  const all = await storage.outboxAll();
+  assert.strictEqual(all.length, 2);
+  assert.ok(all.some(e => e.id === 'o1' && e.kind === 'vehicle'));
+
+  await storage.outboxRemove('o1');
+  const after = await storage.outboxAll();
+  assert.deepStrictEqual(after.map(e => e.id), ['o2']);
+});
+
+test('wipe() empties the outbox store', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'v1', createdAt: '2026-08-22T00:00:00.000Z' });
+
+  await storage.wipe();
+
+  assert.deepStrictEqual(await storage.outboxAll(), []);
+});
+
+test('outboxAdd upserts on duplicate id via put() semantics', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'v1', data: { car: {} }, createdAt: '2026-08-22T00:00:00.000Z' });
+  await storage.outboxAdd({ id: 'o1', kind: 'photo', photoId: 'p1', createdAt: '2026-08-22T00:00:01.000Z' });
+
+  const all = await storage.outboxAll();
+  assert.strictEqual(all.length, 1, 'adding a duplicate id must not create a second entry');
+  assert.strictEqual(all[0].kind, 'photo', 'the second entry must overwrite the first one');
+  assert.strictEqual(all[0].photoId, 'p1');
+});
+
+test('metaGet/metaSet round-trip on the IndexedDB backend', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+
+  assert.deepStrictEqual(await storage.metaGet(), {});
+
+  await storage.metaSet({ lastPulledAt: '2026-08-22T00:00:00.000Z' });
+  assert.strictEqual((await storage.metaGet()).lastPulledAt, '2026-08-22T00:00:00.000Z');
+});
+
+test('metaSet merges rather than replacing', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.metaSet({ lastPulledAt: 'a' });
+
+  await storage.metaSet({ somethingElse: 'b' });
+
+  const m = await storage.metaGet();
+  assert.strictEqual(m.lastPulledAt, 'a');
+  assert.strictEqual(m.somethingElse, 'b');
+});
+
+test('getPhotoBlob/putPhotoBlob round-trip on the IndexedDB backend', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  const blob = storage.dataUrlToBlob(DATA_URL);
+
+  assert.strictEqual(await storage.getPhotoBlob('p1'), null);
+
+  await storage.putPhotoBlob('p1', blob);
+  const got = await storage.getPhotoBlob('p1');
+  assert.strictEqual(got.type, blob.type);
 });

@@ -59,24 +59,6 @@ test('user() is null before sign-in', () => {
   assert.strictEqual(account.user(), null);
 });
 
-test('the dirty list round-trips and de-duplicates', () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  assert.deepStrictEqual(account.dirty(), []);
-  account.markDirty('a');
-  account.markDirty('a');
-  account.markDirty('b');
-  assert.deepStrictEqual(account.dirty(), ['a', 'b']);
-  account.clearDirty('a');
-  assert.deepStrictEqual(account.dirty(), ['b']);
-});
-
-test('the dirty list survives unparseable storage', () => {
-  account.reset();
-  localStorage.setItem('garage.sync.dirty', 'not json');
-  assert.deepStrictEqual(account.dirty(), []);
-});
-
 /* A fake PostgREST-shaped client. Records every upsert so tests can assert on
    what actually crossed the wire. */
 function tableClient(opts) {
@@ -112,51 +94,6 @@ test('stripPhotos removes photo payloads but keeps photo ids', () => {
   assert.strictEqual(data.car.photo, 'blob:abc', 'the original must not be mutated');
 });
 
-test('onSaved pushes the vehicle and leaves the dirty list empty', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
-
-  account.markDirty('v1');
-  assert.deepStrictEqual(account.dirty(), ['v1'], 'precondition: v1 starts dirty');
-
-  const ok = await account.onSaved('v1', { car: { nickname: 'Red', photo: 'blob:x' } });
-
-  assert.strictEqual(ok, true);
-  assert.strictEqual(client.calls.vehicles.length, 1);
-  assert.strictEqual(client.calls.vehicles[0].id, 'v1');
-  assert.strictEqual(client.calls.vehicles[0].data.car.photo, undefined, 'photos stay local in 4a');
-  assert.ok(client.calls.vehicles[0].updated_at, 'every row carries updated_at');
-  assert.deepStrictEqual(account.dirty(), []);
-});
-
-test('onSaved marks the vehicle dirty when the push fails', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  account.configure({ client: tableClient({ failUpsert: true }), protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
-
-  const ok = await account.onSaved('v1', { car: {} });
-
-  assert.strictEqual(ok, false, 'a failed push resolves false, it does not reject');
-  assert.deepStrictEqual(account.dirty(), ['v1']);
-});
-
-test('onSaved does nothing at all when signed out', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-
-  const ok = await account.onSaved('v1', { car: {} });
-
-  assert.strictEqual(ok, false);
-  assert.strictEqual(client.calls.vehicles.length, 0);
-  assert.deepStrictEqual(account.dirty(), [], 'an anonymous save is not a pending sync');
-});
-
 const session = require('../src/data/session.js');
 const storage = require('../storage.js');
 
@@ -178,6 +115,7 @@ function fullClient(opts) {
         select() {
           const q = {
             is: () => Promise.resolve(opts.failSelect ? { error: new Error('offline') } : { data: rows, error: null }),
+            gt: (col, val) => Promise.resolve(opts.failSelect ? { error: new Error('offline') } : { data: (opts.since || {})[val] || [], error: null }),
             maybeSingle: () => Promise.resolve(opts.failSelect
               ? { error: new Error('offline') }
               : { data: activeId ? { active_id: activeId } : null, error: null })
@@ -188,6 +126,152 @@ function fullClient(opts) {
     }
   };
 }
+
+test('enqueueVehicle adds a vehicle entry to the outbox', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueVehicle('v1', { car: { nickname: 'A' } });
+
+  assert.strictEqual(await account.outboxSize(), 1);
+});
+
+test('enqueueVehicle is a no-op when signed out', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+
+  await account.enqueueVehicle('v1', { car: {} });
+
+  assert.strictEqual(await account.outboxSize(), 0);
+});
+
+test('drain() pushes a queued vehicle entry and removes it on success', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('v1', { car: { nickname: 'A' } });
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.strictEqual(client.calls.vehicles.length, 1);
+  assert.strictEqual(client.calls.vehicles[0].id, 'v1');
+});
+
+test('drain() leaves a failed push queued for the next drain', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [], failSelect: false });
+  client.from = table => ({
+    upsert: () => Promise.resolve({ error: new Error('offline') }),
+    select: () => ({ is: () => Promise.resolve({ data: [], error: null }), maybeSingle: () => Promise.resolve({ data: null, error: null }) })
+  });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('v1', { car: {} });
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1, 'a failed push must stay in the outbox, not be dropped');
+});
+
+test('enqueueTombstone drains as a delete-marker upsert', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1');
+
+  await account.drain();
+
+  assert.strictEqual(client.calls.vehicles.length, 1);
+  assert.ok(client.calls.vehicles[0].deleted_at, 'a tombstone entry must upsert a non-null deleted_at');
+  assert.strictEqual(await account.outboxSize(), 0);
+});
+
+test('enqueuePhoto drains by uploading the blob and removing the entry', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  const uploads = [];
+  client.storage = { from: () => ({ upload: (path, blob) => { uploads.push({ path, blob }); return Promise.resolve({ error: null }); } }) };
+  const blob = { type: 'image/jpeg' };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve(blob) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueuePhoto('p1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.strictEqual(uploads.length, 1);
+  assert.strictEqual(uploads[0].path, 'u1/p1');
+});
+
+test('a photo entry with no local blob left to upload drains as a no-op', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  client.storage = { from: () => ({ upload: () => { throw new Error('must not be called'); } }) };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve(null) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueuePhoto('p1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0, 'nothing to upload is not a failure — the entry still clears');
+});
+
+test('a failed upload leaves the photo entry queued', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  client.storage = { from: () => ({ upload: () => Promise.resolve({ error: new Error('quota') }) }) };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueuePhoto('p1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1);
+});
+
+test('a photo entry uploads before a vehicle entry queued after it', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  const order = [];
+  client.storage = { from: () => ({ upload: () => { order.push('photo'); return Promise.resolve({ error: null }); } }) };
+  const origFrom = client.from.bind(client);
+  client.from = table => {
+    const t = origFrom(table);
+    const origUpsert = t.upsert.bind(t);
+    t.upsert = row => { order.push('vehicle'); return origUpsert(row); };
+    return t;
+  };
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }) });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('v1', { car: { photoId: 'p1' } });
+  await account.enqueuePhoto('p1');
+
+  await account.drain();
+
+  assert.deepStrictEqual(order, ['photo', 'vehicle']);
+});
 
 function seedGarage(extra) {
   return {
@@ -493,10 +577,11 @@ test('signing in after start() does not register a second listener', async () =>
   assert.strictEqual(subs, 1, 'watchAuth() is idempotent — a prior start() must not be followed by a second subscription');
 });
 
-test('start() pushes dirty vehicles before pulling', async () => {
+test('start() pushes queued outbox entries before pulling', async () => {
   account.reset();
   await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
-  localStorage.setItem('garage.sync.dirty', JSON.stringify(['local1']));
+  await storage.wipe();
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'local1', data: { car: { nickname: 'Local' } }, createdAt: new Date().toISOString() });
   const client = fullClient({ rows: [{ id: 'local1', data: { car: { nickname: 'Server' }, history: [], fuel: [], spending: [], docs: [] } }], activeId: 'local1' });
   client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
   account.configure({ client, protocol: 'https:' });
@@ -507,8 +592,8 @@ test('start() pushes dirty vehicles before pulling', async () => {
   const ok = await account.start();
 
   assert.strictEqual(ok, true);
-  assert.strictEqual(client.calls.vehicles.length, 1, 'the dirty vehicle was pushed');
-  assert.deepStrictEqual(account.dirty(), [], 'and cleared from the list');
+  assert.strictEqual(client.calls.vehicles.length, 1, 'the queued vehicle was pushed');
+  assert.strictEqual(await account.outboxSize(), 0, 'and removed from the outbox');
 });
 
 test('start() with no stored session stays anonymous', async () => {
@@ -570,58 +655,32 @@ test('a save in flight when sign-out happens cannot land in the next session', a
   assert.deepStrictEqual(pushed, [], 'and must never reach the push hook — that is the previous user data landing in the next account');
 });
 
-test('pushTombstone upserts a non-null deleted_at and updated_at for the right id', async () => {
+test('enqueueTombstone is a no-op when signed out', async () => {
   account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
   const client = tableClient();
   account.configure({ client, protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
 
-  const ok = await account.pushTombstone('v1');
-
-  assert.strictEqual(ok, true);
-  assert.strictEqual(client.calls.vehicles.length, 1);
-  assert.strictEqual(client.calls.vehicles[0].id, 'v1');
-  assert.ok(client.calls.vehicles[0].deleted_at, 'deleted_at must be set, not null');
-  assert.ok(client.calls.vehicles[0].updated_at, 'updated_at must be set');
-});
-
-test('pushTombstone clears the vehicle from the dirty list', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-  account.setUserForTest({ id: 'u1' });
-  account.markDirty('v1');
-  assert.deepStrictEqual(account.dirty(), ['v1'], 'precondition: v1 starts dirty');
-
-  await account.pushTombstone('v1');
-
-  assert.deepStrictEqual(account.dirty(), []);
-});
-
-test('pushTombstone is a no-op when signed out', async () => {
-  account.reset();
-  localStorage.removeItem('garage.sync.dirty');
-  const client = tableClient();
-  account.configure({ client, protocol: 'https:' });
-  account.markDirty('v1');
-
-  const ok = await account.pushTombstone('v1');
+  const ok = await account.enqueueTombstone('v1');
 
   assert.strictEqual(ok, false);
   assert.strictEqual(client.calls.vehicles.length, 0, 'no upsert must be attempted');
-  assert.deepStrictEqual(account.dirty(), ['v1'], 'the dirty list must be untouched');
+  assert.strictEqual(await account.outboxSize(), 0, 'nothing was queued while signed out');
 });
 
-test('pushTombstone resolves false and does not reject when the upsert fails', async () => {
+test('drain() leaves a failed tombstone push queued for the next drain', async () => {
   account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
   const client = tableClient({ failUpsert: true });
   account.configure({ client, protocol: 'https:' });
   account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1');
 
-  const ok = await account.pushTombstone('v1');
+  const remaining = await account.drain();
 
-  assert.strictEqual(ok, false);
+  assert.strictEqual(remaining, 1, 'a failed tombstone push must stay in the outbox, not be dropped');
 });
 
 /* Documents the consequence of a local write that never reached the server:
@@ -813,16 +872,433 @@ test('start() tolerates a client with no onAuthStateChange', async () => {
   assert.ok(account.user(), 'the boot must still complete signed in');
 });
 
-/* deleteVehicle() calls pushTombstone un-awaited and outside any try/catch,
-   so a synchronous throw here would escape into the delete path and skip the
-   "Vehicle removed" toast. */
-test('pushTombstone cannot throw synchronously', async () => {
+/* deleteVehicle() calls enqueueTombstone un-awaited and outside any try/catch.
+   Unlike the old direct pushTombstone(), enqueueTombstone only writes to the
+   outbox — it never touches env.client — so a client that throws synchronously
+   from .from() cannot reach this call site at all; that risk now lives only in
+   drainOne(), which every caller already reaches through drain()'s promise chain. */
+test('enqueueTombstone cannot throw synchronously even with an exploding client', async () => {
   account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
   const client = { auth: {}, from: () => { throw new Error('client exploded'); } };
   account.configure({ client, protocol: 'https:' });
   account.setUserForTest({ id: 'u1' });
 
   let result;
-  assert.doesNotThrow(() => { result = account.pushTombstone('v1'); });
-  assert.strictEqual(await result, false);
+  assert.doesNotThrow(() => { result = account.enqueueTombstone('v1'); });
+  assert.strictEqual(await result, true);
+});
+
+test('sync() drains the outbox, then pulls incrementally', async () => {
+  account.reset();
+  const storage2 = require('../storage.js');
+  await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage2.wipe();
+  session.clear();
+  session.setVehicles([{ id: 'local1', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }], 'local1');
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v2', data: { car: { nickname: 'B' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  account.configure({ client, protocol: 'https:', getPhotoBlob: () => Promise.resolve(null), metaGet: storage2.metaGet, metaSet: storage2.metaSet });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueVehicle('local1', { car: {} });
+  assert.strictEqual(await account.outboxSize(), 1, 'sanity: the outbox has something to drain before sync() runs');
+
+  const changed = await account.sync();
+
+  assert.strictEqual(changed, true);
+  assert.strictEqual(await account.outboxSize(), 0, 'sync() must drain the outbox, not merely pull');
+  const ids = session.garage().vehicles.map(v => v.id);
+  assert.ok(ids.indexOf('v2') >= 0, 'the pulled vehicle must be reflected in the re-hydrated session');
+  const pulled = session.garage().vehicles.find(v => v.id === 'v2');
+  assert.strictEqual(pulled.data.car.nickname, 'B');
+});
+
+test('an incremental pull applies a tombstone by removing the vehicle', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: '2026-08-22T00:00:00.000Z' }] } });
+  const removed = [];
+  account.configure({ client, protocol: 'https:', removeVehicle: id => { removed.push(id); return Promise.resolve(true); }, metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.deepStrictEqual(removed, ['v1']);
+});
+
+test('lastPulledAt only advances after every row in the batch is applied', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let saved = false;
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: () => { saved = true; return Promise.reject(new Error('write failed')); },
+    metaGet: () => Promise.resolve({}),
+    metaSet: patch => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync().catch(() => {});
+
+  assert.ok(saved);
+  assert.strictEqual(metaSetCalls, 0, 'a batch that fails partway through must not advance the cursor');
+});
+
+/* saveVehicle/removeVehicle never REJECT on a storage failure in real usage —
+   they RESOLVE { ok: false } / false. A pull that only checked for a rejected
+   promise would treat this as success, advance the cursor, and silently drop
+   the row forever. This drives applyPulledRow through that exact resolved
+   shape, not a rejection, to prove the resolved-but-failed case is caught too. */
+test('a save that resolves { ok: false } does not advance the cursor and is retried next pull', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let saveCalls = 0;
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: () => { saveCalls++; return Promise.resolve({ ok: false, error: new Error('quota exceeded') }); },
+    metaGet: () => Promise.resolve({}),
+    metaSet: () => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(saveCalls, 1, 'the write must actually have been attempted');
+  assert.strictEqual(metaSetCalls, 0, 'a resolved-but-failed write must not advance the cursor');
+});
+
+test('a removeVehicle that resolves false does not advance the cursor', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: {}, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: '2026-08-22T00:00:00.000Z' }] } });
+  let removeCalls = 0;
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    removeVehicle: () => { removeCalls++; return Promise.resolve(false); },
+    metaGet: () => Promise.resolve({}),
+    metaSet: () => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(removeCalls, 1);
+  assert.strictEqual(metaSetCalls, 0, 'a resolved-but-failed tombstone removal must not advance the cursor');
+});
+
+test('lastPulledAt advances to the max updated_at in the batch, not the local clock', async () => {
+  account.reset();
+  const rows = [
+    { id: 'v1', data: {}, updated_at: '2020-01-01T00:00:00.000Z', deleted_at: null },
+    { id: 'v2', data: {}, updated_at: '2020-06-01T00:00:00.000Z', deleted_at: null }
+  ];
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': rows } });
+  let patched = null;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve({}),
+    metaSet: patch => { patched = patch; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(patched.lastPulledAt, '2020-06-01T00:00:00.000Z', 'the cursor must be the max updated_at in the batch, not the wall clock');
+});
+
+test('sync() resolves false rather than rejecting when the pull fails', async () => {
+  account.reset();
+  const client = fullClient({ failSelect: true });
+  account.configure({ client, protocol: 'https:', metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) });
+  account.setUserForTest({ id: 'u1' });
+
+  let result;
+  await assert.doesNotReject(async () => { result = await account.sync(); });
+  assert.strictEqual(result, false);
+});
+
+test('a pulled vehicle referencing a missing photo triggers exactly one download', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: { car: { photoId: 'p1' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let downloads = 0;
+  client.storage = { from: () => ({ download: () => { downloads++; return Promise.resolve({ data: { type: 'image/jpeg' }, error: null }); } }) };
+  const putCalls = [];
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve(null),
+    putPhotoBlob: (id, blob) => { putCalls.push(id); return Promise.resolve(true); },
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true)
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(downloads, 1);
+  assert.deepStrictEqual(putCalls, ['p1']);
+});
+
+test('a pulled vehicle referencing a photo already local does not download it', async () => {
+  account.reset();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: { car: { photoId: 'p1' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  let downloads = 0;
+  client.storage = { from: () => ({ download: () => { downloads++; return Promise.resolve({ data: {}, error: null }); } }) };
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }),
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true)
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(downloads, 0);
+});
+
+/* ============================================================
+   Fix 2: a deleted vehicle can resurrect across drains.
+
+   enqueueTombstone(id) must remove any already-queued 'vehicle' entry for
+   the same vehicleId — Phase 4a's old pushTombstone had the equivalent
+   clearDirty(id) guard, lost when the outbox replaced the dirty list.
+   ============================================================ */
+test('enqueueTombstone removes an already-queued vehicle entry for the same id', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueVehicle('v1', { car: { nickname: 'A' } });
+  await account.enqueueTombstone('v1');
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 1, 'the stale vehicle entry must be dropped — only the tombstone remains');
+  assert.strictEqual(entries[0].kind, 'tombstone');
+  assert.strictEqual(entries[0].vehicleId, 'v1');
+});
+
+test('enqueueTombstone is a no-op filter when no vehicle entry is queued for the id', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  // An unrelated vehicle entry must survive untouched — the filter targets
+  // only entries matching THIS vehicleId, not "any vehicle entry".
+  await account.enqueueVehicle('other', { car: {} });
+  await account.enqueueTombstone('v1');   // no 'v1' vehicle entry is queued — must not throw or assume one exists
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 2);
+  assert.ok(entries.some(e => e.kind === 'vehicle' && e.vehicleId === 'other'), 'the unrelated vehicle entry must survive');
+  assert.ok(entries.some(e => e.kind === 'tombstone' && e.vehicleId === 'v1'));
+});
+
+/* ============================================================
+   Fix 3: a sign-out mid-sync can write pulled data into a wiped store.
+
+   pullIncremental() captures the signed-in user when it starts; if the user
+   changes (signOut() nulling _user) partway through a multi-row batch,
+   applyPulledRow() must refuse to run for the remaining rows and the cursor
+   must not advance — the pull-side analogue of session.js's `_generation`
+   guard on the push side.
+   ============================================================ */
+test('a user change mid-sync (sign-out race) stops applying the rest of the batch and does not advance the cursor', async () => {
+  account.reset();
+  const rows = [
+    { id: 'v1', data: {}, updated_at: '2020-01-01T00:00:00.000Z', deleted_at: null },
+    { id: 'v2', data: {}, updated_at: '2020-06-01T00:00:00.000Z', deleted_at: null }
+  ];
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': rows } });
+  const savedIds = [];
+  let metaSetCalls = 0;
+  account.configure({
+    client, protocol: 'https:',
+    saveVehicle: id => {
+      savedIds.push(id);
+      // Simulates signOut() running while this row's write is in flight.
+      if (id === 'v1') account.setUserForTest(null);
+      return Promise.resolve({ ok: true, photoIds: [], data: {} });
+    },
+    metaGet: () => Promise.resolve({}),
+    metaSet: () => { metaSetCalls++; return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  const result = await account.sync();
+
+  assert.deepStrictEqual(savedIds, ['v1'], 'the row after the user changed must never reach saveVehicle');
+  assert.strictEqual(metaSetCalls, 0, 'the cursor must not advance when the batch is aborted mid-way');
+  assert.strictEqual(result, false, 'sync() must resolve false, not throw, when the sign-out race aborts the batch');
+});
+
+/* ============================================================
+   Fix 4: a deleted vehicle's photos were never removed from Storage.
+
+   enqueueTombstone(id, photoIds) must queue one 'photo-delete' outbox entry
+   per photoId, and drain() must delete each one from the 'photos' bucket.
+   ============================================================ */
+test('enqueueTombstone(id, photoIds) queues a photo-delete entry per id', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueTombstone('v1', ['p1', 'p2']);
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 3, 'the tombstone plus one photo-delete entry per photoId');
+  assert.strictEqual(entries.filter(e => e.kind === 'tombstone').length, 1);
+  const deletes = entries.filter(e => e.kind === 'photo-delete').map(e => e.photoId).sort();
+  assert.deepStrictEqual(deletes, ['p1', 'p2']);
+});
+
+test('enqueueTombstone with no photoIds queues no photo-delete entries', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.enqueueTombstone('v1');
+
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 1);
+  assert.strictEqual(entries[0].kind, 'tombstone');
+});
+
+test('a photo-delete entry drains by removing the object from Storage', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  const removed = [];
+  client.storage = { from: () => ({ remove: paths => { removed.push(paths); return Promise.resolve({ error: null }); } }) };
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1', ['p1']);
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.deepStrictEqual(removed, [['u1/p1']]);
+});
+
+test('a failed photo-delete leaves the entry queued for the next drain', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ rows: [] });
+  client.storage = { from: () => ({ remove: () => Promise.resolve({ error: new Error('offline') }) }) };
+  account.configure({ client, protocol: 'https:' });
+  account.setUserForTest({ id: 'u1' });
+  await account.enqueueTombstone('v1', ['p1']);
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1, 'the tombstone drained, but the photo-delete must stay queued');
+  const entries = await storage.outboxAll();
+  assert.strictEqual(entries.length, 1);
+  assert.strictEqual(entries[0].kind, 'photo-delete');
+});
+
+/* ============================================================
+   Fix 5: a transient photo-download failure could become permanent.
+
+   Before this fix, a photo that failed to download on one pull was only
+   ever retried if its vehicle's updated_at moved past the cursor again — a
+   photo-only failure never causes that, so the gap never closed on its
+   own. Failed ids now persist to meta.pendingPhotoDownloads and are retried
+   on every sync regardless of what (if anything) the cursor pulls.
+   ============================================================ */
+test('a failed photo download is recorded in meta.pendingPhotoDownloads', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ since: { '1970-01-01T00:00:00.000Z': [{ id: 'v1', data: { car: { photoId: 'p1' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  client.storage = { from: () => ({ download: () => Promise.resolve({ data: null, error: new Error('offline') }) }) };
+  let meta = {};
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve(null),
+    saveVehicle: () => Promise.resolve({ ok: true, photoIds: [], data: {} }),
+    metaGet: () => Promise.resolve(meta),
+    metaSet: patch => { meta = Object.assign({}, meta, patch); return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, ['p1']);
+});
+
+test('a pending photo download is retried on the next sync and cleared once it succeeds', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ since: {} });  // no new rows on either sync
+  let downloads = 0;
+  const putCalls = [];
+  client.storage = {
+    from: () => ({
+      download: () => {
+        downloads++;
+        return Promise.resolve(downloads === 1 ? { data: null, error: new Error('offline') } : { data: { type: 'image/jpeg' }, error: null });
+      }
+    })
+  };
+  let meta = { pendingPhotoDownloads: ['p1'], lastPulledAt: '2026-08-22T00:00:00.000Z' };
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve(null),
+    putPhotoBlob: (id) => { putCalls.push(id); return Promise.resolve(true); },
+    metaGet: () => Promise.resolve(meta),
+    metaSet: patch => { meta = Object.assign({}, meta, patch); return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  // sync() resolves true for both "ran clean, nothing new" and "ran clean,
+  // applied changes" (see its own doc comment) — it cannot tell the two
+  // apart from the outside, so both syncs below resolve true regardless of
+  // whether the retry succeeded. The retry's actual outcome is asserted
+  // through `meta` and `downloads`/`putCalls`, not sync()'s return value.
+  const first = await account.sync();
+  assert.strictEqual(downloads, 1);
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, ['p1'], 'still missing after a failed retry');
+  assert.strictEqual(first, true);
+
+  const second = await account.sync();
+
+  assert.strictEqual(downloads, 2);
+  assert.deepStrictEqual(putCalls, ['p1']);
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, [], 'cleared once the retry succeeds');
+  assert.strictEqual(second, true);
+});
+
+test('a photo already present locally is dropped from pendingPhotoDownloads without a network call', async () => {
+  account.reset();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.wipe();
+  const client = fullClient({ since: {} });
+  let downloads = 0;
+  client.storage = { from: () => ({ download: () => { downloads++; return Promise.resolve({ data: {}, error: null }); } }) };
+  let meta = { pendingPhotoDownloads: ['p1'] };
+  account.configure({
+    client, protocol: 'https:',
+    getPhotoBlob: () => Promise.resolve({ type: 'image/jpeg' }),  // already local
+    metaGet: () => Promise.resolve(meta),
+    metaSet: patch => { meta = Object.assign({}, meta, patch); return Promise.resolve(true); }
+  });
+  account.setUserForTest({ id: 'u1' });
+
+  await account.sync();
+
+  assert.strictEqual(downloads, 0);
+  assert.deepStrictEqual(meta.pendingPhotoDownloads, []);
 });
