@@ -1,54 +1,28 @@
 /* ============================================================
    Garage — 2016 Mazda 3 2.0 SkyActiv-G  ·  vanilla JS SPA
    Data persists in localStorage. Everything is editable in-app.
+
+   This is the last file loaded (see index.html). Everything else the app
+   needs — helpers, i18n, data/session, UI chrome, and the six page
+   modules — is already on the global object by the time this file's
+   top-level boot code runs. This file owns: the router, the vehicle
+   lifecycle (add/switch/delete/export/import), the garage switcher, the
+   account and settings dialogs, and the boot sequence itself.
    ============================================================ */
 'use strict';
 
-/* The pre-garage v1 key is read by storage.js (LEGACY_V1_KEY / readLegacyV1)
-   and seeded from in hydrate(). Nothing here writes it. */
-
-/* ---------- helpers ---------- */
-/* $, el, uid, fmt, sar, clamp, parseDate, monthsBetween, addMonths now live
-   in src/core/helpers.js (loaded as a script before this file). */
-
-/* The session owns the garage; app.js reads it through these. Phase 3c
-   deletes them along with this file, and each page module calls
-   session.current() directly. */
+/* The session owns the garage; this file reads it through these. */
 const save = () => session.save();
 const switchVehicle = id => session.switchVehicle(id);
 const revokeObjectUrls = () => session.revokeObjectUrls();
 const refreshPhotoUrls = () => session.refreshPhotoUrls();
-/* Status functions are pure now; these thread the session through so the
-   render code reads unchanged until Phase 3c moves it. */
+/* Status functions are pure; these thread the session through so call
+   sites across every page module stay unchanged. */
 const svKm = s => Status.svKm(s, session.current().severity);
 const svMo = s => Status.svMo(s, session.current().severity);
 const serviceStatus = s => Status.serviceStatus(s, { odometer: session.current().car.odometer, severity: session.current().severity });
 const servicesRanked = () => Status.servicesRanked(session.current());
 const healthScore = () => Status.healthScore(session.current());
-/* lang, t, relDate, applyNavLabels, applyLang now live in src/i18n/lang.js
-   (loaded as a script before this file). */
-
-/* ============================================================
-   SEED DATA — Mazda 3 2.0 SkyActiv-G, Saudi (severe) intervals
-   Odometer baseline ~155,000 km. All values editable in-app.
-   ============================================================ */
-/* buildProfile and seed now live in src/data/normalize.js (loaded as a
-   script before this file). */
-
-/* ---------- state / storage ---------- */
-/* The garage — { vehicles: [{ id, data }], activeId } — and the active
-   vehicle's data now live in src/data/session.js. Read them through
-   session.garage() and session.current(); nothing here holds a reference,
-   which is what will make sign-out a one-liner.
-   session.booted() guards navigation and chrome (tabs, settings, garage)
-   until boot has hydrated the session. A failed boot leaves it false so a
-   stray tap can't clear the error card and crash into a blank screen. */
-/* normalizeData now lives in src/data/normalize.js (loaded as a script
-   before this file). */
-/* Phase 3: the session (src/data/session.js) owns `state`, the photo Blob
-   cache and the object-URL registry, along with hydrate(), resolvePhotos(),
-   save(), prunePhotoBlobs() and cacheNewPhotos(). Reads stay synchronous —
-   the whole garage is hydrated at boot — so page code is unchanged. */
 
 /* The session switch plus the UI that has to follow it. session.switchVehicle
    only moves the active vehicle; the modal, persist and re-render are this
@@ -232,11 +206,6 @@ function importGarage(file) {
   reader.readAsText(file);
 }
 
-/* ---------- service status computation ---------- */
-/* svKm, svMo, serviceStatus, servicesRanked, healthScore now live in
-   src/data/status.js (pure — no session, no DOM). The adapters near the
-   top of this file thread the session through so call sites here are
-   unchanged. */
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
   const bad = servicesRanked().filter(r => r.st.level !== 'ok');
@@ -247,8 +216,6 @@ function openHealthBreakdown() {
     card.appendChild(list);
   });
 }
-/* yearSpend, renderBudget, openEditBudget, openAddSpending now live in
-   src/pages/budget.js. */
 
 /* ============================================================
    ROUTER
@@ -272,53 +239,6 @@ function go(route, intent) {
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.route)));
-
-/* SERVICE_PARTS, partCheapest, partsForService, servicesForPart, CRIT_HIGH,
-   CRIT_LOW, partCrit, critLevel, critLabel now live in src/pages/parts.js. */
-
-/* renderDashboard, recommendations, recCard now live in
-   src/pages/dashboard.js. */
-
-/* ============================================================
-   PAGE 2 — MAINTENANCE
-   ============================================================ */
-/* ---------- forward service plan (upcoming milestones, adapted to the car) ----------
-   Built from THIS vehicle's own services and their ACTUAL last-done point, so it
-   fits any car, projects forward from the current odometer, and self-adjusts when
-   a service was done off its recommended interval. Each service's future due points
-   (lastKm + n·interval) are computed at their true due distance, then merged into
-   workshop visits whenever two due points fall within MILESTONE_TOLERANCE_KM of each
-   other (see mergeMilestones in schedule.js) — never onto a fixed distance grid, and
-   never merging a service into a milestone it is already part of. Every milestone
-   carries a projected calendar date from the car's average driving. */
-/* planForward, renderMaintenance, buildPlan, logVisit, openLogConfirm,
-   openPlanSetup, buildSchedule, scheduleTimelineItem, buildHistory,
-   serviceItem, openServiceDetail (below), markServiceDone, openAddHistory,
-   openEditService, openLogService, openLogSingleService, openLogPlanVisit
-   now live in src/pages/maintenance.js. */
-
-/* renderParts, partCard now live in src/pages/parts.js. */
-
-/* reportType, renderReports, reportHTML, reportHeader, reportFooter,
-   reportService, reportPurchases, reportSummary, monthlyBars, spendEntry
-   now live in src/pages/reports.js. */
-
-/* recommendations, recCard now live in src/pages/dashboard.js. */
-
-/* ============================================================
-   MODALS
-   ============================================================ */
-/* fuelRows, renderFuel, fuelBars, openAddFuel now live in
-   src/pages/fuel.js. */
-
-/* DOC_ICONS, docStatus, docItem, openAddDoc, openEditOdo now live in
-   src/pages/documents.js. */
-
-/* openModal, closeModal, field now live in src/ui/modal.js. */
-
-/* carTitle, carInitials, renderTopbar now live in src/ui/chrome.js. */
-
-/* readImageResized, photoPicker, openImage now live in src/ui/photo.js. */
 
 function openGarage() {
   if (!session.booted()) return;
@@ -362,9 +282,9 @@ function askWhichGarage() {
        holding a user that has already authenticated. The server copy is the
        safe default: the local garage is still on disk either way.
 
-       openModal() assigns the backdrop handler as its last statement
-       (app.js:1457), so overriding it here wins. closeModal() itself has no
-       dismissal hook to subscribe to. */
+       openModal() assigns the backdrop handler as its last statement, so
+       overriding it here wins. closeModal() itself has no dismissal hook to
+       subscribe to. */
     $('#modalHost').querySelector('[data-close]').onclick = () => {
       if (answered) return;
       answered = true;
@@ -583,26 +503,12 @@ function openSettings() {
   });
 }
 
-/* openServiceDetail, markServiceDone, openAddHistory, openEditService,
-   openLogService, openLogSingleService, openLogPlanVisit now live in
-   src/pages/maintenance.js. */
-
-/* openEditBudget, openAddSpending now live in src/pages/budget.js. */
-
-/* openEditPart now lives in src/pages/parts.js. */
-
-/* sectionTitle, pageIntro, emptyState, iconSvg, toast, systemTheme,
-   applyTheme, themePref, setThemePref now live in src/ui/chrome.js. This
-   top-level wiring stays — it moves to main.js's boot block in Task 9, and
-   until then needs setThemePref/themePref/toast as globals, which chrome.js
-   now provides the same way app.js's own declarations did. */
 $('#themeToggle').onclick = () => {
   const next = nextTheme(themePref());
   setThemePref(next);
   toast(next === 'system' ? 'Theme: follows device' : next === 'light' ? 'Theme: light' : 'Theme: dark');
 };
 
-/* NAV_KEYS, applyNavLabels, applyLang now live in src/i18n/lang.js. */
 // follow the device unless the user has explicitly picked light or dark
 setThemePref(themePref());
 if (window.matchMedia) {
@@ -610,9 +516,6 @@ if (window.matchMedia) {
     if (themePref() === 'system') applyTheme(e.matches ? 'light' : 'dark');
   });
 }
-
-/* CAR_ACCENTS, hexToRgb, rgbToHex, darkenHex, accentForColor,
-   COLOR_SWATCHES, swatchFor, applyAccent now live in src/ui/chrome.js. */
 
 /* ---------- boot ---------- */
 $('#settingsBtn').onclick = openSettings;

@@ -64,7 +64,7 @@ const SCRIPTS = [
   'src/pages/budget.js',
   'src/pages/reports.js',
   'src/pages/documents.js',
-  'app.js'
+  'main.js'
 ];
 
 /* Guards against index.html and this list drifting apart.

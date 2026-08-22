@@ -21,7 +21,7 @@ function readDirJs(dir) {
     .map(f => fs.readFileSync(path.join(abs, f), 'utf8')).join('\n');
 }
 const APP = [
-  fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8'),
   readDirJs('src/pages'),
   readDirJs('src/ui')
 ].join('\n');
