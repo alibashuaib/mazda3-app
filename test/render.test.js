@@ -536,3 +536,71 @@ test('adding a vehicle while signed in automatically drains without any online e
     assert.strictEqual(size, 0, 'the automatic drain must have emptied the outbox');
   } finally { app.cleanup(); }
 });
+
+/* ============================================================
+   The delete path's analogue of the test above. enqueueTombstone() is
+   asynchronous (it reads the outbox, prunes any stale queued 'vehicle' entry
+   for the same id, THEN enqueues the tombstone) — so deleteVehicle() must
+   sequence its kickSync() call to run only after that promise resolves.
+   Firing it immediately, un-sequenced, races kickSync()'s drain() against
+   the write and lets the drain snapshot the outbox before the tombstone
+   lands in it, so the delete is not actually pushed until the next `online`
+   event or app boot. This proves a delete reaches the server WITHOUT any
+   `online` event firing, exactly like the save path above.
+   ============================================================ */
+test('deleting a vehicle while signed in automatically drains without any online event', async () => {
+  const upserts = { vehicles: [], garage: [] };
+  const stub = {
+    createClient: () => ({
+      auth: { getSession: () => Promise.resolve({ data: { session: null }, error: null }) },
+      from: table => ({
+        upsert(row) { upserts[table].push(row); return Promise.resolve({ error: null }); }
+      })
+    })
+  };
+  const app = await bootApp({ protocol: 'https:', supabaseStub: stub });
+  try {
+    const { document, api } = app;
+    api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+    const before = api.session.garage().vehicles.map(v => v.id);
+
+    // deleteVehicle() refuses to remove the last vehicle, so add a second one
+    // first (same dialog flow as the test above).
+    api.openAddVehicle();
+    const btn = [...document.querySelectorAll('#modalCard button')].pop();
+    await btn.onclick({ preventDefault() {} });
+
+    const added = api.session.garage().vehicles.map(v => v.id).filter(id => before.indexOf(id) < 0);
+    assert.strictEqual(added.length, 1, 'precondition: the dialog added exactly one vehicle');
+
+    // Let the add's own kickSync() drain settle first, so its 'vehicle' upsert
+    // does not get confused with the tombstone upsert this test asserts on.
+    let addDrainSize = await api.account.outboxSize();
+    const addDeadline = Date.now() + 2000;
+    while (addDrainSize !== 0 && Date.now() < addDeadline) {
+      await new Promise(r => setImmediate(r));
+      addDrainSize = await api.account.outboxSize();
+    }
+
+    const idToDelete = added[0];
+    await api.deleteVehicle(idToDelete);
+
+    // No `online` event is dispatched anywhere in this test — poll briefly
+    // for kickSync()'s un-awaited drain() to land the tombstone on its own.
+    // Polling on outboxSize() alone is unsafe here: enqueueTombstone() does
+    // its own async outboxAll() read before it ever writes the tombstone, so
+    // a poll loop keyed only on "size !== 0" can sample size === 0 before the
+    // tombstone is written at all and exit immediately, never having proven
+    // anything. Poll on the actual server-side effect instead.
+    const deadline = Date.now() + 2000;
+    let pushed = upserts.vehicles.some(r => r.id === idToDelete && r.deleted_at);
+    while (!pushed && Date.now() < deadline) {
+      await new Promise(r => setImmediate(r));
+      pushed = upserts.vehicles.some(r => r.id === idToDelete && r.deleted_at);
+    }
+
+    assert.ok(pushed,
+      'a delete must trigger an automatic drain (kickSync) without waiting for an `online` event');
+    assert.strictEqual(await api.account.outboxSize(), 0, 'the automatic drain must have emptied the outbox');
+  } finally { app.cleanup(); }
+});

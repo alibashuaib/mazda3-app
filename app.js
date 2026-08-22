@@ -114,11 +114,13 @@ async function deleteVehicle(id) {
   session.setVehicles(kept, session.garage().activeId === id ? kept[0].id : session.garage().activeId);
   const ok = await removeVehicle(id, session.garage().activeId); session.prunePhotoBlobs(); applyAccent(); renderTopbar(); go('dashboard');
   // Best-effort, not awaited: the local delete already succeeded and the UI has
-  // moved on. enqueueTombstone() writes to the outbox and returns; kickSync()
-  // (below) fires the actual push, with reconnect/next-boot as the fallback
-  // if this device is offline right now.
-  account.enqueueTombstone(id);
-  kickSync();
+  // moved on. enqueueTombstone() is itself async (it reads the outbox before
+  // writing the tombstone), so kickSync() is sequenced with .then() rather
+  // than fired immediately after — otherwise its drain() could snapshot the
+  // outbox before the tombstone was actually written to it. enqueueTombstone()
+  // never rejects on its own no-op paths, so no .catch() is needed here.
+  // reconnect/next-boot remains the fallback if this device is offline now.
+  account.enqueueTombstone(id).then(kickSync);
   if (ok) toast('Vehicle removed');
   else toast(t('Could not save your change.'), 'warn');
 }
@@ -207,7 +209,7 @@ function importGarage(file) {
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.enqueueTombstone(id); kickSync(); }
+        if (keptIds.indexOf(id) < 0) { await removeVehicle(id, session.garage().activeId); account.enqueueTombstone(id).then(kickSync); }
       }
       // The save loop minted fresh photo ids, so re-read from storage to bring
       // memory back in sync with what was actually persisted. session.load()
