@@ -44,16 +44,27 @@ const ROOT = path.join(__dirname, '..', '..');
 const SCRIPTS = [
   'src/core/helpers.js',
   'src/ui/html.js',
+  'src/ui/modal.js',
+  'src/ui/photo.js',
+  'src/ui/chrome.js',
   'src/data/catalog.js',
   'src/i18n/strings.ar.js',
-  'schedule.js',
-  'storage.js',
+  'src/i18n/lang.js',
+  'src/core/schedule.js',
+  'src/data/storage.js',
   'src/data/normalize.js',
   'src/data/session.js',
   'src/data/status.js',
   'src/data/account.js',
-  'ui.js',
-  'app.js'
+  'src/core/async-click.js',
+  'src/pages/dashboard.js',
+  'src/pages/maintenance.js',
+  'src/pages/parts.js',
+  'src/pages/fuel.js',
+  'src/pages/budget.js',
+  'src/pages/reports.js',
+  'src/pages/documents.js',
+  'main.js'
 ];
 
 /* Guards against index.html and this list drifting apart.

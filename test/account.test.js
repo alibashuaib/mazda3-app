@@ -95,7 +95,7 @@ test('stripPhotos removes photo payloads but keeps photo ids', () => {
 });
 
 const session = require('../src/data/session.js');
-const storage = require('../storage.js');
+const storage = require('../src/data/storage.js');
 
 /* Extends tableClient with reads. `rows` is what the server holds. */
 function fullClient(opts) {
@@ -426,7 +426,7 @@ test('pull rejects when the server is unreachable', async () => {
 
 test('adopting the server garage deletes local vehicles the server does not have', async () => {
   account.reset();
-  const storage2 = require('../storage.js');
+  const storage2 = require('../src/data/storage.js');
   await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
   await storage2.saveVehicle('local1', { car: { nickname: 'Stale' }, history: [], fuel: [], spending: [], docs: [] }, 'local1', () => 'p1');
   account.configure({ client: fullClient({}), protocol: 'https:' });
@@ -445,7 +445,7 @@ test('adopting the server garage deletes local vehicles the server does not have
 
 test('adopt persists the activeId session settled on, not the raw pulled one', async () => {
   account.reset();
-  const storage2 = require('../storage.js');
+  const storage2 = require('../src/data/storage.js');
   await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
   account.configure({ client: fullClient({}), protocol: 'https:' });
   session.clear();
@@ -690,7 +690,7 @@ test('drain() leaves a failed tombstone push queued for the next drain', async (
    push explicitly — see the app-level test in test/render.test.js. */
 test('a vehicle that was never pushed is deleted by the next adopt()', async () => {
   account.reset();
-  const storage2 = require('../storage.js');
+  const storage2 = require('../src/data/storage.js');
   await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
   const blank = () => ({ car: {}, history: [], fuel: [], spending: [], docs: [] });
   await storage2.saveVehicle('srv1', blank(), 'srv1', () => 'p1');
@@ -772,7 +772,7 @@ test('a failure after a successful pull still leaves the user anonymous', async 
    still on disk, the record just lost its `.photo`. */
 test('adopt re-resolves photo object URLs for the vehicles it pulls', async () => {
   account.reset();
-  const storage2 = require('../storage.js');
+  const storage2 = require('../src/data/storage.js');
   await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
   account.configure({ client: fullClient({}), protocol: 'https:' });
   session.configure({ makeObjectUrl: b => 'blob:' + b.tag, revokeObjectUrl: () => {} });
@@ -792,7 +792,7 @@ test('adopt re-resolves photo object URLs for the vehicles it pulls', async () =
 /* A server row written by an older build must be healed, not rendered raw. */
 test('adopt normalizes pulled records', async () => {
   account.reset();
-  const storage2 = require('../storage.js');
+  const storage2 = require('../src/data/storage.js');
   await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
   account.configure({ client: fullClient({}), protocol: 'https:' });
   session.clear();
@@ -892,7 +892,7 @@ test('enqueueTombstone cannot throw synchronously even with an exploding client'
 
 test('sync() drains the outbox, then pulls incrementally', async () => {
   account.reset();
-  const storage2 = require('../storage.js');
+  const storage2 = require('../src/data/storage.js');
   await storage2.openStorage({ protocol: 'https:', hasIndexedDb: true });
   await storage2.wipe();
   session.clear();

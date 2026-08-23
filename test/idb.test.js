@@ -13,7 +13,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { IDBFactory } = require('fake-indexeddb');
 
-const STORAGE = require.resolve('../storage.js');
+const STORAGE = require.resolve('../src/data/storage.js');
 const DATA_URL = 'data:image/jpeg;base64,AAECAw==';      // 4 bytes
 const OTHER_URL = 'data:image/png;base64,BBBB';
 
@@ -35,7 +35,7 @@ function freshStorage(seedLocal) {
     _store: store
   };
   delete require.cache[STORAGE];
-  return require('../storage.js');
+  return require('../src/data/storage.js');
 }
 
 const idb = () => new Promise((resolve, reject) => {

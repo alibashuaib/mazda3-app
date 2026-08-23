@@ -4,7 +4,27 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const APP = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+/* Phase 3c moves Phase 3b's converted code out of app.js piece by piece, into
+   src/pages/*.js and src/ui/*.js. The escaping guarantee this file polices
+   moved with it, so the scan must cover the same files the code now lives
+   in — app.js alone would only shrink every task until this guard's own
+   sanity floor (calls.length > 100) started failing on the split itself,
+   not on a real regression. Line numbers below are relative to this
+   concatenation, not any one file — good enough to locate a hit by content,
+   not by line, which matches how the existing failures are read (grep the
+   quoted snippet). Task 11 of Phase 3c removes app.js from this list
+   entirely once nothing remains in it. */
+function readDirJs(dir) {
+  const abs = path.join(__dirname, '..', dir);
+  if (!fs.existsSync(abs)) return '';
+  return fs.readdirSync(abs).filter(f => f.endsWith('.js'))
+    .map(f => fs.readFileSync(path.join(abs, f), 'utf8')).join('\n');
+}
+const APP = [
+  fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8'),
+  readDirJs('src/pages'),
+  readDirJs('src/ui')
+].join('\n');
 
 /* Every HTML string must be built by html``. An untagged template assigned to
    innerHTML is exactly the hole Phase 3b closed. */

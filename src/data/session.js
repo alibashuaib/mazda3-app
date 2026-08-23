@@ -10,8 +10,8 @@
   const isNode = typeof module !== 'undefined' && module.exports;
   const dep = isNode
     ? Object.assign({},
-        require('../../schedule.js'),
-        require('../../storage.js'),
+        require('../core/schedule.js'),
+        require('./storage.js'),
         require('../core/helpers.js'),
         require('./normalize.js'))
     : root;
