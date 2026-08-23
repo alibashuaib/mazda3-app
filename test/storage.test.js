@@ -1,12 +1,12 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../storage.js');
-const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../storage.js');
-const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults } = require('../storage.js');
-const { dataUrlToBlob, blobToDataUrl } = require('../storage.js');
-const { collectInlinePhotos } = require('../storage.js');
-const { openStorage } = require('../storage.js');
+const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../src/data/storage.js');
+const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../src/data/storage.js');
+const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults } = require('../src/data/storage.js');
+const { dataUrlToBlob, blobToDataUrl } = require('../src/data/storage.js');
+const { collectInlinePhotos } = require('../src/data/storage.js');
+const { openStorage } = require('../src/data/storage.js');
 
 const DATA_URL = 'data:image/jpeg;base64,AAAA';
 
@@ -460,7 +460,7 @@ test('outbox round-trips on the localStorage backend', async () => {
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
   delete require.cache[require.resolve('../storage.js')];
-  const storage = require('../storage.js');
+  const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
   await storage.outboxAdd({ id: 'o1', kind: 'photo', photoId: 'p1', createdAt: '2026-08-22T00:00:00.000Z' });
@@ -476,7 +476,7 @@ test('outboxAdd upserts on duplicate id, matching IndexedDB put() semantics', as
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
   delete require.cache[require.resolve('../storage.js')];
-  const storage = require('../storage.js');
+  const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
   await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'v1', data: { car: {} }, createdAt: '2026-08-22T00:00:00.000Z' });
@@ -494,7 +494,7 @@ test('metaGet/metaSet round-trip on the localStorage backend', async () => {
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
   delete require.cache[require.resolve('../storage.js')];
-  const storage = require('../storage.js');
+  const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
   await storage.metaSet({ lastPulledAt: 'x' });
@@ -507,7 +507,7 @@ test('getPhotoBlob/putPhotoBlob are no-ops on the localStorage backend', async (
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
   delete require.cache[require.resolve('../storage.js')];
-  const storage = require('../storage.js');
+  const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
   assert.strictEqual(await storage.putPhotoBlob('p1', {}), false);

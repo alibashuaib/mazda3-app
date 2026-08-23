@@ -7,7 +7,7 @@
 (function (root, factory) {
   const isNode = typeof module !== 'undefined' && module.exports;
   const dep = isNode
-    ? Object.assign({}, require('../../schedule.js'), require('../core/helpers.js'))
+    ? Object.assign({}, require('../core/schedule.js'), require('../core/helpers.js'))
     : root;
   const api = factory(dep);
   if (isNode) module.exports = api;

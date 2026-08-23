@@ -21,7 +21,7 @@
        an older build, and it must be healed before it reaches the renderer.
        In the browser the same accessor resolves off the global, where
        normalize.js publishes with Object.assign(root, api). */
-    ? Object.assign({}, require('../../storage.js'), require('../core/helpers.js'), require('./normalize.js'), { session: require('./session.js') })
+    ? Object.assign({}, require('./storage.js'), require('../core/helpers.js'), require('./normalize.js'), { session: require('./session.js') })
     : root;
   const api = factory(dep);
   if (isNode) module.exports = api;

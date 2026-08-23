@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence } = require('../schedule.js');
+const { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence } = require('../src/core/schedule.js');
 
 test('today() returns local midnight', () => {
   const d = today();
@@ -111,7 +111,7 @@ test('nextOverdueOccurrence advances correctly on the ordinary (non-exact-multip
   assert.ok(k > 312500);
 });
 
-const { withinHorizon } = require('../schedule.js');
+const { withinHorizon } = require('../src/core/schedule.js');
 
 const ms = iso => ({ date: new Date(iso + 'T00:00:00') });
 
@@ -133,7 +133,7 @@ test('withinHorizon never invents milestones that do not exist', () => {
   assert.deepStrictEqual(withinHorizon([], new Date('2027-01-01T00:00:00'), 3), []);
 });
 
-const { daysSince } = require('../schedule.js');
+const { daysSince } = require('../src/core/schedule.js');
 
 test('daysSince counts whole days', () => {
   const now = new Date('2026-08-10T00:00:00');
@@ -151,7 +151,7 @@ test('daysSince does not go negative for a future date', () => {
   assert.strictEqual(daysSince('2026-09-01', new Date('2026-08-10T00:00:00')), 0);
 });
 
-const { healthFrom } = require('../schedule.js');
+const { healthFrom } = require('../src/core/schedule.js');
 
 test('healthFrom returns 100 for no services or all healthy', () => {
   assert.strictEqual(healthFrom([]), 100);
@@ -167,7 +167,7 @@ test('healthFrom weights overdue above due-soon', () => {
   assert.strictEqual(healthFrom(['warn', 'ok', 'ok', 'ok']), 90);
 });
 
-const { nextTheme } = require('../schedule.js');
+const { nextTheme } = require('../src/core/schedule.js');
 
 test('nextTheme cycles system to light to dark and back', () => {
   assert.strictEqual(nextTheme('system'), 'light');

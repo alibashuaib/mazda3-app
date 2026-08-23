@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { onAsyncClick } = require('../ui.js');
+const { onAsyncClick } = require('../src/core/async-click.js');
 
 /* A button is only ever touched through .onclick and .disabled, so a plain
    object stands in for the element. */

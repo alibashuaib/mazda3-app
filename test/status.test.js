@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { svKm, svMo, serviceStatus, servicesRanked, healthScore } = require('../src/data/status.js');
-const { isoDate, today } = require('../schedule.js');
+const { isoDate, today } = require('../src/core/schedule.js');
 
 /* A service due exactly `kmAgo` km and `monthsAgo` months back. */
 function svc(name, opts) {
