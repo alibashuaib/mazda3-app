@@ -459,7 +459,7 @@ test('outbox round-trips on the localStorage backend', async () => {
     const m = new Map();
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
-  delete require.cache[require.resolve('../storage.js')];
+  delete require.cache[require.resolve('../src/data/storage.js')];
   const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
@@ -475,7 +475,7 @@ test('outboxAdd upserts on duplicate id, matching IndexedDB put() semantics', as
     const m = new Map();
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
-  delete require.cache[require.resolve('../storage.js')];
+  delete require.cache[require.resolve('../src/data/storage.js')];
   const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
@@ -493,7 +493,7 @@ test('metaGet/metaSet round-trip on the localStorage backend', async () => {
     const m = new Map();
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
-  delete require.cache[require.resolve('../storage.js')];
+  delete require.cache[require.resolve('../src/data/storage.js')];
   const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
@@ -506,7 +506,7 @@ test('getPhotoBlob/putPhotoBlob are no-ops on the localStorage backend', async (
     const m = new Map();
     return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
   })();
-  delete require.cache[require.resolve('../storage.js')];
+  delete require.cache[require.resolve('../src/data/storage.js')];
   const storage = require('../src/data/storage.js');
   await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
 
