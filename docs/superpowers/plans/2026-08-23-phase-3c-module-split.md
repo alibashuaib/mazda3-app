@@ -69,29 +69,29 @@ Each task: extract file(s) verbatim (prefixing bare dependency calls with
 `node --check app.js`, commit, push, confirm CI green before starting the
 next task.
 
-- [ ] **Task 1 — `src/i18n/lang.js`.** Lowest risk, no page dependencies.
-- [ ] **Task 2 — `src/ui/modal.js` and `src/ui/photo.js`.** Used by every
+- [x] **Task 1 — `src/i18n/lang.js`.** Lowest risk, no page dependencies.
+- [x] **Task 2 — `src/ui/modal.js` and `src/ui/photo.js`.** Used by every
       page's dialogs; must land before the page modules that call them.
-- [ ] **Task 3 — `src/ui/chrome.js`.** Depends on Task 1 (`t`) and session;
+- [x] **Task 3 — `src/ui/chrome.js`.** Depends on Task 1 (`t`) and session;
       `renderTopbar` is called from `main.js`'s router, so `main.js` must
       reach it as a global, same as today.
-- [ ] **Task 4 — `src/pages/dashboard.js`.**
-- [ ] **Task 5 — `src/pages/maintenance.js`.** Largest single file; contains
+- [x] **Task 4 — `src/pages/dashboard.js`.**
+- [x] **Task 5 — `src/pages/maintenance.js`.** Largest single file; contains
       the plan-setup wizard.
-- [ ] **Task 6 — `src/pages/parts.js`.**
-- [ ] **Task 7 — `src/pages/fuel.js` and `src/pages/budget.js`.**
-- [ ] **Task 8 — `src/pages/reports.js` and `src/pages/documents.js`.**
-- [ ] **Task 9 — `main.js`.** Everything left in `app.js` after Tasks 1-8:
+- [x] **Task 6 — `src/pages/parts.js`.**
+- [x] **Task 7 — `src/pages/fuel.js` and `src/pages/budget.js`.**
+- [x] **Task 8 — `src/pages/reports.js` and `src/pages/documents.js`.**
+- [x] **Task 9 — `main.js`.** Everything left in `app.js` after Tasks 1-8:
       router, vehicle lifecycle, garage switcher, account/settings dialogs,
       boot block. `app.js` should be empty but for its top banner comment
       after this task.
-- [ ] **Task 10 — Move `storage.js` → `src/data/storage.js`,
+- [x] **Task 10 — Move `storage.js` → `src/data/storage.js`,
       `schedule.js` → `src/core/schedule.js`, `ui.js` →
       `src/core/async-click.js`.** Update every `require()` path in
       `src/data/*.js`, `test/*.test.js`, `index.html`, `sw.js`, and
       `test/helpers/boot.js`. This is the widest blast radius in the plan —
       verify with a full `grep -rn "require('\.\./\.\./storage\|require('\.\./\.\./schedule\|require('\.\./\.\./ui" .` sweep after moving, and confirm nothing still points at the old root paths.
-- [ ] **Task 11 — Delete `app.js`.** Confirm `index.html` no longer
+- [x] **Task 11 — Delete `app.js`.** Confirm `index.html` no longer
       references it, confirm `test/helpers/boot.js`'s `SCRIPTS` list and its
       `assertScriptOrderMatchesIndexHtml` guard pass, confirm
       `test/no-raw-templates.test.js` and every render test still pass
