@@ -383,23 +383,6 @@ function openSettings() {
 
     let photo = c.photo || '';
 
-    const picker = el('div', 'photo-picker');
-    picker.innerHTML = html`
-      <div class="photo-preview" id="s_prev">${photo ? html`<img src="${photo}">` : '🚗'}</div>
-      <div class="photo-actions">
-        <button class="btn" id="s_pick">${photo ? t('Change photo') : t('Add photo')}</button>
-        <button class="btn ghost" id="s_rm" ${photo ? '' : 'hidden'} style="color:var(--danger)">${t('Remove')}</button>
-        <input type="file" accept="image/*" id="s_file" hidden>
-      </div>`;
-    card.appendChild(picker);
-    const prev = picker.querySelector('#s_prev');
-    picker.querySelector('#s_pick').onclick = () => picker.querySelector('#s_file').click();
-    picker.querySelector('#s_file').onchange = e => {
-      const f = e.target.files[0]; if (!f) return;
-      readImageResized(f, url => { photo = url; prev.innerHTML = html`<img src="${url}">`; picker.querySelector('#s_pick').textContent = t('Change photo'); picker.querySelector('#s_rm').hidden = false; });
-    };
-    picker.querySelector('#s_rm').onclick = () => { photo = ''; prev.innerHTML = '🚗'; picker.querySelector('#s_pick').textContent = t('Add photo'); picker.querySelector('#s_rm').hidden = true; };
-
     card.appendChild(field('Nickname (optional)', html`<input id="c_nick" value="${c.nickname || ''}" placeholder="${t('e.g. The Gray Ghost')}">`));
     const r1 = el('div', 'field-row');
     r1.append(field('Make', html`<input id="c_make" value="${c.make || ''}">`), field('Model', html`<input id="c_model" value="${c.model || ''}">`));

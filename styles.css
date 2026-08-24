@@ -206,6 +206,49 @@ body {
 .car-card.empty .cpb-ph { padding: 30px 0; }
 .cpb-ph .cpb-emoji { font-size: 32px; line-height: 1; }
 .cpb-ph small { font-size: 11px; font-weight: 650; letter-spacing: .2px; }
+
+/* Colour-aware 3D-style vehicle studio. The source render stays local and the
+   restrained pointer tilt supplies depth without a WebGL dependency. */
+.car-studio {
+  --tilt-x: 0deg; --tilt-y: 0deg;
+  min-height: 190px; isolation: isolate; text-align: left;
+  background:
+    radial-gradient(circle at 68% 34%, var(--accent-glow), transparent 40%),
+    linear-gradient(145deg, #202631, #0d1016);
+  perspective: 900px;
+}
+.car-studio::before {
+  content: ""; position: absolute; z-index: 0; width: 78%; height: 28%;
+  left: 12%; bottom: 23%; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,0,0,.38), transparent 68%);
+  filter: blur(10px); opacity: .5;
+}
+.studio-orbit {
+  position: absolute; inset: 13% 8% 25%; border: 1px solid var(--stroke);
+  border-radius: 50%; transform: rotate(-7deg); opacity: .55;
+}
+.studio-car {
+  position: absolute; z-index: 1; width: 112%; height: 112%; left: -7%; top: -10%;
+  object-fit: contain; mix-blend-mode: screen;
+  transform: rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(18px);
+  transform-origin: 52% 55%; transition: transform .25s cubic-bezier(.22,1,.36,1), filter .25s;
+  pointer-events: none;
+}
+.paint-red .studio-car { filter: sepia(.72) saturate(4.2) hue-rotate(316deg) brightness(.92) contrast(1.08); }
+.paint-blue .studio-car { filter: sepia(.7) saturate(3.2) hue-rotate(168deg) brightness(.88) contrast(1.12); }
+.paint-white .studio-car { filter: grayscale(1) brightness(1.42) contrast(.82); }
+.paint-black .studio-car { filter: grayscale(1) brightness(.54) contrast(1.25); }
+.paint-silver .studio-car { filter: grayscale(.85) brightness(1.13) contrast(.92); }
+.paint-titanium .studio-car { filter: sepia(.38) saturate(.8) hue-rotate(345deg) brightness(.82); }
+.paint-gray .studio-car { filter: saturate(.72) brightness(.9); }
+.studio-copy {
+  position: absolute; z-index: 2; left: 15px; right: 15px; bottom: 13px;
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 10px;
+}
+.studio-copy strong { color: #fff; font-size: 14px; max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-copy small { display: inline-flex; align-items: center; gap: 6px; color: #b9c2d0; font-size: 9px; max-width: 52%; }
+.paint-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--surface); }
+.studio-hint { position: absolute; z-index: 2; right: 12px; top: 10px; color: #8e99aa; font-size: 13px; }
 .hero::after {
   content: "";
   position: absolute; right: -40px; top: -50px;
@@ -523,6 +566,13 @@ body {
 @media (min-width: 760px) {
   .view .list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
   .view .list .empty { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  .top-row { display: grid; }
+  .top-row .car-card { min-height: 210px; }
+  .top-row .hero { min-height: 132px; }
+  .studio-copy strong { font-size: 15px; }
 }
 
 /* Laptop / desktop: left sidebar nav + wide multi-column content */

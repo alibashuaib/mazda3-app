@@ -17,14 +17,42 @@ function renderDashboard() {
   const spent = yearSpend(today().getFullYear());
   const budget = session.current().budget.annual;
 
-  // Car photo — its own container / banner
+  // The vehicle is the dashboard's visual anchor. A lightweight, colour-aware
+  // studio render gives the profile a configurator feel without shipping a 3D
+  // engine (or making offline use depend on one).
   const carName = session.current().car.nickname || [session.current().car.year, session.current().car.make, session.current().car.model].filter(Boolean).join(' ');
-  const carCard = el('button', 'card car-card' + (session.current().car.photo ? '' : ' empty'));
-  carCard.title = session.current().car.photo ? t('Change car photo') : t('Add a photo of your car');
-  carCard.innerHTML = session.current().car.photo
-    ? html`<img src="${session.current().car.photo}" alt="Your ${carName}"><div class="car-card-grad"></div><div class="car-card-cap">${carName}</div>`
-    : html`<span class="cpb-ph"><span class="cpb-emoji">🚗</span><small>${t('Add a photo of your car')}</small></span>`;
+  const paintName = session.current().car.color || 'Meteor Gray';
+  const paintKey = paintName.toLowerCase();
+  const paintClass = paintKey.includes('red') ? 'paint-red'
+    : paintKey.includes('blue') ? 'paint-blue'
+      : paintKey.includes('white') ? 'paint-white'
+        : paintKey.includes('black') ? 'paint-black'
+          : paintKey.includes('silver') ? 'paint-silver'
+            : paintKey.includes('titanium') || paintKey.includes('brown') ? 'paint-titanium'
+              : 'paint-gray';
+  const carCard = el('button', 'card car-card car-studio ' + paintClass);
+  carCard.title = t('Edit car profile');
+  carCard.setAttribute('aria-label', `${t('Edit car profile')}: ${carName}, ${paintName}`);
+  carCard.innerHTML = html`
+    <span class="studio-orbit" aria-hidden="true"></span>
+    <img class="studio-car" src="assets/mazda3-studio.png" alt="${carName} — ${paintName}">
+    <span class="studio-copy">
+      <strong>${carName}</strong>
+      <small><span class="paint-dot" style="background:${swatchFor(paintName)}"></span>${paintName}</small>
+    </span>
+    <span class="studio-hint" aria-hidden="true">↔</span>`;
   carCard.onclick = openSettings;
+  if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    carCard.onpointermove = e => {
+      const r = carCard.getBoundingClientRect();
+      carCard.style.setProperty('--tilt-x', `${((e.clientY - r.top) / r.height - .5) * -5}deg`);
+      carCard.style.setProperty('--tilt-y', `${((e.clientX - r.left) / r.width - .5) * 7}deg`);
+    };
+    carCard.onpointerleave = () => {
+      carCard.style.setProperty('--tilt-x', '0deg');
+      carCard.style.setProperty('--tilt-y', '0deg');
+    };
+  }
   const topRow = el('div', 'top-row');
   topRow.appendChild(carCard);
 

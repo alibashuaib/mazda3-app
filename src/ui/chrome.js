@@ -19,8 +19,8 @@ function renderTopbar() {
   $('#carTitle').textContent = carTitle();
   $('#carSub').textContent = [c.year, c.engine, c.transmission, c.color].filter(Boolean).join(' · ');
   const badge = $('#carBadge');
-  if (c.photo) { badge.classList.add('has-photo'); badge.innerHTML = html`<img src="${c.photo}" alt="">`; }
-  else { badge.classList.remove('has-photo'); badge.textContent = carInitials(); }
+  badge.classList.remove('has-photo');
+  badge.textContent = carInitials();
 }
 
 /* ============================================================
