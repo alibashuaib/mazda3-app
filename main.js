@@ -43,14 +43,17 @@ function openAddVehicle() {
     r.append(field('Current odometer (km)', html`<input id="av_odo" type="number" inputmode="numeric" value="0">`),
       field('Year', html`<input id="av_year" type="number" inputmode="numeric" placeholder="${t('e.g. 2019')}">`));
     card.appendChild(r);
-    const modelSel = card.querySelector('#av_model'), engSel = card.querySelector('#av_eng');
+    const colorField = field('Color', html`<select id="av_color"></select>`);
+    card.appendChild(colorField);
+    const modelSel = card.querySelector('#av_model'), engSel = card.querySelector('#av_eng'), colorSel = card.querySelector('#av_color');
     const fillEngines = () => { engSel.innerHTML = html`${CAR_MODELS[+modelSel.value].engines.map((e, i) => html`<option value="${i}">${e[0]}</option>`)}`; };
-    modelSel.value = '1'; fillEngines();          // default to Mazda 3 BM
-    modelSel.onchange = fillEngines;
+    const fillColors = () => { colorSel.innerHTML = html`${CAR_MODELS[+modelSel.value].colors.map(x => html`<option value="${x}">${x}</option>`)}`; };
+    modelSel.value = '1'; fillEngines(); fillColors();          // default to Mazda 3 BM
+    modelSel.onchange = () => { fillEngines(); fillColors(); };
     const b = el('button', 'btn primary block', html`${t('Add a vehicle')}`);
     onAsyncClick(b, async () => {
       const m = CAR_MODELS[+modelSel.value];
-      const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '' }));
+      const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '', color: colorSel.value }));
       const v = { id: uid(), data };
       session.setVehicles(session.garage().vehicles.concat([v]), v.id);
       const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
@@ -387,20 +390,10 @@ function openSettings() {
     const r1 = el('div', 'field-row');
     r1.append(field('Make', html`<input id="c_make" value="${c.make || ''}">`), field('Model', html`<input id="c_model" value="${c.model || ''}">`));
     card.appendChild(r1);
-    const MAZDA3_COLORS = [
-      'Soul Red Metallic (Code 41V)',
-      'Snowflake White Pearl Mica (Code 25D)',
-      'Jet Black Mica (Code 41W)',
-      'Deep Crystal Blue Mica (Code 42M)',
-      'Blue Reflex Mica (Code 42B)',
-      'Meteor Gray Mica (Code 42A)',
-      'Liquid Silver Metallic (Code 38P)',
-      'Titanium Flash Mica (Code 42S)'
-    ];
     const normColor = s => (s || '').toLowerCase().replace(/\s*\(code.*\)/, '').trim();
-    let colorOpts = MAZDA3_COLORS.slice();
-    let colorSel = MAZDA3_COLORS.find(x => normColor(x) === normColor(c.color));
-    if (c.color && !colorSel) { colorOpts = [c.color, ...MAZDA3_COLORS]; colorSel = c.color; }
+    const modelMeta = CAR_MODELS.find(m => m.id === c.modelId);
+    const colorOpts = modelMeta ? modelMeta.colors.slice() : [c.color || DEFAULT_COLOR];
+    const colorSel = colorOpts.find(x => normColor(x) === normColor(c.color)) || colorOpts[0];
     const r2 = el('div', 'field-row');
     r2.append(field('Year', html`<input id="c_year" type="number" value="${c.year || ''}">`),
       field('Transmission', html`<select id="c_trans">${['Automatic', 'Manual'].map(tr => html`<option value="${tr}" ${c.transmission === tr ? 'selected' : ''}>${t(tr)}</option>`)}</select>`));

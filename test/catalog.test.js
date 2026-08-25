@@ -3,12 +3,16 @@ const test = require('node:test');
 const assert = require('node:assert');
 const cat = require('../src/data/catalog.js');
 
-test('CAR_MODELS entries all carry an id, a model and at least one engine', () => {
+test('CAR_MODELS entries all carry an id, a model, engines and factory colors', () => {
   assert.ok(cat.CAR_MODELS.length > 0);
   cat.CAR_MODELS.forEach(m => {
     assert.ok(m.id, 'model needs an id');
     assert.ok(m.model, `${m.id} needs a model name`);
     assert.ok(Array.isArray(m.engines) && m.engines.length, `${m.id} needs engines`);
+    assert.ok(Array.isArray(m.colors) && m.colors.length, `${m.id} needs factory colors`);
+    m.colors.forEach(color => {
+      assert.ok(cat.MAZDA_PAINTS[color], `${m.id} color needs a swatch: ${color}`);
+    });
     m.engines.forEach(([code, oilL]) => {
       assert.strictEqual(typeof code, 'string');
       assert.strictEqual(typeof oilL, 'number');
@@ -18,6 +22,12 @@ test('CAR_MODELS entries all carry an id, a model and at least one engine', () =
 
 test('the default Mazda 3 BM is present, since seed() depends on it', () => {
   assert.ok(cat.CAR_MODELS.find(m => m.id === 'mazda3bm'));
+});
+
+test('the expanded lineup keeps distinct old and new SUV generations', () => {
+  ['cx9tb', 'cx9', 'cx50', 'cx60', 'cx70', 'cx80', 'cx90', 'cx5gen3'].forEach(id => {
+    assert.ok(cat.CAR_MODELS.find(m => m.id === id), `${id} must be selectable`);
+  });
 });
 
 test('skyactivServices threads the oil capacity through and gives every service an interval', () => {
@@ -39,9 +49,26 @@ test('part builders produce fresh ids on every call', () => {
 });
 
 test('sharedParts is the generic fallback and is non-empty', () => {
-  const p = cat.sharedParts();
+  const p = cat.sharedParts('cx5kf');
   assert.ok(p.length > 0);
-  p.forEach(x => assert.ok(x.name && Array.isArray(x.options)));
+  p.forEach(x => {
+    assert.ok(x.name && Array.isArray(x.options));
+    assert.ok(cat.partFitsCar(x, { modelId: 'cx5kf' }));
+  });
+});
+
+test('parts are model-locked unless explicitly shareable', () => {
+  const bm = cat.mazda3Parts();
+  const filter = bm.find(p => p.name === 'Oil Filter');
+  const brakeFluid = bm.find(p => p.name === 'Brake Fluid (DOT 4)');
+  assert.ok(cat.partFitsCar(filter, { modelId: 'mazda3bm' }));
+  assert.ok(!cat.partFitsCar(filter, { modelId: 'cx90' }));
+  assert.ok(cat.partFitsCar(brakeFluid, { modelId: 'cx90' }));
+});
+
+test('ATF-FZ is excluded from Mazda large-platform parts', () => {
+  assert.ok(cat.sharedParts('cx5kf').some(p => p.name === 'ATF FZ (per liter)'));
+  assert.ok(!cat.sharedParts('cx90').some(p => p.name === 'ATF FZ (per liter)'));
 });
 
 test('the three single-part builders return a named part with options', () => {

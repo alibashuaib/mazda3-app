@@ -5,6 +5,38 @@
    ============================================================ */
 'use strict';
 
+function studioCarImage(color, car) {
+  const modelId = car && car.modelId;
+  const modelImages = {
+    mazda2: 'assets/mazda2-dj.png',
+    mazda3bp: 'assets/mazda3-bp.png',
+    mazda6: 'assets/mazda6-gj.png',
+    cx3: 'assets/mazda-cx3-dk.png',
+    cx30: 'assets/mazda-cx30-dm.png',
+    cx5ke: 'assets/mazda-cx5-ke.png',
+    cx5kf: 'assets/mazda-cx5-kf.png',
+    cx5gen3: 'assets/mazda-cx5-gen3.png',
+    cx9tb: 'assets/mazda-cx9-tb.png',
+    cx9: 'assets/mazda-cx9-tc.png',
+    cx50: 'assets/mazda-cx50.png',
+    cx60: 'assets/mazda-cx60.png',
+    cx70: 'assets/mazda-cx70.png',
+    cx80: 'assets/mazda-cx80.png',
+    cx90: 'assets/mazda-cx90.png'
+  };
+  if (modelImages[modelId]) return modelImages[modelId];
+  if (modelId !== 'mazda3bm') return '';
+  const c = (color || '').toLowerCase();
+  if (c.includes('soul red') || c === 'red') return 'assets/mazda3-soul-red.png';
+  if (c.includes('snowflake') || c.includes('white')) return 'assets/mazda3-snowflake-white.png';
+  if (c.includes('jet black') || c === 'black') return 'assets/mazda3-jet-black.png';
+  if (c.includes('deep crystal')) return 'assets/mazda3-deep-crystal-blue.png';
+  if (c.includes('blue reflex')) return 'assets/mazda3-blue-reflex.png';
+  if (c.includes('liquid silver') || c === 'silver') return 'assets/mazda3-liquid-silver.png';
+  if (c.includes('titanium flash') || c.includes('bronze') || c.includes('brown')) return 'assets/mazda3-titanium-flash.png';
+  return 'assets/mazda3-studio.png';
+}
+
 /* ============================================================
    PAGE 1 — DASHBOARD
    ============================================================ */
@@ -22,37 +54,14 @@ function renderDashboard() {
   // engine (or making offline use depend on one).
   const carName = session.current().car.nickname || [session.current().car.year, session.current().car.make, session.current().car.model].filter(Boolean).join(' ');
   const paintName = session.current().car.color || 'Meteor Gray';
-  const paintKey = paintName.toLowerCase();
-  const paintClass = paintKey.includes('red') ? 'paint-red'
-    : paintKey.includes('blue') ? 'paint-blue'
-      : paintKey.includes('white') ? 'paint-white'
-        : paintKey.includes('black') ? 'paint-black'
-          : paintKey.includes('silver') ? 'paint-silver'
-            : paintKey.includes('titanium') || paintKey.includes('brown') ? 'paint-titanium'
-              : 'paint-gray';
-  const carCard = el('button', 'card car-card car-studio ' + paintClass);
+  const carCard = el('div', 'card car-card car-studio');
+  const modelId = session.current().car.modelId || 'unknown';
+  carCard.dataset.vehicleShape = modelId === 'mazda2' ? 'hatch' : /^cx/.test(modelId) ? 'suv' : 'sedan';
   carCard.title = t('Edit car profile');
-  carCard.setAttribute('aria-label', `${t('Edit car profile')}: ${carName}, ${paintName}`);
+  const carImage = studioCarImage(paintName, session.current().car);
   carCard.innerHTML = html`
     <span class="studio-orbit" aria-hidden="true"></span>
-    <img class="studio-car" src="assets/mazda3-studio.png" alt="${carName} — ${paintName}">
-    <span class="studio-copy">
-      <strong>${carName}</strong>
-      <small><span class="paint-dot" style="background:${swatchFor(paintName)}"></span>${paintName}</small>
-    </span>
-    <span class="studio-hint" aria-hidden="true">↔</span>`;
-  carCard.onclick = openSettings;
-  if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-    carCard.onpointermove = e => {
-      const r = carCard.getBoundingClientRect();
-      carCard.style.setProperty('--tilt-x', `${((e.clientY - r.top) / r.height - .5) * -5}deg`);
-      carCard.style.setProperty('--tilt-y', `${((e.clientX - r.left) / r.width - .5) * 7}deg`);
-    };
-    carCard.onpointerleave = () => {
-      carCard.style.setProperty('--tilt-x', '0deg');
-      carCard.style.setProperty('--tilt-y', '0deg');
-    };
-  }
+    ${carImage ? html`<img class="studio-car" src="${carImage}" alt="${carName} — ${paintName}">` : ''}`;
   const topRow = el('div', 'top-row');
   topRow.appendChild(carCard);
 
@@ -95,6 +104,15 @@ function renderDashboard() {
   [...tiles.children].forEach(t => { t.style.cursor = 'pointer'; });
   v.appendChild(tiles);
 
+  // Keep the two most common actions above the fold on phones.
+  const row = el('div', 'fab-row dashboard-actions');
+  const bLog = el('button', 'btn primary block', html`${iconSvg('check')}${t('Log a service')}`);
+  bLog.onclick = () => openLogService();
+  const bSpend = el('button', 'btn block', html`${iconSvg('plus')}${t('Add spending')}`);
+  bSpend.onclick = () => openAddSpending();
+  row.append(bLog, bSpend);
+  v.appendChild(row);
+
   // Stale mileage quietly corrupts every due date — nudge, don't nag.
   const odoAge = daysSince(session.current().car.odoUpdatedAt, today());
   if (odoAge >= 14) {
@@ -130,15 +148,6 @@ function renderDashboard() {
   if (!docs.length) docsList.appendChild(emptyState('📄', 'No documents yet.\nAdd insurance, Istimara or license expiry.'));
   docs.forEach(d => docsList.appendChild(docItem(d)));
   v.appendChild(docsList);
-
-  // quick actions
-  const row = el('div', 'fab-row');
-  const bLog = el('button', 'btn primary block', html`${iconSvg('check')}${t('Log a service')}`);
-  bLog.onclick = () => openLogService();
-  const bSpend = el('button', 'btn block', html`${iconSvg('plus')}${t('Add spending')}`);
-  bSpend.onclick = () => openAddSpending();
-  row.append(bLog, bSpend);
-  v.appendChild(row);
 
   // Recommendations (dashboard only)
   v.appendChild(sectionTitle('Recommendations', '', null));

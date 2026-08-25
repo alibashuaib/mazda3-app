@@ -20,6 +20,10 @@ const AR = {
   // page intros
   'Your service schedule and full work history — tracked by distance and time.': 'جدول الصيانة وسجل الأعمال الكامل — حسب المسافة والوقت.',
   'Car Parts': 'قطع السيارة', 'OEM parts with cheaper alternatives, prices and where to buy. Tap a part to compare.': 'قطع أصلية مع بدائل أرخص، الأسعار وأماكن الشراء. اضغط على قطعة للمقارنة.',
+  'Only compatible parts are shown. Shared consumables are marked ↔; vehicle-locked parts are marked 🔒.': 'تظهر القطع المتوافقة فقط. المستهلكات المشتركة بعلامة ↔، والقطع الخاصة بالسيارة بعلامة 🔒.',
+  'Shared consumable': 'مستهلك مشترك', 'This vehicle only': 'لهذه السيارة فقط',
+  'Shared consumable across compatible Mazda models': 'مستهلك مشترك بين طرازات مازدا المتوافقة',
+  'Locked to': 'مخصص لـ', 'this vehicle': 'هذه السيارة',
   'Log fill-ups to track economy (L/100 km) and running cost.': 'سجّل التعبئة لتتبع الاستهلاك (ل/100كم) وتكلفة التشغيل.',
   'Budget & Spending': 'الميزانية والمصروفات', 'Track what your Mazda costs to run and keep it in top shape.': 'تابع تكلفة تشغيل سيارتك وحافظ عليها بأفضل حال.',
   'Generate a clean, printable A4 report — then Print or Save as PDF.': 'أنشئ تقرير A4 واضح للطباعة — ثم اطبعه أو احفظه PDF.',

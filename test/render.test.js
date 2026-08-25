@@ -110,18 +110,16 @@ test('all three report types render', () => withBoot(async ({ document, api, eva
   }
 }));
 
-/* The escaping acceptance criterion, end to end through a real render.
-
-   The nickname only reaches #view through the car card's photo branch — the
-   seeded car has no photo, so a nickname alone renders nothing and the
-   assertion below would hold vacuously. Setting a photo is what makes this a
-   test. It caught a live XSS on the dashboard the first time it ran. */
-test('a hostile vehicle nickname renders as text, not markup', () => withBoot(async ({ document, api }) => {
-  api.session.current().car.photo = 'blob:test/car';
+/* The visible caption was retired from the car studio, but the nickname still
+   reaches the image's accessible description. Keep exercising
+   that attribute boundary end to end so the original dashboard XSS remains
+   covered without requiring the name to be printed on the car card. */
+test('a hostile vehicle nickname stays inert in the car description', () => withBoot(async ({ document, api }) => {
   api.session.current().car.nickname = '<img src=x onerror=alert(1)>';
   api.go('dashboard');
   const view = document.querySelector('#view');
-  assert.ok(view.textContent.includes('onerror=alert(1)'), 'the payload never reached #view — this test proves nothing');
+  const car = view.querySelector('img.studio-car');
+  assert.ok(car.getAttribute('alt').includes('onerror=alert(1)'), 'the payload never reached the accessible description — this test proves nothing');
   assert.strictEqual(view.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
 }));
 

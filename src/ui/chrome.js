@@ -106,16 +106,7 @@ function accentForColor(name) {
 }
 
 /* real-paint swatches for the colour dropdown */
-const COLOR_SWATCHES = {
-  'Soul Red Metallic (Code 41V)': '#a5141b',
-  'Snowflake White Pearl Mica (Code 25D)': '#eef0f2',
-  'Jet Black Mica (Code 41W)': '#15161a',
-  'Deep Crystal Blue Mica (Code 42M)': '#1e3a6e',
-  'Blue Reflex Mica (Code 42B)': '#2f6fae',
-  'Meteor Gray Mica (Code 42A)': '#59626e',
-  'Liquid Silver Metallic (Code 38P)': '#b9bec5',
-  'Titanium Flash Mica (Code 42S)': '#6d6e72'
-};
+const COLOR_SWATCHES = typeof MAZDA_PAINTS === 'undefined' ? {} : MAZDA_PAINTS;
 function swatchFor(name) { return COLOR_SWATCHES[name] || accentForColor(name)[0]; }
 function applyAccent() {
   const [acc, soft] = accentForColor(session.current().car && session.current().car.color);

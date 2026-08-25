@@ -22,16 +22,63 @@ test('buildProfile baselines every service at the current odometer', () => {
   });
 });
 
-test('buildProfile falls back to a known model for an unknown id', () => {
-  const v = buildProfile('no-such-model', 0, {});
-  assert.ok(v.car.model, 'must still produce a usable car');
-  assert.ok(v.services.length > 0);
+test('buildProfile rejects an unknown model instead of silently using Mazda 3 BM', () => {
+  assert.throws(() => buildProfile('no-such-model', 0, {}), /Unknown Mazda model/);
+});
+
+test('normalizeData keeps an unknown model unknown instead of silently using Mazda 3 BM', () => {
+  const s = normalizeData({ car: { model: 'RX-8', color: 'Velocity Red Mica' } });
+  assert.strictEqual(s.car.modelId, '');
+  assert.strictEqual(s.car.model, 'RX-8');
+  assert.strictEqual(s.car.color, 'Velocity Red Mica');
+});
+
+test('buildProfile accepts only colors available for the selected generation', () => {
+  const valid = buildProfile('cx70', 0, { color: 'Melting Copper Metallic (Code 52H)' });
+  const invalid = buildProfile('cx70', 0, { color: 'Ingot Blue Metallic (Code 48B)' });
+  assert.strictEqual(valid.car.color, 'Melting Copper Metallic (Code 52H)');
+  assert.strictEqual(invalid.car.color, 'Melting Copper Metallic (Code 52H)');
+});
+
+test('normalizeData replaces a legacy color unavailable on that generation', () => {
+  const s = normalizeData({ car: { modelId: 'cx50', model: 'CX-50', color: 'Meteor Gray Mica (Code 42A)' } });
+  assert.strictEqual(s.car.color, 'Machine Gray Metallic (Code 46G)');
+});
+
+test('normalizeData removes incompatible explicitly-fitted parts', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G' },
+    parts: [{ name: 'BM Oil Filter', cat: 'Engine', options: [], fitment: { shareable: false, modelIds: ['mazda3bm'] } }]
+  });
+  assert.ok(!s.parts.some(p => p.name === 'BM Oil Filter'));
+  assert.ok(!s.parts.some(p => p.name === 'ATF FZ (per liter)'));
+  assert.ok(!s.parts.some(p => p.name === 'Transmission Fluid Filter'));
+});
+
+test('normalizeData preserves shareable consumables across models', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G' },
+    parts: [{ name: 'Brake Fluid (DOT 4)', cat: 'Brakes', options: [], fitment: { shareable: true, modelIds: [] } }]
+  });
+  assert.ok(s.parts.some(p => p.name === 'Brake Fluid (DOT 4)'));
+});
+
+test('buildProfile selects the part catalog for the requested model', () => {
+  assert.ok(buildProfile('cx5kf', 0, {}).parts.some(p => p.name === 'ATF FZ (per liter)'));
+  assert.ok(!buildProfile('cx90', 0, {}).parts.some(p => p.name === 'ATF FZ (per liter)'));
 });
 
 test('seed is the owner 2016 Mazda 3 at 316,000 km', () => {
   const v = seed();
   assert.strictEqual(v.car.odometer, 316000);
   assert.strictEqual(v.car.year, 2016);
+});
+
+test('normalizeData infers generation-specific CX models from model and year', () => {
+  assert.strictEqual(normalizeData({ car: { model: 'CX-9', year: 2012 } }).car.modelId, 'cx9tb');
+  assert.strictEqual(normalizeData({ car: { model: 'CX-9', year: 2019 } }).car.modelId, 'cx9');
+  assert.strictEqual(normalizeData({ car: { model: 'CX-5', year: 2026 } }).car.modelId, 'cx5gen3');
+  assert.strictEqual(normalizeData({ car: { model: 'CX-90', year: 2025 } }).car.modelId, 'cx90');
 });
 
 /* Regression for the boot crash fixed in 0ca1bb9: renderDashboard and

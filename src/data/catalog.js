@@ -19,17 +19,60 @@
    a fresh profile from here — light, offline, and cloud-ready.
    ============================================================ */
 const DEFAULT_COLOR = 'Meteor Gray Mica (Code 42A)';
+const MAZDA_PAINTS = {
+  'Soul Red Metallic (Code 41V)': '#8f0c13',
+  'Soul Red Crystal Metallic (Code 46V)': '#9e1218',
+  'Copper Red Mica (Code 32V)': '#7c2620',
+  'Zeal Red Mica (Code 41G)': '#8f2020',
+  'Artisan Red Premium (Code 51F)': '#54161b',
+  'Snowflake White Pearl Mica (Code 25D)': '#eef0f2',
+  'Crystal White Pearl Mica (Code 34K)': '#f2f0eb',
+  'Rhodium White Premium (Code 51K)': '#e4e4df',
+  'Wind Chill Pearl (Code 48K)': '#f1f1ed',
+  'Jet Black Mica (Code 41W)': '#15161a',
+  'Brilliant Black Clearcoat (Code A3F)': '#111214',
+  'Deep Crystal Blue Mica (Code 42M)': '#1e3a6e',
+  'Blue Reflex Mica (Code 42B)': '#2f6fae',
+  'Dynamic Blue Mica (Code 44J)': '#1760a0',
+  'Eternal Blue Mica (Code 45B)': '#315c72',
+  'Ingot Blue Metallic (Code 48B)': '#364d57',
+  'Navy Blue Mica': '#172638',
+  'Stormy Blue Mica (Code 35J)': '#344957',
+  'Meteor Gray Mica (Code 42A)': '#59626e',
+  'Machine Gray Metallic (Code 46G)': '#4c5054',
+  'Polymetal Gray Metallic (Code 47C)': '#4e5b62',
+  'Aero Gray Metallic (Code 52C)': '#8d9495',
+  'Dolphin Gray Mica (Code 39T)': '#5f6568',
+  'Metropolitan Gray Mica (Code 36C)': '#5b6064',
+  'Titanium Flash Mica (Code 42S)': '#5b5148',
+  'Liquid Silver Metallic (Code 38P)': '#b9bec5',
+  'Sonic Silver Metallic (Code 45P)': '#aeb3b7',
+  'Platinum Quartz Metallic (Code 47S)': '#b7afa1',
+  'Ceramic Metallic (Code 47A)': '#c5c6c2',
+  'Zircon Sand Metallic (Code 48T)': '#8a8068',
+  'Melting Copper Metallic (Code 52H)': '#8a5140',
+  'Cypress (Code 52T)': '#39483d',
+  'Sky Blue Mica (Code 41B)': '#6b8799'
+};
+const paints = (...names) => names;
 // { id, model, generation, engines: [[code, oilLitresWithFilter], …] }
 const CAR_MODELS = [
-  { id: 'mazda2',   model: '2',     gen: 'DJ · 2015+',      engines: [['1.5L SkyActiv-G', 3.6]] },
-  { id: 'mazda3bm', model: '3',     gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L SkyActiv-G', 3.9]] },
-  { id: 'mazda3bp', model: '3',     gen: 'BP · 2019+',      engines: [['2.0L SkyActiv-G', 4.2], ['1.5L SkyActiv-G', 3.6], ['2.5L SkyActiv-G', 4.5]] },
-  { id: 'mazda6',   model: '6',     gen: 'GJ/GL · 2013+',   engines: [['2.5L SkyActiv-G', 4.5], ['2.0L SkyActiv-G', 4.3]] },
-  { id: 'cx3',      model: 'CX-3',  gen: 'DK · 2015+',      engines: [['2.0L SkyActiv-G', 4.2]] },
-  { id: 'cx30',     model: 'CX-30', gen: 'DM · 2019+',      engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.5]] },
-  { id: 'cx5ke',    model: 'CX-5',  gen: 'KE · 2012–16',    engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.8]] },
-  { id: 'cx5kf',    model: 'CX-5',  gen: 'KF · 2017+',      engines: [['2.5L SkyActiv-G', 4.8], ['2.0L SkyActiv-G', 4.2]] },
-  { id: 'cx9',      model: 'CX-9',  gen: 'TC · 2016+',      engines: [['2.5L Turbo SkyActiv-G', 5.4]] }
+  { id: 'mazda2', model: '2', gen: 'DJ · 2015+', engines: [['1.5L SkyActiv-G', 3.6]], colors: paints('Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Machine Gray Metallic (Code 46G)', 'Ceramic Metallic (Code 47A)', 'Platinum Quartz Metallic (Code 47S)') },
+  { id: 'mazda3bm', model: '3', gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L SkyActiv-G', 3.9]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Liquid Silver Metallic (Code 38P)', 'Titanium Flash Mica (Code 42S)') },
+  { id: 'mazda3bp', model: '3', gen: 'BP · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['1.5L SkyActiv-G', 3.6], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)') },
+  { id: 'mazda6', model: '6', gen: 'GJ/GL · 2013+', engines: [['2.5L SkyActiv-G', 4.5], ['2.0L SkyActiv-G', 4.3]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Metallic (Code 41V)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)') },
+  { id: 'cx3', model: 'CX-3', gen: 'DK · 2015+', engines: [['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Ceramic Metallic (Code 47A)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
+  { id: 'cx30', model: 'CX-30', gen: 'DM · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)', 'Aero Gray Metallic (Code 52C)') },
+  { id: 'cx5ke', model: 'CX-5', gen: 'KE · 2012–16', engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.8]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Crystal White Pearl Mica (Code 34K)', 'Jet Black Mica (Code 41W)', 'Blue Reflex Mica (Code 42B)', 'Sky Blue Mica (Code 41B)', 'Stormy Blue Mica (Code 35J)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Zeal Red Mica (Code 41G)') },
+  { id: 'cx5kf', model: 'CX-5', gen: 'KF · 2017+', engines: [['2.5L SkyActiv-G', 4.8], ['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Eternal Blue Mica (Code 45B)', 'Sonic Silver Metallic (Code 45P)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
+  { id: 'cx5gen3', model: 'CX-5', gen: '3rd gen · 2026+', engines: [['2.5L e-SkyActiv-G M Hybrid', 4.8]], colors: paints('Navy Blue Mica', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Aero Gray Metallic (Code 52C)') },
+  { id: 'cx9tb', model: 'CX-9', gen: 'TB · 2007–15', engines: [['3.5L MZI V6', 5.2], ['3.7L MZI V6', 5.2]], colors: paints('Dolphin Gray Mica (Code 39T)', 'Brilliant Black Clearcoat (Code A3F)', 'Crystal White Pearl Mica (Code 34K)', 'Copper Red Mica (Code 32V)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Stormy Blue Mica (Code 35J)') },
+  { id: 'cx9', model: 'CX-9', gen: 'TC · 2016+', engines: [['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
+  { id: 'cx50', model: 'CX-50', gen: '2022+', engines: [['2.5L SkyActiv-G', 4.8], ['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Wind Chill Pearl (Code 48K)', 'Jet Black Mica (Code 41W)', 'Ingot Blue Metallic (Code 48B)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)', 'Cypress (Code 52T)') },
+  { id: 'cx60', model: 'CX-60', gen: '2022+', engines: [['2.5L e-SkyActiv-G PHEV', 4.8], ['3.3L e-SkyActiv-G', 5.1], ['3.3L e-SkyActiv-D', 5.1]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Sonic Silver Metallic (Code 45P)', 'Artisan Red Premium (Code 51F)') },
+  { id: 'cx70', model: 'CX-70', gen: '2024+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1], ['2.5L e-SkyActiv-G PHEV', 4.8]], colors: paints('Melting Copper Metallic (Code 52H)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
+  { id: 'cx80', model: 'CX-80', gen: '2024+', engines: [['3.3L e-SkyActiv-D', 5.1], ['2.5L e-SkyActiv-G PHEV', 4.8]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Melting Copper Metallic (Code 52H)') },
+  { id: 'cx90', model: 'CX-90', gen: '2023+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1], ['2.5L e-SkyActiv-G PHEV', 4.8]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Polymetal Gray Metallic (Code 47C)') }
 ];
 
 /* Shared SkyActiv-G schedule (Jeddah "severe" base intervals; dealer "normal"
@@ -84,10 +127,60 @@ function skyactivServices(oilL) {
   ];
 }
 
+const UNIVERSAL_PART_NAMES = new Set([
+  'Brake Fluid (DOT 4)',
+  'Coolant FL22 (long-life)',
+  'Windshield Washer Fluid (~2L)'
+]);
+const ATF_FZ_MODEL_IDS = ['mazda2', 'mazda3bm', 'mazda3bp', 'mazda6', 'cx3', 'cx30', 'cx5ke', 'cx5kf', 'cx9', 'cx50'];
+const LEGACY_GENERIC_SIGNATURES = {
+  'Engine Oil 5W-30 (4L)': 'Shell Helix Ultra SP 5W-30',
+  'Oil Filter': 'Mazda Genuine (SkyActiv-G — commonly shared)',
+  'Fuel System Cleaner (additive)': 'Liqui Moly / Techron DI cleaner',
+  'Engine Air Filter': 'Mazda Genuine (verify for your model)',
+  'Cabin A/C Filter': 'Mazda Genuine (verify for your model)',
+  'Spark Plugs (each)': 'Mazda / NGK Iridium (verify for your engine)',
+  'Front Brake Pads': 'Mazda Genuine (verify for your model)',
+  'Rear Brake Pads': 'Mazda Genuine (verify for your model)',
+  'Serpentine Belt': 'Mazda Genuine (verify for your model)',
+  '12V Battery': 'Mazda Genuine',
+  'Wiper Blades (pair)': 'Bosch Aerotwin'
+};
+
+function modelUsesAtfFz(modelId) { return ATF_FZ_MODEL_IDS.includes(modelId); }
+function stampPartFitment(part, modelId) {
+  if (UNIVERSAL_PART_NAMES.has(part.name)) part.fitment = { shareable: true, modelIds: [] };
+  else if (part.name === 'ATF FZ (per liter)') part.fitment = { shareable: false, modelIds: ATF_FZ_MODEL_IDS.slice() };
+  else part.fitment = { shareable: false, modelIds: modelId ? [modelId] : [] };
+  return part;
+}
+function stampPartsFitment(parts, modelId) {
+  return parts
+    .filter(p => p.name !== 'ATF FZ (per liter)' || modelUsesAtfFz(modelId))
+    .map(p => stampPartFitment(p, modelId));
+}
+function ensurePartFitment(part, modelId) {
+  const fit = part && part.fitment;
+  if (fit && typeof fit.shareable === 'boolean' && Array.isArray(fit.modelIds)) return part;
+  return stampPartFitment(part, modelId);
+}
+function partFitsCar(part, car) {
+  if (!part || !car) return false;
+  const fit = part.fitment;
+  if (!fit || typeof fit.shareable !== 'boolean' || !Array.isArray(fit.modelIds)) return false;
+  return fit.shareable || fit.modelIds.includes(car.modelId);
+}
+function isLegacyUnverifiedPart(part, modelId) {
+  if (!part || modelId === 'mazda3bm' || part.fitment) return false;
+  const signature = LEGACY_GENERIC_SIGNATURES[part.name];
+  const brand = part.options && part.options[0] && part.options[0].brand;
+  return !!signature && String(brand || '').startsWith(signature);
+}
+
 /* Full parts catalogue for the Mazda 3 (BM · 2.0). Other models start from the
    shared consumables and gain their own OEM numbers over time. */
 function mazda3Parts() {
-  return [
+  return stampPartsFitment([
       { id: dep.uid(), name: 'Engine Oil 5W-30 (4L)', icon: '🛢️', cat: 'Engine',
         options: [
           { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic — 4.2 L with filter, 4.0 L without' },
@@ -425,15 +518,15 @@ function mazda3Parts() {
           { tag: 'OEM', brand: 'Mazda Genuine (per port)', partNo: 'PE01-13-111', price: 25, store: 'Mazda Dealer (Alireza)', note: 'Vacuum leak / rough idle — renew when servicing the intake' },
           { tag: 'ALT', brand: 'Aftermarket gasket set', partNo: '', price: 15, store: 'Amazon.sa' }
         ] }
-  ];
+  ], 'mazda3bm');
 }
 
 /* Generic SkyActiv-G consumables — every model starts with these until its own
    OEM numbers are filled in. Numbers vary by model, so verify before buying. */
-function sharedParts() {
+function sharedParts(modelId) {
   const P = (name, icon, cat, options) => ({ id: dep.uid(), name, icon, cat, options });
   const D = 'Mazda Dealer (Alireza)', A = 'Amazon.sa';
-  return [
+  return stampPartsFitment([
     P('Engine Oil 5W-30 (4L)', '🛢️', 'Engine', [
       { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: A, note: 'API SP / ILSAC GF-6A full synthetic' },
       { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 5W-30', partNo: '', price: 150, store: 'noon' }]),
@@ -473,7 +566,11 @@ function sharedParts() {
       { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
     P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
-  ];
+  ], modelId).filter(p => p.fitment.shareable || p.name === 'ATF FZ (per liter)');
+}
+
+function partsForModel(modelId) {
+  return modelId === 'mazda3bm' ? mazda3Parts() : sharedParts(modelId);
 }
 
 /* Dealer "normal" intervals from the Haji Husein Alireza (Mazda KSA) sheet —
@@ -488,29 +585,30 @@ const NORMAL_SCHED = {
 /* Community gearbox (ATF) guidance — the dealer sheet omits transmission service.
    Source: Mazda CX-5 group + info guide. */
 const ATF_NOTE = 'Community rec. (Mazda CX-5 group + info guide): renew ATF every 60–80k km per gearbox condition. Mazda Genuine ATF-FZ only (K020-W0-052E4), ~4.5–4.7 L per drain — buy 5×1 L. Replace the pan filter (FZ01-21-500) and reseal the pan with silicone (Dirko HT / Reinzosil / Mopar — better than dealer sealant), applied cleanly. Go easy on the gearbox for the first ~800 km. Check the fluid level to spec. No additives.';
-function atfFilterPart() {
-  return { id: dep.uid(), name: 'Transmission Fluid Filter', icon: '🧽', cat: 'Drivetrain', partsouq: 'FZ0121500', options: [
+function atfFilterPart(modelId) {
+  return stampPartFitment({ id: dep.uid(), name: 'Transmission Fluid Filter', icon: '🧽', cat: 'Drivetrain', partsouq: 'FZ0121500', options: [
     { tag: 'OEM', brand: 'Mazda Genuine ATF pan filter', partNo: 'FZ01-21-500', price: 138, store: 'Mazda Dealer (Alireza)', note: 'Renew with every ATF change (community rec.)' }
-  ] };
+  ] }, modelId);
 }
-function atfSealantPart() {
-  return { id: dep.uid(), name: 'Transmission Pan Sealant', icon: '🧴', cat: 'Drivetrain', options: [
+function atfSealantPart(modelId) {
+  return stampPartFitment({ id: dep.uid(), name: 'Transmission Pan Sealant', icon: '🧴', cat: 'Drivetrain', options: [
     { tag: 'ALT', brand: 'Elring Dirko HT (+315°C)', partNo: '', price: 55, store: 'Amazon.sa', note: 'Community pick — better than dealer sealant' },
     { tag: 'ALT', brand: 'Victor Reinz Reinzosil', partNo: '', price: 50, store: 'Amazon.sa' },
     { tag: 'ALT', brand: 'Mopar RTV Engine Sealant', partNo: '', price: 45, store: 'Local parts market' }
-  ] };
+  ] }, modelId);
 }
-function fuelSystemCleanerPart() {
-  return { id: dep.uid(), name: 'Fuel System Cleaner (additive)', icon: '🧪', cat: 'Engine', options: [
+function fuelSystemCleanerPart(modelId) {
+  return stampPartFitment({ id: dep.uid(), name: 'Fuel System Cleaner (additive)', icon: '🧪', cat: 'Engine', options: [
     { tag: 'OEM', brand: 'Dealer-applied treatment', partNo: '', price: 45, store: 'Mazda Dealer (Alireza)', note: 'Added at every oil change per dealer sheet' },
     { tag: 'ALT', brand: 'Chevron Techron Concentrate Plus', partNo: '', price: 55, store: 'Amazon.sa' },
     { tag: 'ALT', brand: 'Liqui Moly Fuel System Cleaner', partNo: '', price: 40, store: 'noon' }
-  ] };
+  ] }, modelId);
 }
 
   return {
-    DEFAULT_COLOR, CAR_MODELS, NORMAL_SCHED, ATF_NOTE,
-    skyactivServices, mazda3Parts, sharedParts,
+    DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, NORMAL_SCHED, ATF_NOTE,
+    skyactivServices, mazda3Parts, sharedParts, partsForModel,
+    ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
     atfFilterPart, atfSealantPart, fuelSystemCleanerPart
   };
 });

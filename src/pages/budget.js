@@ -120,7 +120,8 @@ function openAddSpending(e) {
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
-      const partOpts = session.current().parts.map((p, i) => html`<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`);
+      const quickParts = compatibleParts();
+      const partOpts = quickParts.map((p, i) => html`<option value="part:${i}">${t(p.name)} · ${sar(partCheapest(p))} SAR</option>`);
       const quickPick = field('Quick pick',
         html`<select id="x_pick"><option value="">${t('Start from scratch…')}</option>${partOpts}</select>`);
       // The "— autofill from a part" note is styled markup, not plain text —
@@ -146,7 +147,7 @@ function openAddSpending(e) {
     if (!editing) {
       $('#x_pick').onchange = function () {
         if (!this.value) return;
-        const p = session.current().parts[+this.value.split(':')[1]];
+        const p = quickParts[+this.value.split(':')[1]];
         $('#x_desc').value = p.name;
         $('#x_amt').value = partCheapest(p);
         $('#x_cat').value = p.cat === 'Tires' ? 'Tires' : p.cat === 'Electrical' ? 'Electrical' : 'Parts';

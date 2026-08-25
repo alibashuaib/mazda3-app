@@ -18,9 +18,13 @@ const SERVICE_PARTS = {
   'Battery Check': ['12V Battery'],
   'Brake Inspection & Caliper Lube': ['Front Brake Pads', 'Rear Brake Pads']
 };
+function compatibleParts() {
+  const state = session.current();
+  return state.parts.filter(p => partFitsCar(p, state.car));
+}
 // Math.min() of nothing is Infinity, which renders as a price — 0 reads as "unpriced".
 const partCheapest = p => (p.options && p.options.length) ? Math.min(...p.options.map(o => o.price)) : 0;
-function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => session.current().parts.find(p => p.name === n)).filter(Boolean); }
+function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => compatibleParts().find(p => p.name === n)).filter(Boolean); }
 function servicesForPart(p) { return session.current().services.filter(s => (SERVICE_PARTS[s.name] || []).includes(p.name)); }
 
 /* How mandatory a part is for the car's health — drives the "do it next time"
@@ -36,12 +40,20 @@ const critLabel = name => partCrit(name) === 'high' ? t('mandatory') : partCrit(
    ============================================================ */
 function renderParts() {
   const v = el('div');
-  v.appendChild(pageIntro('Car Parts', 'OEM parts with cheaper alternatives, prices and where to buy. Tap a part to compare.'));
+  v.appendChild(pageIntro('Car Parts', 'Only compatible parts are shown. Shared consumables are marked ↔; vehicle-locked parts are marked 🔒.'));
 
-  const cats = ['All', ...new Set(session.current().parts.map(p => p.cat))];
+  const cats = ['All', ...new Set(compatibleParts().map(p => p.cat))];
   let active = 'All';
-  const seg = el('div', 'seg');
-  seg.style.flexWrap = 'wrap';
+  let query = '';
+
+  const search = el('label', 'part-search');
+  search.innerHTML = html`
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+    <input type="search" placeholder="${t('Search parts')}" aria-label="${t('Search parts')}">
+    <span class="part-count"></span>`;
+  v.appendChild(search);
+
+  const seg = el('div', 'seg category-scroll');
   cats.forEach(c => {
     const b = el('button', c === active ? 'on' : '', html`${t(c)}`);
     b.onclick = () => { active = c; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
@@ -53,9 +65,15 @@ function renderParts() {
   v.appendChild(list);
   function paint() {
     list.innerHTML = '';
-    const items = session.current().parts.filter(p => active === 'All' || p.cat === active);
+    const needle = query.toLowerCase();
+    const items = compatibleParts().filter(p => (active === 'All' || p.cat === active) &&
+      (!needle || [p.name, p.cat, p.partsouq, ...(p.options || []).flatMap(o => [o.brand, o.partNo])]
+        .some(value => String(value || '').toLowerCase().includes(needle))));
     items.forEach(p => list.appendChild(partCard(p)));
+    search.querySelector('.part-count').textContent = String(items.length);
+    if (!items.length) list.appendChild(emptyState('🔎', 'No matching parts.'));
   }
+  search.querySelector('input').oninput = e => { query = e.target.value.trim(); paint(); };
   paint();
 
   // arriving via a "View part" link from Maintenance — open & scroll to it
@@ -77,12 +95,16 @@ function renderParts() {
 function partCard(p) {
   const cheapest = partCheapest(p);
   const usedIn = servicesForPart(p);
+  const model = CAR_MODELS.find(m => m.id === session.current().car.modelId);
+  const fitmentLabel = p.fitment && p.fitment.shareable
+    ? t('Shared consumable')
+    : `🔒 ${model ? `Mazda ${model.model} · ${model.gen}` : t('This vehicle only')}`;
   const card = el('div', 'card part');
   card.dataset.id = p.id;
   card.innerHTML = html`
     <div class="part-head">
       <div class="item-ic">${p.icon || '🔩'}</div>
-      <h3>${t(p.name)}</h3>
+      <h3>${t(p.name)} <span title="${fitmentLabel}" style="font-size:11px;opacity:.65">${p.fitment && p.fitment.shareable ? '↔' : '🔒'}</span></h3>
       <div style="text-align:right">
         <div style="font-weight:750;font-size:14px">${t('from')} ${sar(cheapest)} <span class="muted" style="font-size:11px">SAR</span></div>
         <div class="muted" style="font-size:11px">${p.options.length} ${t('options')}</div>
@@ -90,6 +112,7 @@ function partCard(p) {
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
     <div class="part-body">
+      <div style="margin-bottom:10px"><span class="pill ${p.fitment && p.fitment.shareable ? 'ok' : ''}">${fitmentLabel}</span></div>
       ${p.options.map(o => html`
         <div class="opt">
           <span class="opt-tag ${o.tag === 'OEM' ? 'oem' : 'alt'}">${o.tag}</span>
@@ -127,6 +150,13 @@ function openEditPart(p) {
   const editing = !!p;
   openModal(editing ? 'Edit part' : 'New part', 'Add the OEM option and any alternatives.', card => {
     card.appendChild(field('Part name', html`<input id="p_name" value="${p ? p.name : ''}" placeholder="${t('e.g. Front Brake Pads')}">`));
+    const fitment = el('div', 'card');
+    const fitmentModel = CAR_MODELS.find(m => m.id === session.current().car.modelId);
+    fitment.style.cssText = 'padding:11px 13px;margin-bottom:12px;font-size:12px;color:var(--text-2)';
+    fitment.textContent = p && p.fitment && p.fitment.shareable
+      ? `↔ ${t('Shared consumable across compatible Mazda models')}`
+      : `🔒 ${t('Locked to')} ${fitmentModel ? `Mazda ${fitmentModel.model} · ${fitmentModel.gen}` : t('this vehicle')}`;
+    card.appendChild(fitment);
     const row = el('div', 'field-row');
     const curCat = p ? p.cat : 'Engine';
     const catList = [...new Set(['Engine', 'Interior', 'Brakes', 'Exterior', 'Electrical', 'Drivetrain', 'Suspension', 'A/C', 'Tires', 'General', ...session.current().parts.map(x => x.cat), curCat])];
@@ -179,7 +209,8 @@ function openEditPart(p) {
       if (!name) return toast('Part name required', 'warn');
       const valid = opts.filter(o => o.brand.trim());
       if (!valid.length) return toast('Add at least one option', 'warn');
-      const obj = { id: p ? p.id : uid(), name, icon: $('#p_icon').value.trim() || '🔩', cat: $('#p_cat').value.trim() || 'General', partsouq: $('#p_psq').value.trim().replace(/[^A-Za-z0-9]/g, ''), options: valid };
+      const obj = { id: p ? p.id : uid(), name, icon: $('#p_icon').value.trim() || '🔩', cat: $('#p_cat').value.trim() || 'General', partsouq: $('#p_psq').value.trim().replace(/[^A-Za-z0-9]/g, ''), options: valid,
+        fitment: p && p.fitment ? p.fitment : { shareable: false, modelIds: session.current().car.modelId ? [session.current().car.modelId] : [] } };
       if (p) Object.assign(p, obj); else session.current().parts.push(obj);
       const ok = await save(); closeModal(); go('parts'); if (ok) toast(editing ? 'Part updated' : 'Part added');
     });
