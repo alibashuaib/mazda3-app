@@ -5,36 +5,62 @@
    ============================================================ */
 'use strict';
 
+/* One generic reference photo per model — used whenever no exact per-colour
+   photo exists for the car's actual paint (see CAR_COLOR_PHOTOS below). */
+const GENERIC_MODEL_IMAGE = {
+  mazda2: 'assets/mazda2-dj.png',
+  mazda3bp: 'assets/mazda3-bp.png',
+  mazda6: 'assets/mazda6-gj.png',
+  cx3: 'assets/mazda-cx3-dk.png',
+  cx30: 'assets/mazda-cx30-dm.png',
+  cx5ke: 'assets/mazda-cx5-ke.png',
+  cx5kf: 'assets/mazda-cx5-kf.png',
+  cx5gen3: 'assets/mazda-cx5-gen3.png',
+  cx9tb: 'assets/mazda-cx9-tb.png',
+  cx9: 'assets/mazda-cx9-tc.png',
+  cx50: 'assets/mazda-cx50.png',
+  cx60: 'assets/mazda-cx60.png',
+  cx70: 'assets/mazda-cx70.png',
+  cx80: 'assets/mazda-cx80.png',
+  cx90: 'assets/mazda-cx90.png'
+};
+/* Real per-colour photography, keyed by modelId then by colorSlug(name).
+   This is genuine studio/render art — not the generic photo pushed through
+   a CSS tint. Populate a model's entry as real shots for its colours
+   arrive; any colour left out falls back to GENERIC_MODEL_IMAGE + a
+   paintFilterClass tint (see renderDashboard). Naming convention for new
+   files: assets/<modelId>-<colorSlug>.png. See
+   docs/superpowers/plans/2026-08-26-per-colour-car-photos.md for the full
+   asset list still needed. */
+const CAR_COLOR_PHOTOS = {
+  mazda3bm: {
+    'soul-red-metallic': 'assets/mazda3-soul-red.png',
+    'snowflake-white-pearl-mica': 'assets/mazda3-snowflake-white.png',
+    'jet-black-mica': 'assets/mazda3-jet-black.png',
+    'deep-crystal-blue-mica': 'assets/mazda3-deep-crystal-blue.png',
+    'blue-reflex-mica': 'assets/mazda3-blue-reflex.png',
+    'liquid-silver-metallic': 'assets/mazda3-liquid-silver.png',
+    'titanium-flash-mica': 'assets/mazda3-titanium-flash.png'
+  }
+};
+/* 'Soul Red Metallic (Code 41V)' -> 'soul-red-metallic' */
+function colorSlug(name) {
+  return (name || '').toLowerCase().replace(/\s*\(code[^)]*\)\s*$/, '').trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+/* True only when real per-colour photography exists for this exact paint —
+   never true for a tinted generic photo. */
+function hasExactColorPhoto(modelId, color) {
+  const byModel = CAR_COLOR_PHOTOS[modelId];
+  return !!(byModel && byModel[colorSlug(color)]);
+}
 function studioCarImage(color, car) {
   const modelId = car && car.modelId;
-  const modelImages = {
-    mazda2: 'assets/mazda2-dj.png',
-    mazda3bp: 'assets/mazda3-bp.png',
-    mazda6: 'assets/mazda6-gj.png',
-    cx3: 'assets/mazda-cx3-dk.png',
-    cx30: 'assets/mazda-cx30-dm.png',
-    cx5ke: 'assets/mazda-cx5-ke.png',
-    cx5kf: 'assets/mazda-cx5-kf.png',
-    cx5gen3: 'assets/mazda-cx5-gen3.png',
-    cx9tb: 'assets/mazda-cx9-tb.png',
-    cx9: 'assets/mazda-cx9-tc.png',
-    cx50: 'assets/mazda-cx50.png',
-    cx60: 'assets/mazda-cx60.png',
-    cx70: 'assets/mazda-cx70.png',
-    cx80: 'assets/mazda-cx80.png',
-    cx90: 'assets/mazda-cx90.png'
-  };
-  if (modelImages[modelId]) return modelImages[modelId];
-  if (modelId !== 'mazda3bm') return '';
-  const c = (color || '').toLowerCase();
-  if (c.includes('soul red') || c === 'red') return 'assets/mazda3-soul-red.png';
-  if (c.includes('snowflake') || c.includes('white')) return 'assets/mazda3-snowflake-white.png';
-  if (c.includes('jet black') || c === 'black') return 'assets/mazda3-jet-black.png';
-  if (c.includes('deep crystal')) return 'assets/mazda3-deep-crystal-blue.png';
-  if (c.includes('blue reflex')) return 'assets/mazda3-blue-reflex.png';
-  if (c.includes('liquid silver') || c === 'silver') return 'assets/mazda3-liquid-silver.png';
-  if (c.includes('titanium flash') || c.includes('bronze') || c.includes('brown')) return 'assets/mazda3-titanium-flash.png';
-  return 'assets/mazda3-studio.png';
+  const byModel = CAR_COLOR_PHOTOS[modelId];
+  const exact = byModel && byModel[colorSlug(color)];
+  if (exact) return exact;
+  if (GENERIC_MODEL_IMAGE[modelId]) return GENERIC_MODEL_IMAGE[modelId];
+  if (modelId === 'mazda3bm') return 'assets/mazda3-studio.png';
+  return '';
 }
 
 /* ============================================================
@@ -55,14 +81,12 @@ function renderDashboard() {
   const carName = session.current().car.nickname || [session.current().car.year, session.current().car.make, session.current().car.model].filter(Boolean).join(' ');
   const paintName = session.current().car.color || 'Meteor Gray';
   const modelId = session.current().car.modelId || 'unknown';
-  // mazda3bm ships a distinct photo per its 8 colours (studioCarImage below);
-  // every other model has only one reference photo, so its colour choice
-  // wouldn't show up at all without a tint. Deriving the tint from the
-  // paint's real verified hex (not the colour's name text) is what makes
-  // every model, not just the BM, actually reflect the chosen colour.
+  // Real per-colour photography (CAR_COLOR_PHOTOS) needs no tint — it's the
+  // actual paint already. Anything else falls back to that model's one
+  // generic photo, tinted from the paint's real verified hex (not the
+  // colour's name text) so every model's colour choice shows up somehow.
   const carImage = studioCarImage(paintName, session.current().car);
-  const isExactPhoto = modelId === 'mazda3bm' && carImage !== 'assets/mazda3-studio.png';
-  const paintClass = isExactPhoto ? '' : ' ' + paintFilterClass(swatchFor(paintName));
+  const paintClass = hasExactColorPhoto(modelId, paintName) ? '' : ' ' + paintFilterClass(swatchFor(paintName));
   const carCard = el('div', 'card car-card car-studio' + paintClass);
   carCard.dataset.vehicleShape = modelId === 'mazda2' ? 'hatch' : /^cx/.test(modelId) ? 'suv' : 'sedan';
   carCard.title = t('Edit car profile');
