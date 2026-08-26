@@ -75,6 +75,9 @@ function openAddVehicle() {
   });
 }
 async function deleteVehicle(id) {
+  // Already gone — a re-entrant call (double-tap) would otherwise fall
+  // through and delete whichever vehicle became active in its place.
+  if (!session.garage().vehicles.some(v => v.id === id)) return;
   if (session.garage().vehicles.length <= 1) { toast('Keep at least one vehicle', 'warn'); return; }
   // Captured BEFORE setVehicles/removeVehicle below — both drop this vehicle
   // from every local structure that could still answer "which photos did it
@@ -457,7 +460,17 @@ function openSettings() {
     if (session.garage().vehicles.length > 1) {
       const del = el('button', 'btn block ghost', html`${t('Remove this vehicle')}`);
       del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      del.onclick = () => deleteVehicle(session.garage().activeId);
+      /* Irreversible, and it takes the whole vehicle with it — history,
+         spending, fuel, receipt photos, and a server tombstone. Confirm by
+         name, and go through onAsyncClick: deleteVehicle drops the vehicle
+         from the garage synchronously before its await, so a second click
+         lands on the NEXT vehicle's id and removes that one too. */
+      onAsyncClick(del, async () => {
+        const active = session.garage().vehicles.find(v => v.id === session.garage().activeId);
+        if (!active) return;
+        if (!confirm(t('Remove this vehicle and everything logged against it? This cannot be undone.') + '\n\n' + vehicleName(active.data.car))) return;
+        await deleteVehicle(active.id);
+      });
       card.appendChild(del);
     }
     const backup = el('div');

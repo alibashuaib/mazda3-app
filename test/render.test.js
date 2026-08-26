@@ -123,6 +123,58 @@ test('a hostile vehicle nickname stays inert in the car description', () => with
   assert.strictEqual(view.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
 }));
 
+const threeVehicles = api => {
+  const mk = (id, modelId) => ({ id, data: api.normalizeData(api.buildProfile(modelId, 0, { odometer: 1000, year: 2020 })) });
+  api.session.setVehicles([mk('AAA', 'mazda3bm'), mk('BBB', 'cx5kf'), mk('CCC', 'cx90')], 'AAA');
+};
+
+/* deleteVehicle drops the vehicle from the garage synchronously, before its
+   first await. A double-tap on "Remove this vehicle" therefore had its second
+   click read the NEXT vehicle's id off session.garage().activeId and delete
+   that one too — two vehicles gone, silently and irreversibly, from one
+   gesture. Reproduced in a browser before the fix: 3 in, 1 left.
+
+   The button is the layer that has to refuse re-entry (onAsyncClick), so
+   that is what this drives — the real settings dialog, clicked twice. */
+test('double-tapping "Remove this vehicle" removes exactly one', () => withBoot(async ({ document, api }) => {
+  threeVehicles(api);
+  api.confirm = () => true;                  // the new confirmation, accepted
+  api.openSettings();
+
+  const del = Array.from(document.querySelectorAll('#modalCard button'))
+    .find(b => /Remove this vehicle/.test(b.textContent));
+  assert.ok(del, 'the settings dialog no longer offers a remove button — this test proves nothing');
+
+  del.onclick(); del.onclick();              // the double-tap
+  await new Promise(r => setTimeout(r, 50));
+
+  const left = api.session.garage().vehicles.map(v => v.id);
+  assert.deepStrictEqual(left, ['BBB', 'CCC'], 'the second click deleted a vehicle it was never asked to');
+}));
+
+test('removing a vehicle asks first, and does nothing when declined', () => withBoot(async ({ document, api }) => {
+  threeVehicles(api);
+  let asked = 0;
+  api.confirm = () => { asked++; return false; };
+  api.openSettings();
+
+  const del = Array.from(document.querySelectorAll('#modalCard button'))
+    .find(b => /Remove this vehicle/.test(b.textContent));
+  del.onclick();
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.strictEqual(asked, 1, 'an irreversible delete went ahead without confirming');
+  assert.strictEqual(api.session.garage().vehicles.length, 3, 'declining the confirmation still deleted the vehicle');
+}));
+
+/* Defence in depth behind the button: an id that is already gone must not
+   fall through and remove whatever became active in its place. */
+test('deleteVehicle ignores an id that is already gone', () => withBoot(async ({ api }) => {
+  threeVehicles(api);
+  await api.deleteVehicle('AAA');
+  await api.deleteVehicle('AAA');
+  assert.deepStrictEqual(api.session.garage().vehicles.map(v => v.id), ['BBB', 'CCC']);
+}));
 /* ============================================================
    DIALOGS
 
