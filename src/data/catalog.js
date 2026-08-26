@@ -569,8 +569,61 @@ function sharedParts(modelId) {
   ], modelId).filter(p => p.fitment.shareable || p.name === 'ATF FZ (per liter)');
 }
 
+/* Every hatch/sedan takes a passenger-car tire the same way; only the
+   CX-line's height and load actually change what fits. */
+function tireShapeFor(modelId) { return /^cx/.test(modelId || '') ? 'suv' : 'sedan'; }
+
+/* OEM factory tire size per model (most common trim — a top trim on 1-2"
+   larger wheels is common and changes this; always confirm on the door-jamb
+   sticker before ordering). Locked per car, unlike every other shared
+   consumable, because this is the one part where the wrong size does not
+   just under-perform — it may not legally or safely fit. */
+const OEM_TIRE_SIZE = {
+  mazda2: '185/65R15',
+  mazda3bm: '205/60R16',
+  mazda3bp: '205/60R16',
+  mazda6: '215/45R18',
+  cx3: '215/50R18',
+  cx30: '215/55R18',
+  cx5ke: '225/65R17',
+  cx5kf: '225/65R17',
+  cx5gen3: '225/65R17',
+  cx9tb: '245/60R18',
+  cx9: '255/60R18',
+  cx50: '225/65R17',
+  cx60: '235/60R18',
+  cx70: '265/55R19',
+  cx80: '235/55R19',
+  cx90: '255/60R18'
+};
+/* Community-recommended lines for KSA conditions, by body shape — sustained
+   summer asphalt heat ages rubber faster than a cooler climate would, so a
+   touring/highway tread wins over an aggressive one even on an SUV built
+   mostly for daily highway driving. Prices are rough per-tire estimates. */
+const TIRE_BRAND_PICKS = {
+  sedan: [
+    { tag: 'OEM', brand: 'As fitted — Bridgestone / Yokohama / Toyo (varies by build batch)', price: 350, note: 'Match the size, not necessarily the brand — Mazda sources sedan OEM tires from more than one maker.' },
+    { tag: 'ALT', brand: 'Michelin Primacy 4 ST', price: 480, note: 'Community default for daily highway driving — strong wet grip, long tread life.' },
+    { tag: 'ALT', brand: 'Yokohama BluEarth-XT AE61', price: 380, note: 'Popular value pick locally for Mazda 3/6 — solid heat resistance for the price.' }
+  ],
+  suv: [
+    { tag: 'OEM', brand: 'As fitted — Bridgestone / Yokohama / Toyo (varies by build batch)', price: 420, note: 'Match the size, not necessarily the brand — Mazda sources SUV OEM tires from more than one maker.' },
+    { tag: 'ALT', brand: 'Michelin Primacy SUV+ / Latitude Tour HP', price: 560, note: 'The touring choice most recommended for CX-5/CX-9 daily driving — quiet, handles the extra weight well.' },
+    { tag: 'ALT', brand: 'Yokohama Geolandar CV G058', price: 480, note: 'Comfort-focused highway tread, a frequent local pick for its ride quality.' }
+  ]
+};
+function tiresPart(modelId) {
+  const size = OEM_TIRE_SIZE[modelId] || '';
+  const store = 'Multiple KSA tire shops';
+  return stampPartFitment({
+    id: dep.uid(), name: size ? `Tires (${size}, each)` : 'Tires', icon: '🛞', cat: 'Tires',
+    options: TIRE_BRAND_PICKS[tireShapeFor(modelId)].map(p => ({ tag: p.tag, brand: p.brand, partNo: size, price: p.price, store, note: p.note }))
+  }, modelId);
+}
+
 function partsForModel(modelId) {
-  return modelId === 'mazda3bm' ? mazda3Parts() : sharedParts(modelId);
+  const base = modelId === 'mazda3bm' ? mazda3Parts() : sharedParts(modelId);
+  return base.concat([tiresPart(modelId)]);
 }
 
 /* Dealer "normal" intervals from the Haji Husein Alireza (Mazda KSA) sheet —
@@ -609,6 +662,7 @@ function fuelSystemCleanerPart(modelId) {
     DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, NORMAL_SCHED, ATF_NOTE,
     skyactivServices, mazda3Parts, sharedParts, partsForModel,
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
-    atfFilterPart, atfSealantPart, fuelSystemCleanerPart
+    atfFilterPart, atfSealantPart, fuelSystemCleanerPart,
+    tireShapeFor, tiresPart, OEM_TIRE_SIZE
   };
 });

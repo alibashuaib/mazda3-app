@@ -78,6 +78,36 @@ test('the three single-part builders return a named part with options', () => {
   });
 });
 
+/* Tires are the one part where the wrong size does not just under-perform —
+   it may not safely fit — so every model must resolve to a real size, and
+   the part must be locked to that exact model (never shareable). */
+test('every model has an OEM tire size, and tiresPart locks to that model only', () => {
+  cat.CAR_MODELS.forEach(m => {
+    const size = cat.OEM_TIRE_SIZE[m.id];
+    assert.ok(size && /^\d{3}\/\d{2}R\d{2}$/.test(size), `${m.id} needs a valid tire size, got ${JSON.stringify(size)}`);
+
+    const part = cat.tiresPart(m.id);
+    assert.ok(part.name.includes(size), 'the part name must carry the locked size');
+    assert.strictEqual(part.cat, 'Tires');
+    assert.ok(cat.partFitsCar(part, { modelId: m.id }), 'must fit its own model');
+    assert.ok(!part.fitment.shareable, 'a tire size must never be shared across models');
+    cat.CAR_MODELS.filter(o => o.id !== m.id).forEach(other => {
+      assert.ok(!cat.partFitsCar(part, { modelId: other.id }), `${m.id}'s tires must not fit ${other.id}`);
+    });
+
+    assert.ok(part.options.length >= 2, `${m.id} needs OEM + at least one alternative`);
+    part.options.forEach(o => assert.strictEqual(o.partNo, size, 'every option must carry the same locked size'));
+  });
+});
+
+test('partsForModel always includes a tires part locked to that model', () => {
+  ['mazda3bm', 'cx5kf', 'cx90'].forEach(id => {
+    const tires = cat.partsForModel(id).filter(p => p.cat === 'Tires');
+    assert.strictEqual(tires.length, 1, `${id} must have exactly one tires part`);
+    assert.strictEqual(tires[0].fitment.modelIds[0], id);
+  });
+});
+
 test('NORMAL_SCHED entries are [km, months] pairs', () => {
   Object.entries(cat.NORMAL_SCHED).forEach(([name, pair]) => {
     assert.ok(Array.isArray(pair) && pair.length === 2, `${name} must be a pair`);

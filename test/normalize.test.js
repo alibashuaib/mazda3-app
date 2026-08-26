@@ -55,6 +55,35 @@ test('normalizeData removes incompatible explicitly-fitted parts', () => {
   assert.ok(!s.parts.some(p => p.name === 'Transmission Fluid Filter'));
 });
 
+test('buildProfile locks a tires part to the exact model, in that model\'s OEM size', () => {
+  const bm = buildProfile('mazda3bm', 0, {});
+  const cx90 = buildProfile('cx90', 0, {});
+  const bmTires = bm.parts.find(p => p.cat === 'Tires');
+  const cx90Tires = cx90.parts.find(p => p.cat === 'Tires');
+  assert.ok(bmTires, 'mazda3bm must have a tires part');
+  assert.ok(cx90Tires, 'cx90 must have a tires part');
+  assert.notStrictEqual(bmTires.name, cx90Tires.name, 'a sedan and a full-size SUV must not share a tire size');
+  assert.deepStrictEqual(bmTires.fitment.modelIds, ['mazda3bm']);
+  assert.deepStrictEqual(cx90Tires.fitment.modelIds, ['cx90']);
+});
+
+test('normalizeData backfills a tires part onto a vehicle saved before this feature existed', () => {
+  const s = normalizeData({ car: { modelId: 'cx5kf', model: 'CX-5', year: 2020 }, parts: [] });
+  const tires = s.parts.filter(p => p.cat === 'Tires');
+  assert.strictEqual(tires.length, 1);
+  assert.deepStrictEqual(tires[0].fitment.modelIds, ['cx5kf']);
+});
+
+test('normalizeData swaps the tires part when the car is changed to a different model', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G' },
+    parts: [{ id: 'old', name: 'Tires (205/60R16)', cat: 'Tires', options: [], fitment: { shareable: false, modelIds: ['mazda3bm'] } }]
+  });
+  const tires = s.parts.filter(p => p.cat === 'Tires');
+  assert.strictEqual(tires.length, 1, 'the stale BM-sized tire must be dropped, not kept alongside the new one');
+  assert.deepStrictEqual(tires[0].fitment.modelIds, ['cx90']);
+});
+
 test('normalizeData preserves shareable consumables across models', () => {
   const s = normalizeData({
     car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G' },

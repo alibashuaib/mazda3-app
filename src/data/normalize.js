@@ -131,6 +131,13 @@
     // FZ01-21-500 and the pan-seal procedure are verified only for the owner's BM.
     if (s.car.modelId === 'mazda3bm' && !s.parts.some(p => p.name === 'Transmission Fluid Filter')) s.parts.push(dep.atfFilterPart(s.car.modelId));
     if (s.car.modelId === 'mazda3bm' && !s.parts.some(p => p.name === 'Transmission Pan Sealant')) s.parts.push(dep.atfSealantPart(s.car.modelId));
+    // Tires are locked to the exact car (unlike every other shared
+    // consumable), because the wrong size does not just under-perform.
+    // Backfills existing vehicles that predate this part, and re-adds it if
+    // switching models ever leaves a car without one of its own.
+    if (s.car.modelId && !s.parts.some(p => p.cat === 'Tires' && p.fitment && !p.fitment.shareable && p.fitment.modelIds.includes(s.car.modelId))) {
+      s.parts.push(dep.tiresPart(s.car.modelId));
+    }
     return s;
   }
 
