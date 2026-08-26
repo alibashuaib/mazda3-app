@@ -195,3 +195,15 @@ function swatchStyle(name) {
   const outline = paintOutline(hex);
   return `background:${hex}` + (outline ? `;box-shadow:inset 0 0 0 1.5px ${outline}, 0 1px 2px rgba(0,0,0,.35)` : '');
 }
+/* The dashboard's studio car, not just a swatch dot: rather than a border,
+   a near-white car on the light theme gets a heavier ground shadow to pop
+   off the card, and a near-black car on the dark theme gets a soft light
+   bloom behind it — { shadow } or { glow } (never both), or null when the
+   paint already reads clearly against the current theme. */
+function paintPop(hex) {
+  const { l } = hexToHsl(hex);
+  const theme = (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme')) || (typeof systemTheme === 'function' ? systemTheme() : 'dark');
+  if (theme === 'light' && l > 0.72) return { shadow: 'drop-shadow(0 18px 16px rgba(15,17,20,.4))' };
+  if (theme !== 'light' && l < 0.22) return { glow: 'radial-gradient(ellipse 62% 55% at 50% 46%, rgba(255,255,255,.3), transparent 68%)' };
+  return null;
+}

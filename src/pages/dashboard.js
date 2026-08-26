@@ -89,10 +89,13 @@ function renderDashboard() {
   const paintHex = swatchFor(paintName);
   const paintClass = hasExactColorPhoto(modelId, paintName) ? '' : ' ' + paintFilterClass(paintHex);
   // A near-white car on the light theme (or near-black on dark) would
-  // otherwise blend straight into the studio card's own surface gradient.
-  const outline = paintOutline(paintHex);
-  const carCard = el('div', 'card car-card car-studio' + paintClass + (outline ? ' has-paint-outline' : ''));
-  if (outline) carCard.style.setProperty('--paint-outline', outline);
+  // otherwise blend straight into the studio card's own surface gradient —
+  // pop it with a heavier ground shadow (light theme) or a light bloom
+  // behind it (dark theme), rather than an outline ring.
+  const pop = paintPop(paintHex);
+  const carCard = el('div', 'card car-card car-studio' + paintClass + (pop ? ' pop-' + Object.keys(pop)[0] : ''));
+  if (pop && pop.shadow) carCard.style.setProperty('--pop-shadow', pop.shadow);
+  if (pop && pop.glow) carCard.style.setProperty('--pop-glow', pop.glow);
   carCard.dataset.vehicleShape = modelId === 'mazda2' ? 'hatch' : /^cx/.test(modelId) ? 'suv' : 'sedan';
   carCard.title = t('Edit car profile');
   carCard.innerHTML = html`
