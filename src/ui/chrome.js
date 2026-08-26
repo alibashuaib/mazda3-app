@@ -86,6 +86,8 @@ function setThemePref(p) {
 }
 
 /* ---------- accent follows the car colour ---------- */
+/* Fallback only, for a custom/free-typed colour with no verified paint
+   (accentForColor below uses the real hex whenever one exists). */
 const CAR_ACCENTS = [
   [['soul red', 'red'], '#d6203c', '#ff5c6e'],
   [['blue', 'crystal'], '#2f6df0', '#6fa8ff'],
@@ -99,6 +101,7 @@ const CAR_ACCENTS = [
 function hexToRgb(h) { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
 function rgbToHex(r, g, b) { return '#' + [r, g, b].map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join(''); }
 function darkenHex(hex, f) { const [r, g, b] = hexToRgb(hex); return rgbToHex(r * f, g * f, b * f); }
+function lightenHex(hex, f) { const [r, g, b] = hexToRgb(hex); return rgbToHex(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
 function hexToHsl(hex) {
   const [r8, g8, b8] = hexToRgb(hex);
   const r = r8 / 255, g = g8 / 255, b = b8 / 255;
@@ -128,20 +131,35 @@ function paintFilterClass(hex) {
   if (h < 265) return 'paint-blue';
   return 'paint-gray';
 }
-function accentForColor(name) {
-  const c = (name || '').toLowerCase();
-  const hit = CAR_ACCENTS.find(([keys]) => keys.some(k => c.includes(k)));
-  return hit ? [hit[1], hit[2]] : ['#d6203c', '#ff5c6e'];
-}
-
-/* real-paint swatches for the colour dropdown.
-   Looked up live (not cached at parse time) because chrome.js loads before
+/* Looked up live (not cached at parse time) because chrome.js loads before
    catalog.js in index.html — a top-level `MAZDA_PAINTS` snapshot here would
-   always see it as undefined. */
-function swatchFor(name) {
+   always see it as undefined. Returns null (not a fallback) so callers can
+   tell "no verified paint for this name" apart from "this is the colour". */
+function realPaintHex(name) {
   const table = typeof MAZDA_PAINTS === 'undefined' ? {} : MAZDA_PAINTS;
-  return table[name] || accentForColor(name)[0];
+  return table[name] || null;
 }
+/* The app's accent (buttons, glows, the health ring, "Switch ›" links, …)
+   is the car's real paint hue — not a generic bucket colour. A very light
+   or very dark paint is nudged toward a usable mid-lightness first, since
+   text/icons drawn directly on --accent need it to actually have contrast;
+   the hue itself is never swapped out. */
+function accentForColor(name) {
+  const hex = realPaintHex(name);
+  if (!hex) {
+    // No verified paint (empty/custom colour text) — the old keyword
+    // buckets are the best guess left.
+    const c = (name || '').toLowerCase();
+    const hit = CAR_ACCENTS.find(([keys]) => keys.some(k => c.includes(k)));
+    return hit ? [hit[1], hit[2]] : ['#d6203c', '#ff5c6e'];
+  }
+  const { l } = hexToHsl(hex);
+  const usable = l > 0.78 ? darkenHex(hex, 0.55) : l < 0.22 ? lightenHex(hex, 0.5) : hex;
+  return [usable, lightenHex(usable, 0.32)];
+}
+/* real-paint swatches for the colour dropdown — the *unmodified* hex,
+   unlike accentForColor's usability-nudged version above. */
+function swatchFor(name) { return realPaintHex(name) || accentForColor(name)[0]; }
 function applyAccent() {
   const [acc, soft] = accentForColor(session.current().car && session.current().car.color);
   const [r, g, b] = hexToRgb(acc);
@@ -150,4 +168,22 @@ function applyAccent() {
   s.setProperty('--accent-soft', soft);
   s.setProperty('--accent-2', darkenHex(acc, 0.72));
   s.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, .35)`);
+}
+/* A swatch/photo whose real paint is near-white on the light theme, or
+   near-black on the dark theme, would blend straight into the surrounding
+   surface. Returns the stroke colour to give it in that case, or null when
+   the paint already reads clearly against the current theme. */
+function paintOutline(hex) {
+  const { l } = hexToHsl(hex);
+  const theme = (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme')) || (typeof systemTheme === 'function' ? systemTheme() : 'dark');
+  if (theme === 'light' && l > 0.72) return 'rgba(20,22,26,.55)';
+  if (theme !== 'light' && l < 0.22) return 'rgba(255,255,255,.42)';
+  return null;
+}
+/* Inline style for a `.sw` colour dot: the real paint, plus a contrasting
+   stroke when that paint would otherwise blend into the current theme. */
+function swatchStyle(name) {
+  const hex = swatchFor(name);
+  const outline = paintOutline(hex);
+  return `background:${hex}` + (outline ? `;box-shadow:inset 0 0 0 1.5px ${outline}, 0 1px 2px rgba(0,0,0,.35)` : '');
 }

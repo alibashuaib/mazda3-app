@@ -404,12 +404,12 @@ function openSettings() {
       <div class="color-picker" id="c_colorPick">
         <input type="hidden" id="c_color" value="${colorSel || ''}">
         <button type="button" class="color-trigger">
-          <span class="sw" style="background:${swatchFor(colorSel)}"></span>
+          <span class="sw" style="${swatchStyle(colorSel)}"></span>
           <span class="ct-name">${colorSel || t('Select colour')}</span>
           <svg class="ct-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="color-menu" hidden>
-          ${colorOpts.map(x => html`<button type="button" class="color-opt${x === colorSel ? ' sel' : ''}" data-val="${x}"><span class="sw" style="background:${swatchFor(x)}"></span><span>${x}</span></button>`)}
+          ${colorOpts.map(x => html`<button type="button" class="color-opt${x === colorSel ? ' sel' : ''}" data-val="${x}"><span class="sw" style="${swatchStyle(x)}"></span><span>${x}</span></button>`)}
         </div>
       </div>`);
     card.appendChild(colorField);
@@ -423,7 +423,7 @@ function openSettings() {
         const val = opt.dataset.val;
         hidden.value = val;
         trigger.querySelector('.ct-name').textContent = val;
-        trigger.querySelector('.sw').style.background = swatchFor(val);
+        trigger.querySelector('.sw').setAttribute('style', swatchStyle(val));
         pick.querySelectorAll('.color-opt').forEach(o => o.classList.toggle('sel', o === opt));
         pick.classList.remove('open'); menu.hidden = true;
       });
@@ -479,17 +479,24 @@ function openSettings() {
   });
 }
 
+// The dashboard's studio card decides its paint-outline stroke from the
+// *live* theme (see paintOutline in chrome.js) — a theme flip alone doesn't
+// otherwise trigger a re-render, so the stroke would go stale until the
+// next navigation.
+function refreshForTheme() { if (current === 'dashboard') go('dashboard'); }
+
 $('#themeToggle').onclick = () => {
   const next = nextTheme(themePref());
   setThemePref(next);
   toast(next === 'system' ? 'Theme: follows device' : next === 'light' ? 'Theme: light' : 'Theme: dark');
+  refreshForTheme();
 };
 
 // follow the device unless the user has explicitly picked light or dark
 setThemePref(themePref());
 if (window.matchMedia) {
   window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
-    if (themePref() === 'system') applyTheme(e.matches ? 'light' : 'dark');
+    if (themePref() === 'system') { applyTheme(e.matches ? 'light' : 'dark'); refreshForTheme(); }
   });
 }
 

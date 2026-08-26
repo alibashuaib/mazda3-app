@@ -230,6 +230,10 @@ body {
 .car-studio[data-vehicle-shape="hatch"] {
   --front-wheel-x: 31%; --rear-wheel-x: 77%; --ground-bottom: 12%;
 }
+/* A near-white car on the light theme, or near-black on dark, would blend
+   into this card's own surface gradient — has-paint-outline (set in JS from
+   the paint's actual verified hex vs the live theme) gives it a stroke. */
+.car-studio.has-paint-outline { box-shadow: inset 0 0 0 1.5px var(--paint-outline); }
 .car-studio[data-vehicle-shape="suv"] {
   --front-wheel-x: 30%; --rear-wheel-x: 77%; --ground-bottom: 10%;
 }

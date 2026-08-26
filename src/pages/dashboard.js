@@ -86,8 +86,13 @@ function renderDashboard() {
   // generic photo, tinted from the paint's real verified hex (not the
   // colour's name text) so every model's colour choice shows up somehow.
   const carImage = studioCarImage(paintName, session.current().car);
-  const paintClass = hasExactColorPhoto(modelId, paintName) ? '' : ' ' + paintFilterClass(swatchFor(paintName));
-  const carCard = el('div', 'card car-card car-studio' + paintClass);
+  const paintHex = swatchFor(paintName);
+  const paintClass = hasExactColorPhoto(modelId, paintName) ? '' : ' ' + paintFilterClass(paintHex);
+  // A near-white car on the light theme (or near-black on dark) would
+  // otherwise blend straight into the studio card's own surface gradient.
+  const outline = paintOutline(paintHex);
+  const carCard = el('div', 'card car-card car-studio' + paintClass + (outline ? ' has-paint-outline' : ''));
+  if (outline) carCard.style.setProperty('--paint-outline', outline);
   carCard.dataset.vehicleShape = modelId === 'mazda2' ? 'hatch' : /^cx/.test(modelId) ? 'suv' : 'sedan';
   carCard.title = t('Edit car profile');
   carCard.innerHTML = html`
