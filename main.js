@@ -479,11 +479,12 @@ function openSettings() {
   });
 }
 
-// The dashboard's studio card decides its paint-outline stroke from the
-// *live* theme (see paintOutline in chrome.js) — a theme flip alone doesn't
-// otherwise trigger a re-render, so the stroke would go stale until the
-// next navigation.
-function refreshForTheme() { if (current === 'dashboard') go('dashboard'); }
+// --accent-soft (every page's "View ›"/"Switch ›" links) and the
+// dashboard's studio-card paint-outline both derive from the *live* theme
+// (see accentForColor/paintOutline in chrome.js) — a theme flip alone
+// doesn't otherwise refresh either, so they'd read stale until the next
+// save or navigation.
+function refreshForTheme() { applyAccent(); if (current === 'dashboard') go('dashboard'); }
 
 $('#themeToggle').onclick = () => {
   const next = nextTheme(themePref());

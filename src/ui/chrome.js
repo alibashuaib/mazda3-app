@@ -155,7 +155,15 @@ function accentForColor(name) {
   }
   const { l } = hexToHsl(hex);
   const usable = l > 0.78 ? darkenHex(hex, 0.55) : l < 0.22 ? lightenHex(hex, 0.5) : hex;
-  return [usable, lightenHex(usable, 0.32)];
+  // --accent-soft is read as literal small link-text colour ("View ›",
+  // "Switch ›", …) directly on a card surface. A fixed "lighten by X" only
+  // reads clearly on the dark theme's near-black surface — measured as low
+  // as 1.4:1 against the light theme's near-white one for lighter paints.
+  // Darkening toward that surface instead of always lightening keeps every
+  // verified paint at >=4.5:1 (WCAG AA) on whichever theme is live.
+  const theme = (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme')) || (typeof systemTheme === 'function' ? systemTheme() : 'dark');
+  const soft = theme === 'light' ? darkenHex(usable, 0.55) : lightenHex(usable, 0.45);
+  return [usable, soft];
 }
 /* real-paint swatches for the colour dropdown — the *unmodified* hex,
    unlike accentForColor's usability-nudged version above. */
