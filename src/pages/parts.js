@@ -35,12 +35,55 @@ function partCrit(name) { return CRIT_HIGH.has(name) ? 'high' : CRIT_LOW.has(nam
 const critLevel = name => partCrit(name) === 'high' ? 'danger' : partCrit(name) === 'med' ? 'warn' : 'ok';
 const critLabel = name => partCrit(name) === 'high' ? t('mandatory') : partCrit(name) === 'low' ? t('optional') : t('recommended');
 
+/* Community-sourced tire guidance for KSA conditions (see TIRE_GUIDE in
+   catalog.js) — defaults to the active car's own shape but lets the driver
+   flip to the other bucket, since a household often runs one of each. */
+function tireGuideCard() {
+  let shape = tireShapeFor(session.current().car.modelId);
+  const card = el('div', 'card tire-guide');
+
+  function paint() {
+    const g = TIRE_GUIDE[shape];
+    card.innerHTML = html`
+      <div class="tg-head">
+        <div class="item-ic">🛞</div>
+        <div style="flex:1">
+          <h3>${t('Tire community guide')} <span class="section-title-badge" style="margin-left:6px">${t('KSA')}</span></h3>
+          <p class="muted" style="font-size:12px;margin-top:2px">${t(g.label)}</p>
+        </div>
+        <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="tg-body">
+        <div class="seg" style="margin-bottom:12px">
+          <button class="${shape === 'sedan' ? 'on' : ''}" data-shape="sedan">${t('Sedan / hatch')}</button>
+          <button class="${shape === 'suv' ? 'on' : ''}" data-shape="suv">${t('SUV / crossover')}</button>
+        </div>
+        <div style="font-size:12px;font-weight:650;color:var(--text-2);margin-bottom:6px">${t('When to replace')}</div>
+        <ul class="tg-list">${g.whenToReplace.map(x => html`<li>${t(x)}</li>`)}</ul>
+        <div style="font-size:12px;font-weight:650;color:var(--text-2);margin:14px 0 6px">${t('What the community picks')}</div>
+        ${g.picks.map(pk => html`
+          <div class="tg-pick">
+            <div class="tg-pick-name">${t(pk.brand)} <span class="muted">${t(pk.line)}</span></div>
+            <div class="tg-pick-why">${t(pk.why)}</div>
+          </div>`)}
+        <p class="muted" style="font-size:11px;margin-top:12px;line-height:1.5">${t('Confirm the exact tire size for your trim on the door-jamb sticker before ordering — this is guidance, not a fitted quote.')}</p>
+      </div>`;
+    card.querySelectorAll('[data-shape]').forEach(b => b.onclick = e => { e.stopPropagation(); shape = b.dataset.shape; paint(); });
+    card.querySelector('.tg-head').onclick = () => card.classList.toggle('open');
+    card.querySelector('.part-toggle').onclick = e => { e.stopPropagation(); card.classList.toggle('open'); };
+  }
+  paint();
+  return card;
+}
+
 /* ============================================================
    PAGE 3 — PARTS
    ============================================================ */
 function renderParts() {
   const v = el('div');
   v.appendChild(pageIntro('Car Parts', 'Only compatible parts are shown. Shared consumables are marked ↔; vehicle-locked parts are marked 🔒.'));
+
+  v.appendChild(tireGuideCard());
 
   const cats = ['All', ...new Set(compatibleParts().map(p => p.cat))];
   let active = 'All';

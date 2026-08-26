@@ -432,6 +432,20 @@ body {
 .part.open .part-toggle { transform: rotate(180deg); }
 .part-body { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
 .part.open .part-body { max-height: 640px; }
+
+/* ---- Tire community guide (Parts page) ---- */
+.tire-guide { padding: 14px; margin-bottom: 16px; }
+.tg-head { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.tg-head .item-ic { border-radius: 12px; }
+.tg-head h3 { font-size: 14.5px; font-weight: 650; }
+.tg-body { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
+.tire-guide.open .tg-body { max-height: 1400px; margin-top: 14px; }
+.tg-list { padding-left: 18px; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
+.tg-list li { margin-bottom: 8px; }
+.tg-pick { padding: 10px 0; border-top: 1px solid var(--stroke-2); }
+.tg-pick-name { font-size: 13px; font-weight: 700; }
+.tg-pick-name .muted { font-weight: 600; }
+.tg-pick-why { font-size: 12px; color: var(--text-2); margin-top: 2px; line-height: 1.5; }
 .opt {
   display: flex; align-items: center; gap: 10px;
   padding: 11px 0; border-top: 1px solid var(--stroke-2);
