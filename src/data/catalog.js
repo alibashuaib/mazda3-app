@@ -605,58 +605,10 @@ function fuelSystemCleanerPart(modelId) {
   ] }, modelId);
 }
 
-/* Every hatch/sedan uses passenger-car touring tires the same way a Mazda2
-   does; only the CX-line's height and load actually change what the tire
-   community recommends. Mirrors the shape split dashboard.js already uses
-   for the studio card, so "which bucket is this car in" has one answer. */
-function tireShapeFor(modelId) { return /^cx/.test(modelId || '') ? 'suv' : 'sedan'; }
-
-/* Community-sourced guidance for KSA conditions specifically: summer
-   asphalt routinely exceeds 60°C, which ages rubber and degrades wet grip
-   faster than the tire's tread-wear rating alone suggests, and most driving
-   here is long, hot highway stretches rather than off-road — so a touring
-   or highway-terrain tread beats an aggressive all-terrain one for daily use
-   even on an SUV. Prices are rough per-tire street estimates, not a fitted
-   quote — always confirm the exact size for the trim (see the door-jamb
-   sticker) before ordering. */
-const TIRE_GUIDE = {
-  sedan: {
-    label: 'Sedans & hatchbacks (2 · 3 · 6)',
-    whenToReplace: [
-      'Tread at or below 3-4mm (not the legal 1.6mm minimum) — KSA heat and highway speeds punish worn tread faster than cooler climates.',
-      '5-6 years from the manufacture date on the sidewall (4-digit DOT code, e.g. 2321 = week 23 of 2021) regardless of tread — rubber dries out and cracks from heat even with low mileage.',
-      'Visible sidewall cracking, bulges, or a puncture in the shoulder/sidewall — do not patch these, replace the tire.',
-      'Uneven wear across the tread (inner/outer edge, cupping) — get an alignment check at the same time or the new tires wear the same way.'
-    ],
-    picks: [
-      { brand: 'Michelin', line: 'Primacy 4 ST', why: 'Touring all-season, strong wet grip and long tread life — the community\'s default recommendation for daily highway driving.' },
-      { brand: 'Bridgestone', line: 'Turanza T005 / EL400', why: 'Comfort-oriented touring tire, well-stocked locally, good balance of quiet ride and summer-heat durability.' },
-      { brand: 'Yokohama', line: 'BluEarth-XT AE61', why: 'Popular value pick among Mazda 3/6 owners locally — solid heat resistance for the price.' },
-      { brand: 'Continental', line: 'UltraContact UC6', why: 'Good option if the priority is fuel economy and low road noise on long Riyadh-Jeddah style highway runs.' }
-    ]
-  },
-  suv: {
-    label: 'CX-line crossovers & SUVs',
-    whenToReplace: [
-      'Tread at or below 4mm — SUVs carry more weight, so a worn tire loses stability (especially in braking and crosswind) sooner than on a sedan.',
-      '5-6 years from the DOT date code, same as sedans — an SUV\'s extra weight is harder on aged, hardened rubber, not easier.',
-      'Any sidewall damage — an SUV\'s taller sidewall flexes more and hides a bulge or bubble until it fails, so check it by hand, not just by eye.',
-      'Uneven front/rear wear if the vehicle is AWD — replace in a full set (or the two least-worn tires as a matched axle pair) so the AWD system is not fighting different rolling diameters.'
-    ],
-    picks: [
-      { brand: 'Michelin', line: 'Primacy SUV+ / Latitude Tour HP', why: 'The touring choice most recommended for CX-5/CX-9 daily driving — quiet, long-wearing, handles the extra weight well.' },
-      { brand: 'Bridgestone', line: 'Dueler H/L 400 / Alenza', why: 'Highway-terrain tread built for crossover weight, common OEM-equivalent choice for the CX-line locally.' },
-      { brand: 'Yokohama', line: 'Geolandar CV G058', why: 'Comfort-focused highway tread, a frequent pick in the local CX-5/CX-60 community for its ride quality.' },
-      { brand: 'General', line: 'Grabber HTS60', why: 'Budget-friendly highway-terrain option if occasional light gravel/desert-camp tracks are part of the use case — not for serious off-road.' }
-    ]
-  }
-};
-
   return {
     DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, NORMAL_SCHED, ATF_NOTE,
     skyactivServices, mazda3Parts, sharedParts, partsForModel,
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
-    atfFilterPart, atfSealantPart, fuelSystemCleanerPart,
-    tireShapeFor, TIRE_GUIDE
+    atfFilterPart, atfSealantPart, fuelSystemCleanerPart
   };
 });
