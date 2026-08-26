@@ -8,17 +8,32 @@
 /* ============================================================
    PAGE 6 — FUEL LOG & ECONOMY
    ============================================================ */
+/* Tank-to-tank economy is only meaningful between two FULL tanks: a partial
+   fill leaves an unknown amount already in the tank, so its litres are not
+   what the car burned since the last fill. A partial therefore closes no
+   interval — its litres and cost carry forward and settle on the next full
+   tank, which measures the whole stretch since the previous full one. The
+   `full` flag was already collected and shown; this is what reads it. */
 function fuelRows() {
   const entries = [...(session.current().fuel || [])].sort((a, b) => a.date.localeCompare(b.date) || a.odometer - b.odometer);
-  return entries.map((e, i) => {
-    const prev = entries[i - 1];
+  let anchor = null;             // last full tank — the open interval's start
+  let carriedL = 0, carriedCost = 0;   // partials since that anchor
+  return entries.map(e => {
+    const isFull = e.full !== false;
+    const litres = Number(e.litres) || 0;
+    const cost = Number(e.cost) || 0;
     let l100 = null, km = null, costPerKm = null;
-    if (prev && e.odometer > prev.odometer && e.litres > 0) {
-      km = e.odometer - prev.odometer;
-      l100 = e.litres / km * 100;
-      costPerKm = (Number(e.cost) || 0) / km;
+    if (!isFull) {
+      carriedL += litres; carriedCost += cost;
+      return { e, l100, km, costPerKm, partial: true };
     }
-    return { e, l100, km, costPerKm };
+    if (anchor && e.odometer > anchor.odometer) {
+      km = e.odometer - anchor.odometer;
+      l100 = (carriedL + litres) / km * 100;
+      costPerKm = (carriedCost + cost) / km;
+    }
+    anchor = e; carriedL = 0; carriedCost = 0;
+    return { e, l100, km, costPerKm, partial: false };
   });
 }
 function renderFuel() {
@@ -28,7 +43,10 @@ function renderFuel() {
 
   const rows = fuelRows();
   const withEcon = rows.filter(r => r.l100 != null);
-  const avg = withEcon.length ? withEcon.reduce((a, r) => a + r.l100, 0) / withEcon.length : null;
+  // Distance-weighted, not a mean of the per-interval figures: a 900 km tank
+  // and a 90 km tank are not equal evidence of how the car is consuming.
+  const totalKm = withEcon.reduce((a, r) => a + r.km, 0);
+  const avg = totalKm ? withEcon.reduce((a, r) => a + r.l100 * r.km, 0) / totalKm : null;
   const last = withEcon.length ? withEcon[withEcon.length - 1].l100 : null;
   const lastCPK = withEcon.length ? withEcon[withEcon.length - 1].costPerKm : null;
   const totalFuel = (session.current().fuel).reduce((a, e) => a + (Number(e.cost) || 0), 0);

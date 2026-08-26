@@ -175,6 +175,26 @@ test('deleteVehicle ignores an id that is already gone', () => withBoot(async ({
   await api.deleteVehicle('AAA');
   assert.deepStrictEqual(api.session.garage().vehicles.map(v => v.id), ['BBB', 'CCC']);
 }));
+
+/* Economy is only measurable between two FULL tanks — a partial fill leaves an
+   unknown amount already in the tank. The `full` flag was collected and shown
+   but never read, so a partial closed an interval with litres that did not
+   cover it. Here: 400 km on a partial (20 L) then a full (20 L). Only the full
+   tank closes, and it must account for all 40 L over the whole 800 km. */
+test('a partial fill does not close an economy interval', () => withBoot(async ({ api }) => {
+  api.session.current().fuel = [
+    { id: 'a', date: '2026-01-01', odometer: 1000, litres: 30, cost: 150, full: true },
+    { id: 'b', date: '2026-01-10', odometer: 1400, litres: 20, cost: 100, full: false },
+    { id: 'c', date: '2026-01-20', odometer: 1800, litres: 20, cost: 100, full: true }
+  ];
+  const rows = api.fuelRows();
+
+  assert.strictEqual(rows[1].l100, null, 'the partial fill closed an interval it cannot measure');
+  assert.strictEqual(rows[2].km, 800, 'the full tank must span back to the previous FULL tank, not the partial');
+  assert.strictEqual(rows[2].l100, 5, '40 L over 800 km = 5 L/100km — the partial litres must carry forward');
+  assert.strictEqual(rows[2].costPerKm, 0.25, 'the partial fill cost must carry forward too');
+}));
+
 /* ============================================================
    DIALOGS
 
