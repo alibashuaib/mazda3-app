@@ -5,16 +5,53 @@
    ============================================================ */
 'use strict';
 
+/* The card carries role="dialog" aria-modal="true" (see index.html). That
+   asserts the rest of the page is inert, so the dialog has to actually
+   behave like one: name itself, take focus, keep Tab inside, close on
+   Escape, and hand focus back to whatever opened it. */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+let modalReturnFocus = null;
+
+function trapTab(ev) {
+  if (ev.key !== 'Tab') return;
+  const items = Array.from($('#modalCard').querySelectorAll(FOCUSABLE)).filter(n => n.offsetParent !== null || n === document.activeElement);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+  else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+}
+function onModalKeydown(ev) {
+  if (ev.key === 'Escape') { ev.preventDefault(); closeModal(); return; }
+  trapTab(ev);
+}
+
 function openModal(title, sub, bodyBuilder) {
   const host = $('#modalHost'), card = $('#modalCard');
   card.innerHTML = '<div class="modal-grip"></div>';
-  const h = el('h2', null, html`${t(title)}`); card.appendChild(h);
+  const h = el('h2', null, html`${t(title)}`);
+  h.id = 'modalTitle';
+  card.setAttribute('aria-labelledby', h.id);   // otherwise the dialog is unnamed
+  card.appendChild(h);
   if (sub) card.appendChild(el('p', 'sub', html`${t(sub)}`));
   bodyBuilder(card);
   host.hidden = false;
   host.querySelector('[data-close]').onclick = closeModal;
+  // Remember the opener only on a fresh open — a dialog that replaces another
+  // must not overwrite it with the outgoing dialog's own button.
+  if (!modalReturnFocus) modalReturnFocus = document.activeElement;
+  document.addEventListener('keydown', onModalKeydown);
+  document.body.style.overflow = 'hidden';      // don't scroll the page behind it
+  const target = card.querySelector(FOCUSABLE);
+  if (target) target.focus();
 }
-function closeModal() { $('#modalHost').hidden = true; }
+function closeModal() {
+  $('#modalHost').hidden = true;
+  document.removeEventListener('keydown', onModalKeydown);
+  document.body.style.overflow = '';
+  const back = modalReturnFocus;
+  modalReturnFocus = null;
+  if (back && typeof back.focus === 'function' && document.contains(back)) back.focus();
+}
 
 /* onAsyncClick lives in ui.js so the re-entry guard is covered by the tests —
    it is a race, and races do not show up in a render. */

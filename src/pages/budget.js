@@ -23,13 +23,18 @@ function renderBudget() {
   const dash = 2 * Math.PI * 40;
   const overBudget = spent > budget;
 
-  const ring = el('div', 'card budget-ring-card');
+  /* Its own gradient id: the dashboard's health ring also defines one, and a
+     duplicate id would make url(#…) resolve to whichever happened to be in
+     the document. Stop colours come from CSS (see .budget-ring-card in
+     styles.css) so the under-budget ring tracks the car's accent and both
+     themes, instead of the old hardcoded Soul Red that never moved. */
+  const ring = el('div', 'card budget-ring-card' + (overBudget ? ' over' : ''));
   ring.innerHTML = html`
     <div class="ring" style="width:96px;height:96px">
       <svg viewBox="0 0 92 92" style="width:96px;height:96px">
-        <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="${overBudget ? '#ff4d5e' : '#d6203c'}"/>
-          <stop offset="1" stop-color="${overBudget ? '#ff8a95' : '#ff5c6e'}"/>
+        <defs><linearGradient id="budgetRingGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop class="rg-from" offset="0"/>
+          <stop class="rg-to" offset="1"/>
         </linearGradient></defs>
         <circle class="track" cx="46" cy="46" r="40" fill="none" stroke-width="8"/>
         <circle class="prog" cx="46" cy="46" r="40" fill="none" stroke-width="8"

@@ -323,6 +323,13 @@ body {
 .ring svg { transform: rotate(-90deg); width: 92px; height: 92px; }
 .ring .track { stroke: var(--stroke); }
 .ring .prog { stroke: url(#ringGrad); stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.22,1,.36,1); }
+/* Budget ring: its own gradient id (the dashboard health ring owns #ringGrad),
+   and stop colours from tokens so it follows the car's paint and the theme. */
+.budget-ring-card .prog { stroke: url(#budgetRingGrad); }
+.budget-ring-card .rg-from { stop-color: var(--accent); }
+.budget-ring-card .rg-to { stop-color: var(--accent-soft); }
+.budget-ring-card.over .rg-from { stop-color: var(--danger); }
+.budget-ring-card.over .rg-to { stop-color: #ff8a95; }
 .ring .ring-label { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
 .ring .ring-num { font-size: 24px; font-weight: 800; line-height: 1; }
 .ring .ring-cap { font-size: 9px; color: var(--text-2); text-transform: uppercase; letter-spacing: .8px; margin-top: 3px; }

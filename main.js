@@ -48,7 +48,11 @@ function openAddVehicle() {
     const modelSel = card.querySelector('#av_model'), engSel = card.querySelector('#av_eng'), colorSel = card.querySelector('#av_color');
     const fillEngines = () => { engSel.innerHTML = html`${CAR_MODELS[+modelSel.value].engines.map((e, i) => html`<option value="${i}">${e[0]}</option>`)}`; };
     const fillColors = () => { colorSel.innerHTML = html`${CAR_MODELS[+modelSel.value].colors.map(x => html`<option value="${x}">${x}</option>`)}`; };
-    modelSel.value = '1'; fillEngines(); fillColors();          // default to Mazda 3 BM
+    // Look the default up by id — a positional index silently defaults to the
+    // wrong car the next time CAR_MODELS is reordered or extended.
+    const defaultIdx = CAR_MODELS.findIndex(m => m.id === 'mazda3bm');
+    modelSel.value = String(defaultIdx < 0 ? 0 : defaultIdx);
+    fillEngines(); fillColors();
     modelSel.onchange = () => { fillEngines(); fillColors(); };
     const b = el('button', 'btn primary block', html`${t('Add a vehicle')}`);
     onAsyncClick(b, async () => {
@@ -240,7 +244,12 @@ function go(route, intent) {
   view.className = 'view ' + route;
   view.innerHTML = '';
   view.appendChild(routes[route]());
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.route === route));
+  document.querySelectorAll('.tab').forEach(t => {
+    const on = t.dataset.route === route;
+    t.classList.toggle('is-active', on);
+    // is-active is purely visual; aria-current is what a screen reader reads.
+    if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+  });
   $('#view').scrollTop = 0;
   window.scrollTo(0, 0);
 }

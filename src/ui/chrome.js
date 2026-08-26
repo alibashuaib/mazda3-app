@@ -21,6 +21,9 @@ function renderTopbar() {
   const badge = $('#carBadge');
   badge.classList.remove('has-photo');
   badge.textContent = carInitials();
+  // index.html ships a fixed "2016 Mazda 3" title; this is a multi-vehicle
+  // garage, so the tab should name whichever vehicle is actually active.
+  document.title = 'Garage — ' + carTitle();
 }
 
 /* ============================================================
