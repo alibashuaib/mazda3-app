@@ -62,7 +62,9 @@ const AR = {
   'Skip for now': 'تخطّي الآن', 'Plan updated': 'تم تحديث الخطة',
   // tiles (fuel / history / budget)
   'Last L/100km': 'آخر ل/100كم', 'Avg L/100km': 'متوسط ل/100كم', 'SAR / km': 'ريال/كم', 'Services logged': 'خدمات مسجلة',
-  'SAR total': 'إجمالي الريال', 'Last service': 'آخر خدمة', 'OF BUDGET': 'من الميزانية', 'of budget': 'من الميزانية', 'Spent in 2026': 'المصروف في 2026',
+  'SAR total': 'إجمالي الريال', 'Last service': 'آخر خدمة', 'OF BUDGET': 'من الميزانية', 'of budget': 'من الميزانية',
+  /* Year-free: callers append the live year, so this phrase never goes stale. */
+  'Spent in': 'المصروف في',
   // filters / segments
   'All': 'الكل', 'OK': 'سليمة',
   // buttons
@@ -122,7 +124,7 @@ const AR = {
   'over budget': 'فوق الميزانية', 'SAR remaining of': 'ريال متبقية من',
   // report internals
   'Total spent (SAR)': 'إجمالي المصروف (ريال)', 'Total': 'الإجمالي', 'Service': 'الخدمة', 'Odometer': 'العداد',
-  'Cost': 'التكلفة', 'Notes': 'ملاحظات', 'Everything is up to date 🎉': 'كل شيء محدّث 🎉', 'Spent in 2026 (SAR)': 'المصروف في 2026 (ريال)',
+  'Cost': 'التكلفة', 'Notes': 'ملاحظات', 'Everything is up to date 🎉': 'كل شيء محدّث 🎉',
   'Generated': 'أُنشئ في', 'Odometer ': 'العداد ', 'Current odometer (km)': 'العداد الحالي (كم)', 'No service history recorded yet.': 'لا يوجد سجل صيانة بعد.',
   'Service History Report': 'تقرير سجل الصيانة', 'No purchases or spending recorded yet.': 'لا توجد مشتريات أو مصروفات بعد.', 'Entries': 'إدخالات', 'Categories': 'الفئات',
   'By category': 'حسب الفئة', 'Amount': 'المبلغ', 'Share': 'النسبة', 'All purchases': 'كل المشتريات', 'Item': 'البند', 'Purchases & Spending Report': 'تقرير المشتريات والمصروفات',
@@ -162,7 +164,7 @@ const AR = {
   'Nothing here — all good!': 'لا شيء هنا — كل شيء بخير!', 'No service history yet.\nLog your first one above.': 'لا يوجد سجل صيانة بعد.\nسجّل أول خدمة بالأعلى.',
   // budget chrome
   'Upcoming maintenance': 'صيانة قادمة', 'View ›': 'عرض ›', 'services due': 'خدمة مستحقة', 'overdue': 'متأخرة', 'plan ~': 'خطط لـ ~',
-  'By category (2026)': 'حسب الفئة (2026)', 'No spending logged yet.': 'لا توجد مصروفات مسجلة بعد.',
+  'No spending logged yet.': 'لا توجد مصروفات مسجلة بعد.',
   // fuel chrome
   'Fuel economy has dropped': 'انخفض توفير الوقود', 'partial': 'جزئي',
   'Last fill-up was': 'كانت آخر تعبئة', 'vs your': 'مقابل متوسطك', 'average.': 'المتوسط.',

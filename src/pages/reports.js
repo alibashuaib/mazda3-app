@@ -131,7 +131,7 @@ function reportSummary() {
       <div class="rpt-stat"><div class="n">${overdue.length}</div><div class="l">${t('Overdue')}</div></div>
     </div>
     <div class="rpt-cards" style="margin-top:12px">
-      <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">${t('Spent in 2026 (SAR)')}</div></div>
+      <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">${t('Spent in')} ${today().getFullYear()} (SAR)</div></div>
       <div class="rpt-stat"><div class="n">${sar(histTotal)}</div><div class="l">${t('Lifetime service cost')}</div></div>
       <div class="rpt-stat"><div class="n">${session.current().history.length}</div><div class="l">${t('Services logged')}</div></div>
     </div>

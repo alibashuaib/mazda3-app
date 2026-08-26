@@ -16,7 +16,8 @@ function renderBudget() {
   const v = el('div');
   v.appendChild(pageIntro('Budget & Spending', 'Track what your Mazda costs to run and keep it in top shape.'));
 
-  const spent = yearSpend(today().getFullYear());
+  const year = today().getFullYear();
+  const spent = yearSpend(year);
   const budget = session.current().budget.annual;
   const pct = clamp(budget ? spent / budget : 0, 0, 1.2);
   const dash = 2 * Math.PI * 40;
@@ -37,7 +38,7 @@ function renderBudget() {
       <div class="ring-label"><div class="ring-num" style="font-size:19px">${Math.round(pct * 100)}%</div><div class="ring-cap">${t('of budget')}</div></div>
     </div>
     <div style="flex:1">
-      <div class="muted" style="font-size:12px">${t('Spent in 2026')}</div>
+      <div class="muted" style="font-size:12px">${t('Spent in')} ${year}</div>
       <div style="font-size:26px;font-weight:800;letter-spacing:-.5px">${sar(spent)} <span class="muted" style="font-size:13px;font-weight:600">SAR</span></div>
       <div style="font-size:12.5px;margin-top:4px" class="${overBudget ? '' : 'muted'}">
         ${overBudget ? html`⚠️ ${sar(spent - budget)} ${t('over budget')}` : html`${sar(budget - spent)} ${t('SAR remaining of')} ${sar(budget)}`}
@@ -76,10 +77,12 @@ function renderBudget() {
 
   // breakdown by category
   const byCat = {};
-  session.current().spending.filter(e => e.date.startsWith('2026')).forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount); });
+  session.current().spending.filter(e => e.date.startsWith(String(year))).forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + Number(e.amount); });
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   if (cats.length) {
-    v.appendChild(sectionTitle('By category (2026)', '', null));
+    // Title carries the year as a value, not baked into the phrase — the ring
+    // above already tracks today()'s year, and the two must never disagree.
+    v.appendChild(sectionTitle(`${t('By category')} (${year})`, '', null));
     // (category names translated below)
     const cc = el('div', 'card');
     cc.style.padding = '14px 16px';
