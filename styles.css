@@ -255,6 +255,19 @@ body {
   display: block; object-fit: contain; object-position: center; pointer-events: none;
   filter: drop-shadow(0 8px 7px var(--car-shadow));
 }
+/* Models with only one reference photo get their studio car tinted toward
+   the actual selected paint (bucketed from its verified hex — see
+   paintFilterClass in chrome.js) so the colour picker visibly does
+   something for every model, not only the mazda3bm's exact photo set. */
+.paint-red .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) sepia(.7) saturate(4.2) hue-rotate(316deg) brightness(.92) contrast(1.08); }
+.paint-copper .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) sepia(.75) saturate(3.4) hue-rotate(340deg) brightness(.95) contrast(1.05); }
+.paint-blue .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) sepia(.7) saturate(3.2) hue-rotate(168deg) brightness(.88) contrast(1.12); }
+.paint-green .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) sepia(.7) saturate(2.6) hue-rotate(60deg) brightness(.85) contrast(1.08); }
+.paint-white .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) grayscale(1) brightness(1.42) contrast(.82); }
+.paint-black .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) grayscale(1) brightness(.54) contrast(1.25); }
+.paint-silver .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) grayscale(.85) brightness(1.13) contrast(.92); }
+.paint-titanium .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) sepia(.38) saturate(.8) hue-rotate(345deg) brightness(.82); }
+.paint-gray .studio-car { filter: drop-shadow(0 8px 7px var(--car-shadow)) saturate(.72) brightness(.9); }
 .hero::after {
   content: "";
   position: absolute; right: -40px; top: -50px;

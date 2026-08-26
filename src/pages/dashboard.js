@@ -54,11 +54,18 @@ function renderDashboard() {
   // engine (or making offline use depend on one).
   const carName = session.current().car.nickname || [session.current().car.year, session.current().car.make, session.current().car.model].filter(Boolean).join(' ');
   const paintName = session.current().car.color || 'Meteor Gray';
-  const carCard = el('div', 'card car-card car-studio');
   const modelId = session.current().car.modelId || 'unknown';
+  // mazda3bm ships a distinct photo per its 8 colours (studioCarImage below);
+  // every other model has only one reference photo, so its colour choice
+  // wouldn't show up at all without a tint. Deriving the tint from the
+  // paint's real verified hex (not the colour's name text) is what makes
+  // every model, not just the BM, actually reflect the chosen colour.
+  const carImage = studioCarImage(paintName, session.current().car);
+  const isExactPhoto = modelId === 'mazda3bm' && carImage !== 'assets/mazda3-studio.png';
+  const paintClass = isExactPhoto ? '' : ' ' + paintFilterClass(swatchFor(paintName));
+  const carCard = el('div', 'card car-card car-studio' + paintClass);
   carCard.dataset.vehicleShape = modelId === 'mazda2' ? 'hatch' : /^cx/.test(modelId) ? 'suv' : 'sedan';
   carCard.title = t('Edit car profile');
-  const carImage = studioCarImage(paintName, session.current().car);
   carCard.innerHTML = html`
     <span class="studio-orbit" aria-hidden="true"></span>
     ${carImage ? html`<img class="studio-car" src="${carImage}" alt="${carName} — ${paintName}">` : ''}`;
