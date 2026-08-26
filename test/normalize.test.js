@@ -84,6 +84,31 @@ test('normalizeData swaps the tires part when the car is changed to a different 
   assert.deepStrictEqual(tires[0].fitment.modelIds, ['cx90']);
 });
 
+test('normalizeData backfills the sharedParts starter set onto a vehicle saved while it was broken', () => {
+  // Simulates a non-BM vehicle saved back when sharedParts() dropped 10 of
+  // its 14 parts — only what survived that bug is present on disk.
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G' },
+    parts: [
+      { name: 'Brake Fluid (DOT 4)', cat: 'Brakes', options: [{ tag: 'OEM', brand: 'x', price: 1 }], fitment: { shareable: true, modelIds: [] } },
+      { name: 'Coolant FL22 (long-life)', cat: 'Engine', options: [{ tag: 'OEM', brand: 'x', price: 1 }], fitment: { shareable: true, modelIds: [] } }
+    ]
+  });
+  ['Engine Oil 5W-30 (4L)', 'Oil Filter', 'Front Brake Pads', 'Rear Brake Pads', '12V Battery'].forEach(name => {
+    assert.ok(s.parts.some(p => p.name === name), `${name} was not backfilled`);
+  });
+  assert.strictEqual(s.parts.filter(p => p.name === 'Brake Fluid (DOT 4)').length, 1, 'must not duplicate a part already present');
+  assert.ok(!s.parts.some(p => p.name === 'ATF FZ (per liter)'), 'cx90 must still not get ATF-FZ from the backfill');
+});
+
+test('normalizeData never layers sharedParts on top of the BM\'s own catalogue', () => {
+  // A real BM vehicle already carries mazda3Parts()'s Oil Filter (a real BM
+  // part number). Re-normalizing must not also inject sharedParts()'s
+  // generic placeholder version alongside it.
+  const s = normalizeData(buildProfile('mazda3bm', 0, {}));
+  assert.strictEqual(s.parts.filter(p => p.name === 'Oil Filter').length, 1);
+});
+
 test('normalizeData preserves shareable consumables across models', () => {
   const s = normalizeData({
     car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G' },

@@ -522,7 +522,18 @@ function mazda3Parts() {
 }
 
 /* Generic SkyActiv-G consumables — every model starts with these until its own
-   OEM numbers are filled in. Numbers vary by model, so verify before buying. */
+   OEM numbers are filled in. Numbers vary by model, so verify before buying.
+
+   stampPartsFitment already locks every non-universal part to `modelId` (and
+   already drops ATF FZ for a model that doesn't use it) — a trailing
+   `.filter(p => p.fitment.shareable || p.name === 'ATF FZ (per liter)')` used
+   to run on top of that and threw away everything else: Engine Oil, Oil
+   Filter, Fuel System Cleaner, both air filters, spark plugs, both brake
+   pads, the serpentine belt, the battery and the wipers. Verified: every
+   model but mazda3bm had only 3-4 parts total (cx90: Brake Fluid, Coolant,
+   Washer Fluid). Every model now gets the full 15-part starter list this
+   comment always said was the intent, with placeholder ("verify for your
+   model") brand/part numbers until real OEM data is filled in. */
 function sharedParts(modelId) {
   const P = (name, icon, cat, options) => ({ id: dep.uid(), name, icon, cat, options });
   const D = 'Mazda Dealer (Alireza)', A = 'Amazon.sa';
@@ -566,7 +577,7 @@ function sharedParts(modelId) {
       { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
     P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
-  ], modelId).filter(p => p.fitment.shareable || p.name === 'ATF FZ (per liter)');
+  ], modelId);
 }
 
 /* Every hatch/sedan takes a passenger-car tire the same way; only the

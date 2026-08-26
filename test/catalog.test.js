@@ -48,12 +48,31 @@ test('part builders produce fresh ids on every call', () => {
   assert.notStrictEqual(a[0].id, b[0].id);
 });
 
-test('sharedParts is the generic fallback and is non-empty', () => {
-  const p = cat.sharedParts('cx5kf');
-  assert.ok(p.length > 0);
-  p.forEach(x => {
-    assert.ok(x.name && Array.isArray(x.options));
-    assert.ok(cat.partFitsCar(x, { modelId: 'cx5kf' }));
+/* A trailing filter once threw away everything from this list except the 3
+   universal fluids (+ATF FZ where it applies) — `p.length > 0` alone can't
+   catch that (cx90's 4 leftover parts still satisfy it), so this pins the
+   full starter set by name for every consumable a "verify for your model"
+   part is meant to cover, on both an ATF-FZ model and a large-platform one
+   that must NOT have it. */
+test('sharedParts is the generic fallback and carries the full starter set, on every model', () => {
+  const base = [
+    'Engine Oil 5W-30 (4L)', 'Oil Filter', 'Fuel System Cleaner (additive)',
+    'Engine Air Filter', 'Cabin A/C Filter', 'Spark Plugs (each)',
+    'Front Brake Pads', 'Rear Brake Pads', 'Brake Fluid (DOT 4)',
+    'Coolant FL22 (long-life)', 'Serpentine Belt', '12V Battery',
+    'Wiper Blades (pair)', 'Windshield Washer Fluid (~2L)'
+  ];
+  // cx5kf uses ATF-FZ; cx90 (large-platform) must NOT get it — see the
+  // adjacent ATF-FZ test.
+  const expectedFor = { cx5kf: [...base, 'ATF FZ (per liter)'], cx90: base };
+  Object.entries(expectedFor).forEach(([modelId, expected]) => {
+    const p = cat.sharedParts(modelId);
+    const names = p.map(x => x.name);
+    assert.deepStrictEqual(names.sort(), [...expected].sort(), `${modelId} is missing part(s) of the starter set`);
+    p.forEach(x => {
+      assert.ok(Array.isArray(x.options) && x.options.length, `${x.name} needs at least one option`);
+      assert.ok(cat.partFitsCar(x, { modelId }), `${x.name} must fit ${modelId}`);
+    });
   });
 });
 

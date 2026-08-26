@@ -138,6 +138,17 @@
     if (s.car.modelId && !s.parts.some(p => p.cat === 'Tires' && p.fitment && !p.fitment.shareable && p.fitment.modelIds.includes(s.car.modelId))) {
       s.parts.push(dep.tiresPart(s.car.modelId));
     }
+    // sharedParts() used to lose 10 of its 14 starter consumables (a
+    // trailing filter kept only the universal fluids + ATF FZ) — any
+    // non-BM vehicle saved while that bug was live is missing Engine Oil,
+    // Oil Filter, both brake pads, etc. Backfill by name, idempotently;
+    // mazda3bm is excluded because mazda3Parts() is its own complete
+    // catalogue with BM-specific OEM numbers, not this generic fallback.
+    if (s.car.modelId && s.car.modelId !== 'mazda3bm') {
+      dep.sharedParts(s.car.modelId).forEach(sp => {
+        if (!s.parts.some(p => p.name === sp.name)) s.parts.push(sp);
+      });
+    }
     return s;
   }
 
