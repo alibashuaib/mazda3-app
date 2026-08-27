@@ -15,7 +15,7 @@ test('setupDom installs a usable document', () => {
 
 test('setupDom provides the shell ids app.js reaches for at boot', () => {
   const { document, cleanup } = setupDom();
-  ['#view', '#modalHost', '#modalCard', '#toastHost', '#tabbar', '#settingsBtn', '#garageBtn', '#openProfile', '#themeToggle', '#carBadge', '#carTitle', '#carSub']
+  ['#view', '#modalHost', '#modalCard', '#toastHost', '#tabbar', '#settingsBtn', '#garageBtn', '#accountBtn', '#openProfile', '#themeToggle', '#carBadge', '#carTitle', '#carSub']
     .forEach(sel => assert.ok(document.querySelector(sel), `${sel} must exist in the shell`));
   cleanup();
 });

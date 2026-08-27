@@ -271,8 +271,15 @@ function openGarage() {
       list.appendChild(it);
     });
     card.appendChild(list);
+    // Previously the only way to reach the active car's settings from here
+    // was clicking its row — easy to miss since every other row's click
+    // switches vehicle instead. An explicit button removes that ambiguity.
+    const settings = el('button', 'btn ghost block', html`${t('Settings')}`);
+    settings.style.marginTop = '14px';
+    settings.onclick = () => { closeModal(); openSettings(); };
+    card.appendChild(settings);
     const add = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add a vehicle')}`);
-    add.style.marginTop = '14px';
+    add.style.marginTop = '10px';
     add.onclick = () => addVehicle();
     card.appendChild(add);
   });
@@ -527,6 +534,7 @@ if (window.matchMedia) {
 $('#settingsBtn').onclick = openSettings;
 $('#openProfile').onclick = openSettings;
 $('#garageBtn').onclick = openGarage;
+$('#accountBtn').onclick = openAccount;
 lang = localStorage.getItem('garage.lang') || 'en';
 document.documentElement.setAttribute('lang', lang);
 document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
@@ -552,6 +560,9 @@ account.configure({
   rerender: () => { renderTopbar(); go(current); },
   choose: askWhichGarage
 });
+// Same guard openSettings() uses to hide its Account row on file://, where
+// sign-in cannot work at all — no point showing a topbar button for it.
+$('#accountBtn').hidden = !account.available();
 
 session.load()
   .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist the seed

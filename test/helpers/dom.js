@@ -10,6 +10,7 @@ const SHELL = `<!doctype html><html lang="en"><body>
       </button>
       <div class="topbar-actions">
         <button class="icon-btn" id="garageBtn"></button>
+        <button class="icon-btn" id="accountBtn"></button>
         <button class="icon-btn" id="settingsBtn"></button>
         <button class="icon-btn" id="themeToggle"></button>
       </div>
