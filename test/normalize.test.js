@@ -186,6 +186,34 @@ test('normalizeData corrects a saved vehicle\'s oil and coolant quantities for i
   assert.ok(!coolant.fitment.shareable, 'coolant capacity is car-specific — must no longer be universally shareable');
 });
 
+test('normalizeData corrects a saved vehicle\'s battery Ah rating in place', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G', odometer: 5000 },
+    parts: [{ id: 'b1', name: '12V Battery', cat: 'Electrical', fitment: { shareable: false, modelIds: ['cx90'] },
+      options: [{ tag: 'OEM', brand: 'Mazda Genuine', partNo: '', price: 480, store: 'Mazda Dealer (Alireza)' }] }]
+  });
+  const battery = s.parts.find(p => p.name === '12V Battery');
+  assert.strictEqual(battery.id, 'b1', 'must correct the existing part in place, not replace it with a new id');
+  assert.ok(/70Ah/.test(battery.options[0].brand));
+});
+
+/* The CX-60/70/80/90's 3.3L mild-hybrid engine carries a separate 48V pack
+   the 2.5L PHEV option on the same models does not — this must track a
+   change in the car's engine choice, the same idempotent add-if-
+   applicable/remove-if-not pattern as the Fuel System Cleaner check. */
+test('normalizeData drops the 48V pack if a car\'s engine changes from mild-hybrid to PHEV', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '2.5L e-SkyActiv-G PHEV', odometer: 5000 },
+    parts: [{ id: 'p1', name: '48V Mild-Hybrid Battery Pack', cat: 'Electrical', fitment: { shareable: false, modelIds: ['cx90'] }, options: [{ tag: 'OEM', brand: 'x', price: 1 }] }]
+  });
+  assert.ok(!s.parts.some(p => p.name === '48V Mild-Hybrid Battery Pack'), 'the PHEV does not have this component');
+});
+
+test('normalizeData adds the 48V pack if a car\'s engine changes to mild-hybrid', () => {
+  const s = normalizeData({ car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G', odometer: 5000 }, parts: [] });
+  assert.ok(s.parts.some(p => p.name === '48V Mild-Hybrid Battery Pack'));
+});
+
 test('normalizeData re-adds spark plugs if a car\'s engine changes from diesel to gasoline', () => {
   const s = normalizeData({
     car: { modelId: 'cx60', model: 'CX-60', engine: '3.3L e-SkyActiv-G', odometer: 5000 },

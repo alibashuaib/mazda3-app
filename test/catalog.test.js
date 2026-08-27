@@ -222,6 +222,42 @@ test('ATF FZ states the same drain quantity for the BM and every other ATF-FZ mo
   assert.ok(/4\.5 L per drain/.test(bm.options[0].note));
 });
 
+/* The 12V Battery had the same flavour of bug as oil and coolant: BM's own
+   copy said a flat "55Ah" (not quite matching Mazda's own 60-65Ah spec for
+   this engine); every other model's said no Ah figure at all. Name stays
+   the stable literal (used elsewhere? not cross-linked today, but kept
+   consistent with the oil/coolant pattern regardless). */
+test('battery12VPart carries a real Ah rating in the brand text, and flags an estimate honestly', () => {
+  const bm = cat.battery12VPart('mazda3bm', '2.0L SkyActiv-G');
+  const cx90 = cat.battery12VPart('cx90', '3.3L Turbo e-SkyActiv-G');
+  assert.strictEqual(bm.name, '12V Battery');
+  assert.ok(/60Ah/.test(bm.options[0].brand), 'Mazda\'s own Q-85 spec for 2.0/2.5 SkyActiv-G is 60-65Ah — BM\'s old flat "55Ah" was not quite right');
+  assert.ok(!bm.options[0].note, 'a sourced rating must not carry an "estimated" disclaimer');
+  assert.ok(/70Ah/.test(cx90.options[0].brand));
+  assert.ok(/estimated/.test(cx90.options[0].note), 'no published 12V spec exists for the large-platform six — must say so');
+  assert.ok(cx90.options[0].price > bm.options[0].price, 'a bigger battery must cost more');
+});
+
+/* The CX-60/70/80/90's 3.3L mild-hybrid engine carries a second, separate
+   48V battery pack the 2.5L PHEV option on the SAME models does not — a
+   genuinely different component, not a bigger 12V battery. */
+test('mildHybridEngine identifies only the 3.3L mild-hybrid, not the PHEV, on the same models', () => {
+  assert.ok(cat.mildHybridEngine('3.3L Turbo e-SkyActiv-G'));
+  assert.ok(cat.mildHybridEngine('3.3L e-SkyActiv-D'));
+  assert.ok(!cat.mildHybridEngine('2.5L e-SkyActiv-G PHEV'));
+  assert.ok(!cat.mildHybridEngine('2.0L SkyActiv-G'));
+});
+
+test('partsForModel includes the 48V pack only for the mild-hybrid engine, never the PHEV', () => {
+  const mhev = cat.partsForModel('cx90', '3.3L Turbo e-SkyActiv-G');
+  const phev = cat.partsForModel('cx90', '2.5L e-SkyActiv-G PHEV');
+  assert.ok(mhev.some(p => p.name === '48V Mild-Hybrid Battery Pack'));
+  assert.ok(!phev.some(p => p.name === '48V Mild-Hybrid Battery Pack'));
+  const pack = mhev.find(p => p.name === '48V Mild-Hybrid Battery Pack');
+  assert.ok(pack.options[0].price > 0, 'must not display as "from 0 SAR" — a sourced floor price stands in for a real quote');
+  assert.ok(!pack.fitment.shareable, 'locked to this exact model, like every other non-universal consumable');
+});
+
 test('NORMAL_SCHED entries are [km, months] pairs', () => {
   Object.entries(cat.NORMAL_SCHED).forEach(([name, pair]) => {
     assert.ok(Array.isArray(pair) && pair.length === 2, `${name} must be a pair`);

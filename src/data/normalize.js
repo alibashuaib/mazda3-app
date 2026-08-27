@@ -221,6 +221,21 @@
       if (coolantIdx >= 0 && !new RegExp(`~${wantCoolant.liters}\\s*L`).test((s.parts[coolantIdx].options[0] || {}).note || '')) {
         s.parts[coolantIdx] = Object.assign(dep.coolantPart(s.car.modelId, s.car.engine), { id: s.parts[coolantIdx].id });
       }
+      const wantAh = dep.batteryAhFor(s.car.modelId, s.car.engine).ah;
+      const batteryIdx = s.parts.findIndex(p => p.name === '12V Battery');
+      if (batteryIdx >= 0 && !new RegExp(`${wantAh}Ah`).test((s.parts[batteryIdx].options[0] || {}).brand || '')) {
+        s.parts[batteryIdx] = Object.assign(dep.battery12VPart(s.car.modelId, s.car.engine), { id: s.parts[batteryIdx].id });
+      }
+    }
+    // The CX-60/70/80/90's 3.3L mild-hybrid engine (either fuel) carries a
+    // separate 48V battery pack the 2.5L PHEV option on the same models does
+    // not — same idempotent add-if-applicable/remove-if-not pattern as the
+    // Fuel System Cleaner check above, so switching a car between the two
+    // engine choices keeps exactly the parts that actually apply.
+    if (s.car.modelId && dep.mildHybridEngine(s.car.engine)) {
+      if (!s.parts.some(p => p.name === '48V Mild-Hybrid Battery Pack')) s.parts.push(dep.mildHybridBatteryPart(s.car.modelId));
+    } else {
+      s.parts = s.parts.filter(p => p.name !== '48V Mild-Hybrid Battery Pack');
     }
     return s;
   }

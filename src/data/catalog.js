@@ -168,6 +168,59 @@ function coolantPart(modelId, engineCode) {
    simply the wrong one. One consistent, sourced note for every model now. */
 const ATF_DRAIN_NOTE = '~4.5 L per drain (7.7–8.0 L total dry fill). Every 60–80k km; dealer or specialist.';
 
+/* 12V starter/accessory battery capacity — genuinely varies with engine and
+   electrical load, the same way oil and coolant do. BM's own part said a
+   flat "55Ah" (mazda3Parts); every other model's said no Ah figure at all
+   (sharedParts). Sourced against Mazda's own Q-85 battery spec and parts
+   suppliers' group-size data where a source was found; the large-platform
+   3.3L six (mild-hybrid or PHEV) has no published 12V figure — its own
+   separate 48V mild-hybrid pack is a different component entirely, handled
+   by mildHybridBatteryPart below, not a bigger 12V battery. */
+function batteryAhFor(modelId, engineCode) {
+  const code = engineCode || '';
+  if (modelId === 'cx9tb') return { ah: 70, verified: true };  // older V6 — sourced group-size/CCA data
+  if (/^1\.5L/.test(code)) return { ah: 60, verified: true };  // Mazda2 — EFB spec for start-stop models
+  if (/^2\.0L/.test(code) || /^2\.5L(?! Turbo)/.test(code)) return { ah: 60, verified: true };  // Mazda's own Q-85 spec (2.0/2.5 SkyActiv-G, non-turbo)
+  if (/2\.5L Turbo/.test(code)) return { ah: 65, verified: false };  // e.g. CX-9 TC/CX-50 turbo — no direct source; estimated one class up from the NA 2.5
+  if (/3\.3L/.test(code)) return { ah: 70, verified: false };  // CX-60/70/80/90 six — no published 12V figure found (only the separate 48V pack is documented)
+  return { ah: 60, verified: false };  // BM's 1.6L option, CX-5 3rd-gen hybrid, PHEV 2.5L — not individually sourced
+}
+function battery12VPart(modelId, engineCode) {
+  const { ah, verified } = batteryAhFor(modelId, engineCode);
+  const note = verified ? undefined : `Ah rating estimated — no published spec found for this engine; confirm the label on your current battery before buying.`;
+  return stampPartFitment({
+    id: dep.uid(), name: '12V Battery', icon: '🔋', cat: 'Electrical',
+    options: [
+      { tag: 'OEM', brand: `Mazda Genuine ${ah}Ah`, partNo: '', price: Math.round(480 * ah / 60), store: 'Mazda Dealer (Alireza)', note },
+      { tag: 'ALT', brand: 'Varta Blue Dynamic', partNo: '', price: Math.round(360 * ah / 60), store: 'AC Delco / battery shop', note: 'Strong in heat' },
+      { tag: 'ALT', brand: 'AC Delco', partNo: '', price: Math.round(320 * ah / 60), store: 'Local battery shop' }
+    ]
+  }, modelId);
+}
+/* The CX-60/70/80/90's 3.3L mild-hybrid engine (either fuel) carries a
+   second, separate battery system alongside the normal 12V one: a 48V
+   lithium-ion pack (~0.33 kWh, sourced from Mazda's own parts listings for
+   the 2024+ CX-90/CX-70). This is not a bigger 12V battery — it is a
+   distinct, far more expensive component with its own failure mode, so it
+   gets its own part rather than being folded into battery12VPart above.
+   The 2.5L PHEV engine option on these same models has an entirely
+   different, much larger traction battery costing an order of magnitude
+   more (five figures USD) — out of scope here; this part is specifically
+   the 3.3L mild-hybrid's 48V pack, and applies only to that engine choice,
+   not every engine option on these four models. No aftermarket exists yet
+   for a component this new — U.S. forum/shop estimates put a dealer
+   replacement (battery + a required refrigerant service) at "at least
+   $5,000", so the price here is a sourced floor, not a real quote. */
+function mildHybridEngine(engineCode) { return /^3\.3L/.test(engineCode || ''); }
+function mildHybridBatteryPart(modelId) {
+  return stampPartFitment({
+    id: dep.uid(), name: '48V Mild-Hybrid Battery Pack', icon: '⚡', cat: 'Electrical',
+    options: [
+      { tag: 'OEM', brand: 'Mazda Genuine 48V Li-ion M-Hybrid pack (~0.33 kWh)', partNo: '', price: 18750, store: 'Mazda Dealer (Alireza)', note: 'Dealer-only — no aftermarket exists yet. Figure is a sourced floor ("at least $5,000" incl. a required refrigerant service), not a quote; get the exact number from the dealer before budgeting.' }
+    ]
+  }, modelId);
+}
+
 /* Shared SkyActiv-G schedule (Jeddah "severe" base intervals; dealer "normal"
    values are layered on in normalizeData). Oil quantity varies per engine;
    spark-plug count and the oil spec vary with the engine's cylinder count
@@ -322,12 +375,6 @@ function mazda3Parts(engineCode) {
           { tag: 'OEM', brand: 'Mazda Genuine', partNo: '', price: 150, store: 'Mazda Dealer (Alireza)' },
           { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: 'Amazon.sa' },
           { tag: 'ALT', brand: 'Valeo First', partNo: '', price: 70, store: 'noon' }
-        ] },
-      { id: dep.uid(), name: '12V Battery', icon: '🔋', cat: 'Electrical',
-        options: [
-          { tag: 'OEM', brand: 'Mazda Genuine 55Ah', partNo: '', price: 480, store: 'Mazda Dealer (Alireza)' },
-          { tag: 'ALT', brand: 'Varta Blue Dynamic', partNo: '', price: 360, store: 'AC Delco / battery shop', note: 'Strong in heat' },
-          { tag: 'ALT', brand: 'AC Delco', partNo: '', price: 320, store: 'Local battery shop' }
         ] },
       { id: dep.uid(), name: 'Serpentine Belt', icon: '🔗', cat: 'Engine', partsouq: 'PE0815909B',
         options: [
@@ -603,7 +650,7 @@ function mazda3Parts(engineCode) {
           { tag: 'OEM', brand: 'Mazda Genuine (per port)', partNo: 'PE01-13-111', price: 25, store: 'Mazda Dealer (Alireza)', note: 'Vacuum leak / rough idle — renew when servicing the intake' },
           { tag: 'ALT', brand: 'Aftermarket gasket set', partNo: '', price: 15, store: 'Amazon.sa' }
         ] }
-  ], 'mazda3bm').concat([engineOilPart('mazda3bm', oilL), coolantPart('mazda3bm', engineCode || '2.0L SkyActiv-G')]);
+  ], 'mazda3bm').concat([engineOilPart('mazda3bm', oilL), coolantPart('mazda3bm', engineCode || '2.0L SkyActiv-G'), battery12VPart('mazda3bm', engineCode || '2.0L SkyActiv-G')]);
 }
 
 /* Generic SkyActiv-G consumables — every model starts with these until its own
@@ -657,14 +704,11 @@ function sharedParts(modelId, engineCode) {
     P('Serpentine Belt', '🔗', 'Engine', [
       { tag: 'OEM', brand: 'Mazda Genuine (verify for your model)', partNo: '', price: 150, store: D },
       { tag: 'ALT', brand: 'Gates Micro-V', partNo: '', price: 90, store: A }]),
-    P('12V Battery', '🔋', 'Electrical', [
-      { tag: 'OEM', brand: 'Mazda Genuine', partNo: '', price: 480, store: D },
-      { tag: 'ALT', brand: 'Varta Blue Dynamic', partNo: '', price: 360, store: 'Battery shop', note: 'Strong in heat' }]),
     P('Wiper Blades (pair)', '🌧️', 'Exterior', [
       { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
     P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
-  ], modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code)]);
+  ], modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
 }
 
 /* Every hatch/sedan takes a passenger-car tire the same way; only the
@@ -721,7 +765,9 @@ function tiresPart(modelId) {
 
 function partsForModel(modelId, engineCode) {
   const base = modelId === 'mazda3bm' ? mazda3Parts(engineCode) : sharedParts(modelId, engineCode);
-  return base.concat([tiresPart(modelId)]);
+  const extra = [tiresPart(modelId)];
+  if (mildHybridEngine(engineCode)) extra.push(mildHybridBatteryPart(modelId));
+  return base.concat(extra);
 }
 
 /* Dealer "normal" intervals from the Haji Husein Alireza (Mazda KSA) sheet —
@@ -763,6 +809,7 @@ function fuelSystemCleanerPart(modelId) {
     atfFilterPart, atfSealantPart, fuelSystemCleanerPart,
     tireShapeFor, tiresPart, OEM_TIRE_SIZE,
     engineInfo, sparkPlugService, engineOilNote,
-    engineOilPart, coolantPart, coolantLitersFor
+    engineOilPart, coolantPart, coolantLitersFor,
+    batteryAhFor, battery12VPart, mildHybridEngine, mildHybridBatteryPart
   };
 });
