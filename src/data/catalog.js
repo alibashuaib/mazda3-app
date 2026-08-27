@@ -101,6 +101,72 @@ function engineOilNote(oilL, fuel) {
     ? `0W-30 low-SAPS (ACEA C3, DPF-safe) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Never use a non-low-SAPS oil — the ash clogs the diesel particulate filter (DPF) over time. No fuel-system cleaner additive needed — this is compression-ignition, not the direct-injection gasoline SkyActiv-G.`
     : `5W-30 (API SP / ILSAC GF-6A) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.`;
 }
+/* The oil PART (what you'd actually buy) used to say a flat "(4L)" for every
+   model regardless of engine — real capacity ranges 3.6-5.4 L across the
+   lineup (CAR_MODELS' own oilL, already verified). Price is scaled off the
+   4.2 L reference price so a bigger engine's estimate reflects needing more
+   bottles, not the same price for more oil. */
+function engineOilPart(modelId, oilL) {
+  const scale = p => Math.round(p * oilL / 4.2);
+  // Name stays the stable literal every other model's oil part already used
+  // — SERVICE_PARTS and CRIT_HIGH (parts.js) match parts by exact name, and
+  // a per-model name would silently break that cross-link for every model
+  // whose oilL isn't the historical default. The capacity goes in the note
+  // (and the price) instead, the same way skyactivServices' own oil note
+  // already varies it — just now the actual part you'd buy agrees with it.
+  return stampPartFitment({
+    id: dep.uid(), name: 'Engine Oil 5W-30 (4L)', icon: '🛢️', cat: 'Engine',
+    options: [
+      { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: scale(160), store: 'Amazon.sa', note: `API SP / ILSAC GF-6A full synthetic — ~${oilL} L with filter` },
+      { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 Future FGC 5W-30', partNo: '', price: scale(150), store: 'noon', note: 'Widely stocked in KSA' },
+      { tag: 'ALT', brand: 'Fuchs Titan Supersyn D1 SAE 5W-30', partNo: '', price: scale(145), store: 'Local parts market' }
+    ]
+  }, modelId);
+}
+/* Coolant system capacity, sourced from Mazda's own capacities tables
+   (owners-manual.mazda.com) per engine family — genuinely varies as much as
+   oil does (6.0 L for the 1.5L up to an estimated 11.4 L for the old CX-9's
+   V6), so a single "~6.6L" note for every model (which is what the part had
+   before this) was never right at either end of the range. The CX-60/70/
+   80/90 inline-six (either fuel) has no published capacities table found
+   despite searching — marked unverified rather than presented as fact. */
+function coolantLitersFor(modelId, engineCode) {
+  const code = engineCode || '';
+  if (/^1\.5L/.test(code)) return { liters: 6.0, verified: true };
+  if (/^2\.0L/.test(code)) return { liters: 6.5, verified: true };
+  if (modelId === 'cx9' && /Turbo/.test(code)) return { liters: 9.8, verified: true };  // CX-9 TC's own table — a larger radiator than the same 2.5T elsewhere
+  if (/2\.5L Turbo/.test(code)) return { liters: 8.3, verified: true };                  // e.g. CX-50 2.5 Turbo
+  if (/^2\.5L/.test(code)) return { liters: 6.6, verified: true };
+  if (modelId === 'cx9tb') return { liters: 11.4, verified: false };  // V6 — estimated from a drain-and-fill figure, not a direct system-capacity source
+  if (/3\.3L/.test(code)) return { liters: 10.5, verified: false };   // CX-60/70/80/90 inline-six — no published table found; estimated from comparable displacement/body class
+  return { liters: 6.5, verified: false };  // BM's 1.6L option, CX-5 3rd-gen hybrid — not individually sourced; same-family estimate
+}
+function coolantPart(modelId, engineCode) {
+  const { liters, verified } = coolantLitersFor(modelId, engineCode);
+  const note = verified
+    ? `System holds ~${liters} L, per Mazda's capacities table for this engine. Replace every 5 years in KSA heat.`
+    : `System holds an estimated ~${liters} L — no published capacity table found for this engine; confirm on your coolant reservoir or service sheet before buying. Replace every 5 years in KSA heat.`;
+  // Same reasoning as engineOilPart: name stays the stable literal so
+  // SERVICE_PARTS' 'Engine Coolant (FL22)' cross-link and CRIT_HIGH still
+  // match it; the capacity goes in the note.
+  return stampPartFitment({
+    id: dep.uid(), name: 'Coolant FL22 (long-life)', icon: '🌡️', cat: 'Engine',
+    options: [
+      { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: 'Mazda Dealer (Alireza)', note },
+      { tag: 'ALT', brand: 'Total Glacelf Auto Supra', partNo: '', price: 85, store: 'Local parts market', note: 'KSA-available compatible coolant (per 5-yr plan)' },
+      { tag: 'ALT', brand: 'Zerex Asian Blue (P-HOAT)', partNo: '', price: 85, store: 'Amazon.sa', note: 'Compatible chemistry' }
+    ]
+  }, modelId);
+}
+/* ATF-FZ capacity was two different, contradicting numbers depending on
+   which builder created the part: mazda3Parts' own copy said "~3.5 L per
+   drain, 7.8 L total"; sharedParts' said "~4.5-4.7 L per drain". Multiple
+   independent parts suppliers cite the same ~4.5 L drain / 7.7-8.0 L total
+   dry-fill figure across the Mazda3/CX-3/CX-5/CX-50/Mazda6 — i.e. every
+   ATF-FZ model shares one 6-speed SkyActiv-Drive, so this genuinely does
+   NOT vary per model the way oil and coolant do; the BM's own figure was
+   simply the wrong one. One consistent, sourced note for every model now. */
+const ATF_DRAIN_NOTE = '~4.5 L per drain (7.7–8.0 L total dry fill). Every 60–80k km; dealer or specialist.';
 
 /* Shared SkyActiv-G schedule (Jeddah "severe" base intervals; dealer "normal"
    values are layered on in normalizeData). Oil quantity varies per engine;
@@ -160,7 +226,6 @@ function skyactivServices(oilL, engineMeta) {
 
 const UNIVERSAL_PART_NAMES = new Set([
   'Brake Fluid (DOT 4)',
-  'Coolant FL22 (long-life)',
   'Windshield Washer Fluid (~2L)'
 ]);
 const ATF_FZ_MODEL_IDS = ['mazda2', 'mazda3bm', 'mazda3bp', 'mazda6', 'cx3', 'cx30', 'cx5ke', 'cx5kf', 'cx9', 'cx50'];
@@ -210,14 +275,9 @@ function isLegacyUnverifiedPart(part, modelId) {
 
 /* Full parts catalogue for the Mazda 3 (BM · 2.0). Other models start from the
    shared consumables and gain their own OEM numbers over time. */
-function mazda3Parts() {
+function mazda3Parts(engineCode) {
+  const oilL = engineInfo('mazda3bm', engineCode || '2.0L SkyActiv-G').oilL || 4.2;
   return stampPartsFitment([
-      { id: dep.uid(), name: 'Engine Oil 5W-30 (4L)', icon: '🛢️', cat: 'Engine',
-        options: [
-          { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic — 4.2 L with filter, 4.0 L without' },
-          { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 Future FGC 5W-30', partNo: '', price: 150, store: 'noon', note: 'Widely stocked in KSA' },
-          { tag: 'ALT', brand: 'Fuchs Titan Supersyn D1 SAE 5W-30', partNo: '', price: 145, store: 'Local parts market' }
-        ] },
       { id: dep.uid(), name: 'Oil Filter', icon: '🧽', cat: 'Engine', partsouq: 'PE0114302A',
         options: [
           { tag: 'OEM', brand: 'Mazda Genuine (verified for your VIN)', partNo: 'PE01-14-302A', price: 45, store: 'Mazda Dealer (Alireza)' },
@@ -275,15 +335,9 @@ function mazda3Parts() {
           { tag: 'ALT', brand: 'Gates Micro-V', partNo: '', price: 90, store: 'Amazon.sa' },
           { tag: 'ALT', brand: 'Dayco', partNo: '', price: 80, store: 'Local parts market' }
         ] },
-      { id: dep.uid(), name: 'Coolant FL22 (long-life)', icon: '🌡️', cat: 'Engine',
-        options: [
-          { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: 'Mazda Dealer (Alireza)', note: 'System holds ~6.6 L' },
-          { tag: 'ALT', brand: 'Total Glacelf Auto Supra', partNo: '', price: 85, store: 'Local parts market', note: 'KSA-available compatible coolant (per 5-yr plan)' },
-          { tag: 'ALT', brand: 'Zerex Asian Blue (P-HOAT)', partNo: '', price: 85, store: 'Amazon.sa', note: 'Compatible chemistry' }
-        ] },
       { id: dep.uid(), name: 'ATF FZ (per liter)', icon: '⚙️', cat: 'Drivetrain',
         options: [
-          { tag: 'OEM', brand: 'Mazda Genuine ATF-FZ (only)', partNo: '0000-77-112E-01', price: 60, store: 'Mazda Dealer (Alireza)', note: '~3.5 L per drain, 7.8 L total' },
+          { tag: 'OEM', brand: 'Mazda Genuine ATF-FZ (only)', partNo: '0000-77-112E-01', price: 60, store: 'Mazda Dealer (Alireza)', note: ATF_DRAIN_NOTE },
           { tag: 'ALT', brand: 'Idemitsu Type FZ', partNo: '', price: 42, store: 'Amazon.sa', note: 'OE supplier equivalent' }
         ] },
       { id: dep.uid(), name: 'Brake Fluid (DOT 4)', icon: '🩸', cat: 'Brakes',
@@ -549,7 +603,7 @@ function mazda3Parts() {
           { tag: 'OEM', brand: 'Mazda Genuine (per port)', partNo: 'PE01-13-111', price: 25, store: 'Mazda Dealer (Alireza)', note: 'Vacuum leak / rough idle — renew when servicing the intake' },
           { tag: 'ALT', brand: 'Aftermarket gasket set', partNo: '', price: 15, store: 'Amazon.sa' }
         ] }
-  ], 'mazda3bm');
+  ], 'mazda3bm').concat([engineOilPart('mazda3bm', oilL), coolantPart('mazda3bm', engineCode || '2.0L SkyActiv-G')]);
 }
 
 /* Generic SkyActiv-G consumables — every model starts with these until its own
@@ -565,13 +619,17 @@ function mazda3Parts() {
    Washer Fluid). Every model now gets the full 15-part starter list this
    comment always said was the intent, with placeholder ("verify for your
    model") brand/part numbers until real OEM data is filled in. */
-function sharedParts(modelId) {
+function sharedParts(modelId, engineCode) {
   const P = (name, icon, cat, options) => ({ id: dep.uid(), name, icon, cat, options });
   const D = 'Mazda Dealer (Alireza)', A = 'Amazon.sa';
+  // Callers that predate engineCode (existing tests, the sharedParts backfill
+  // in normalize.js) still get a correct oil/coolant capacity by falling
+  // back to this model's first listed engine, rather than silently reverting
+  // to a generic guess.
+  const m = CAR_MODELS.find(x => x.id === modelId);
+  const code = engineCode || (m && m.engines[0] && m.engines[0][0]) || '';
+  const oilL = engineInfo(modelId, code).oilL || 4.2;
   return stampPartsFitment([
-    P('Engine Oil 5W-30 (4L)', '🛢️', 'Engine', [
-      { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: A, note: 'API SP / ILSAC GF-6A full synthetic' },
-      { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 5W-30', partNo: '', price: 150, store: 'noon' }]),
     P('Oil Filter', '🧽', 'Engine', [
       { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G — commonly shared)', partNo: 'PE01-14-302A', price: 45, store: D, note: 'One filter fits most SkyActiv-G engines — verify' },
       { tag: 'ALT', brand: 'Denso 150-2010', partNo: '150-2010', price: 28, store: A }]),
@@ -594,10 +652,8 @@ function sharedParts(modelId) {
       { tag: 'ALT', brand: 'Akebono Ceramic', partNo: '', price: 170, store: A }]),
     P('Brake Fluid (DOT 4)', '🩸', 'Brakes', [
       { tag: 'OEM', brand: 'Motul DOT 3 & 4', partNo: '', price: 35, store: A, note: '~1 L for a full flush' }]),
-    P('Coolant FL22 (long-life)', '🌡️', 'Engine', [
-      { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: D }]),
     P('ATF FZ (per liter)', '⚙️', 'Drivetrain', [
-      { tag: 'OEM', brand: 'Mazda Genuine ATF-FZ (only)', partNo: 'K020-W0-052E4', price: 60, store: D, note: '~4.5–4.7 L per drain' }]),
+      { tag: 'OEM', brand: 'Mazda Genuine ATF-FZ (only)', partNo: 'K020-W0-052E4', price: 60, store: D, note: ATF_DRAIN_NOTE }]),
     P('Serpentine Belt', '🔗', 'Engine', [
       { tag: 'OEM', brand: 'Mazda Genuine (verify for your model)', partNo: '', price: 150, store: D },
       { tag: 'ALT', brand: 'Gates Micro-V', partNo: '', price: 90, store: A }]),
@@ -608,7 +664,7 @@ function sharedParts(modelId) {
       { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
     P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
-  ], modelId);
+  ], modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code)]);
 }
 
 /* Every hatch/sedan takes a passenger-car tire the same way; only the
@@ -663,8 +719,8 @@ function tiresPart(modelId) {
   }, modelId);
 }
 
-function partsForModel(modelId) {
-  const base = modelId === 'mazda3bm' ? mazda3Parts() : sharedParts(modelId);
+function partsForModel(modelId, engineCode) {
+  const base = modelId === 'mazda3bm' ? mazda3Parts(engineCode) : sharedParts(modelId, engineCode);
   return base.concat([tiresPart(modelId)]);
 }
 
@@ -706,6 +762,7 @@ function fuelSystemCleanerPart(modelId) {
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
     atfFilterPart, atfSealantPart, fuelSystemCleanerPart,
     tireShapeFor, tiresPart, OEM_TIRE_SIZE,
-    engineInfo, sparkPlugService, engineOilNote
+    engineInfo, sparkPlugService, engineOilNote,
+    engineOilPart, coolantPart, coolantLitersFor
   };
 });

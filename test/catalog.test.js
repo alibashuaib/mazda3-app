@@ -171,6 +171,57 @@ test('skyactivServices omits spark plugs entirely for a diesel engine, and uses 
   assert.ok(!/mandatory/i.test(oil.note), 'must not claim the gasoline DI fuel-system-cleaner requirement');
 });
 
+/* The Engine Oil PART (what you'd actually buy) used to say a flat "(4L)"
+   for every model, regardless of the engine actually fitted — real
+   capacity ranges 3.6-5.4 L across the lineup, already verified in
+   CAR_MODELS' own oilL. The name stays the stable literal every part
+   builder used before (SERVICE_PARTS/CRIT_HIGH in parts.js match by exact
+   name); the capacity and the price now vary in the note/price instead. */
+test('engineOilPart carries the real capacity in its note and scales price with it', () => {
+  const small = cat.engineOilPart('mazda2', 3.6);
+  const large = cat.engineOilPart('cx9', 5.4);
+  assert.strictEqual(small.name, 'Engine Oil 5W-30 (4L)', 'name must stay the stable literal for cross-linking');
+  assert.ok(/~3\.6 L/.test(small.options[0].note), 'the OEM option must show the real 3.6 L capacity');
+  assert.ok(/~5\.4 L/.test(large.options[0].note));
+  assert.ok(large.options[0].price > small.options[0].price, 'more oil must cost more');
+  assert.ok(cat.partFitsCar(small, { modelId: 'mazda2' }));
+  assert.ok(!cat.partFitsCar(small, { modelId: 'cx9' }), 'locked per model, like every other non-universal consumable');
+});
+
+/* Coolant genuinely varies almost as much as oil (6.0 L for the 1.5L up to
+   an estimated 11.4 L for the CX-9 TB's V6) — it used to be marked
+   universal/shareable with one flat "~6.6L" note for every model. Some
+   engines (CX-60/70/80/90's inline-six) have no published Mazda capacities
+   table; those must read as an estimate, not presented as verified fact. */
+test('coolantLitersFor distinguishes a sourced capacity from an estimate', () => {
+  assert.deepStrictEqual(cat.coolantLitersFor('mazda2', '1.5L SkyActiv-G'), { liters: 6.0, verified: true });
+  assert.deepStrictEqual(cat.coolantLitersFor('cx9', '2.5L Turbo SkyActiv-G'), { liters: 9.8, verified: true });
+  const six = cat.coolantLitersFor('cx90', '3.3L Turbo e-SkyActiv-G');
+  assert.strictEqual(six.verified, false, 'no published table exists for this engine — must not claim otherwise');
+});
+
+test('coolantPart is locked per model (not shareable) and its note matches verified vs. estimated', () => {
+  const verified = cat.coolantPart('mazda2', '1.5L SkyActiv-G');
+  const estimated = cat.coolantPart('cx90', '3.3L Turbo e-SkyActiv-G');
+  assert.strictEqual(verified.name, 'Coolant FL22 (long-life)', 'name must stay the stable literal for cross-linking');
+  assert.ok(!verified.fitment.shareable, 'coolant capacity is car-specific now, like tires — must not be shareable across a garage');
+  assert.ok(/capacities table/.test(verified.options[0].note));
+  assert.ok(/estimated/.test(estimated.options[0].note) && /no published capacity table/.test(estimated.options[0].note));
+});
+
+/* ATF-FZ had two different, contradicting drain quantities depending on
+   which builder created the part: mazda3Parts' own said "~3.5 L per drain,
+   7.8 L total", sharedParts' said "~4.5-4.7 L per drain". Every ATF-FZ
+   model shares one 6-speed SkyActiv-Drive transmission (sourced from
+   multiple independent parts suppliers), so this must read identically
+   everywhere — the BM was the one that had it wrong. */
+test('ATF FZ states the same drain quantity for the BM and every other ATF-FZ model', () => {
+  const bm = cat.mazda3Parts('2.0L SkyActiv-G').find(p => p.name === 'ATF FZ (per liter)');
+  const cx5kf = cat.sharedParts('cx5kf', '2.5L SkyActiv-G').find(p => p.name === 'ATF FZ (per liter)');
+  assert.strictEqual(bm.options[0].note, cx5kf.options[0].note);
+  assert.ok(/4\.5 L per drain/.test(bm.options[0].note));
+});
+
 test('NORMAL_SCHED entries are [km, months] pairs', () => {
   Object.entries(cat.NORMAL_SCHED).forEach(([name, pair]) => {
     assert.ok(Array.isArray(pair) && pair.length === 2, `${name} must be a pair`);

@@ -33,7 +33,7 @@
         color: requestedColor || colors[0], plate: '', vin: '', photo: '', odometer: odo, dailyKm: 40 },
       budget: { annual: 6000 },
       services: dep.skyactivServices(oilL, dep.engineInfo(m.id, engine)),
-      parts: dep.partsForModel(m.id),
+      parts: dep.partsForModel(m.id, engine),
       history: [], spending: [], fuel: [], docs: []
     };
     // baseline every service at the current odometer / today so the schedule tracks from now
@@ -196,9 +196,31 @@
     // for this service" despite its own oil note correctly saying "No
     // fuel-system cleaner additive needed."
     if (s.car.modelId && s.car.modelId !== 'mazda3bm') {
-      dep.sharedParts(s.car.modelId).forEach(sp => {
+      dep.sharedParts(s.car.modelId, s.car.engine).forEach(sp => {
         if (sp.name !== 'Fuel System Cleaner (additive)' && !s.parts.some(p => p.name === sp.name)) s.parts.push(sp);
       });
+    }
+    // Engine Oil and Coolant used to say the same fixed quantity for every
+    // model (a flat "4L" oil bottle, a flat "~6.6L" coolant fill) regardless
+    // of the actual engine — real oil capacity ranges 3.6-5.4 L across the
+    // lineup (CAR_MODELS' own oilL) and coolant genuinely varies about as
+    // much. Rebuilding both parts from the same builders buildProfile uses
+    // (rather than hand-patching price/note fields here) keeps this in sync
+    // with those builders by construction. Re-detects on a capacity mismatch
+    // — from before this fix, or from a changed engine choice — and is a
+    // no-op once the numbers already agree, so it costs nothing on repeat
+    // normalizeData calls once corrected.
+    if (s.car.modelId && s.car.engine) {
+      const oilL = dep.engineInfo(s.car.modelId, s.car.engine).oilL;
+      const oilIdx = s.parts.findIndex(p => p.name === 'Engine Oil 5W-30 (4L)');
+      if (oilIdx >= 0 && oilL != null && !s.parts[oilIdx].options.some(o => new RegExp(`~${oilL}\\s*L`).test(o.note || ''))) {
+        s.parts[oilIdx] = Object.assign(dep.engineOilPart(s.car.modelId, oilL), { id: s.parts[oilIdx].id });
+      }
+      const wantCoolant = dep.coolantLitersFor(s.car.modelId, s.car.engine);
+      const coolantIdx = s.parts.findIndex(p => p.name === 'Coolant FL22 (long-life)');
+      if (coolantIdx >= 0 && !new RegExp(`~${wantCoolant.liters}\\s*L`).test((s.parts[coolantIdx].options[0] || {}).note || '')) {
+        s.parts[coolantIdx] = Object.assign(dep.coolantPart(s.car.modelId, s.car.engine), { id: s.parts[coolantIdx].id });
+      }
     }
     return s;
   }

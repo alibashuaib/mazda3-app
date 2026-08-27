@@ -162,6 +162,30 @@ test('normalizeData never re-adds Fuel System Cleaner for a diesel or V6 engine 
   assert.ok(gasoline.parts.some(p => p.name === 'Fuel System Cleaner (additive)'), 'a direct-injection gasoline engine still needs it');
 });
 
+/* Engine Oil and Coolant used to state one fixed quantity for every model
+   ("4L", "~6.6L") regardless of the actual engine, even though real oil
+   capacity ranges 3.6-5.4 L (CAR_MODELS' own oilL) and coolant varies about
+   as much. Both must self-heal on a vehicle saved before this fix existed,
+   the same pattern as the spark-plug and tire-size backfills. */
+test('normalizeData corrects a saved vehicle\'s oil and coolant quantities for its actual engine', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G', odometer: 5000 },
+    parts: [
+      { id: 'o1', name: 'Engine Oil 5W-30 (4L)', cat: 'Engine', fitment: { shareable: false, modelIds: ['cx90'] },
+        options: [{ tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic' }] },
+      { id: 'c1', name: 'Coolant FL22 (long-life)', cat: 'Engine', fitment: { shareable: true, modelIds: [] },
+        options: [{ tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: 'Mazda Dealer (Alireza)' }] }
+    ]
+  });
+  const oil = s.parts.find(p => p.name === 'Engine Oil 5W-30 (4L)');
+  const coolant = s.parts.find(p => p.name === 'Coolant FL22 (long-life)');
+  assert.strictEqual(oil.id, 'o1', 'must correct the existing part in place, not replace it with a new id');
+  assert.ok(/~5\.1 L/.test(oil.options[0].note), 'CX-90\'s real 5.1 L oil capacity must appear');
+  assert.strictEqual(coolant.id, 'c1');
+  assert.ok(/estimated ~10\.5 L/.test(coolant.options[0].note));
+  assert.ok(!coolant.fitment.shareable, 'coolant capacity is car-specific — must no longer be universally shareable');
+});
+
 test('normalizeData re-adds spark plugs if a car\'s engine changes from diesel to gasoline', () => {
   const s = normalizeData({
     car: { modelId: 'cx60', model: 'CX-60', engine: '3.3L e-SkyActiv-G', odometer: 5000 },
