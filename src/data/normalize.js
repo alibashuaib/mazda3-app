@@ -184,10 +184,12 @@
     }
     // sharedParts() used to lose 10 of its 14 starter consumables (a
     // trailing filter kept only the universal fluids + ATF FZ) — any
-    // non-BM vehicle saved while that bug was live is missing Engine Oil,
-    // Oil Filter, both brake pads, etc. Backfill by name, idempotently;
-    // mazda3bm is excluded because mazda3Parts() is its own complete
-    // catalogue with BM-specific OEM numbers, not this generic fallback.
+    // vehicle saved while that bug was live is missing Engine Oil, Oil
+    // Filter, both brake pads, etc. Backfill by name, idempotently. The
+    // BM used to be excluded here because it had its own separate
+    // hardcoded catalogue (mazda3Parts()) instead of sharedParts() — that
+    // catalogue is gone now, so the BM gets the same backfill as every
+    // other model.
     // Fuel System Cleaner is excluded from the backfill on its own: the
     // directInjectionGasoline check above already deliberately removes it
     // for a diesel or MZI V6 engine (line ~112) — a blind by-name backfill
@@ -195,7 +197,7 @@
     // not apply to. Confirmed live: a diesel CX-60 had it back in "Parts
     // for this service" despite its own oil note correctly saying "No
     // fuel-system cleaner additive needed."
-    if (s.car.modelId && s.car.modelId !== 'mazda3bm') {
+    if (s.car.modelId) {
       dep.sharedParts(s.car.modelId, s.car.engine).forEach(sp => {
         if (sp.name !== 'Fuel System Cleaner (additive)' && !s.parts.some(p => p.name === sp.name)) s.parts.push(sp);
       });

@@ -43,7 +43,7 @@ test('skyactivServices threads the oil capacity through and gives every service 
 /* uid() is called at build time, so two calls must not hand out the same ids —
    the app keys records by them. */
 test('part builders produce fresh ids on every call', () => {
-  const a = cat.mazda3Parts(), b = cat.mazda3Parts();
+  const a = cat.sharedParts('mazda3bm'), b = cat.sharedParts('mazda3bm');
   assert.strictEqual(a.length, b.length);
   assert.notStrictEqual(a[0].id, b[0].id);
 });
@@ -77,7 +77,7 @@ test('sharedParts is the generic fallback and carries the full starter set, on e
 });
 
 test('parts are model-locked unless explicitly shareable', () => {
-  const bm = cat.mazda3Parts();
+  const bm = cat.sharedParts('mazda3bm');
   const filter = bm.find(p => p.name === 'Oil Filter');
   const brakeFluid = bm.find(p => p.name === 'Brake Fluid (DOT 4)');
   assert.ok(cat.partFitsCar(filter, { modelId: 'mazda3bm' }));
@@ -216,7 +216,7 @@ test('coolantPart is locked per model (not shareable) and its note matches verif
    multiple independent parts suppliers), so this must read identically
    everywhere — the BM was the one that had it wrong. */
 test('ATF FZ states the same drain quantity for the BM and every other ATF-FZ model', () => {
-  const bm = cat.mazda3Parts('2.0L SkyActiv-G').find(p => p.name === 'ATF FZ (per liter)');
+  const bm = cat.sharedParts('mazda3bm', '2.0L SkyActiv-G').find(p => p.name === 'ATF FZ (per liter)');
   const cx5kf = cat.sharedParts('cx5kf', '2.5L SkyActiv-G').find(p => p.name === 'ATF FZ (per liter)');
   assert.strictEqual(bm.options[0].note, cx5kf.options[0].note);
   assert.ok(/4\.5 L per drain/.test(bm.options[0].note));

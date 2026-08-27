@@ -101,12 +101,14 @@ test('normalizeData backfills the sharedParts starter set onto a vehicle saved w
   assert.ok(!s.parts.some(p => p.name === 'ATF FZ (per liter)'), 'cx90 must still not get ATF-FZ from the backfill');
 });
 
-test('normalizeData never layers sharedParts on top of the BM\'s own catalogue', () => {
-  // A real BM vehicle already carries mazda3Parts()'s Oil Filter (a real BM
-  // part number). Re-normalizing must not also inject sharedParts()'s
-  // generic placeholder version alongside it.
-  const s = normalizeData(buildProfile('mazda3bm', 0, {}));
-  assert.strictEqual(s.parts.filter(p => p.name === 'Oil Filter').length, 1);
+test('normalizeData never duplicates the BM\'s starter parts on repeat runs', () => {
+  // The BM used to have its own separate hardcoded catalogue (mazda3Parts());
+  // it now shares sharedParts() with every other model. Re-normalizing an
+  // already-normalized BM vehicle must stay idempotent, not pile up a second
+  // Oil Filter each pass.
+  const once = normalizeData(buildProfile('mazda3bm', 0, {}));
+  const twice = normalizeData(once);
+  assert.strictEqual(twice.parts.filter(p => p.name === 'Oil Filter').length, 1);
 });
 
 /* Only cx60/70/80/90 and cx9tb had their own corrective ATF note when
