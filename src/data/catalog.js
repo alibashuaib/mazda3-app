@@ -195,6 +195,7 @@ const ATF_DRAIN_NOTE = '~4.5 L per drain (7.7–8.0 L total dry fill). Every 60�
 function batteryAhFor(modelId, engineCode) {
   const code = engineCode || '';
   if (modelId === 'cx9tb') return { ah: 70, jis: '80D26L', verified: false };  // older V6, pre-i-stop generation — no direct JIS source found; estimated from comparable large-Mazda case size
+  if (modelId === 'cx5gen3') return { ah: 72, jis: 'S-95', verified: true };  // all-new 3rd-gen platform (2026+), mild-hybrid — NA spec uses S-95 idle-stop battery, not the older D23L case
   if (/^1\.5L/.test(code)) return { ah: 45, jis: '46B24L', verified: true };  // Mazda2 — its own smaller-case i-stop spec
   return { ah: 65, jis: '75D23L', verified: true };  // every other current SkyActiv-G engine — Q-85 i-stop spec, confirmed for the BM and for CX-5/CX-30/CX-9/CX-90
 }

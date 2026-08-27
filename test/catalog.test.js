@@ -245,6 +245,17 @@ test('battery12VPart uses the i-stop Q-85 spec (75D23L/65Ah) for the BM and ever
   assert.ok(bm.options[0].price > mazda2.options[0].price, 'a bigger battery must cost more');
 });
 
+/* The all-new 3rd-gen CX-5 (2026+) is a genuinely different mild-hybrid
+   platform, not just another SkyActiv-G engine on the same body — its NA
+   spec uses the S-95 idle-stop battery (72Ah), not the older D23L case
+   shared by every prior-generation model. */
+test('battery12VPart uses the S-95/72Ah spec for the 3rd-gen CX-5, not the older D23L bucket', () => {
+  const cx5gen3 = cat.battery12VPart('cx5gen3', '2.5L e-SkyActiv-G M Hybrid');
+  assert.ok(/72Ah/.test(cx5gen3.options[0].brand));
+  assert.strictEqual(cx5gen3.options[0].partNo, 'S-95');
+  assert.ok(!cx5gen3.options[0].note, 'a sourced rating must not carry an "estimated" disclaimer');
+});
+
 /* The CX-60/70/80/90's 3.3L mild-hybrid engine carries a second, separate
    48V battery pack the 2.5L PHEV option on the SAME models does not — a
    genuinely different component, not a bigger 12V battery. */
