@@ -168,32 +168,38 @@ function coolantPart(modelId, engineCode) {
    simply the wrong one. One consistent, sourced note for every model now. */
 const ATF_DRAIN_NOTE = '~4.5 L per drain (7.7–8.0 L total dry fill). Every 60–80k km; dealer or specialist.';
 
-/* 12V starter/accessory battery capacity — genuinely varies with engine and
+/* 12V starter/accessory battery — genuinely varies with engine and
    electrical load, the same way oil and coolant do. BM's own part said a
-   flat "55Ah" (mazda3Parts); every other model's said no Ah figure at all
-   (sharedParts). Sourced against Mazda's own Q-85 battery spec and parts
-   suppliers' group-size data where a source was found; the large-platform
-   3.3L six (mild-hybrid or PHEV) has no published 12V figure — its own
-   separate 48V mild-hybrid pack is a different component entirely, handled
-   by mildHybridBatteryPart below, not a bigger 12V battery. */
+   flat "55Ah" with no orderable code at all; every other model's said
+   neither. GCC-market Mazdas are sold with JIS-spec batteries (the
+   XXDYYL/R code — e.g. 46B24L — rather than the US BCI group-size system),
+   so the code that's actually useful for buying one locally is the JIS
+   designation, sourced per engine class where a source was found:
+   - Mazda2 (1.5L): 46B24L / 45Ah — common GCC/Asia-market spec for this class.
+   - 2.0/2.5 SkyActiv-G (non-turbo): 55D23L / 60Ah — Mazda's own Q-85 spec.
+   - 2.5 Turbo and the 3.3L six (CX-9/CX-90 share this generation's
+     electrical architecture): 75D23L (or 80D26L) / 65Ah — Mazda's own
+     published CX-90 spec ("12V-65Ah/20HR"), extended to the closely
+     related CX-50/60/70/80 on the same reasoning as the coolant estimates.
+   The older CX-9 TB's V6 (2007-2015, a different generation entirely) has
+   no direct JIS source found — kept as its own estimate. */
 function batteryAhFor(modelId, engineCode) {
   const code = engineCode || '';
-  if (modelId === 'cx9tb') return { ah: 70, verified: true };  // older V6 — sourced group-size/CCA data
-  if (/^1\.5L/.test(code)) return { ah: 60, verified: true };  // Mazda2 — EFB spec for start-stop models
-  if (/^2\.0L/.test(code) || /^2\.5L(?! Turbo)/.test(code)) return { ah: 60, verified: true };  // Mazda's own Q-85 spec (2.0/2.5 SkyActiv-G, non-turbo)
-  if (/2\.5L Turbo/.test(code)) return { ah: 65, verified: false };  // e.g. CX-9 TC/CX-50 turbo — no direct source; estimated one class up from the NA 2.5
-  if (/3\.3L/.test(code)) return { ah: 70, verified: false };  // CX-60/70/80/90 six — no published 12V figure found (only the separate 48V pack is documented)
-  return { ah: 60, verified: false };  // BM's 1.6L option, CX-5 3rd-gen hybrid, PHEV 2.5L — not individually sourced
+  if (modelId === 'cx9tb') return { ah: 70, jis: '80D26L', verified: false };  // older V6 — no direct JIS source for this generation; estimated from comparable large-Mazda case size
+  if (/^1\.5L/.test(code)) return { ah: 45, jis: '46B24L', verified: true };  // Mazda2 — common GCC/Asia-market JIS spec
+  if (/^2\.0L/.test(code) || /^2\.5L(?! Turbo)/.test(code)) return { ah: 60, jis: '55D23L', verified: true };  // Mazda's own Q-85 spec (2.0/2.5 SkyActiv-G, non-turbo)
+  if (/2\.5L Turbo/.test(code) || /3\.3L/.test(code)) return { ah: 65, jis: '75D23L', verified: true };  // Mazda's own CX-9/CX-90 spec
+  return { ah: 60, jis: '55D23L', verified: false };  // BM's 1.6L option, CX-5 3rd-gen hybrid, PHEV 2.5L — not individually sourced; same-family estimate
 }
 function battery12VPart(modelId, engineCode) {
-  const { ah, verified } = batteryAhFor(modelId, engineCode);
-  const note = verified ? undefined : `Ah rating estimated — no published spec found for this engine; confirm the label on your current battery before buying.`;
+  const { ah, jis, verified } = batteryAhFor(modelId, engineCode);
+  const note = verified ? undefined : `Ah rating and JIS code estimated — no published spec found for this engine; confirm the label on your current battery before buying.`;
   return stampPartFitment({
     id: dep.uid(), name: '12V Battery', icon: '🔋', cat: 'Electrical',
     options: [
-      { tag: 'OEM', brand: `Mazda Genuine ${ah}Ah`, partNo: '', price: Math.round(480 * ah / 60), store: 'Mazda Dealer (Alireza)', note },
-      { tag: 'ALT', brand: 'Varta Blue Dynamic', partNo: '', price: Math.round(360 * ah / 60), store: 'AC Delco / battery shop', note: 'Strong in heat' },
-      { tag: 'ALT', brand: 'AC Delco', partNo: '', price: Math.round(320 * ah / 60), store: 'Local battery shop' }
+      { tag: 'OEM', brand: `Mazda Genuine ${ah}Ah`, partNo: jis, price: Math.round(480 * ah / 60), store: 'Mazda Dealer (Alireza)', note },
+      { tag: 'ALT', brand: 'Varta Blue Dynamic', partNo: jis, price: Math.round(360 * ah / 60), store: 'AC Delco / battery shop', note: 'Strong in heat' },
+      { tag: 'ALT', brand: 'AC Delco', partNo: jis, price: Math.round(320 * ah / 60), store: 'Local battery shop' }
     ]
   }, modelId);
 }

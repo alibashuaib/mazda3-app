@@ -227,14 +227,18 @@ test('ATF FZ states the same drain quantity for the BM and every other ATF-FZ mo
    this engine); every other model's said no Ah figure at all. Name stays
    the stable literal (used elsewhere? not cross-linked today, but kept
    consistent with the oil/coolant pattern regardless). */
-test('battery12VPart carries a real Ah rating in the brand text, and flags an estimate honestly', () => {
+test('battery12VPart carries a real Ah rating and JIS code, and flags an estimate honestly', () => {
   const bm = cat.battery12VPart('mazda3bm', '2.0L SkyActiv-G');
   const cx90 = cat.battery12VPart('cx90', '3.3L Turbo e-SkyActiv-G');
+  const unsourced = cat.battery12VPart('mazda3bm', '1.6L SkyActiv-G');  // BM's smaller engine option — not individually sourced, falls to the same-family estimate
   assert.strictEqual(bm.name, '12V Battery');
-  assert.ok(/60Ah/.test(bm.options[0].brand), 'Mazda\'s own Q-85 spec for 2.0/2.5 SkyActiv-G is 60-65Ah — BM\'s old flat "55Ah" was not quite right');
+  assert.ok(/60Ah/.test(bm.options[0].brand), 'Mazda\'s own Q-85 spec for 2.0/2.5 SkyActiv-G is 60Ah — BM\'s old flat "55Ah" was not quite right');
+  assert.strictEqual(bm.options[0].partNo, '55D23L');
   assert.ok(!bm.options[0].note, 'a sourced rating must not carry an "estimated" disclaimer');
-  assert.ok(/70Ah/.test(cx90.options[0].brand));
-  assert.ok(/estimated/.test(cx90.options[0].note), 'no published 12V spec exists for the large-platform six — must say so');
+  assert.ok(/65Ah/.test(cx90.options[0].brand), 'Mazda\'s own published CX-9/CX-90 spec is 12V-65Ah/20HR');
+  assert.strictEqual(cx90.options[0].partNo, '75D23L');
+  assert.ok(!cx90.options[0].note, 'this one IS sourced from Mazda\'s own spec — must not carry a disclaimer');
+  assert.ok(/estimated/.test(unsourced.options[0].note), 'BM\'s 1.6L option has no individually sourced 12V spec — must say so');
   assert.ok(cx90.options[0].price > bm.options[0].price, 'a bigger battery must cost more');
 });
 

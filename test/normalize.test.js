@@ -194,7 +194,8 @@ test('normalizeData corrects a saved vehicle\'s battery Ah rating in place', () 
   });
   const battery = s.parts.find(p => p.name === '12V Battery');
   assert.strictEqual(battery.id, 'b1', 'must correct the existing part in place, not replace it with a new id');
-  assert.ok(/70Ah/.test(battery.options[0].brand));
+  assert.ok(/65Ah/.test(battery.options[0].brand));
+  assert.strictEqual(battery.options[0].partNo, '75D23L');
 });
 
 /* The CX-60/70/80/90's 3.3L mild-hybrid engine carries a separate 48V pack
