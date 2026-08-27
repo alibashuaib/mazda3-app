@@ -212,7 +212,7 @@
     // normalizeData calls once corrected.
     if (s.car.modelId && s.car.engine) {
       const oilL = dep.engineInfo(s.car.modelId, s.car.engine).oilL;
-      const oilIdx = s.parts.findIndex(p => p.name === 'Engine Oil 5W-30 (4L)');
+      const oilIdx = s.parts.findIndex(p => p.name === 'Engine Oil 5W-30');
       if (oilIdx >= 0 && oilL != null && !s.parts[oilIdx].options.some(o => new RegExp(`~${oilL}\\s*L`).test(o.note || ''))) {
         s.parts[oilIdx] = Object.assign(dep.engineOilPart(s.car.modelId, oilL), { id: s.parts[oilIdx].id });
       }

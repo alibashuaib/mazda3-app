@@ -94,7 +94,7 @@ test('normalizeData backfills the sharedParts starter set onto a vehicle saved w
       { name: 'Coolant FL22 (long-life)', cat: 'Engine', options: [{ tag: 'OEM', brand: 'x', price: 1 }], fitment: { shareable: true, modelIds: [] } }
     ]
   });
-  ['Engine Oil 5W-30 (4L)', 'Oil Filter', 'Front Brake Pads', 'Rear Brake Pads', '12V Battery'].forEach(name => {
+  ['Engine Oil 5W-30', 'Oil Filter', 'Front Brake Pads', 'Rear Brake Pads', '12V Battery'].forEach(name => {
     assert.ok(s.parts.some(p => p.name === name), `${name} was not backfilled`);
   });
   assert.strictEqual(s.parts.filter(p => p.name === 'Brake Fluid (DOT 4)').length, 1, 'must not duplicate a part already present');
@@ -171,13 +171,13 @@ test('normalizeData corrects a saved vehicle\'s oil and coolant quantities for i
   const s = normalizeData({
     car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G', odometer: 5000 },
     parts: [
-      { id: 'o1', name: 'Engine Oil 5W-30 (4L)', cat: 'Engine', fitment: { shareable: false, modelIds: ['cx90'] },
+      { id: 'o1', name: 'Engine Oil 5W-30', cat: 'Engine', fitment: { shareable: false, modelIds: ['cx90'] },
         options: [{ tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: 160, store: 'Amazon.sa', note: 'API SP / ILSAC GF-6A full synthetic' }] },
       { id: 'c1', name: 'Coolant FL22 (long-life)', cat: 'Engine', fitment: { shareable: true, modelIds: [] },
         options: [{ tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: 'Mazda Dealer (Alireza)' }] }
     ]
   });
-  const oil = s.parts.find(p => p.name === 'Engine Oil 5W-30 (4L)');
+  const oil = s.parts.find(p => p.name === 'Engine Oil 5W-30');
   const coolant = s.parts.find(p => p.name === 'Coolant FL22 (long-life)');
   assert.strictEqual(oil.id, 'o1', 'must correct the existing part in place, not replace it with a new id');
   assert.ok(/~5\.1 L/.test(oil.options[0].note), 'CX-90\'s real 5.1 L oil capacity must appear');

@@ -132,7 +132,7 @@ const AR = {
   'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
   'Garage · Mazda 3 care app': 'Garage · تطبيق العناية بمازدا 3', 'Report generated': 'صدر التقرير',
   // part names
-  'Engine Oil 5W-30 (4L)': 'زيت محرك 5W-30 (4 لتر)', 'Oil Filter': 'فلتر الزيت', 'Fuel System Cleaner (additive)': 'منظف نظام الوقود (إضافة)', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
+  'Engine Oil 5W-30': 'زيت محرك 5W-30', 'Oil Filter': 'فلتر الزيت', 'Fuel System Cleaner (additive)': 'منظف نظام الوقود (إضافة)', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
   'Spark Plugs (each)': 'بواجي الإشعال (للحبة)', 'Front Brake Pads': 'فحمات الفرامل الأمامية', 'Rear Brake Pads': 'فحمات الفرامل الخلفية',
   'Wiper Blades (pair)': 'مساحات الزجاج (زوج)', '12V Battery': 'بطارية 12 فولت', 'Serpentine Belt': 'سير المولد (السربنتين)',
   'Coolant FL22 (long-life)': 'سائل تبريد FL22 (طويل العمر)', 'ATF FZ (per liter)': 'زيت ناقل ATF FZ (للتر)', 'Brake Fluid (DOT 4)': 'زيت فرامل (DOT 4)',

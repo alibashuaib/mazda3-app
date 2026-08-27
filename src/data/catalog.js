@@ -115,7 +115,7 @@ function engineOilPart(modelId, oilL) {
   // (and the price) instead, the same way skyactivServices' own oil note
   // already varies it — just now the actual part you'd buy agrees with it.
   return stampPartFitment({
-    id: dep.uid(), name: 'Engine Oil 5W-30 (4L)', icon: '🛢️', cat: 'Engine',
+    id: dep.uid(), name: 'Engine Oil 5W-30', icon: '🛢️', cat: 'Engine',
     options: [
       { tag: 'OEM', brand: 'Shell Helix Ultra SP 5W-30 (dexos1 Gen3)', partNo: '', price: scale(160), store: 'Amazon.sa', note: `API SP / ILSAC GF-6A full synthetic — ~${oilL} L with filter` },
       { tag: 'ALT', brand: 'TotalEnergies Quartz 9000 Future FGC 5W-30', partNo: '', price: scale(150), store: 'noon', note: 'Widely stocked in KSA' },
@@ -230,7 +230,7 @@ const UNIVERSAL_PART_NAMES = new Set([
 ]);
 const ATF_FZ_MODEL_IDS = ['mazda2', 'mazda3bm', 'mazda3bp', 'mazda6', 'cx3', 'cx30', 'cx5ke', 'cx5kf', 'cx9', 'cx50'];
 const LEGACY_GENERIC_SIGNATURES = {
-  'Engine Oil 5W-30 (4L)': 'Shell Helix Ultra SP 5W-30',
+  'Engine Oil 5W-30': 'Shell Helix Ultra SP 5W-30',
   'Oil Filter': 'Mazda Genuine (SkyActiv-G — commonly shared)',
   'Fuel System Cleaner (additive)': 'Liqui Moly / Techron DI cleaner',
   'Engine Air Filter': 'Mazda Genuine (verify for your model)',

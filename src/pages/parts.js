@@ -7,7 +7,7 @@
 
 /* ---------- cross-page links: which parts each service consumes ---------- */
 const SERVICE_PARTS = {
-  'Engine Oil & Filter': ['Engine Oil 5W-30 (4L)', 'Oil Filter', 'Fuel System Cleaner (additive)'],
+  'Engine Oil & Filter': ['Engine Oil 5W-30', 'Oil Filter', 'Fuel System Cleaner (additive)'],
   'Engine Air Filter': ['Engine Air Filter'],
   'Cabin (A/C) Filter': ['Cabin A/C Filter'],
   'Spark Plugs (x4)': ['Spark Plugs (each)'],
@@ -30,7 +30,7 @@ function servicesForPart(p) { return session.current().services.filter(s => (SER
 
 /* How mandatory a part is for the car's health — drives the "do it next time"
    warning when a part is skipped (marked None). high = safety/engine-critical. */
-const CRIT_HIGH = new Set(['Engine Oil 5W-30 (4L)', 'Oil Filter', 'Fuel System Cleaner (additive)', 'Front Brake Pads', 'Rear Brake Pads', 'Brake Fluid (DOT 4)', 'Front Brake Disc (each)', 'Rear Brake Disc (each)', 'Coolant FL22 (long-life)', 'ATF FZ (per liter)', 'Transmission Fluid Filter', 'Spark Plugs (each)', 'Timing Chain Kit', 'Water Pump', 'Serpentine Belt']);
+const CRIT_HIGH = new Set(['Engine Oil 5W-30', 'Oil Filter', 'Fuel System Cleaner (additive)', 'Front Brake Pads', 'Rear Brake Pads', 'Brake Fluid (DOT 4)', 'Front Brake Disc (each)', 'Rear Brake Disc (each)', 'Coolant FL22 (long-life)', 'ATF FZ (per liter)', 'Transmission Fluid Filter', 'Spark Plugs (each)', 'Timing Chain Kit', 'Water Pump', 'Serpentine Belt']);
 const CRIT_LOW = new Set(['Cabin A/C Filter', 'Wiper Blades (pair)', 'Windshield Washer Fluid (~2L)', 'Headlight Bulbs (H11 low · 9005 high)', 'Tail / Brake Light Bulbs', 'Transmission Pan Sealant']);
 function partCrit(name) { return CRIT_HIGH.has(name) ? 'high' : CRIT_LOW.has(name) ? 'low' : 'med'; }
 const critLevel = name => partCrit(name) === 'high' ? 'danger' : partCrit(name) === 'med' ? 'warn' : 'ok';

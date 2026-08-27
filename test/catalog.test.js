@@ -56,7 +56,7 @@ test('part builders produce fresh ids on every call', () => {
    that must NOT have it. */
 test('sharedParts is the generic fallback and carries the full starter set, on every model', () => {
   const base = [
-    'Engine Oil 5W-30 (4L)', 'Oil Filter', 'Fuel System Cleaner (additive)',
+    'Engine Oil 5W-30', 'Oil Filter', 'Fuel System Cleaner (additive)',
     'Engine Air Filter', 'Cabin A/C Filter', 'Spark Plugs (each)',
     'Front Brake Pads', 'Rear Brake Pads', 'Brake Fluid (DOT 4)',
     'Coolant FL22 (long-life)', 'Serpentine Belt', '12V Battery',
@@ -180,7 +180,7 @@ test('skyactivServices omits spark plugs entirely for a diesel engine, and uses 
 test('engineOilPart carries the real capacity in its note and scales price with it', () => {
   const small = cat.engineOilPart('mazda2', 3.6);
   const large = cat.engineOilPart('cx9', 5.4);
-  assert.strictEqual(small.name, 'Engine Oil 5W-30 (4L)', 'name must stay the stable literal for cross-linking');
+  assert.strictEqual(small.name, 'Engine Oil 5W-30', 'name must stay the stable literal for cross-linking');
   assert.ok(/~3\.6 L/.test(small.options[0].note), 'the OEM option must show the real 3.6 L capacity');
   assert.ok(/~5\.4 L/.test(large.options[0].note));
   assert.ok(large.options[0].price > small.options[0].price, 'more oil must cost more');
