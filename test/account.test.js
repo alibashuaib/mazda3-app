@@ -276,7 +276,7 @@ test('a photo entry uploads before a vehicle entry queued after it', async () =>
 function seedGarage(extra) {
   return {
     vehicles: [{ id: 'local1', data: Object.assign({
-      car: { nickname: '', odometer: 316000 },
+      car: { nickname: '', odometer: 0 },
       services: [], parts: [], history: [], spending: [], fuel: [], docs: []
     }, extra || {}) }],
     activeId: 'local1'

@@ -44,7 +44,7 @@
     return String(value || '').toLowerCase().replace(/\s*\(code[^)]*\)/g, '').trim();
   }
   // default first vehicle: the owner's 2016 Mazda 3 (BM · 2.0) at 316,000 km
-  function seed() { return buildProfile('mazda3bm', 0, { odometer: 316000, year: 2016, color: dep.DEFAULT_COLOR }); }
+  function seed() { return buildProfile('mazda3bm', 0, { odometer: 0, year: 2016, color: dep.DEFAULT_COLOR }); }
 
   function normalizeData(s) {
     s.car = Object.assign({ nickname: '', vin: '', photo: '' }, s.car);

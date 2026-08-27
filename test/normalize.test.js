@@ -241,9 +241,9 @@ test('buildProfile selects the part catalog for the requested model', () => {
   assert.ok(!buildProfile('cx90', 0, {}).parts.some(p => p.name === 'ATF FZ (per liter)'));
 });
 
-test('seed is the owner 2016 Mazda 3 at 316,000 km', () => {
+test('seed is a fresh 2016 Mazda 3 at 0 km', () => {
   const v = seed();
-  assert.strictEqual(v.car.odometer, 316000);
+  assert.strictEqual(v.car.odometer, 0);
   assert.strictEqual(v.car.year, 2016);
 });
 

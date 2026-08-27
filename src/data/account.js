@@ -293,7 +293,7 @@
   /* The default vehicle hydrate() invents on a fresh device: one car, nothing
      logged against it. Derived from data already in memory rather than tracked
      with a flag — there is no state to keep in sync and nothing to migrate. */
-  const SEED_ODOMETER = 316000;   // normalize.js's seed(): buildProfile(..., { odometer: 316000 })
+  const SEED_ODOMETER = 0;   // normalize.js's seed(): buildProfile(..., { odometer: 0 })
 
   function isUntouchedSeed(garage) {
     if (!garage || !Array.isArray(garage.vehicles) || garage.vehicles.length !== 1) return false;
