@@ -319,18 +319,26 @@ function askWhichGarage() {
 function openAccount() {
   const signedIn = !!account.user();
   openModal(t('Account'), signedIn ? t('Signed in as') + ' ' + account.user().email : t('Your garage stays on this device.'), card => {
-    // Garage and Settings aren't account-specific — surfaced here too so
-    // this modal isn't a dead end once you're already looking at it.
-    const nav = el('div', 'field-row');
-    nav.style.marginBottom = '16px';
-    const garageBtn = el('button', 'btn ghost', html`${t('Garage')}`);
-    garageBtn.onclick = () => { closeModal(); openGarage(); };
-    const settingsBtn = el('button', 'btn ghost', html`${t('Settings')}`);
-    settingsBtn.onclick = () => { closeModal(); openSettings(); };
-    nav.append(garageBtn, settingsBtn);
-    card.appendChild(nav);
-
     if (signedIn) {
+      // Garage and Settings aren't account-specific, but only surfaced here
+      // once signed in — a list, not a pair of buttons, matching the row
+      // style "Your garage"'s own vehicle list already uses.
+      const list = el('div', 'list');
+      list.style.marginBottom = '16px';
+      [
+        ['🚗', 'Garage', 'Switch vehicles or add another', openGarage],
+        ['⚙️', 'Settings', 'Car profile, language, plan setup', openSettings]
+      ].forEach(([icon, title, sub, open]) => {
+        const it = el('div', 'item');
+        it.innerHTML = html`
+          <div class="item-ic">${icon}</div>
+          <div class="item-main"><h3>${t(title)}</h3><p>${t(sub)}</p></div>
+          <div class="item-side" style="color:var(--text-3);font-size:18px">›</div>`;
+        it.onclick = () => { closeModal(); open(); };
+        list.appendChild(it);
+      });
+      card.appendChild(list);
+
       const status = el('p', 'muted');
       account.outboxSize().then(pending => { status.textContent = pending ? t('Waiting to sync') + ' · ' + pending : t('Synced'); });
       card.appendChild(status);

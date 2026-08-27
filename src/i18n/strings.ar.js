@@ -371,6 +371,8 @@ const AR = {
   'Account': 'الحساب',
   'Settings': 'الإعدادات',
   'Garage': 'المرآب',
+  'Switch vehicles or add another': 'بدّل بين المركبات أو أضف أخرى',
+  'Car profile, language, plan setup': 'ملف السيارة، اللغة، إعداد الخطة',
   'Sign in': 'تسجيل الدخول',
   'Sign up': 'إنشاء حساب',
   'Sign out': 'تسجيل الخروج',
