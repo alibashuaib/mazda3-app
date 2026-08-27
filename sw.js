@@ -1,6 +1,25 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-v38';
-const ASSETS = ['./', './index.html', './styles.css', './assets/mazda3-studio.png', './assets/mazda3-soul-red.png', './assets/mazda3-snowflake-white.png', './assets/mazda3-jet-black.png', './assets/mazda3-deep-crystal-blue.png', './assets/mazda3-blue-reflex.png', './assets/mazda3-liquid-silver.png', './assets/mazda3-titanium-flash.png', './assets/mazda2-dj.png', './assets/mazda3-bp.png', './assets/mazda6-gj.png', './assets/mazda-cx3-dk.png', './assets/mazda-cx30-dm.png', './assets/mazda-cx5-ke.png', './assets/mazda-cx5-kf.png', './assets/mazda-cx5-gen3.png', './assets/mazda-cx9-tb.png', './assets/mazda-cx9-tc.png', './assets/mazda-cx50.png', './assets/mazda-cx60.png', './assets/mazda-cx70.png', './assets/mazda-cx80.png', './assets/mazda-cx90.png', './src/core/helpers.js', './src/ui/html.js', './src/ui/modal.js', './src/ui/photo.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js', './src/i18n/lang.js', './src/core/schedule.js', './src/data/storage.js', './src/data/normalize.js', './src/data/session.js', './src/data/status.js', './vendor/supabase.js', './src/data/account.js', './src/core/async-click.js', './src/pages/dashboard.js', './src/pages/maintenance.js', './src/pages/parts.js', './src/pages/fuel.js', './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js', './main.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'garage-v43';
+const ASSETS = ['./', './index.html', './styles.css', './assets/mazda3-studio.png', './assets/mazda3-soul-red.png', './assets/mazda3-snowflake-white.png', './assets/mazda3-jet-black.png', './assets/mazda3-deep-crystal-blue.png', './assets/mazda3-blue-reflex.png', './assets/mazda3-liquid-silver.png', './assets/mazda3-titanium-flash.png', './assets/mazda2-dj.png', './assets/mazda3-bp.png', './assets/mazda6-gj.png', './assets/mazda-cx3-dk.png', './assets/mazda-cx30-dm.png', './assets/mazda-cx5-ke.png', './assets/cx5ke-soul-red-metallic.png', './assets/cx5ke-crystal-white-pearl-mica.png', './assets/cx5ke-jet-black-mica.png', './assets/cx5ke-blue-reflex-mica.png', './assets/cx5ke-sky-blue-mica.png', './assets/cx5ke-stormy-blue-mica.png', './assets/cx5ke-liquid-silver-metallic.png', './assets/cx5ke-metropolitan-gray-mica.png', './assets/cx5ke-zeal-red-mica.png', './assets/mazda-cx5-kf.png', './assets/mazda-cx5-gen3.png', './assets/mazda-cx9-tb.png', './assets/cx9tb-brilliant-black-clearcoat.png', './assets/cx9tb-crystal-white-pearl-mica.png', './assets/cx9tb-copper-red-mica.png', './assets/cx9tb-liquid-silver-metallic.png', './assets/cx9tb-metropolitan-gray-mica.png', './assets/cx9tb-stormy-blue-mica.png', './assets/mazda-cx9-tc.png', './assets/mazda-cx50.png', './assets/mazda-cx60.png', './assets/mazda-cx70.png', './assets/mazda-cx80.png', './assets/mazda-cx90.png', './src/core/helpers.js', './src/ui/html.js', './src/ui/modal.js', './src/ui/photo.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js', './src/i18n/lang.js', './src/core/schedule.js', './src/data/storage.js', './src/data/normalize.js', './src/data/session.js', './src/data/status.js', './vendor/supabase.js', './src/data/account.js', './src/core/async-click.js', './src/pages/dashboard.js', './src/pages/maintenance.js', './src/pages/parts.js', './src/pages/fuel.js', './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js', './main.js', './manifest.webmanifest', './icon.svg'];
+ASSETS.push(
+  './assets/mazda6-soul-red-metallic.png',
+  './assets/mazda6-soul-red-crystal-metallic.png',
+  './assets/mazda6-snowflake-white-pearl-mica.png',
+  './assets/mazda6-jet-black-mica.png',
+  './assets/mazda6-deep-crystal-blue-mica.png',
+  './assets/mazda6-blue-reflex-mica.png',
+  './assets/mazda6-sonic-silver-metallic.png',
+  './assets/mazda6-titanium-flash-mica.png'
+);
+ASSETS.push(
+  './assets/mazda2-soul-red-crystal-metallic.png',
+  './assets/mazda2-snowflake-white-pearl-mica.png',
+  './assets/mazda2-jet-black-mica.png',
+  './assets/mazda2-deep-crystal-blue-mica.png',
+  './assets/mazda2-dynamic-blue-mica.png',
+  './assets/mazda2-ceramic-metallic.png',
+  './assets/mazda2-platinum-quartz-metallic.png'
+);
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

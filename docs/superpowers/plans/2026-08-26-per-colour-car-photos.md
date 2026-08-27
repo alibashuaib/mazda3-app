@@ -49,16 +49,13 @@ keeps working for every colour not yet covered.
 
 ## Full asset list still needed (as of 2026-08-26)
 
-`mazda3bm` is done except its own `DEFAULT_COLOR`; every other model is
-fully outstanding. `[m.id]-[colorSlug]` → source catalogue colour, generated
+`mazda2`, `mazda3bm`, `cx9tb`, `cx5ke`, and `mazda6` are complete.
+Every other model is fully outstanding. `[m.id]-[colorSlug]` → source catalogue colour, generated
 from `CAR_MODELS` in `src/data/catalog.js`:
 
-### mazda3bm (1 remaining)
-- `mazda3bm-meteor-gray-mica` ← Meteor Gray Mica (Code 42A) — the model's
-  `DEFAULT_COLOR`; currently the only one still hitting the generic
-  `mazda3-studio.png` + tint.
+### mazda3bm (complete — 8/8)
 
-### mazda2 (8)
+### mazda2 (complete — 8/8)
 soul-red-crystal-metallic, snowflake-white-pearl-mica, jet-black-mica,
 deep-crystal-blue-mica, dynamic-blue-mica, machine-gray-metallic,
 ceramic-metallic, platinum-quartz-metallic
@@ -68,7 +65,7 @@ machine-gray-metallic, soul-red-crystal-metallic, snowflake-white-pearl-mica,
 jet-black-mica, deep-crystal-blue-mica, polymetal-gray-metallic,
 platinum-quartz-metallic, ceramic-metallic
 
-### mazda6 (9)
+### mazda6 (complete — 9/9)
 machine-gray-metallic, soul-red-metallic, soul-red-crystal-metallic,
 snowflake-white-pearl-mica, jet-black-mica, deep-crystal-blue-mica,
 blue-reflex-mica, sonic-silver-metallic, titanium-flash-mica
@@ -83,7 +80,7 @@ machine-gray-metallic, soul-red-crystal-metallic, snowflake-white-pearl-mica,
 jet-black-mica, deep-crystal-blue-mica, polymetal-gray-metallic,
 platinum-quartz-metallic, ceramic-metallic, aero-gray-metallic
 
-### cx5ke (10)
+### cx5ke (complete — 10/10)
 meteor-gray-mica, soul-red-metallic, crystal-white-pearl-mica,
 jet-black-mica, blue-reflex-mica, sky-blue-mica, stormy-blue-mica,
 liquid-silver-metallic, metropolitan-gray-mica, zeal-red-mica
@@ -98,7 +95,7 @@ zircon-sand-metallic
 navy-blue-mica, soul-red-crystal-metallic, rhodium-white-premium,
 machine-gray-metallic, jet-black-mica, aero-gray-metallic
 
-### cx9tb (7)
+### cx9tb (complete — 7/7)
 dolphin-gray-mica, brilliant-black-clearcoat, crystal-white-pearl-mica,
 copper-red-mica, liquid-silver-metallic, metropolitan-gray-mica,
 stormy-blue-mica

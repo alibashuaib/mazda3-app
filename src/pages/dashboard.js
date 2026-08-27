@@ -33,7 +33,50 @@ const GENERIC_MODEL_IMAGE = {
    docs/superpowers/plans/2026-08-26-per-colour-car-photos.md for the full
    asset list still needed. */
 const CAR_COLOR_PHOTOS = {
+  mazda2: {
+    'soul-red-crystal-metallic': 'assets/mazda2-soul-red-crystal-metallic.png',
+    'snowflake-white-pearl-mica': 'assets/mazda2-snowflake-white-pearl-mica.png',
+    'jet-black-mica': 'assets/mazda2-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/mazda2-deep-crystal-blue-mica.png',
+    'dynamic-blue-mica': 'assets/mazda2-dynamic-blue-mica.png',
+    'machine-gray-metallic': 'assets/mazda2-dj.png',
+    'ceramic-metallic': 'assets/mazda2-ceramic-metallic.png',
+    'platinum-quartz-metallic': 'assets/mazda2-platinum-quartz-metallic.png'
+  },
+  mazda6: {
+    'machine-gray-metallic': 'assets/mazda6-gj.png',
+    'soul-red-metallic': 'assets/mazda6-soul-red-metallic.png',
+    'soul-red-crystal-metallic': 'assets/mazda6-soul-red-crystal-metallic.png',
+    'snowflake-white-pearl-mica': 'assets/mazda6-snowflake-white-pearl-mica.png',
+    'jet-black-mica': 'assets/mazda6-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/mazda6-deep-crystal-blue-mica.png',
+    'blue-reflex-mica': 'assets/mazda6-blue-reflex-mica.png',
+    'sonic-silver-metallic': 'assets/mazda6-sonic-silver-metallic.png',
+    'titanium-flash-mica': 'assets/mazda6-titanium-flash-mica.png'
+  },
+  cx5ke: {
+    'meteor-gray-mica': 'assets/mazda-cx5-ke.png',
+    'soul-red-metallic': 'assets/cx5ke-soul-red-metallic.png',
+    'crystal-white-pearl-mica': 'assets/cx5ke-crystal-white-pearl-mica.png',
+    'jet-black-mica': 'assets/cx5ke-jet-black-mica.png',
+    'blue-reflex-mica': 'assets/cx5ke-blue-reflex-mica.png',
+    'sky-blue-mica': 'assets/cx5ke-sky-blue-mica.png',
+    'stormy-blue-mica': 'assets/cx5ke-stormy-blue-mica.png',
+    'liquid-silver-metallic': 'assets/cx5ke-liquid-silver-metallic.png',
+    'metropolitan-gray-mica': 'assets/cx5ke-metropolitan-gray-mica.png',
+    'zeal-red-mica': 'assets/cx5ke-zeal-red-mica.png'
+  },
+  cx9tb: {
+    'dolphin-gray-mica': 'assets/mazda-cx9-tb.png',
+    'brilliant-black-clearcoat': 'assets/cx9tb-brilliant-black-clearcoat.png',
+    'crystal-white-pearl-mica': 'assets/cx9tb-crystal-white-pearl-mica.png',
+    'copper-red-mica': 'assets/cx9tb-copper-red-mica.png',
+    'liquid-silver-metallic': 'assets/cx9tb-liquid-silver-metallic.png',
+    'metropolitan-gray-mica': 'assets/cx9tb-metropolitan-gray-mica.png',
+    'stormy-blue-mica': 'assets/cx9tb-stormy-blue-mica.png'
+  },
   mazda3bm: {
+    'meteor-gray-mica': 'assets/mazda3-studio.png',
     'soul-red-metallic': 'assets/mazda3-soul-red.png',
     'snowflake-white-pearl-mica': 'assets/mazda3-snowflake-white.png',
     'jet-black-mica': 'assets/mazda3-jet-black.png',

@@ -123,6 +123,128 @@ test('a hostile vehicle nickname stays inert in the car description', () => with
   assert.strictEqual(view.querySelectorAll('img[onerror]').length, 0, 'the payload became a live element');
 }));
 
+test('every CX-9 TB factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'cx9tb';
+  car.model = 'CX-9';
+  const photos = {
+    'Dolphin Gray Mica (Code 39T)': 'assets/mazda-cx9-tb.png',
+    'Brilliant Black Clearcoat (Code A3F)': 'assets/cx9tb-brilliant-black-clearcoat.png',
+    'Crystal White Pearl Mica (Code 34K)': 'assets/cx9tb-crystal-white-pearl-mica.png',
+    'Copper Red Mica (Code 32V)': 'assets/cx9tb-copper-red-mica.png',
+    'Liquid Silver Metallic (Code 38P)': 'assets/cx9tb-liquid-silver-metallic.png',
+    'Metropolitan Gray Mica (Code 36C)': 'assets/cx9tb-metropolitan-gray-mica.png',
+    'Stormy Blue Mica (Code 35J)': 'assets/cx9tb-stormy-blue-mica.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
+test('every Mazda3 BM/BN factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'mazda3bm';
+  car.model = '3';
+  const photos = {
+    'Meteor Gray Mica (Code 42A)': 'assets/mazda3-studio.png',
+    'Soul Red Metallic (Code 41V)': 'assets/mazda3-soul-red.png',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3-snowflake-white.png',
+    'Jet Black Mica (Code 41W)': 'assets/mazda3-jet-black.png',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3-deep-crystal-blue.png',
+    'Blue Reflex Mica (Code 42B)': 'assets/mazda3-blue-reflex.png',
+    'Liquid Silver Metallic (Code 38P)': 'assets/mazda3-liquid-silver.png',
+    'Titanium Flash Mica (Code 42S)': 'assets/mazda3-titanium-flash.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
+test('every Mazda2 DJ factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'mazda2';
+  car.model = '2';
+  const photos = {
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda2-soul-red-crystal-metallic.png',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda2-snowflake-white-pearl-mica.png',
+    'Jet Black Mica (Code 41W)': 'assets/mazda2-jet-black-mica.png',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda2-deep-crystal-blue-mica.png',
+    'Dynamic Blue Mica (Code 44J)': 'assets/mazda2-dynamic-blue-mica.png',
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda2-dj.png',
+    'Ceramic Metallic (Code 47A)': 'assets/mazda2-ceramic-metallic.png',
+    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda2-platinum-quartz-metallic.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
+test('every CX-5 KE factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'cx5ke';
+  car.model = 'CX-5';
+  const photos = {
+    'Meteor Gray Mica (Code 42A)': 'assets/mazda-cx5-ke.png',
+    'Soul Red Metallic (Code 41V)': 'assets/cx5ke-soul-red-metallic.png',
+    'Crystal White Pearl Mica (Code 34K)': 'assets/cx5ke-crystal-white-pearl-mica.png',
+    'Jet Black Mica (Code 41W)': 'assets/cx5ke-jet-black-mica.png',
+    'Blue Reflex Mica (Code 42B)': 'assets/cx5ke-blue-reflex-mica.png',
+    'Sky Blue Mica (Code 41B)': 'assets/cx5ke-sky-blue-mica.png',
+    'Stormy Blue Mica (Code 35J)': 'assets/cx5ke-stormy-blue-mica.png',
+    'Liquid Silver Metallic (Code 38P)': 'assets/cx5ke-liquid-silver-metallic.png',
+    'Metropolitan Gray Mica (Code 36C)': 'assets/cx5ke-metropolitan-gray-mica.png',
+    'Zeal Red Mica (Code 41G)': 'assets/cx5ke-zeal-red-mica.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
+test('every Mazda6 GJ/GL factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'mazda6';
+  car.model = 'Mazda6';
+  const photos = {
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda6-gj.png',
+    'Soul Red Metallic (Code 41V)': 'assets/mazda6-soul-red-metallic.png',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda6-soul-red-crystal-metallic.png',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda6-snowflake-white-pearl-mica.png',
+    'Jet Black Mica (Code 41W)': 'assets/mazda6-jet-black-mica.png',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda6-deep-crystal-blue-mica.png',
+    'Blue Reflex Mica (Code 42B)': 'assets/mazda6-blue-reflex-mica.png',
+    'Sonic Silver Metallic (Code 45P)': 'assets/mazda6-sonic-silver-metallic.png',
+    'Titanium Flash Mica (Code 42S)': 'assets/mazda6-titanium-flash-mica.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
 const threeVehicles = api => {
   const mk = (id, modelId) => ({ id, data: api.normalizeData(api.buildProfile(modelId, 0, { odometer: 1000, year: 2020 })) });
   api.session.setVehicles([mk('AAA', 'mazda3bm'), mk('BBB', 'cx5kf'), mk('CCC', 'cx90')], 'AAA');
