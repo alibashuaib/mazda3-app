@@ -127,6 +127,50 @@ test('partsForModel always includes a tires part locked to that model', () => {
   });
 });
 
+/* skyactivServices() used to give every model an identical 'Spark Plugs
+   (x4)', regardless of cylinder count or fuel — wrong for the CX-9 TB's V6
+   and the CX-60/70/80/90's inline-six (both 6 plugs, not 4), and outright
+   inapplicable for the CX-60/80's diesel option (compression ignition has
+   no spark plugs, and needs a DPF-safe low-SAPS oil, not the gasoline
+   5W-30 spec whose note also wrongly claimed a "mandatory" DI fuel-system
+   cleaner the diesel doesn't use). */
+test('engineInfo reports real cylinder counts and fuel type for every non-default engine', () => {
+  const cases = [
+    ['cx9tb', '3.5L MZI V6', 6, 'gasoline'],
+    ['cx9tb', '3.7L MZI V6', 6, 'gasoline'],
+    ['cx60', '2.5L e-SkyActiv-G PHEV', 4, 'gasoline'],
+    ['cx60', '3.3L e-SkyActiv-G', 6, 'gasoline'],
+    ['cx60', '3.3L e-SkyActiv-D', 6, 'diesel'],
+    ['cx70', '3.3L Turbo e-SkyActiv-G', 6, 'gasoline'],
+    ['cx80', '3.3L e-SkyActiv-D', 6, 'diesel'],
+    ['cx90', '3.3L Turbo e-SkyActiv-G', 6, 'gasoline'],
+    ['mazda3bm', '2.0L SkyActiv-G', 4, 'gasoline']
+  ];
+  cases.forEach(([modelId, code, cylinders, fuel]) => {
+    const meta = cat.engineInfo(modelId, code);
+    assert.strictEqual(meta.cylinders, cylinders, `${modelId} ${code} cylinders`);
+    assert.strictEqual(meta.fuel, fuel, `${modelId} ${code} fuel`);
+  });
+});
+
+test('skyactivServices gives a 6-cylinder engine 6 spark plugs at a scaled cost, and a 4-cylinder one 4', () => {
+  const six = cat.skyactivServices(5.1, { cylinders: 6, fuel: 'gasoline' });
+  const four = cat.skyactivServices(4.2, { cylinders: 4, fuel: 'gasoline' });
+  const p6 = six.find(s => /^Spark Plugs/.test(s.name));
+  const p4 = four.find(s => /^Spark Plugs/.test(s.name));
+  assert.strictEqual(p6.name, 'Spark Plugs (x6)');
+  assert.strictEqual(p4.name, 'Spark Plugs (x4)');
+  assert.ok(p6.cost > p4.cost, '6 plugs must cost more than 4');
+});
+
+test('skyactivServices omits spark plugs entirely for a diesel engine, and uses the diesel oil spec', () => {
+  const diesel = cat.skyactivServices(5.1, { cylinders: 6, fuel: 'diesel' });
+  assert.ok(!diesel.some(s => /^Spark Plugs/.test(s.name)), 'a diesel has no spark plugs');
+  const oil = diesel.find(s => s.name === 'Engine Oil & Filter');
+  assert.ok(/low-SAPS/.test(oil.note), 'diesel oil must be DPF-safe low-SAPS, not the gasoline spec');
+  assert.ok(!/mandatory/i.test(oil.note), 'must not claim the gasoline DI fuel-system-cleaner requirement');
+});
+
 test('NORMAL_SCHED entries are [km, months] pairs', () => {
   Object.entries(cat.NORMAL_SCHED).forEach(([name, pair]) => {
     assert.ok(Array.isArray(pair) && pair.length === 2, `${name} must be a pair`);

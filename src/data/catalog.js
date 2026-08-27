@@ -66,22 +66,54 @@ const CAR_MODELS = [
   { id: 'cx5ke', model: 'CX-5', gen: 'KE · 2012–16', engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.8]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Crystal White Pearl Mica (Code 34K)', 'Jet Black Mica (Code 41W)', 'Blue Reflex Mica (Code 42B)', 'Sky Blue Mica (Code 41B)', 'Stormy Blue Mica (Code 35J)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Zeal Red Mica (Code 41G)') },
   { id: 'cx5kf', model: 'CX-5', gen: 'KF · 2017+', engines: [['2.5L SkyActiv-G', 4.8], ['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Eternal Blue Mica (Code 45B)', 'Sonic Silver Metallic (Code 45P)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
   { id: 'cx5gen3', model: 'CX-5', gen: '3rd gen · 2026+', engines: [['2.5L e-SkyActiv-G M Hybrid', 4.8]], colors: paints('Navy Blue Mica', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Aero Gray Metallic (Code 52C)') },
-  { id: 'cx9tb', model: 'CX-9', gen: 'TB · 2007–15', engines: [['3.5L MZI V6', 5.2], ['3.7L MZI V6', 5.2]], colors: paints('Dolphin Gray Mica (Code 39T)', 'Brilliant Black Clearcoat (Code A3F)', 'Crystal White Pearl Mica (Code 34K)', 'Copper Red Mica (Code 32V)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Stormy Blue Mica (Code 35J)') },
+  { id: 'cx9tb', model: 'CX-9', gen: 'TB · 2007–15', engines: [['3.5L MZI V6', 5.2, 6], ['3.7L MZI V6', 5.2, 6]], colors: paints('Dolphin Gray Mica (Code 39T)', 'Brilliant Black Clearcoat (Code A3F)', 'Crystal White Pearl Mica (Code 34K)', 'Copper Red Mica (Code 32V)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Stormy Blue Mica (Code 35J)') },
   { id: 'cx9', model: 'CX-9', gen: 'TC · 2016+', engines: [['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
   { id: 'cx50', model: 'CX-50', gen: '2022+', engines: [['2.5L SkyActiv-G', 4.8], ['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Wind Chill Pearl (Code 48K)', 'Jet Black Mica (Code 41W)', 'Ingot Blue Metallic (Code 48B)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)', 'Cypress (Code 52T)') },
-  { id: 'cx60', model: 'CX-60', gen: '2022+', engines: [['2.5L e-SkyActiv-G PHEV', 4.8], ['3.3L e-SkyActiv-G', 5.1], ['3.3L e-SkyActiv-D', 5.1]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Sonic Silver Metallic (Code 45P)', 'Artisan Red Premium (Code 51F)') },
-  { id: 'cx70', model: 'CX-70', gen: '2024+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1], ['2.5L e-SkyActiv-G PHEV', 4.8]], colors: paints('Melting Copper Metallic (Code 52H)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
-  { id: 'cx80', model: 'CX-80', gen: '2024+', engines: [['3.3L e-SkyActiv-D', 5.1], ['2.5L e-SkyActiv-G PHEV', 4.8]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Melting Copper Metallic (Code 52H)') },
-  { id: 'cx90', model: 'CX-90', gen: '2023+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1], ['2.5L e-SkyActiv-G PHEV', 4.8]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Polymetal Gray Metallic (Code 47C)') }
+  { id: 'cx60', model: 'CX-60', gen: '2022+', engines: [['2.5L e-SkyActiv-G PHEV', 4.8, 4], ['3.3L e-SkyActiv-G', 5.1, 6], ['3.3L e-SkyActiv-D', 5.1, 6]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Sonic Silver Metallic (Code 45P)', 'Artisan Red Premium (Code 51F)') },
+  { id: 'cx70', model: 'CX-70', gen: '2024+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Melting Copper Metallic (Code 52H)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
+  { id: 'cx80', model: 'CX-80', gen: '2024+', engines: [['3.3L e-SkyActiv-D', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Melting Copper Metallic (Code 52H)') },
+  { id: 'cx90', model: 'CX-90', gen: '2023+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Polymetal Gray Metallic (Code 47C)') }
 ];
 
+/* Engine identity a service plan actually needs: the model's engine tuple is
+   [code, oilL, cylinders?] — cylinders defaults to 4 (every current engine
+   but the CX-9 TB's V6 and the CX-60/70/80/90's inline-six). Fuel is read off
+   the code itself: 'e-SkyActiv-D' is this app's one consistent diesel marker
+   everywhere else in the catalogue, so it doubles as the fuel-type check
+   here rather than introducing a second, redundant flag to keep in sync. */
+function engineInfo(modelId, engineCode) {
+  const m = CAR_MODELS.find(x => x.id === modelId);
+  const found = m && m.engines.find(e => e[0] === engineCode);
+  return {
+    oilL: found ? found[1] : null,
+    cylinders: (found && found[2]) || 4,
+    fuel: /e-SkyActiv-D/i.test(engineCode || '') ? 'diesel' : 'gasoline'
+  };
+}
+function sparkPlugService(cylinders) {
+  const six = cylinders === 6;
+  return { id: dep.uid(), name: six ? 'Spark Plugs (x6)' : 'Spark Plugs (x4)', icon: '⚡', cat: 'Engine',
+    intervalKm: 120000, intervalMonths: 72, lastKm: 257000, lastDate: '2022-06-01', cost: six ? 510 : 340,
+    note: `Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.${six ? ' Six-cylinder engine — six plugs, not four.' : ''}` };
+}
+function engineOilNote(oilL, fuel) {
+  return fuel === 'diesel'
+    ? `0W-30 low-SAPS (ACEA C3, DPF-safe) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Never use a non-low-SAPS oil — the ash clogs the diesel particulate filter (DPF) over time. No fuel-system cleaner additive needed — this is compression-ignition, not the direct-injection gasoline SkyActiv-G.`
+    : `5W-30 (API SP / ILSAC GF-6A) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.`;
+}
+
 /* Shared SkyActiv-G schedule (Jeddah "severe" base intervals; dealer "normal"
-   values are layered on in normalizeData). Oil quantity varies per engine. */
-function skyactivServices(oilL) {
-  return [
+   values are layered on in normalizeData). Oil quantity varies per engine;
+   spark-plug count and the oil spec vary with the engine's cylinder count
+   and fuel type — a diesel has neither spark plugs nor a direct-injection
+   gasoline fuel-system cleaner need, so its service omits that item
+   entirely rather than showing one that doesn't apply. */
+function skyactivServices(oilL, engineMeta) {
+  const meta = engineMeta || { cylinders: 4, fuel: 'gasoline' };
+  const list = [
       { id: dep.uid(), name: 'Engine Oil & Filter', icon: '🛢️', cat: 'Engine',
         intervalKm: 7500, intervalMonths: 6, lastKm: 0, lastDate: '', cost: 305,
-        note: `5W-30 (API SP / ILSAC GF-6A) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.` },
+        note: engineOilNote(oilL, meta.fuel) },
       { id: dep.uid(), name: 'Tire Rotation & Balance', icon: '🔄', cat: 'Tires',
         intervalKm: 10000, intervalMonths: 12, lastKm: 309000, lastDate: '2026-03-01', cost: 80,
         note: 'Rotate front/rear and rebalance to even out wear.' },
@@ -106,9 +138,6 @@ function skyactivServices(oilL) {
       { id: dep.uid(), name: 'Throttle Body & MAF Cleaning', icon: '🧴', cat: 'Engine',
         intervalKm: 15000, intervalMonths: 12, lastKm: 309000, lastDate: '2025-10-01', cost: 60,
         note: 'Clean throttle body & MAF sensor — Jeddah dust fouls them; restores idle & economy. (A known SkyActiv-G MAF weak point.)' },
-      { id: dep.uid(), name: 'Spark Plugs (x4)', icon: '⚡', cat: 'Engine',
-        intervalKm: 120000, intervalMonths: 72, lastKm: 257000, lastDate: '2022-06-01', cost: 340,
-        note: 'Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.' },
       { id: dep.uid(), name: 'Fuel Filter', icon: '⛽', cat: 'Engine',
         intervalKm: 80000, intervalMonths: 72, lastKm: 241000, lastDate: '2021-05-01', cost: 180,
         note: 'In-tank filter; replace on high mileage.' },
@@ -125,6 +154,8 @@ function skyactivServices(oilL) {
         intervalKm: 20000, intervalMonths: 24, lastKm: 301000, lastDate: '2025-08-10', cost: 0,
         note: 'Check shocks, control arms, ball joints, sway-bar links, tie rods & coil springs — common SkyActiv wear points on rough roads.' }
   ];
+  if (meta.fuel !== 'diesel') list.push(sparkPlugService(meta.cylinders));
+  return list;
 }
 
 const UNIVERSAL_PART_NAMES = new Set([
@@ -674,6 +705,7 @@ function fuelSystemCleanerPart(modelId) {
     skyactivServices, mazda3Parts, sharedParts, partsForModel,
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
     atfFilterPart, atfSealantPart, fuelSystemCleanerPart,
-    tireShapeFor, tiresPart, OEM_TIRE_SIZE
+    tireShapeFor, tiresPart, OEM_TIRE_SIZE,
+    engineInfo, sparkPlugService, engineOilNote
   };
 });

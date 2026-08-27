@@ -94,7 +94,7 @@ const AR = {
   'Engine Oil & Filter': 'زيت المحرك والفلتر', 'Fuel System Cleaner': 'منظف نظام الوقود', 'Tire Rotation & Balance': 'تدوير وموازنة الإطارات', 'Cabin (A/C) Filter': 'فلتر المكيف (المقصورة)',
   'Engine Air Filter': 'فلتر هواء المحرك', 'Wheel Alignment': 'ضبط زوايا العجلات', 'Brake Fluid': 'زيت الفرامل',
   'Automatic Transmission Fluid': 'زيت ناقل الحركة الأوتوماتيكي', 'Engine Coolant (FL22)': 'سائل تبريد المحرك (FL22)',
-  'Throttle Body & MAF Cleaning': 'تنظيف بوابة الخانق وحساس الهواء', 'Spark Plugs (x4)': 'بواجي الإشعال (×4)', 'Fuel Filter': 'فلتر الوقود',
+  'Throttle Body & MAF Cleaning': 'تنظيف بوابة الخانق وحساس الهواء', 'Spark Plugs (x4)': 'بواجي الإشعال (×4)', 'Spark Plugs (x6)': 'بواجي الإشعال (×6)', 'Fuel Filter': 'فلتر الوقود',
   'Drive (Serpentine) Belt': 'سير الإدارة', 'Battery Check': 'فحص البطارية', 'Brake Inspection & Caliper Lube': 'فحص الفرامل وتزييت الكاليبر',
   'Suspension & Steering Inspection': 'فحص التعليق والتوجيه',
   // care tips

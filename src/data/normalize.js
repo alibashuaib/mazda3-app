@@ -32,7 +32,7 @@
       car: { nickname: '', make: 'Mazda', model: m.model, modelId: m.id, year: opts.year || '', engine, transmission: 'Automatic',
         color: requestedColor || colors[0], plate: '', vin: '', photo: '', odometer: odo, dailyKm: 40 },
       budget: { annual: 6000 },
-      services: dep.skyactivServices(oilL),
+      services: dep.skyactivServices(oilL, dep.engineInfo(m.id, engine)),
       parts: dep.partsForModel(m.id),
       history: [], spending: [], fuel: [], docs: []
     };
@@ -122,10 +122,54 @@
     if (atf && usesAtfFz) {
       if (atf.normalKm == null) { atf.normalKm = 80000; atf.normalMonths = 72; } // 60k severe → 80k community max
       if (!/4\.5/.test(atf.note || '')) atf.note = dep.ATF_NOTE;
-    } else if (atf && ['cx60', 'cx70', 'cx80', 'cx90'].includes(s.car.modelId)) {
-      atf.note = 'Large-platform 8-speed automatic: Mazda Original Oil ATF-A7. Verify the exact procedure and quantity for your VIN; do not substitute ATF-FZ.';
-    } else if (atf && s.car.modelId === 'cx9tb') {
-      atf.note = 'First-generation CX-9 transmission: verify the exact fluid specification and quantity for your VIN; do not use the later CX-9 ATF-FZ recommendation.';
+    } else if (atf) {
+      /* Excluded from ATF-FZ for a reason specific to the platform — give the
+         most specific guidance available. The final `else` is the fix: it
+         used to be that only cx60/70/80/90 and cx9tb got a corrective note
+         here, so cx5gen3 (also excluded from ATF_FZ_MODEL_IDS, deliberately —
+         its hybrid drivetrain isn't ATF-FZ either) fell through untouched and
+         kept the raw "Mazda Genuine ATF-FZ only" default from
+         skyactivServices — confirmed live before this fix. Any future model
+         added to the exclusion list without its own branch here now gets a
+         safe generic warning instead of silently wrong instructions. */
+      if (['cx60', 'cx70', 'cx80', 'cx90'].includes(s.car.modelId)) {
+        atf.note = 'Large-platform 8-speed automatic: Mazda Original Oil ATF-A7. Verify the exact procedure and quantity for your VIN; do not substitute ATF-FZ.';
+      } else if (s.car.modelId === 'cx9tb') {
+        atf.note = 'First-generation CX-9 transmission: verify the exact fluid specification and quantity for your VIN; do not use the later CX-9 ATF-FZ recommendation.';
+      } else if (!/not confirmed to use/.test(atf.note || '')) {
+        atf.note = 'This model is not confirmed to use Mazda Genuine ATF-FZ. Verify the exact transmission fluid specification and quantity for your VIN before servicing.';
+      }
+    }
+    // Spark plug count and the oil spec depend on the actual engine, not just
+    // the model — the CX-9 TB's V6 and the CX-60/70/80/90's inline-six both
+    // take 6 plugs, not 4, and a diesel has none at all (compression
+    // ignition) and needs a DPF-safe low-SAPS oil, not the gasoline spec.
+    // skyactivServices() gets this right for a freshly built vehicle; this
+    // is what corrects one already saved before that existed, and re-derives
+    // both any time the car's engine choice changes.
+    if (s.car.modelId && s.car.engine) {
+      const engMeta = dep.engineInfo(s.car.modelId, s.car.engine);
+      const plugs = s.services.find(sv => /^Spark Plugs/.test(sv.name));
+      if (engMeta.fuel === 'diesel') {
+        if (plugs) s.services = s.services.filter(sv => sv !== plugs);
+      } else {
+        const wantName = engMeta.cylinders === 6 ? 'Spark Plugs (x6)' : 'Spark Plugs (x4)';
+        if (plugs && plugs.name !== wantName) {
+          plugs.cost = Math.round((Number(plugs.cost) || 0) * (engMeta.cylinders === 6 ? 6 / 4 : 4 / 6));
+          plugs.name = wantName;
+        } else if (!plugs) {
+          // The car's engine was diesel (no spark plugs) and changed to a
+          // gasoline one — the service was dropped and needs re-adding.
+          const svc = dep.sparkPlugService(engMeta.cylinders);
+          svc.lastKm = s.car.odometer; svc.lastDate = dep.isoDate(dep.today());
+          s.services.push(svc);
+        }
+      }
+      const oil = s.services.find(sv => sv.name === 'Engine Oil & Filter');
+      const isDieselNote = oil && /low-SAPS/.test(oil.note || '');
+      if (oil && engMeta.oilL != null && !!isDieselNote !== (engMeta.fuel === 'diesel')) {
+        oil.note = dep.engineOilNote(engMeta.oilL, engMeta.fuel);
+      }
     }
     if (!usesAtfFz) s.parts = s.parts.filter(p => !['ATF FZ (per liter)', 'Transmission Fluid Filter', 'Transmission Pan Sealant'].includes(p.name));
     // FZ01-21-500 and the pan-seal procedure are verified only for the owner's BM.
@@ -144,9 +188,16 @@
     // Oil Filter, both brake pads, etc. Backfill by name, idempotently;
     // mazda3bm is excluded because mazda3Parts() is its own complete
     // catalogue with BM-specific OEM numbers, not this generic fallback.
+    // Fuel System Cleaner is excluded from the backfill on its own: the
+    // directInjectionGasoline check above already deliberately removes it
+    // for a diesel or MZI V6 engine (line ~112) — a blind by-name backfill
+    // would otherwise put it right back for exactly the engines it must
+    // not apply to. Confirmed live: a diesel CX-60 had it back in "Parts
+    // for this service" despite its own oil note correctly saying "No
+    // fuel-system cleaner additive needed."
     if (s.car.modelId && s.car.modelId !== 'mazda3bm') {
       dep.sharedParts(s.car.modelId).forEach(sp => {
-        if (!s.parts.some(p => p.name === sp.name)) s.parts.push(sp);
+        if (sp.name !== 'Fuel System Cleaner (additive)' && !s.parts.some(p => p.name === sp.name)) s.parts.push(sp);
       });
     }
     return s;

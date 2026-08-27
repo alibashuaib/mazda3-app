@@ -11,6 +11,7 @@ const SERVICE_PARTS = {
   'Engine Air Filter': ['Engine Air Filter'],
   'Cabin (A/C) Filter': ['Cabin A/C Filter'],
   'Spark Plugs (x4)': ['Spark Plugs (each)'],
+  'Spark Plugs (x6)': ['Spark Plugs (each)'],
   'Brake Fluid': ['Brake Fluid (DOT 4)'],
   'Engine Coolant (FL22)': ['Coolant FL22 (long-life)'],
   'Automatic Transmission Fluid': ['ATF FZ (per liter)', 'Transmission Fluid Filter', 'Transmission Pan Sealant'],

@@ -109,6 +109,70 @@ test('normalizeData never layers sharedParts on top of the BM\'s own catalogue',
   assert.strictEqual(s.parts.filter(p => p.name === 'Oil Filter').length, 1);
 });
 
+/* Only cx60/70/80/90 and cx9tb had their own corrective ATF note when
+   excluded from ATF_FZ_MODEL_IDS; cx5gen3 is excluded too (its hybrid
+   drivetrain isn't ATF-FZ either) but fell through untouched and kept the
+   raw "Mazda Genuine ATF-FZ only" default — confirmed live before this fix. */
+test('normalizeData corrects the ATF note for every model excluded from ATF-FZ, not just the ones with their own branch', () => {
+  const cx5gen3 = buildProfile('cx5gen3', 0, {});
+  const atf = normalizeData(cx5gen3).services.find(sv => sv.name === 'Automatic Transmission Fluid');
+  assert.ok(!/ATF-FZ only/.test(atf.note), 'cx5gen3 must not keep the ATF-FZ default note');
+  assert.ok(/not confirmed to use/.test(atf.note));
+});
+
+/* Engine identity (cylinder count, fuel) drives spark plugs and the oil
+   spec; both must re-derive from car.modelId + car.engine for a vehicle
+   already on disk, not just a freshly built one. */
+test('normalizeData corrects a saved vehicle\'s spark-plug count for its actual engine', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G', odometer: 5000 },
+    services: [{ id: 's1', name: 'Spark Plugs (x4)', cat: 'Engine', intervalKm: 120000, intervalMonths: 72, lastKm: 0, lastDate: '2020-01-01', cost: 340, note: 'old' }],
+    parts: []
+  });
+  const plugs = s.services.find(sv => /^Spark Plugs/.test(sv.name));
+  assert.strictEqual(plugs.name, 'Spark Plugs (x6)');
+  assert.strictEqual(plugs.cost, 510);
+});
+
+test('normalizeData removes a stale spark-plug service and uses the diesel oil spec for a diesel engine', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx60', model: 'CX-60', engine: '3.3L e-SkyActiv-D', odometer: 5000 },
+    services: [
+      { id: 's1', name: 'Spark Plugs (x4)', cat: 'Engine', intervalKm: 120000, intervalMonths: 72, lastKm: 0, lastDate: '2020-01-01', cost: 340, note: 'old' },
+      { id: 's2', name: 'Engine Oil & Filter', cat: 'Engine', intervalKm: 7500, intervalMonths: 6, lastKm: 0, lastDate: '', cost: 305, note: '5W-30 API SP full synthetic' }
+    ],
+    parts: []
+  });
+  assert.ok(!s.services.some(sv => /^Spark Plugs/.test(sv.name)), 'a diesel has no spark plugs');
+  assert.ok(/low-SAPS/.test(s.services.find(sv => sv.name === 'Engine Oil & Filter').note));
+});
+
+/* The sharedParts() backfill fix (above) blindly re-added ANY missing
+   sharedParts()-listed part by name — including Fuel System Cleaner, which
+   the directInjectionGasoline check earlier in normalizeData deliberately
+   removes for a diesel or MZI V6 engine. Confirmed live: a diesel CX-60
+   built via buildProfile()+normalizeData() had the part back in "Parts for
+   this service" despite its own oil note correctly saying it isn't needed. */
+test('normalizeData never re-adds Fuel System Cleaner for a diesel or V6 engine via the sharedParts backfill', () => {
+  const diesel = normalizeData(buildProfile('cx60', 2, {}));  // 3.3L e-SkyActiv-D
+  assert.ok(!diesel.parts.some(p => p.name === 'Fuel System Cleaner (additive)'), 'a diesel does not use a DI fuel-system cleaner');
+  const v6 = normalizeData(buildProfile('cx9tb', 0, {}));     // 3.5L MZI V6
+  assert.ok(!v6.parts.some(p => p.name === 'Fuel System Cleaner (additive)'), 'the older MZI V6 is not the direct-injection SkyActiv-G');
+  const gasoline = normalizeData(buildProfile('cx90', 0, {})); // 3.3L Turbo e-SkyActiv-G
+  assert.ok(gasoline.parts.some(p => p.name === 'Fuel System Cleaner (additive)'), 'a direct-injection gasoline engine still needs it');
+});
+
+test('normalizeData re-adds spark plugs if a car\'s engine changes from diesel to gasoline', () => {
+  const s = normalizeData({
+    car: { modelId: 'cx60', model: 'CX-60', engine: '3.3L e-SkyActiv-G', odometer: 5000 },
+    services: [{ id: 's2', name: 'Engine Oil & Filter', cat: 'Engine', intervalKm: 7500, intervalMonths: 6, lastKm: 0, lastDate: '', cost: 305, note: 'diesel note' }],
+    parts: []
+  });
+  const plugs = s.services.find(sv => /^Spark Plugs/.test(sv.name));
+  assert.ok(plugs, 'must re-add the spark-plug service dropped by a previous diesel engine');
+  assert.strictEqual(plugs.name, 'Spark Plugs (x6)');
+});
+
 test('normalizeData preserves shareable consumables across models', () => {
   const s = normalizeData({
     car: { modelId: 'cx90', model: 'CX-90', engine: '3.3L Turbo e-SkyActiv-G' },
