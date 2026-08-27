@@ -223,23 +223,26 @@ test('ATF FZ states the same drain quantity for the BM and every other ATF-FZ mo
 });
 
 /* The 12V Battery had the same flavour of bug as oil and coolant: BM's own
-   copy said a flat "55Ah" (not quite matching Mazda's own 60-65Ah spec for
-   this engine); every other model's said no Ah figure at all. Name stays
-   the stable literal (used elsewhere? not cross-linked today, but kept
-   consistent with the oil/coolant pattern regardless). */
-test('battery12VPart carries a real Ah rating and JIS code, and flags an estimate honestly', () => {
+   copy said a flat "55Ah" with no orderable code; every other model's said
+   neither. The real split isn't engine size, it's i-stop: i-stop requires
+   the Q-85 EFB battery (JIS 75D23L, ~65Ah), and i-stop is standard
+   equipment across nearly the whole SkyActiv-G lineup — confirmed directly
+   for the BM's own service manual (75D23L), not the 55D23L this file
+   originally assumed for "non-turbo" engines. Only Mazda2 (its own
+   smaller-case spec) and the pre-i-stop CX-9 TB V6 differ. */
+test('battery12VPart uses the i-stop Q-85 spec (75D23L/65Ah) for the BM and every current SkyActiv-G engine', () => {
   const bm = cat.battery12VPart('mazda3bm', '2.0L SkyActiv-G');
   const cx90 = cat.battery12VPart('cx90', '3.3L Turbo e-SkyActiv-G');
-  const unsourced = cat.battery12VPart('mazda3bm', '1.6L SkyActiv-G');  // BM's smaller engine option — not individually sourced, falls to the same-family estimate
+  const mazda2 = cat.battery12VPart('mazda2', '1.5L SkyActiv-G');
+  const cx9tb = cat.battery12VPart('cx9tb', '3.5L MZI V6');
   assert.strictEqual(bm.name, '12V Battery');
-  assert.ok(/60Ah/.test(bm.options[0].brand), 'Mazda\'s own Q-85 spec for 2.0/2.5 SkyActiv-G is 60Ah — BM\'s old flat "55Ah" was not quite right');
-  assert.strictEqual(bm.options[0].partNo, '55D23L');
+  assert.ok(/65Ah/.test(bm.options[0].brand), 'the BM\'s own service manual specifies 75D23L (Q-85, ~65Ah), not the 55D23L this file originally assumed');
+  assert.strictEqual(bm.options[0].partNo, '75D23L');
   assert.ok(!bm.options[0].note, 'a sourced rating must not carry an "estimated" disclaimer');
-  assert.ok(/65Ah/.test(cx90.options[0].brand), 'Mazda\'s own published CX-9/CX-90 spec is 12V-65Ah/20HR');
-  assert.strictEqual(cx90.options[0].partNo, '75D23L');
-  assert.ok(!cx90.options[0].note, 'this one IS sourced from Mazda\'s own spec — must not carry a disclaimer');
-  assert.ok(/estimated/.test(unsourced.options[0].note), 'BM\'s 1.6L option has no individually sourced 12V spec — must say so');
-  assert.ok(cx90.options[0].price > bm.options[0].price, 'a bigger battery must cost more');
+  assert.ok(/65Ah/.test(cx90.options[0].brand) && cx90.options[0].partNo === '75D23L', 'i-stop is standard across the lineup, not just this engine');
+  assert.ok(/45Ah/.test(mazda2.options[0].brand) && mazda2.options[0].partNo === '46B24L', 'Mazda2 keeps its own smaller-case spec');
+  assert.ok(/estimated/.test(cx9tb.options[0].note), 'the pre-i-stop V6 generation has no direct JIS source — must say so');
+  assert.ok(bm.options[0].price > mazda2.options[0].price, 'a bigger battery must cost more');
 });
 
 /* The CX-60/70/80/90's 3.3L mild-hybrid engine carries a second, separate

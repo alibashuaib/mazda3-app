@@ -174,22 +174,29 @@ const ATF_DRAIN_NOTE = '~4.5 L per drain (7.7–8.0 L total dry fill). Every 60�
    neither. GCC-market Mazdas are sold with JIS-spec batteries (the
    XXDYYL/R code — e.g. 46B24L — rather than the US BCI group-size system),
    so the code that's actually useful for buying one locally is the JIS
-   designation, sourced per engine class where a source was found:
-   - Mazda2 (1.5L): 46B24L / 45Ah — common GCC/Asia-market spec for this class.
-   - 2.0/2.5 SkyActiv-G (non-turbo): 55D23L / 60Ah — Mazda's own Q-85 spec.
-   - 2.5 Turbo and the 3.3L six (CX-9/CX-90 share this generation's
-     electrical architecture): 75D23L (or 80D26L) / 65Ah — Mazda's own
-     published CX-90 spec ("12V-65Ah/20HR"), extended to the closely
-     related CX-50/60/70/80 on the same reasoning as the coolant estimates.
-   The older CX-9 TB's V6 (2007-2015, a different generation entirely) has
-   no direct JIS source found — kept as its own estimate. */
+   designation.
+
+   The split isn't really about engine size — it's i-stop (Mazda's
+   idle-stop-start). i-stop requires the Q-85 EFB battery, JIS 75D23L
+   (~65Ah); only a non-i-stop trim can use the smaller 55D23L (~55-60Ah).
+   i-stop has been standard equipment across nearly the whole SkyActiv-G
+   lineup (2.0, 2.5, 2.5T, 3.3T) since its rollout, and this is directly
+   confirmed for the BM: its own service manual specifies 75D23L, not the
+   55D23L this file originally (wrongly) assumed for "non-turbo" engines —
+   there's no such split; i-stop, not turbocharging, is what decides it.
+   - Mazda2 (1.5L): 46B24L / 45Ah — its own smaller-case i-stop spec,
+     confirmed for GCC/Asia-market Mazda2s specifically.
+   - Every other current SkyActiv-G engine (2.0, 2.5 NA, 2.5 Turbo, 3.3
+     six): 75D23L / 65Ah — Q-85, confirmed directly for the BM and for
+     CX-5/CX-30/CX-9/CX-90, and taken as the lineup default since i-stop
+     is standard equipment, not an exception.
+   The older CX-9 TB's V6 (2007-2015, a pre-i-stop generation entirely)
+   has no direct JIS source found — kept as its own estimate. */
 function batteryAhFor(modelId, engineCode) {
   const code = engineCode || '';
-  if (modelId === 'cx9tb') return { ah: 70, jis: '80D26L', verified: false };  // older V6 — no direct JIS source for this generation; estimated from comparable large-Mazda case size
-  if (/^1\.5L/.test(code)) return { ah: 45, jis: '46B24L', verified: true };  // Mazda2 — common GCC/Asia-market JIS spec
-  if (/^2\.0L/.test(code) || /^2\.5L(?! Turbo)/.test(code)) return { ah: 60, jis: '55D23L', verified: true };  // Mazda's own Q-85 spec (2.0/2.5 SkyActiv-G, non-turbo)
-  if (/2\.5L Turbo/.test(code) || /3\.3L/.test(code)) return { ah: 65, jis: '75D23L', verified: true };  // Mazda's own CX-9/CX-90 spec
-  return { ah: 60, jis: '55D23L', verified: false };  // BM's 1.6L option, CX-5 3rd-gen hybrid, PHEV 2.5L — not individually sourced; same-family estimate
+  if (modelId === 'cx9tb') return { ah: 70, jis: '80D26L', verified: false };  // older V6, pre-i-stop generation — no direct JIS source found; estimated from comparable large-Mazda case size
+  if (/^1\.5L/.test(code)) return { ah: 45, jis: '46B24L', verified: true };  // Mazda2 — its own smaller-case i-stop spec
+  return { ah: 65, jis: '75D23L', verified: true };  // every other current SkyActiv-G engine — Q-85 i-stop spec, confirmed for the BM and for CX-5/CX-30/CX-9/CX-90
 }
 function battery12VPart(modelId, engineCode) {
   const { ah, jis, verified } = batteryAhFor(modelId, engineCode);
