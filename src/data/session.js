@@ -57,18 +57,22 @@
   function hydrate(garage, photos) {
     if (!garage || !Array.isArray(garage.vehicles) || !garage.vehicles.length) {
       // Pre-garage single-car data still living under STORE_KEY is this user's
-      // only copy — seed from it before falling back to a blank car.
+      // only copy — migrate it. Otherwise this is a genuinely empty device:
+      // no invented demo car any more, main.js's go() sends an empty garage
+      // to the "add your first vehicle" screen instead.
       const legacy = dep.readLegacyV1();
-      garage = { vehicles: [{ id: dep.uid(), data: dep.normalizeData(legacy || dep.seed()) }], activeId: null };
-      garage.activeId = garage.vehicles[0].id;
+      garage = legacy
+        ? { vehicles: [{ id: dep.uid(), data: dep.normalizeData(legacy) }], activeId: null }
+        : { vehicles: [], activeId: null };
+      garage.activeId = garage.vehicles.length ? garage.vehicles[0].id : null;
     }
     garage.vehicles.forEach(v => {
       dep.normalizeData(v.data);
       resolvePhotos(v.data, photos);
     });
-    const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0];
-    garage.activeId = active.id;
-    return { garage, state: active.data };
+    const active = garage.vehicles.find(v => v.id === garage.activeId) || garage.vehicles[0] || null;
+    garage.activeId = active ? active.id : null;
+    return { garage, state: active ? active.data : null };
   }
 
   /* Turn stored photo ids into object URLs so `.photo` keeps working in every

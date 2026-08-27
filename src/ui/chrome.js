@@ -15,6 +15,10 @@ function carTitle() { return session.current().car.nickname || `${session.curren
    badge size on both themes. */
 const BRAND_MARK = html`<svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="23" rx="16" ry="10.5" stroke="currentColor" stroke-width="2.2"/><path d="M7 26c4-9.5 9.5-13.5 15-13.5s11 4 15 13.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`;
 function renderTopbar() {
+  // An empty garage (no vehicle added yet) has no car to describe — go()
+  // routes that case to the onboarding screen instead, which hides this
+  // row entirely, so there is nothing here to keep in sync with.
+  if (!session.current()) return;
   const c = session.current().car;
   $('#carTitle').textContent = carTitle();
   $('#carSub').textContent = [c.year, c.engine, c.transmission, c.color].filter(Boolean).join(' · ');
@@ -172,6 +176,9 @@ function accentForColor(name) {
    unlike accentForColor's usability-nudged version above. */
 function swatchFor(name) { return realPaintHex(name) || accentForColor(name)[0]; }
 function applyAccent() {
+  // No vehicle yet — nothing to accent from. The stylesheet's own default
+  // --accent covers the onboarding screen this leaves in place.
+  if (!session.current()) return;
   const [acc, soft] = accentForColor(session.current().car && session.current().car.color);
   const [r, g, b] = hexToRgb(acc);
   const s = document.documentElement.style;

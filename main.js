@@ -1,5 +1,5 @@
 /* ============================================================
-   Garage — 2016 Mazda 3 2.0 SkyActiv-G  ·  vanilla JS SPA
+   Garage — Mazda maintenance tracker  ·  vanilla JS SPA
    Data persists in localStorage. Everything is editable in-app.
 
    This is the last file loaded (see index.html). Everything else the app
@@ -233,8 +233,44 @@ function openHealthBreakdown() {
 const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, parts: renderParts, fuel: renderFuel, budget: renderBudget, reports: renderReports };
 let current = 'dashboard';
 let navIntent = null; // cross-page link target, consumed by the destination page's render
+/* Hides the car badge/title, the topbar icon buttons, and the bottom nav —
+   every one of them assumes a vehicle exists (session.current().car), which
+   is exactly what an empty garage does not have. Onboarding is the only
+   thing rendered in that state; everything else waits for the first
+   vehicle to be added, then this un-hides them again. */
+function setChromeVisible(visible) {
+  $('#openProfile').hidden = !visible;
+  $('.topbar-actions').hidden = !visible;
+  $('#tabbar').hidden = !visible;
+}
+function renderOnboarding() {
+  setChromeVisible(false);
+  // hidden only hides these from view — their text nodes are still in the
+  // DOM and still readable via textContent (a sign-out leaving the previous
+  // user's car name sitting there, unseen but present, is exactly the bug
+  // this guards against). Clear the content, not just the visibility.
+  $('#carTitle').textContent = '';
+  $('#carSub').textContent = '';
+  $('#carBadge').innerHTML = '';
+  document.title = 'Garage';
+  const view = $('#view');
+  view.className = 'view';
+  view.innerHTML = '';
+  const card = el('div', 'card');
+  card.style.cssText = 'text-align:center;padding:40px 24px;margin-top:10vh';
+  card.innerHTML = html`
+    <div style="font-size:40px;margin-bottom:12px">🚗</div>
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">${t('Add your first vehicle')}</h2>
+    <p class="muted" style="margin-bottom:20px">${t('Pick your Mazda and its engine — its SkyActiv service plan is set up for you.')}</p>`;
+  const btn = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add a vehicle')}`);
+  btn.onclick = () => addVehicle();
+  card.appendChild(btn);
+  view.appendChild(card);
+}
 function go(route, intent) {
   if (!session.booted()) return;      // boot failed — leave the error card in place
+  if (!session.garage() || !session.garage().vehicles.length) { renderOnboarding(); return; }
+  setChromeVisible(true);
   revokeObjectUrls();
   refreshPhotoUrls();
   renderTopbar();     // the badge lives outside #view; its URL was just revoked
@@ -584,7 +620,7 @@ account.configure({
 $('#accountBtn').hidden = !account.available();
 
 session.load()
-  .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist the seed
+  .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist whatever hydrate() built (a migrated legacy car, or nothing)
   .then(() => {
     applyAccent();
     renderTopbar();

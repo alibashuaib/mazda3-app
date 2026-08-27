@@ -36,6 +36,25 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { setupDom } = require('./dom.js');
+const catalog = require('../../src/data/catalog.js');
+const normalize = require('../../src/data/normalize.js');
+
+/* main.js no longer auto-seeds a demo vehicle on an empty garage (it now
+   renders the "add your first vehicle" onboarding screen instead) — so a
+   boot with no garage in storage lands there, not on the dashboard. Every
+   test below this one that never asked for that screen still needs a
+   populated garage to render against, exactly as bootApp always gave it.
+   Pre-seeding storage — the same key storage.js's localStorage backend
+   reads (LS_KEY there) — before the scripts run reproduces a real
+   returning user's boot, rather than reaching into session state after
+   the fact (which fixed the in-memory garage but left the DOM already
+   rendered as onboarding, one boot too late to matter). */
+const GARAGE_LS_KEY = 'garage.mazda3.v2';
+function defaultFixtureGarage() {
+  const data = normalize.normalizeData(normalize.buildProfile('mazda3bm', 0, { odometer: 0, year: 2016, color: catalog.DEFAULT_COLOR }));
+  const id = 'fixture-' + Math.random().toString(36).slice(2, 9);
+  return { vehicles: [{ id, data }], activeId: id };
+}
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -187,6 +206,15 @@ async function bootApp(opts = {}) {
 
   if (opts.lang) globalThis.localStorage.setItem('garage.lang', opts.lang);
 
+  // opts.vehicles === [] is a deliberate request for the empty-garage/
+  // onboarding path; leaving it undefined gets every other test its usual
+  // populated fixture, both written before boot so the app's own first
+  // `go('dashboard')` already renders against them.
+  const garage = opts.vehicles !== undefined
+    ? { vehicles: opts.vehicles, activeId: opts.activeId || (opts.vehicles[0] && opts.vehicles[0].id) || null }
+    : defaultFixtureGarage();
+  if (garage.vehicles.length) globalThis.localStorage.setItem(GARAGE_LS_KEY, JSON.stringify(garage));
+
   const { context, g } = makeContext(dom, { protocol: opts.protocol, supabaseStub: opts.supabaseStub });
   for (const rel of SCRIPTS) {
     const code = fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -199,8 +227,6 @@ async function bootApp(opts = {}) {
     await new Promise(r => setImmediate(r));
   }
   if (!g.session.booted()) throw new Error('app.js did not finish booting within 2s');
-
-  if (opts.vehicles) g.session.setVehicles(opts.vehicles, opts.activeId || opts.vehicles[0].id);
 
   /* Reaches app.js's top-level `let` bindings (maintMode, reportType, lang),
      which live in the context's global lexical scope and are not properties of

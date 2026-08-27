@@ -290,9 +290,12 @@
     });
   }
 
-  /* The default vehicle hydrate() invents on a fresh device: one car, nothing
-     logged against it. Derived from data already in memory rather than tracked
-     with a flag — there is no state to keep in sync and nothing to migrate. */
+  /* hydrate() no longer invents a demo vehicle on a fresh device (that path
+     now leaves the garage empty — see reconcile() below for that case).
+     This still matters for a legacy single-car migration nobody has
+     touched yet: one car, nothing logged against it. Derived from data
+     already in memory rather than tracked with a flag — there is no state
+     to keep in sync and nothing to migrate. */
   const SEED_ODOMETER = 0;   // normalize.js's seed(): buildProfile(..., { odometer: 0 })
 
   function isUntouchedSeed(garage) {
@@ -521,7 +524,9 @@
   function reconcile(pulled) {
     const local = deps.session.garage();
     if (!pulled.vehicles.length) return uploadAll(local);
-    if (isUntouchedSeed(local)) return adopt(pulled);
+    // A device with nothing added yet has nothing to ask the user to choose
+    // between — same silent-adopt treatment as an untouched seed.
+    if (!local.vehicles.length || isUntouchedSeed(local)) return adopt(pulled);
     return Promise.resolve(env.choose()).then(keep => keep === 'local' ? replaceServer(pulled, local) : adopt(pulled));
   }
 

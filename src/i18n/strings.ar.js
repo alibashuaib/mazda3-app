@@ -373,6 +373,8 @@ const AR = {
   'Garage': 'المرآب',
   'Switch vehicles or add another': 'بدّل بين المركبات أو أضف أخرى',
   'Car profile, language, plan setup': 'ملف السيارة، اللغة، إعداد الخطة',
+  'Add your first vehicle': 'أضف مركبتك الأولى',
+  'Pick your Mazda and its engine — its SkyActiv service plan is set up for you.': 'اختر سيارة المازدا ومحركها — سيتم إعداد خطة الصيانة سكاي أكتيف لك تلقائيًا.',
   'Sign in': 'تسجيل الدخول',
   'Sign up': 'إنشاء حساب',
   'Sign out': 'تسجيل الخروج',

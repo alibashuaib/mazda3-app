@@ -60,6 +60,30 @@ test('the app boots without throwing and lands on the dashboard', () => withBoot
   assertHealthyRender(view, 'dashboard');
 }));
 
+/* main.js used to auto-seed a demo 2016 Mazda 3 the moment a device had no
+   garage — every load/refresh with cleared storage silently got a fake car
+   instead of an empty one. Removed: an empty garage now renders an
+   onboarding screen instead, and the topbar/tabbar (which all assume a
+   vehicle exists) stay hidden until one is added. */
+test('an empty garage renders onboarding instead of a default vehicle, and adding one restores the app', () => withBoot({ vehicles: [] }, async ({ document, api }) => {
+  const view = document.querySelector('#view');
+  assert.ok(!view.textContent.includes('Mazda 3'), 'a default vehicle must not be invented for an empty garage');
+  assert.ok(view.textContent.includes('Add your first vehicle') || view.textContent.includes('Add a vehicle'),
+    'the onboarding screen must offer to add a vehicle');
+  assert.strictEqual(document.querySelector('#tabbar').hidden, true, 'the tab bar assumes a vehicle exists — must stay hidden');
+  assert.strictEqual(document.querySelector('.topbar-actions').hidden, true, 'the topbar actions assume a vehicle exists — must stay hidden');
+
+  api.addVehicle();
+  const modal = document.querySelector('#modalCard');
+  modal.querySelector('.btn.primary').click();
+  await new Promise(r => setImmediate(r));
+  await new Promise(r => setImmediate(r));
+
+  assert.strictEqual(api.session.garage().vehicles.length, 1, 'the vehicle added from onboarding must actually be saved');
+  assert.strictEqual(document.querySelector('#tabbar').hidden, false, 'the tab bar must come back once a vehicle exists');
+  assert.ok(document.querySelector('#view').querySelector('.car-card'), 'the dashboard must render once a vehicle exists');
+}));
+
 /* One test per tab. Phase 3a shipped five ReferenceErrors that blanked four of
    these six pages, with a fully green suite, because nothing rendered them. */
 for (const route of ROUTES) {
