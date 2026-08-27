@@ -370,6 +370,7 @@ const AR = {
   // accounts
   'Account': 'الحساب',
   'Settings': 'الإعدادات',
+  'Garage': 'المرآب',
   'Sign in': 'تسجيل الدخول',
   'Sign up': 'إنشاء حساب',
   'Sign out': 'تسجيل الخروج',

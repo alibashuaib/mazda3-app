@@ -319,6 +319,17 @@ function askWhichGarage() {
 function openAccount() {
   const signedIn = !!account.user();
   openModal(t('Account'), signedIn ? t('Signed in as') + ' ' + account.user().email : t('Your garage stays on this device.'), card => {
+    // Garage and Settings aren't account-specific — surfaced here too so
+    // this modal isn't a dead end once you're already looking at it.
+    const nav = el('div', 'field-row');
+    nav.style.marginBottom = '16px';
+    const garageBtn = el('button', 'btn ghost', html`${t('Garage')}`);
+    garageBtn.onclick = () => { closeModal(); openGarage(); };
+    const settingsBtn = el('button', 'btn ghost', html`${t('Settings')}`);
+    settingsBtn.onclick = () => { closeModal(); openSettings(); };
+    nav.append(garageBtn, settingsBtn);
+    card.appendChild(nav);
+
     if (signedIn) {
       const status = el('p', 'muted');
       account.outboxSize().then(pending => { status.textContent = pending ? t('Waiting to sync') + ' · ' + pending : t('Synced'); });

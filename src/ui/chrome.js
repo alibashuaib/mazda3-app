@@ -8,19 +8,19 @@
 
 /* ---------- car profile / topbar ---------- */
 function carTitle() { return session.current().car.nickname || `${session.current().car.make} ${session.current().car.model}`.trim() || 'My car'; }
-function carInitials() {
-  const c = session.current().car;
-  const a = (c.make || '')[0] || '';
-  const b = (c.model || '')[0] || '';
-  return (a + b).toUpperCase() || '🚗';
-}
+/* A brand mark, not per-car initials — every vehicle in the garage is a
+   Mazda, so "M3"/"CX5" text never told the user anything CarTitle/CarSub
+   didn't already say better. A stylized wing-over-oval mark (not a
+   pixel copy of Mazda's official corporate logo file) reads clearly at
+   badge size on both themes. */
+const BRAND_MARK = html`<svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="23" rx="16" ry="10.5" stroke="currentColor" stroke-width="2.2"/><path d="M7 26c4-9.5 9.5-13.5 15-13.5s11 4 15 13.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`;
 function renderTopbar() {
   const c = session.current().car;
   $('#carTitle').textContent = carTitle();
   $('#carSub').textContent = [c.year, c.engine, c.transmission, c.color].filter(Boolean).join(' · ');
   const badge = $('#carBadge');
   badge.classList.remove('has-photo');
-  badge.textContent = carInitials();
+  badge.innerHTML = BRAND_MARK;
   // index.html ships a fixed "2016 Mazda 3" title; this is a multi-vehicle
   // garage, so the tab should name whichever vehicle is actually active.
   document.title = 'Garage — ' + carTitle();
