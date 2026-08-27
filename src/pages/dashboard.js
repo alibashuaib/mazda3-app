@@ -33,6 +33,17 @@ const GENERIC_MODEL_IMAGE = {
    docs/superpowers/plans/2026-08-26-per-colour-car-photos.md for the full
    asset list still needed. */
 const CAR_COLOR_PHOTOS = {
+  cx3: {
+    'machine-gray-metallic': 'assets/mazda-cx3-dk.png',
+    'soul-red-crystal-metallic': 'assets/cx3-soul-red-crystal-metallic.png',
+    'snowflake-white-pearl-mica': 'assets/cx3-snowflake-white-pearl-mica.png',
+    'jet-black-mica': 'assets/cx3-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/cx3-deep-crystal-blue-mica.png',
+    'dynamic-blue-mica': 'assets/cx3-dynamic-blue-mica.png',
+    'ceramic-metallic': 'assets/cx3-ceramic-metallic.png',
+    'titanium-flash-mica': 'assets/cx3-titanium-flash-mica.png',
+    'polymetal-gray-metallic': 'assets/cx3-polymetal-gray-metallic.png'
+  },
   mazda2: {
     'soul-red-crystal-metallic': 'assets/mazda2-soul-red-crystal-metallic.png',
     'snowflake-white-pearl-mica': 'assets/mazda2-snowflake-white-pearl-mica.png',

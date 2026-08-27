@@ -49,7 +49,7 @@ keeps working for every colour not yet covered.
 
 ## Full asset list still needed (as of 2026-08-26)
 
-`mazda2`, `mazda3bm`, `cx9tb`, `cx5ke`, and `mazda6` are complete.
+`mazda2`, `mazda3bm`, `mazda6`, `cx3`, `cx5ke`, and `cx9tb` are complete.
 Every other model is fully outstanding. `[m.id]-[colorSlug]` → source catalogue colour, generated
 from `CAR_MODELS` in `src/data/catalog.js`:
 
@@ -70,7 +70,7 @@ machine-gray-metallic, soul-red-metallic, soul-red-crystal-metallic,
 snowflake-white-pearl-mica, jet-black-mica, deep-crystal-blue-mica,
 blue-reflex-mica, sonic-silver-metallic, titanium-flash-mica
 
-### cx3 (9)
+### cx3 (complete — 9/9)
 machine-gray-metallic, soul-red-crystal-metallic, snowflake-white-pearl-mica,
 jet-black-mica, deep-crystal-blue-mica, dynamic-blue-mica, ceramic-metallic,
 titanium-flash-mica, polymetal-gray-metallic
