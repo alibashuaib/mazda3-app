@@ -20,3 +20,6 @@ playwright-report/
 
 # graphify generated graph + extraction cache (regenerable)
 graphify-out/
+
+# python bytecode (tools/)
+__pycache__/
