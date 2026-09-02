@@ -26,7 +26,7 @@ function docItem(d) {
     <div class="item-ic">${DOC_ICONS[d.type] || '📄'}</div>
     <div class="item-main">
       <h3>${d.name ? d.name : t(d.type)}</h3>
-      <p>${d.expiry ? t('Expires') + ' ' + new Date(d.expiry + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : t('No expiry date')}${d.number ? ` · ${d.number}` : ''}</p>
+      <p>${d.expiry ? t('Expires') + ' ' + fmtDate(d.expiry, { day: 'numeric', month: 'short', year: 'numeric' }) : t('No expiry date')}${d.number ? ` · ${d.number}` : ''}</p>
     </div>
     <div class="item-side"><span class="pill ${st.level}">${st.txt}</span></div>`;
   it.onclick = () => openAddDoc(d);

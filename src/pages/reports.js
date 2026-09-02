@@ -52,14 +52,14 @@ function reportHeader(title) {
       </div>
       <div class="rpt-meta">
         <div class="rpt-title">${title}</div>
-        <div>${t('Generated')} ${today().toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        <div>${t('Generated')} ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}</div>
         <div>${t('Odometer ')}${fmt(c.odometer)} km${c.plate ? html` · ${c.plate}` : ''}</div>
         ${c.vin ? html`<div>VIN ${c.vin}</div>` : ''}
       </div>
     </div>`;
 }
 function reportFooter() {
-  return html`<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${today().toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
+  return html`<div class="rpt-foot"><span>${t('Garage · Mazda 3 care app')}</span><span>${t('Report generated')} ${fmtDate(today(), { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
 }
 function reportService() {
   const hist = [...session.current().history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
@@ -75,7 +75,7 @@ function reportService() {
       <table class="rpt-table">
         <thead><tr><th>${t('Date')}</th><th>${t('Service')}</th><th>${t('Category')}</th><th class="num">${t('Odometer')}</th><th class="num">${t('Cost')}</th><th>${t('Notes')}</th></tr></thead>
         <tbody>${hist.map(e => html`<tr>
-          <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+          <td>${fmtDate(e.date, { day: '2-digit', month: 'short', year: 'numeric' })}</td>
           <td>${t(e.name)}</td><td>${e.cat ? t(e.cat) : '—'}</td>
           <td class="num">${fmt(e.odometer)} km</td>
           <td class="num">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</td>
@@ -104,7 +104,7 @@ function reportPurchases() {
       <table class="rpt-table">
         <thead><tr><th>${t('Date')}</th><th>${t('Item')}</th><th>${t('Category')}</th><th class="num">${t('Odometer')}</th><th class="num">${t('Amount')}</th></tr></thead>
         <tbody>${sp.map(e => html`<tr>
-          <td>${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+          <td>${fmtDate(e.date, { day: '2-digit', month: 'short', year: 'numeric' })}</td>
           <td>${e.desc}</td><td>${t(e.cat)}</td>
           <td class="num">${e.odometer ? fmt(e.odometer) + ' km' : '—'}</td>
           <td class="num">${sar(e.amount)} SAR</td></tr>`)}</tbody>
@@ -156,7 +156,7 @@ function monthlyBars() {
     const isNow = i === months.length - 1;
     const sb = el('div', 'sb' + (isNow ? ' now' : ''));
     const h = Math.max(4, (totals[i] / max) * 100);
-    sb.innerHTML = html`<div class="col" style="height:${h}%"></div><div class="m">${m.toLocaleString('en', { month: 'short' })}</div>`;
+    sb.innerHTML = html`<div class="col" style="height:${h}%"></div><div class="m">${fmtDate(m, { month: 'short' })}</div>`;
     sb.title = `${sar(totals[i])} SAR`;
     wrap.appendChild(sb);
   });
@@ -168,7 +168,7 @@ function spendEntry(e) {
   const it = el('div', 'card entry');
   it.innerHTML = html`
     <div class="e-ic">${emoji}</div>
-    <div class="e-main"><h3>${e.desc}${e.photo ? ' 🧾' : ''}</h3><p>${t(e.cat)} · ${new Date(e.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
+    <div class="e-main"><h3>${e.desc}${e.photo ? ' 🧾' : ''}</h3><p>${t(e.cat)} · ${fmtDate(e.date, { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
     <div class="e-amt">${sar(e.amount)} <span class="muted" style="font-size:10px">SAR</span></div>`;
   it.onclick = () => openAddSpending(e);
   return it;

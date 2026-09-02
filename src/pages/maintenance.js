@@ -90,7 +90,7 @@ function buildPlan(v) {
         <div class="plan-meta">
           ${isNext ? html`<span class="plan-badge next">${t('Next up')}</span>` : ''}
           ${ms.major ? html`<span class="plan-badge">${t('Major service')}</span>` : ''}
-          <span class="plan-when">≈ ${ms.date.toLocaleDateString('en', { month: 'short', year: 'numeric' })}</span>
+          <span class="plan-when">≈ ${fmtDate(ms.date, { month: 'short', year: 'numeric' })}</span>
         </div>
       </div>
       <div class="plan-items">
@@ -435,7 +435,7 @@ function scheduleTimelineItem(s, st, isLast) {
     <div class="tl-dot ${st.level}">${s.icon || '🔧'}</div>
     <div class="card tl-card">
       <div class="tl-top"><h3>${t(s.name)}</h3><span class="pill ${st.level}">${pillTxt}</span></div>
-      <div class="tl-sub">${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })} · ${kmTxt}</div>
+      <div class="tl-sub">${fmtDate(st.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })} · ${kmTxt}</div>
     </div>`;
   item.querySelector('.tl-card').onclick = () => openServiceDetail(s);
   return item;
@@ -450,7 +450,7 @@ function buildHistory(v) {
   tiles.innerHTML = html`
     <div class="tile"><div class="t-num">${hist.length}</div><div class="t-cap">${t('Services logged')}</div></div>
     <div class="tile"><div class="t-num">${sar(totalCost)}</div><div class="t-cap">${t('SAR total')}</div></div>
-    <div class="tile"><div class="t-num" style="font-size:15px;line-height:1.9">${last ? new Date(last.date + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short' }) : '—'}</div><div class="t-cap">${t('Last service')}</div></div>`;
+    <div class="tile"><div class="t-num" style="font-size:15px;line-height:1.9">${last ? fmtDate(last.date, { day: 'numeric', month: 'short' }) : '—'}</div><div class="t-cap">${t('Last service')}</div></div>`;
   v.appendChild(tiles);
 
   const add = el('button', 'btn block primary', html`${iconSvg('plus')}${t('Log a past service')}`);
@@ -471,7 +471,7 @@ function buildHistory(v) {
       <div class="tl-dot">${e.icon || '🔧'}</div>
       <div class="card tl-card">
         <div class="tl-top"><h3>${t(e.name)}${e.photo ? ' 🧾' : ''}</h3><div class="tl-cost">${e.cost > 0 ? sar(e.cost) + ' SAR' : '—'}</div></div>
-        <div class="tl-sub">${d.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km</div>
+        <div class="tl-sub">${fmtDate(d, { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km</div>
         ${e.note ? html`<div class="tl-note">${e.note}</div>` : ''}
       </div>`;
     item.querySelector('.tl-card').onclick = () => openAddHistory(e);
@@ -504,8 +504,8 @@ function openServiceDetail(s) {
     box.innerHTML = html`
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
       <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? html` <span class="muted" style="font-size:11px">· ${t(session.current().severity === 'severe' ? 'dealer' : 'severe')} ${fmt(session.current().severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
-      <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${new Date(s.lastDate + 'T00:00:00').toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
-      <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${st.dueDate.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+      <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${fmtDate(s.lastDate, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+      <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${fmtDate(st.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
       <div class="detail-row"><span class="k">${t('Est. cost')}</span><span class="v">${sar(s.cost)} SAR</span></div>
       ${s.pendingParts && s.pendingParts.length ? html`<div class="log-pending ${s.pendingParts.some(n => partCrit(n) === 'high') ? 'danger' : s.pendingParts.some(n => partCrit(n) === 'med') ? 'warn' : 'ok'}" style="margin-top:14px">⚠️ ${t('Do next service')}: ${raw(s.pendingParts.map(n => html`${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، '))}</div>` : ''}

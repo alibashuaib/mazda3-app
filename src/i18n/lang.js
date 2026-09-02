@@ -20,6 +20,32 @@ const relDate = d => {
   return ar ? `خلال ${mo} شهر` : `in ${mo} mo`;
 };
 
+/* ---------- absolute dates ----------
+   Every absolute date in the app renders through fmtDate(). Before this, each
+   call site wrote its own `toLocaleDateString('en', …)`, so Arabic showed
+   English month names ("3 Mar 2027") no matter the UI language — the one seam
+   left in an otherwise complete translation.
+
+   Accepts either a Date or a 'YYYY-MM-DD' string. The string form is parsed at
+   LOCAL midnight, which is what the `+ 'T00:00:00'` suffix every call site used
+   to append by hand was for: a bare 'YYYY-MM-DD' is parsed as UTC, and west of
+   Greenwich that renders as the previous day.
+
+   `opts` is an Intl.DateTimeFormat options object, passed through unchanged —
+   the granularity stays each call site's decision, so EN output is identical
+   to what it produced before. */
+function toLocalDate(d) {
+  return d instanceof Date ? d : new Date(String(d) + 'T00:00:00');
+}
+/* Latin digits (nu-latn) even in Arabic: the app already writes "7,500 كم" via
+   helpers.js's fmt(), and a date in Arabic-Indic digits beside a distance in
+   Latin ones reads as two different number systems in one line. */
+const AR_LOCALE = 'ar-u-ca-gregory-nu-latn';
+function fmtDate(d, opts) {
+  const date = toLocalDate(d);
+  return date.toLocaleDateString(lang === 'ar' ? AR_LOCALE : 'en', opts);
+}
+
 const NAV_KEYS = { dashboard: 'Dashboard', maintenance: 'Maintenance', parts: 'Parts', fuel: 'Fuel', budget: 'Budget', reports: 'Reports' };
 function applyNavLabels() {
   document.querySelectorAll('.tab').forEach(tab => {
