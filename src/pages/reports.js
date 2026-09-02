@@ -20,7 +20,7 @@ function renderReports() {
   const types = [['service', 'Service history'], ['purchases', 'Purchases'], ['summary', 'Full summary']];
   types.forEach(([k, label]) => {
     const b = el('button', k === reportType ? 'on' : '', html`${t(label)}`);
-    b.onclick = () => { reportType = k; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
+    b.onclick = () => { reportType = k; segSelect(b); paint(); };
     seg.appendChild(b);
   });
   const printBtn = el('button', 'btn primary', html`<svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>${t('Print / Save PDF')}`);

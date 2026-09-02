@@ -11,6 +11,12 @@
    Escape, and hand focus back to whatever opened it. */
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 let modalReturnFocus = null;
+/* Set by openModal()'s optional opts.onDismissed, fired from closeModal() no
+   matter which of its three call sites triggered the close (the backdrop's
+   [data-close] click, Escape via onModalKeydown, or a caller invoking
+   closeModal() directly) — a caller that only overrides [data-close].onclick
+   misses Escape entirely, and a promise waiting on that click never resolves. */
+let modalOnDismiss = null;
 
 function trapTab(ev) {
   if (ev.key !== 'Tab') return;
@@ -25,7 +31,7 @@ function onModalKeydown(ev) {
   trapTab(ev);
 }
 
-function openModal(title, sub, bodyBuilder) {
+function openModal(title, sub, bodyBuilder, opts) {
   const host = $('#modalHost'), card = $('#modalCard');
   card.innerHTML = '<div class="modal-grip"></div>';
   const h = el('h2', null, html`${t(title)}`);
@@ -35,7 +41,14 @@ function openModal(title, sub, bodyBuilder) {
   if (sub) card.appendChild(el('p', 'sub', html`${t(sub)}`));
   bodyBuilder(card);
   host.hidden = false;
-  host.querySelector('[data-close]').onclick = closeModal;
+  // The host markup always has a backdrop with [data-close] (see index.html),
+  // but a defensive guard here costs nothing and turns a missing one into a
+  // silently-inert backdrop instead of a thrown TypeError that aborts the
+  // rest of openModal() (and leaves the dialog half-wired: visible, but with
+  // no keydown listener and no focus trap).
+  const closeBtn = host.querySelector('[data-close]');
+  if (closeBtn) closeBtn.onclick = closeModal;
+  modalOnDismiss = (opts && opts.onDismissed) || null;
   // Remember the opener only on a fresh open — a dialog that replaces another
   // must not overwrite it with the outgoing dialog's own button.
   if (!modalReturnFocus) modalReturnFocus = document.activeElement;
@@ -51,6 +64,9 @@ function closeModal() {
   const back = modalReturnFocus;
   modalReturnFocus = null;
   if (back && typeof back.focus === 'function' && document.contains(back)) back.focus();
+  const onDismiss = modalOnDismiss;
+  modalOnDismiss = null;
+  if (onDismiss) onDismiss();
 }
 
 /* onAsyncClick lives in ui.js so the re-entry guard is covered by the tests —

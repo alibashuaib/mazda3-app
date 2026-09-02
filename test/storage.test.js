@@ -7,6 +7,7 @@ const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, im
 const { dataUrlToBlob, blobToDataUrl } = require('../src/data/storage.js');
 const { collectInlinePhotos } = require('../src/data/storage.js');
 const { openStorage } = require('../src/data/storage.js');
+const { saveVehicle } = require('../src/data/storage.js');
 
 const DATA_URL = 'data:image/jpeg;base64,AAAA';
 
@@ -65,6 +66,21 @@ test('splitPhotos clears the id when the photo was removed', () => {
   assert.strictEqual(data.car.photoId, undefined);
 });
 
+test('splitPhotos reuses an id from idForDataUrl instead of minting a new one', () => {
+  const input = sampleData();
+  const lookup = url => (url === DATA_URL ? 'existing-id' : undefined);
+  const { data, photos } = splitPhotos(input, makeIdFactory(), lookup);
+  assert.strictEqual(data.car.photoId, 'existing-id');
+  assert.strictEqual(data.history[0].photoId, 'existing-id');   // same URL, same reused id
+  assert.strictEqual(photos['existing-id'], DATA_URL);
+});
+
+test('splitPhotos falls back to makeId when the lookup finds nothing', () => {
+  const input = { car: { photo: DATA_URL } };
+  const { data } = splitPhotos(input, makeIdFactory(), () => undefined);
+  assert.strictEqual(data.car.photoId, 'p1');
+});
+
 test('inlinePhotos restores data URLs, and round-trips with splitPhotos', () => {
   const original = sampleData();
   const { data, photos } = splitPhotos(original, makeIdFactory());
@@ -89,6 +105,18 @@ test('inlinePhotos leaves a missing photo empty rather than throwing', () => {
    path a one-way trip. */
 const wrapExport = garage => JSON.stringify(buildExport(garage, {}, '2026-08-16T00:00:00Z'));
 const oneVehicle = data => ({ vehicles: [{ id: 'v1', data }], activeId: 'v1' });
+
+test('buildExport drops photo values that are not data: URLs and warns', () => {
+  const origWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    const photosById = { p1: DATA_URL, p2: 'blob:http://x/y', p3: {}, p4: null };
+    const out = buildExport({ vehicles: [] }, photosById, '2026-08-16T00:00:00Z');
+    assert.deepStrictEqual(out.photos, { p1: DATA_URL }, 'a Blob map must not serialise as garbage in the backup');
+    assert.strictEqual(warnings.length, 3, 'one warning per dropped entry');
+  } finally { console.warn = origWarn; }
+});
 
 test('parseImport rejects structurally damaged vehicles', () => {
   const cases = [
@@ -118,6 +146,32 @@ test('parseImport rejects a damaged photos dictionary', () => {
   const text = JSON.stringify(Object.assign(
     JSON.parse(wrapExport(oneVehicle({ car: {} }))), { photos: ['not', 'a', 'dict'] }));
   assert.strictEqual(parseImport(text).ok, false);
+});
+
+test('parseImport rejects a backup with the wrong version', () => {
+  const text = JSON.stringify(Object.assign(
+    JSON.parse(wrapExport(oneVehicle({ car: {} }))), { version: 2 }));
+  const out = parseImport(text);
+  assert.strictEqual(out.ok, false);
+  assert.ok(/version/i.test(out.error));
+
+  const noVersion = JSON.parse(wrapExport(oneVehicle({ car: {} })));
+  delete noVersion.version;
+  assert.strictEqual(parseImport(JSON.stringify(noVersion)).ok, false);
+});
+
+test('parseImport repairs bad photo values instead of rejecting the whole backup', () => {
+  const base = JSON.parse(wrapExport(oneVehicle({ car: {} })));
+  base.photos = { p1: DATA_URL, p2: 'not-a-data-url', p3: 42, p4: null };
+  const origWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    const out = parseImport(JSON.stringify(base));
+    assert.strictEqual(out.ok, true, 'content is repaired, structure is still sound');
+    assert.deepStrictEqual(out.photos, { p1: DATA_URL });
+    assert.strictEqual(warnings.length, 3);
+  } finally { console.warn = origWarn; }
 });
 
 test('parseImport still accepts a sparse but sound backup', () => {
@@ -205,6 +259,14 @@ test('normalizeRecords leaves good data alone', () => {
   assert.deepStrictEqual(after.parts, before.parts);
 });
 
+test('normalizeRecords defaults a missing or invalid car to {}', () => {
+  assert.deepStrictEqual(normalizeRecords({ history: [] }, ids).car, {}, 'missing entirely');
+  assert.deepStrictEqual(normalizeRecords({ car: 'nope', history: [] }, ids).car, {}, 'a string, not an object');
+  assert.deepStrictEqual(normalizeRecords({ car: [], history: [] }, ids).car, {}, 'an array, not an object');
+  const good = normalizeRecords({ car: { nickname: 'Mine' }, history: [] }, ids);
+  assert.deepStrictEqual(good.car, { nickname: 'Mine' }, 'a good car object must be left alone');
+});
+
 test('normalizeRecords is idempotent and tolerates an empty object', () => {
   const once = normalizeRecords({ history: [{}] }, ids);
   const id = once.history[0].id;
@@ -272,7 +334,7 @@ test('applyPhotoIds copies ids onto the matching records', () => {
 });
 
 /* Regression: this zipped the two arrays by index. save() is fired without
-   await by markServiceDone() and logVisit(), so a delete can land before the
+   await by chooseVehicle() and the plan-setup skip handler, so a delete can land before the
    write resolves — every record past it shifts, and h3 would inherit h2's
    photo while h2's own id is dropped. */
 test('applyPhotoIds survives a record deleted while the save was in flight', () => {
@@ -382,6 +444,15 @@ test('dataUrlToBlob returns null for anything that is not a data URL', () => {
   assert.strictEqual(dataUrlToBlob(undefined), null);
 });
 
+/* A corrupt photo must not throw out of a caller mid-batch — see
+   migrateFromLocal, which drops one bad photo rather than failing the whole
+   migration. */
+test('dataUrlToBlob returns null rather than throwing on malformed input', () => {
+  assert.strictEqual(dataUrlToBlob('data:image/jpeg'), null, 'no comma at all');
+  assert.strictEqual(dataUrlToBlob('data:image/jpeg,plain-text-no-base64'), null, 'header lacks base64');
+  assert.strictEqual(dataUrlToBlob('data:image/jpeg;base64,not-valid-base64!!!'), null, 'atob rejects the payload');
+});
+
 test('blobToDataUrl round-trips dataUrlToBlob', async () => {
   const original = 'data:image/jpeg;base64,AAECAw==';
   const back = await blobToDataUrl(dataUrlToBlob(original));
@@ -449,6 +520,48 @@ test('openStorage tolerates a close() that throws on the previous connection', a
 
     const second = await openStorage({ protocol: 'https:', hasIndexedDb: true });
     assert.strictEqual(second.kind, 'idb', 'a throwing close() must not break backend selection');
+  } finally {
+    if (originalIndexedDB === undefined) delete global.indexedDB; else global.indexedDB = originalIndexedDB;
+  }
+});
+
+/* Regression: confirmed at review time that a synchronous throw escaping fn
+   does NOT, on its own, stop requests already queued earlier in the same
+   callback from committing — idbTx must call tx.abort() itself. A minimal
+   fake tx, not fake-indexeddb, so the throw and the abort call are both
+   directly observable. */
+test('idbTx aborts the transaction and rejects with the original error when fn throws mid-transaction', async () => {
+  const originalIndexedDB = global.indexedDB;
+  let aborted = false;
+  const db = {
+    transaction() {
+      return {
+        objectStore(name) {
+          if (name === 'photos') throw new Error('boom-from-photos');
+          return { put: () => ({}), get: () => ({}), delete: () => ({}) };
+        },
+        abort() { aborted = true; },
+        oncomplete: null, onerror: null, onabort: null
+      };
+    }
+  };
+  global.indexedDB = {
+    open: () => {
+      const req = {};
+      setTimeout(() => { req.result = db; if (req.onsuccess) req.onsuccess(); }, 0);
+      return req;
+    }
+  };
+  try {
+    await openStorage({ protocol: 'https:', hasIndexedDb: true });
+    // sampleData() carries a photo, so saveVehicle's tx callback reaches the
+    // photos loop — which is where our fake throws — only after queuing the
+    // vehicle put() ahead of it.
+    const res = await saveVehicle('v1', sampleData(), 'v1', makeIdFactory());
+    assert.strictEqual(res.ok, false, 'a mid-transaction throw must surface as a failed save');
+    assert.ok(String(res.error && res.error.message).includes('boom-from-photos'),
+      'idbTx must reject with the original error, not a generic one');
+    assert.strictEqual(aborted, true, 'idbTx must explicitly abort rather than rely on the transaction aborting itself');
   } finally {
     if (originalIndexedDB === undefined) delete global.indexedDB; else global.indexedDB = originalIndexedDB;
   }

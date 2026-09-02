@@ -35,15 +35,15 @@ function chooseVehicle(id) {
 }
 function addVehicle() { openAddVehicle(); }
 function openAddVehicle() {
-  openModal('Add a Mazda', 'Pick the model and engine — its SkyActiv service plan is set up for you.', card => {
-    card.appendChild(field('Model', html`<select id="av_model">${CAR_MODELS.map((m, i) => html`<option value="${i}">Mazda ${m.model} · ${m.gen}</option>`)}</select>`));
-    const engField = field('Engine', html`<select id="av_eng"></select>`);
+  openModal(t('Add a Mazda'), t('Pick the model and engine — its SkyActiv service plan is set up for you.'), card => {
+    card.appendChild(field(t('Model'), html`<select id="av_model">${CAR_MODELS.map((m, i) => html`<option value="${i}">Mazda ${m.model} · ${m.gen}</option>`)}</select>`));
+    const engField = field(t('Engine'), html`<select id="av_eng"></select>`);
     card.appendChild(engField);
     const r = el('div', 'field-row');
-    r.append(field('Current odometer (km)', html`<input id="av_odo" type="number" inputmode="numeric" value="0">`),
-      field('Year', html`<input id="av_year" type="number" inputmode="numeric" placeholder="${t('e.g. 2019')}">`));
+    r.append(field(t('Current odometer (km)'), html`<input id="av_odo" type="number" inputmode="numeric" value="0">`),
+      field(t('Year'), html`<input id="av_year" type="number" inputmode="numeric" placeholder="${t('e.g. 2019')}">`));
     card.appendChild(r);
-    const colorField = field('Color', html`<select id="av_color"></select>`);
+    const colorField = field(t('Color'), html`<select id="av_color"></select>`);
     card.appendChild(colorField);
     const modelSel = card.querySelector('#av_model'), engSel = card.querySelector('#av_eng'), colorSel = card.querySelector('#av_color');
     const fillEngines = () => { engSel.innerHTML = html`${CAR_MODELS[+modelSel.value].engines.map((e, i) => html`<option value="${i}">${e[0]}</option>`)}`; };
@@ -67,13 +67,30 @@ function openAddVehicle() {
          Without an explicit enqueue the new vehicle never reaches the server, so
          the next boot's pull() hands back a garage that does not contain it and
          adopt() classifies it as stale — deleting it, and its photos, with no
-         prompt. enqueueVehicle() no-ops when signed out and never rejects. */
-      if (ok) { applyPhotoIds(v.data, res.data); account.enqueueVehicle(v.id, res.data); kickSync(); }
+         prompt. enqueueVehicle() no-ops when signed out and never rejects. Same
+         reason its photos need their own enqueuePhoto() call: saveVehicle()'s
+         res.photoIds is what actually got persisted, so mirroring
+         session.save()'s afterSave hook here is what gets them uploaded too —
+         without it, other devices pull a vehicle whose photoId references
+         404 forever.
+
+         enqueueVehicle()/enqueuePhoto() are each async — like enqueueTombstone()
+         in deleteVehicle below, they read/write the outbox before resolving —
+         so kickSync() is sequenced with .then(Promise.all(...)) rather than
+         fired synchronously right after them. Firing it synchronously risks
+         the exact outbox-snapshot race deleteVehicle's own comment documents:
+         drain() could read the outbox before one of these writes has actually
+         landed in it, silently deferring that entry to the next kick instead
+         of pushing it now. */
+      if (ok) {
+        applyPhotoIds(v.data, res.data);
+        Promise.all([account.enqueueVehicle(v.id, res.data)].concat(res.photoIds.map(pid => account.enqueuePhoto(pid)))).then(kickSync);
+      }
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
-      if (ok) toast(t('Vehicle added'));
+      if (ok) toast('Vehicle added');
       else toast(isQuotaError(res.error)
-        ? t('Storage is full — your change was NOT saved. Remove some receipt photos.')
-        : t('Could not save your change.'), 'warn');
+        ? 'Storage is full — your change was NOT saved. Remove some receipt photos.'
+        : 'Could not save your change.', 'warn');
     });
     card.appendChild(b);
   });
@@ -102,9 +119,11 @@ async function deleteVehicle(id) {
   // reconnect/next-boot remains the fallback if this device is offline now.
   account.enqueueTombstone(id, photoIds).then(kickSync);
   if (ok) toast('Vehicle removed');
-  else toast(t('Could not save your change.'), 'warn');
+  else toast('Could not save your change.', 'warn');
 }
-function vehicleName(c) { return c.nickname || [c.year, c.make, c.model].filter(Boolean).join(' ') || 'Vehicle'; }
+// vehicleName() now lives in chrome.js, shared with carTitle() — one name
+// function, so there is exactly one place that can produce
+// "undefined undefined" instead of several.
 
 /* Best-effort, un-awaited drain kick after every enqueue point. The `online`
    event only fires on a transition into the online state, so a tab that
@@ -123,16 +142,28 @@ function kickSync() {
 /* A backup the user controls, before any server exists. Photos are inlined
    as base64 so a single file is the whole garage. */
 async function exportGarage() {
-  const photos = {};
-  await Promise.all(Object.keys(session.photos()).map(async id => { photos[id] = await blobToDataUrl(session.photos()[id]); }));
-  const payload = buildExport(session.garage(), photos, new Date().toISOString());
-  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `garage-backup-${isoDate(today())}.json`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast(t('Backup downloaded'));
+  // session.photos() hands back the live cache; read it once so every id and
+  // blob below comes from the same snapshot instead of whatever the session
+  // happens to hold at the moment each individual lookup runs.
+  try {
+    const live = session.photos();
+    const photos = {};
+    await Promise.all(Object.keys(live).map(async id => { photos[id] = await blobToDataUrl(live[id]); }));
+    const payload = buildExport(session.garage(), photos, new Date().toISOString());
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `garage-backup-${isoDate(today())}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast('Backup downloaded');
+  } catch (err) {
+    // blobToDataUrl() reads each photo Blob with blob.arrayBuffer(), which can
+    // reject; left unhandled this was a silent unhandled-rejection with no
+    // feedback to the user at all.
+    console.error(err);
+    toast('Could not create a backup. Please try again.', 'warn');
+  }
 }
 
 /* Import **replaces** the garage. It must ask first — this is destructive. */
@@ -143,7 +174,7 @@ function importGarage(file) {
     if (!parsed.ok) {
       // The toast has room for one line; the specifics go where they can be read.
       if (parsed.faults) console.warn('Backup rejected:', parsed.faults.join('; '));
-      return toast(t(parsed.error), 'warn');
+      return toast(parsed.error, 'warn');
     }
     if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
     // The garage and the photo cache must change together: normalize every
@@ -169,16 +200,24 @@ function importGarage(file) {
         v.data = inlinePhotos(v.data, merged);
         normalizeData(v.data);
       });
-      // Normalizing succeeded for every vehicle — now swap the photo cache and
-      // the garage together. session.photos() hands back the live cache; empty
-      // it, then refill from the backup so the imported Blobs are what the
-      // session holds.
-      const cache = session.photos();
-      Object.keys(cache).forEach(id => { delete cache[id]; });
+      // Build the replacement cache in a scratch object first, touching nothing
+      // session-owned. Only once every dataUrlToBlob() call below has returned —
+      // so a throw partway through decoding a malformed entry lands before
+      // anything session-owned has been touched — do we clear the live cache and
+      // fill it from the scratch one. The old ordering (empty the live cache,
+      // then refill it in place) left the OLD garage paired with an EMPTIED
+      // cache if the refill loop ever threw partway through; this can't.
+      const newPhotos = {};
       Object.keys(parsed.photos).forEach(id => {
         const blob = dataUrlToBlob(parsed.photos[id]);
-        if (blob) cache[id] = blob;
+        if (blob) newPhotos[id] = blob;
       });
+      // session.photos() hands back the live cache, not a settable property —
+      // swap its contents for the scratch object's, all in one go now that
+      // every entry in it is known good.
+      const cache = session.photos();
+      Object.keys(cache).forEach(id => { delete cache[id]; });
+      Object.assign(cache, newPhotos);
       // setVehicles picks the backup's activeId, or vehicles[0] if it is missing.
       session.setVehicles(parsed.garage.vehicles, parsed.garage.activeId);
       let ok = true;
@@ -187,8 +226,14 @@ function importGarage(file) {
         if (!res.ok) ok = false;
         // Same reason as openAddVehicle: a direct saveVehicle() never reaches
         // session.save()'s afterSave hook, so an imported vehicle would be
-        // deleted as stale by the next boot's adopt().
-        else { account.enqueueVehicle(v.id, res.data); kickSync(); }
+        // deleted as stale by the next boot's adopt() — and its photos, left
+        // unenqueued, would upload nowhere, leaving other devices to pull a
+        // vehicle whose photoId references 404. kickSync() is sequenced after
+        // both enqueues settle, not fired synchronously — see the matching
+        // comment in openAddVehicle for why.
+        else {
+          Promise.all([account.enqueueVehicle(v.id, res.data)].concat(res.photoIds.map(pid => account.enqueuePhoto(pid)))).then(kickSync);
+        }
       }
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
@@ -206,20 +251,20 @@ function importGarage(file) {
       await session.load();
       closeModal();
       applyAccent(); renderTopbar(); go('dashboard');
-      toast(ok ? t('Garage restored') : t('Restored, but some data could not be saved'), ok ? undefined : 'warn');
+      toast(ok ? 'Garage restored' : 'Restored, but some data could not be saved', ok ? undefined : 'warn');
     } catch (err) {
       console.error(err);
-      toast(t('That backup could not be restored. Please reload the page.'), 'warn');
+      toast('That backup could not be restored. Please reload the page.', 'warn');
     }
   };
-  reader.onerror = () => toast(t('Could not read that file.'), 'warn');
+  reader.onerror = () => toast('Could not read that file.', 'warn');
   reader.readAsText(file);
 }
 
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
   const bad = servicesRanked().filter(r => r.st.level !== 'ok');
-  openModal('Health score', html`${healthScore()} / 100 — ${t('what is affecting it')}`, card => {
+  openModal(t('Health score'), html`${healthScore()} / 100 — ${t('what is affecting it')}`, card => {
     if (!bad.length) { card.appendChild(emptyState('✅', 'Everything is on track.')); return; }
     const list = el('div', 'list');
     bad.forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
@@ -244,6 +289,11 @@ function setChromeVisible(visible) {
   $('#tabbar').hidden = !visible;
 }
 function renderOnboarding() {
+  // The onboarding screen has no vehicle, so it must always render with the
+  // stylesheet's own default accent, never a stale car's — calling this
+  // here directly (rather than trusting every go()/renderOnboarding() call
+  // site to have called it first) is what actually guarantees that.
+  applyAccent();
   setChromeVisible(false);
   // hidden only hides these from view — their text nodes are still in the
   // DOM and still readable via textContent (a sign-out leaving the previous
@@ -270,10 +320,15 @@ function renderOnboarding() {
 function go(route, intent) {
   if (!session.booted()) return;      // boot failed — leave the error card in place
   if (!session.garage() || !session.garage().vehicles.length) { renderOnboarding(); return; }
+  // An unknown route name — a stale link, a typo in markup that drifted from
+  // `routes` — must not throw out of routes[route]() below and leave the nav
+  // dead with no view rendered at all. Fall back to dashboard instead.
+  if (!routes[route]) route = 'dashboard';
   setChromeVisible(true);
   revokeObjectUrls();
   refreshPhotoUrls();
-  renderTopbar();     // the badge lives outside #view; its URL was just revoked
+  renderTopbar();     // the topbar lives outside #view, so go() has to repaint
+                       // it itself — nothing else will
   current = route;
   navIntent = intent || null;
   const view = $('#view');
@@ -293,7 +348,7 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
 
 function openGarage() {
   if (!session.booted()) return;
-  openModal('Your garage', 'Switch between your vehicles or add another.', card => {
+  openModal(t('Your garage'), t('Switch between your vehicles or add another.'), card => {
     const list = el('div', 'list');
     session.garage().vehicles.forEach(v => {
       const c = v.data.car;
@@ -326,29 +381,33 @@ function openGarage() {
 function askWhichGarage() {
   return new Promise(resolve => {
     let answered = false;
+    const finish = choice => { if (answered) return; answered = true; resolve(choice); };
     openModal(t('You have data here and in your account'), t('Choose which one to keep. The other is replaced.'), card => {
       const wrap = el('div', 'stack');
       const keepLocal = el('button', 'btn', html`${t('Keep this device’s garage')}`);
       const keepServer = el('button', 'btn ghost', html`${t('Use my account’s garage')}`);
-      keepLocal.onclick = () => { answered = true; closeModal(); resolve('local'); };
-      keepServer.onclick = () => { answered = true; closeModal(); resolve('server'); };
+      keepLocal.onclick = () => { finish('local'); closeModal(); };
+      keepServer.onclick = () => { finish('server'); closeModal(); };
       wrap.appendChild(keepLocal);
       wrap.appendChild(keepServer);
       card.appendChild(wrap);
-    });
-    /* Dismissing the modal must still resolve, or signIn() hangs forever
-       holding a user that has already authenticated. The server copy is the
-       safe default: the local garage is still on disk either way.
+    }, {
+      /* Dismissing the modal — Escape, the backdrop, or anything else that
+         routes through closeModal() — must still resolve, or signIn() hangs
+         forever holding a user that has already authenticated. opts.onDismissed
+         is what covers Escape too: overriding [data-close].onclick, as this
+         used to do, only ever catches a backdrop click, since onModalKeydown
+         calls closeModal() directly on Escape without going through it.
 
-       openModal() assigns the backdrop handler as its last statement, so
-       overriding it here wins. closeModal() itself has no dismissal hook to
-       subscribe to. */
-    $('#modalHost').querySelector('[data-close]').onclick = () => {
-      if (answered) return;
-      answered = true;
-      closeModal();
-      resolve('server');
-    };
+         Neither default is free: keeping the local garage tombstones every
+         vehicle the account has that this device does not; keeping the
+         server's garage (adopt()) deletes every local-only vehicle the server
+         doesn't have. We default to 'local' on an unanswered dismissal
+         because it is the choice that doesn't silently delete something the
+         user was just looking at — the account's exclusively-server vehicles
+         are the ones that pay for that, not this device's. */
+      onDismissed: () => finish('local')
+    });
   });
 }
 
@@ -395,20 +454,28 @@ function openAccount() {
     const err = form.querySelector('#ac_err');
     const show = msg => { err.textContent = t(msg); err.hidden = false; };
 
-    const submit = mode => () => {
+    const submit = mode => async () => {
       err.hidden = true;
       const email = form.querySelector('#ac_email').value.trim();
       const pw = form.querySelector('#ac_pw').value;
       if (pw.length < 6) return show('Password must be at least 6 characters.');
-      account.signIn(email, pw, { signUp: mode === 'up' })
-        .then(() => closeModal())
-        .catch(e => {
-          const m = String(e && e.message || '');
-          if (m === 'PULL_FAILED') return show('Couldn’t reach your garage. Check your connection and try again.');
-          if (m === 'EMAIL_NOT_CONFIRMED') return show('Check your email to confirm your account.');
-          if (m === 'EMAIL_ALREADY_REGISTERED') return show('That email is already registered. Sign in instead.');
-          show('Wrong email or password.');
-        });
+      // Both buttons, not just the one clicked — signIn() is already in
+      // flight either way, and a click on the OTHER button before it settles
+      // would fire a second, conflicting sign-in/sign-up call rather than
+      // just double-submitting the same one.
+      inBtn.disabled = true; upBtn.disabled = true;
+      try {
+        await account.signIn(email, pw, { signUp: mode === 'up' });
+        closeModal();
+      } catch (e) {
+        const m = String(e && e.message || '');
+        if (m === 'PULL_FAILED') return show('Couldn’t reach your garage. Check your connection and try again.');
+        if (m === 'EMAIL_NOT_CONFIRMED') return show('Check your email to confirm your account.');
+        if (m === 'EMAIL_ALREADY_REGISTERED') return show('That email is already registered. Sign in instead.');
+        show('Wrong email or password.');
+      } finally {
+        inBtn.disabled = false; upBtn.disabled = false;
+      }
     };
 
     const inBtn = el('button', 'btn', html`${t('Sign in')}`);
@@ -422,7 +489,7 @@ function openAccount() {
 
 function openSettings() {
   if (!session.booted()) return;
-  openModal('Car profile', 'These details personalise the app and its badge.', card => {
+  openModal(t('Car profile'), t('These details personalise the app and its badge.'), card => {
     const c = session.current().car;
     // language switch
     card.appendChild(field('Language / اللغة', ''));
@@ -431,59 +498,60 @@ function openSettings() {
     langSeg.style.margin = '0 0 16px';
     [['en', 'English'], ['ar', 'العربية']].forEach(([code, label]) => {
       const b = el('button', lang === code ? 'on' : '', html`${label}`);
-      b.onclick = () => { selectedLang = code; [...langSeg.children].forEach(x => x.classList.toggle('on', x === b)); };
+      b.onclick = () => { selectedLang = code; segSelect(b); };
       langSeg.appendChild(b);
     });
     card.appendChild(langSeg);
 
     // account row — absent entirely from file://, where sign-in cannot work
     if (account.available()) {
-      const acctRow = el('div', 'card plan-setup-banner');
-      acctRow.style.margin = '0 0 16px';
-      acctRow.innerHTML = html`<div class="r-ic">👤</div><div style="flex:1"><h3>${t('Account')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${account.user() ? account.user().email : t('Not signed in')}</p></div>`;
       const acctBtn = el('button', account.user() ? 'btn ghost' : 'btn', html`${account.user() ? t('Account') : t('Sign in')}`);
       acctBtn.onclick = () => { closeModal(); openAccount(); };
-      acctRow.appendChild(acctBtn);
+      // The sub-line is an email when signed in — t() passes it through
+      // unchanged, so only the signed-out placeholder is actually translated.
+      const acctRow = bannerRow('👤', 'Account', account.user() ? account.user().email : 'Not signed in', acctBtn);
+      acctRow.style.margin = '0 0 16px';
       card.appendChild(acctRow);
     }
 
     // plan setup wizard — schedule basis, odometer & service history
-    const planRow = el('div', 'card plan-setup-banner');
-    planRow.style.margin = '0 0 16px';
-    planRow.innerHTML = session.current().planSetupDone
-      ? html`<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Update your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Re-answer the setup questions if anything’s changed.')}</p></div>`
-      : html`<div class="r-ic">🧭</div><div style="flex:1"><h3>${t('Set up your plan')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Tell the plan which major services you’ve already done.')}</p></div>`;
-    const planBtn = el('button', session.current().planSetupDone ? 'btn ghost' : 'btn', html`${t(session.current().planSetupDone ? 'Edit' : 'Set up')}`);
+    const setUp = session.current().planSetupDone;
+    const planBtn = el('button', setUp ? 'btn ghost' : 'btn', html`${t(setUp ? 'Edit' : 'Set up')}`);
     planBtn.onclick = () => { closeModal(); openPlanSetup(); };
-    planRow.appendChild(planBtn);
+    const planRow = setUp
+      ? bannerRow('🧭', 'Update your plan', 'Re-answer the setup questions if anything’s changed.', planBtn)
+      : bannerRow('🧭', 'Set up your plan', 'Tell the plan which major services you’ve already done.', planBtn);
+    planRow.style.margin = '0 0 16px';
     card.appendChild(planRow);
 
     let photo = c.photo || '';
 
-    card.appendChild(field('Nickname (optional)', html`<input id="c_nick" value="${c.nickname || ''}" placeholder="${t('e.g. The Gray Ghost')}">`));
+    card.appendChild(field(t('Nickname (optional)'), html`<input id="c_nick" value="${c.nickname || ''}" placeholder="${t('e.g. The Gray Ghost')}">`));
     const r1 = el('div', 'field-row');
-    r1.append(field('Make', html`<input id="c_make" value="${c.make || ''}">`), field('Model', html`<input id="c_model" value="${c.model || ''}">`));
+    r1.append(field(t('Make'), html`<input id="c_make" value="${c.make || ''}">`), field(t('Model'), html`<input id="c_model" value="${c.model || ''}">`));
     card.appendChild(r1);
-    const normColor = s => (s || '').toLowerCase().replace(/\s*\(code.*\)/, '').trim();
     const modelMeta = CAR_MODELS.find(m => m.id === c.modelId);
     const colorOpts = modelMeta ? modelMeta.colors.slice() : [c.color || DEFAULT_COLOR];
-    const colorSel = colorOpts.find(x => normColor(x) === normColor(c.color)) || colorOpts[0];
+    // normalizeColorName lives in color.js — one normalization shared with
+    // realPaintHex's own legacy-name matching, not a second copy of it here.
+    const colorSel = colorOpts.find(x => normalizeColorName(x) === normalizeColorName(c.color)) || colorOpts[0];
+    const colorTheme = currentTheme();
     const r2 = el('div', 'field-row');
-    r2.append(field('Year', html`<input id="c_year" type="number" value="${c.year || ''}">`),
-      field('Transmission', html`<select id="c_trans">${['Automatic', 'Manual'].map(tr => html`<option value="${tr}" ${c.transmission === tr ? 'selected' : ''}>${t(tr)}</option>`)}</select>`));
+    r2.append(field(t('Year'), html`<input id="c_year" type="number" value="${c.year || ''}">`),
+      field(t('Transmission'), html`<select id="c_trans">${['Automatic', 'Manual'].map(tr => html`<option value="${tr}" ${c.transmission === tr ? 'selected' : ''}>${t(tr)}</option>`)}</select>`));
     card.appendChild(r2);
 
     // Colour — custom dropdown with a colour sample beside each name (full width)
-    const colorField = field('Color', html`
+    const colorField = field(t('Color'), html`
       <div class="color-picker" id="c_colorPick">
         <input type="hidden" id="c_color" value="${colorSel || ''}">
         <button type="button" class="color-trigger">
-          <span class="sw" style="${swatchStyle(colorSel)}"></span>
+          <span class="sw" style="${swatchStyle(colorSel, colorTheme)}"></span>
           <span class="ct-name">${colorSel || t('Select colour')}</span>
           <svg class="ct-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="color-menu" hidden>
-          ${colorOpts.map(x => html`<button type="button" class="color-opt${x === colorSel ? ' sel' : ''}" data-val="${x}"><span class="sw" style="${swatchStyle(x)}"></span><span>${x}</span></button>`)}
+          ${colorOpts.map(x => html`<button type="button" class="color-opt${x === colorSel ? ' sel' : ''}" data-val="${x}"><span class="sw" style="${swatchStyle(x, colorTheme)}"></span><span>${x}</span></button>`)}
         </div>
       </div>`);
     card.appendChild(colorField);
@@ -497,7 +565,7 @@ function openSettings() {
         const val = opt.dataset.val;
         hidden.value = val;
         trigger.querySelector('.ct-name').textContent = val;
-        trigger.querySelector('.sw').setAttribute('style', swatchStyle(val));
+        trigger.querySelector('.sw').setAttribute('style', swatchStyle(val, colorTheme));
         pick.querySelectorAll('.color-opt').forEach(o => o.classList.toggle('sel', o === opt));
         pick.classList.remove('open'); menu.hidden = true;
       });
@@ -507,17 +575,23 @@ function openSettings() {
     let engOpts = ENGINES.slice();
     let engSel = ENGINES.find(e => c.engine && ((c.engine.includes('1.6') && e.includes('1.6')) || (c.engine.includes('2.0') && e.includes('2.0'))));
     if (c.engine && !engSel) { engOpts = [c.engine, ...ENGINES]; engSel = c.engine; }
-    card.appendChild(field('Engine', html`<select id="c_engine">${engOpts.map(e => html`<option ${e === engSel ? 'selected' : ''}>${e}</option>`)}</select>`));
+    card.appendChild(field(t('Engine'), html`<select id="c_engine">${engOpts.map(e => html`<option ${e === engSel ? 'selected' : ''}>${e}</option>`)}</select>`));
     const r4 = el('div', 'field-row');
-    r4.append(field('Plate number', html`<input id="c_plate" value="${c.plate || ''}" placeholder="${t('e.g. ABC 1234')}">`),
-      field('VIN', html`<input id="c_vin" value="${c.vin || ''}" placeholder="${t('17-char VIN')}">`));
+    r4.append(field(t('Plate number'), html`<input id="c_plate" value="${c.plate || ''}" placeholder="${t('e.g. ABC 1234')}">`),
+      field(t('VIN'), html`<input id="c_vin" value="${c.vin || ''}" placeholder="${t('17-char VIN')}">`));
     card.appendChild(r4);
 
     const b = el('button', 'btn primary block', html`${t('Save profile')}`);
     onAsyncClick(b, async () => {
+      // An empty field is the user clearing the year on purpose — +'' is 0,
+      // which || c.year would silently revert to whatever was there before,
+      // making the field impossible to clear. Only garbage (non-numeric,
+      // non-empty input) falls back to the previous value.
+      const yearRaw = $('#c_year').value.trim();
+      const year = yearRaw === '' ? '' : (Number.isFinite(+yearRaw) ? +yearRaw : c.year);
       Object.assign(session.current().car, {
         nickname: $('#c_nick').value.trim(), make: $('#c_make').value.trim(), model: $('#c_model').value.trim(),
-        year: +$('#c_year').value || c.year, color: $('#c_color').value.trim(),
+        year, color: $('#c_color').value.trim(),
         engine: $('#c_engine').value.trim(), transmission: $('#c_trans').value,
         plate: $('#c_plate').value.trim(), vin: $('#c_vin').value.trim().toUpperCase(), photo
       });
@@ -565,9 +639,9 @@ function openSettings() {
 
 // --accent-soft (every page's "View ›"/"Switch ›" links) and the
 // dashboard's studio-card paint-outline both derive from the *live* theme
-// (see accentForColor/paintOutline in chrome.js) — a theme flip alone
-// doesn't otherwise refresh either, so they'd read stale until the next
-// save or navigation.
+// (see accentForColor/paintOutline in color.js, which take theme as an
+// explicit argument) — a theme flip alone doesn't otherwise refresh
+// either, so they'd read stale until the next save or navigation.
 function refreshForTheme() { applyAccent(); if (current === 'dashboard') go('dashboard'); }
 
 $('#themeToggle').onclick = () => {
@@ -590,7 +664,10 @@ $('#settingsBtn').onclick = openSettings;
 $('#openProfile').onclick = openSettings;
 $('#garageBtn').onclick = openGarage;
 $('#accountBtn').onclick = openAccount;
-lang = localStorage.getItem('garage.lang') || 'en';
+// Safari private mode (and some locked-down webviews) throw on localStorage
+// access rather than just returning null — an uncaught throw here would kill
+// boot before the error card even exists to explain why. Default to 'en'.
+try { lang = localStorage.getItem('garage.lang') || 'en'; } catch (e) { lang = 'en'; }
 document.documentElement.setAttribute('lang', lang);
 document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
 applyNavLabels();
@@ -598,7 +675,7 @@ applyNavLabels();
 /* session.js emits its failure messages untranslated; t() here is what keeps
    the Arabic save-failure toasts working. */
 session.configure({
-  notify: (msg, kind) => toast(t(msg), kind),
+  notify: (msg, kind) => toast(msg, kind),
   afterSave: (id, data, photoIds) => { account.enqueueVehicle(id, data); (photoIds || []).forEach(pid => account.enqueuePhoto(pid)); kickSync(); }
 });
 
@@ -611,8 +688,12 @@ account.configure({
   client: canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null,
   /* The re-render half of sign-out. session.clear() revokes object URLs, but a
      decoded <img> stays painted until something rebuilds the view — so
-     account.js never calls clear() without calling this after it. */
-  rerender: () => { renderTopbar(); go(current); },
+     account.js never calls clear() without calling this after it.
+     applyAccent() has to run too, not just renderTopbar()/go(): the
+     accent is an inline style on <html>, which outlives the garage it
+     was set for, so without this the previous car's accent colour would
+     stay painted across a sign-out that leaves no vehicle behind. */
+  rerender: () => { applyAccent(); renderTopbar(); go(current); },
   choose: askWhichGarage
 });
 // Same guard openSettings() uses to hide its Account row on file://, where
@@ -626,8 +707,14 @@ session.load()
     renderTopbar();
     go('dashboard');
     /* After the first paint, never before: a slow or absent network must not
-       delay the app a user can already use offline. */
-    return account.start();
+       delay the app a user can already use offline. Caught right here, not by
+       the .catch() below: the app is already painted and usable at this
+       point, so a failure from account.start() (offline, a bad Supabase
+       client, whatever) must not fall through to the same handler that paints
+       the "could not open your garage" error card — that would hide a
+       working, already-rendered app behind an error message about a sync
+       feature that failed, for a garage that opened just fine. */
+    account.start().catch(err => console.error('account.start() failed:', err));
   })
   .catch(err => {
     document.getElementById('view').innerHTML =

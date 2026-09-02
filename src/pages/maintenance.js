@@ -47,7 +47,7 @@ function renderMaintenance() {
   const modeSeg = el('div', 'seg');
   ['Schedule', 'Plan', 'History'].forEach(m => {
     const b = el('button', m === maintMode ? 'on' : '', html`${t(m)}`);
-    b.onclick = () => { if (maintMode === m) return; maintMode = m; [...modeSeg.children].forEach(c => c.classList.toggle('on', c === b)); paintMode(); };
+    b.onclick = () => { if (maintMode === m) return; maintMode = m; segSelect(b); paintMode(); };
     modeSeg.appendChild(b);
   });
   v.appendChild(modeSeg);
@@ -113,21 +113,6 @@ function buildPlan(v) {
   v.appendChild(note);
 }
 
-// Log a whole visit as done NOW (at the current odometer) — resets those services' clocks.
-function logVisit(ms) {
-  const date = isoDate(today());
-  const odo = session.current().car.odometer || 0;
-  let total = 0;
-  ms.items.forEach(s => {
-    s.lastKm = odo;
-    s.lastDate = date;
-    session.current().history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date, odometer: odo, cost: s.cost || 0, cat: 'Maintenance', note: '' });
-    total += Number(s.cost || 0);
-  });
-  if (total > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: `${t('Service visit')} · ${fmt(odo)} km`, amount: total, odometer: odo });
-  save(); // fire-and-forget: nothing downstream reads the result
-}
-
 /* Confirm-and-log a service or a whole plan visit, letting the user choose which
    catalogue part (OEM or Alternative) they actually used for each linked part.
    The picked option's price drives the cost; any labour baked into the service's
@@ -185,7 +170,7 @@ function openLogConfirm(services, opts) {
             btn.onclick = () => {
               const isDone = code === 'done';
               doneState.set(svc.id, isDone);
-              [...toggle.children].forEach(c => c.classList.toggle('on', c === btn));
+              segSelect(btn);
               body.style.display = isDone ? '' : 'none';
               note.style.display = isDone ? 'none' : '';
               recalc();
@@ -236,7 +221,7 @@ function openLogConfirm(services, opts) {
         (opts.onDone || (() => go('maintenance')))();
         if (ok) {
           if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
-          else if (!opts.onDone) toast(t(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓'));
+          else if (!opts.onDone) toast(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓');
           if (nPartSkip) toast(`⚠️ ${nPartSkip} ${t('part(s) to redo next service')}`, 'warn');
         }
       });
@@ -293,7 +278,7 @@ function openPlanSetup() {
           </div>`;
         body.querySelectorAll('.wiz-opt').forEach(btn => btn.onclick = () => {
           basis = btn.dataset.v;
-          body.querySelectorAll('.wiz-opt').forEach(b => b.classList.toggle('on', b === btn));
+          segSelect(btn, body.querySelectorAll('.wiz-opt'));
         });
       } else if (step === 1) {
         body.innerHTML = html`
@@ -302,7 +287,7 @@ function openPlanSetup() {
           <p>${t('Keeps every due date and estimate accurate.')}</p>
           <div class="wiz-km"><input id="wiz_odo" type="number" inputmode="numeric" placeholder="${t('e.g. 316,000')}" value="${odo}"></div>`;
         const odoInput = $('#wiz_odo', body);
-        odoInput.oninput = () => { odo = odoInput.value; odoInput.classList.remove('err'); };
+        odoInput.oninput = () => { odo = odoInput.value; };
         setTimeout(() => odoInput.focus(), 30);
       } else if (step === 2) {
         const displayVal = driveUnit === 'day' ? Math.round(dailyKm) : Math.round(dailyKm * 30);
@@ -320,7 +305,6 @@ function openPlanSetup() {
           </div>`;
         const driveInput = $('#wiz_drive', body);
         driveInput.oninput = () => {
-          driveInput.classList.remove('err');
           const val = parseFloat(driveInput.value);
           if (!isNaN(val) && val > 0) dailyKm = driveUnit === 'day' ? val : val / 30;
         };
@@ -343,10 +327,10 @@ function openPlanSetup() {
           </div>`;
         const kmWrap = body.querySelector('.wiz-km');
         const kmInput = kmWrap.querySelector('input');
-        kmInput.oninput = () => { a.km = kmInput.value; kmInput.classList.remove('err'); };
+        kmInput.oninput = () => { a.km = kmInput.value; };
         body.querySelectorAll('.wiz-opt').forEach(btn => btn.onclick = () => {
           a.choice = btn.dataset.v;
-          body.querySelectorAll('.wiz-opt').forEach(b => b.classList.toggle('on', b === btn));
+          segSelect(btn, body.querySelectorAll('.wiz-opt'));
           kmWrap.hidden = a.choice !== 'yes';
           if (a.choice === 'yes') kmInput.focus();
         });
@@ -372,22 +356,22 @@ function openPlanSetup() {
         a.s.lastDate = isoDate(new Date(today().getTime() - days * 86400000));
       });
       session.current().planSetupDone = true;
-      const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(t('Plan updated'));
+      await commit('maintenance', t('Plan updated'));
     }
 
     backBtn.onclick = () => { if (step > 0) { step--; renderStep(); } };
     onAsyncClick(nextBtn, async () => {
       if (step === 1) {
         const od = parseInt(odo, 10);
-        if (isNaN(od) || od <= 0) { $('#wiz_odo', body).classList.add('err'); toast(t('Enter your current odometer'), 'warn'); return; }
+        if (isNaN(od) || od <= 0) return void fail('#wiz_odo', 'Enter your current odometer', body);
       } else if (step === 2) {
         const val = parseFloat($('#wiz_drive', body).value);
-        if (isNaN(val) || val <= 0) { $('#wiz_drive', body).classList.add('err'); toast(t('Enter your average driving distance'), 'warn'); return; }
+        if (isNaN(val) || val <= 0) return void fail('#wiz_drive', 'Enter your average driving distance', body);
       } else if (step >= 3) {
         const a = answers[step - 3];
         if (a.choice === 'yes') {
           const val = parseInt(a.km, 10);
-          if (isNaN(val) || val <= 0) { body.querySelector('.wiz-km input').classList.add('err'); toast(t('Enter a km for this service'), 'warn'); return; }
+          if (isNaN(val) || val <= 0) return void fail('.wiz-km input', 'Enter a km for this service', body);
         }
       }
       if (step === totalSteps - 1) { await finish(); return; }
@@ -410,7 +394,7 @@ function buildSchedule(v) {
   navIntent = null; // consumed
   filters.forEach(f => {
     const b = el('button', f === active ? 'on' : '', html`${t(f)}`);
-    b.onclick = () => { active = f; [...seg.children].forEach(c => c.classList.toggle('on', c === b)); paint(); };
+    b.onclick = () => { active = f; segSelect(b); paint(); };
     seg.appendChild(b);
   });
   v.appendChild(seg);
@@ -558,16 +542,6 @@ function openServiceDetail(s) {
   });
 }
 
-function markServiceDone(s) {
-  s.lastKm = session.current().car.odometer;
-  s.lastDate = isoDate(today());
-  // record it in the work history
-  session.current().history.push({ id: uid(), name: s.name, icon: s.icon || '🔧', date: isoDate(today()), odometer: session.current().car.odometer, cost: s.cost || 0, cat: 'Maintenance', note: '' });
-  // log the spend
-  if (s.cost > 0) session.current().spending.push({ id: uid(), date: isoDate(today()), cat: 'Maintenance', desc: s.name, amount: s.cost, odometer: session.current().car.odometer });
-  save(); // fire-and-forget: nothing downstream reads the result
-}
-
 function openAddHistory(e, prefill) {
   const editing = !!e;
   const p = e || prefill || {}; // prefill = { name, icon, cat, odometer, cost } from the plan
@@ -596,7 +570,7 @@ function openAddHistory(e, prefill) {
     const b = el('button', 'btn primary block', html`${editing ? t('Save changes') : t('Add to history')}`);
     onAsyncClick(b, async () => {
       const name = $('#h_name').value.trim();
-      if (!name) return toast('Service name required', 'warn');
+      if (!name) return fail('#h_name', 'Service name required');
       const obj = {
         id: e ? e.id : uid(), name, icon: $('#h_icon').value.trim() || '🔧', cat: $('#h_cat').value,
         date: $('#h_date').value || isoDate(today()), odometer: +$('#h_odo').value || 0,
@@ -612,13 +586,11 @@ function openAddHistory(e, prefill) {
           if (sv && obj.odometer > 0) { sv.lastKm = obj.odometer; sv.lastDate = obj.date; }
         }
       }
-      const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Record updated' : 'Service logged ✓');
+      await commit('maintenance', editing ? 'Record updated' : 'Service logged ✓');
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', html`${t('Delete record')}`);
-      del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { session.current().history = session.current().history.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Record deleted'); });
+      const del = deleteRow('Delete record', 'history', e, 'maintenance', 'Record deleted');
       card.appendChild(del);
     }
   });
@@ -649,7 +621,7 @@ function openEditService(s) {
     const b = el('button', 'btn primary block', html`${t('Save service')}`);
     onAsyncClick(b, async () => {
       const name = $('#s_name').value.trim();
-      if (!name) return toast('Name is required', 'warn');
+      if (!name) return fail('#s_name', 'Name is required');
       const obj = {
         id: s ? s.id : uid(), name, icon: $('#s_icon').value.trim() || '🔧',
         cat: $('#s_cat').value.trim() || 'General',
@@ -659,13 +631,11 @@ function openEditService(s) {
         cost: +$('#s_cost').value || 0, note: $('#s_note').value.trim()
       };
       if (s) Object.assign(s, obj); else session.current().services.push(obj);
-      const ok = await save(); closeModal(); go('maintenance'); if (ok) toast(editing ? 'Service updated' : 'Service added');
+      await commit('maintenance', editing ? 'Service updated' : 'Service added');
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', html`${t('Delete service')}`);
-      del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { session.current().services = session.current().services.filter(x => x.id !== s.id); const ok = await save(); closeModal(); go('maintenance'); if (ok) toast('Service deleted'); });
+      const del = deleteRow('Delete service', 'services', s, 'maintenance', 'Service deleted');
       card.appendChild(del);
     }
   });
@@ -673,19 +643,13 @@ function openEditService(s) {
 
 function openLogService() {
   openModal('Log a service', 'A single service, or a whole plan visit at once.', card => {
-    const single = el('div', 'card plan-setup-banner');
-    single.innerHTML = html`<div class="r-ic">🔧</div><div style="flex:1"><h3>${t('Single service')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('Pick one thing you just had done.')}</p></div>`;
     const bSingle = el('button', 'btn', html`${t('Choose')}`);
     bSingle.onclick = () => { closeModal(); openLogSingleService(); };
-    single.appendChild(bSingle);
-    card.appendChild(single);
+    card.appendChild(bannerRow('🔧', 'Single service', 'Pick one thing you just had done.', bSingle));
 
-    const plan = el('div', 'card plan-setup-banner');
-    plan.innerHTML = html`<div class="r-ic">🗓️</div><div style="flex:1"><h3>${t('Plan visit')}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t('A group of services from your plan, done together.')}</p></div>`;
     const bPlan = el('button', 'btn', html`${t('Choose')}`);
     bPlan.onclick = () => { closeModal(); openLogPlanVisit(); };
-    plan.appendChild(bPlan);
-    card.appendChild(plan);
+    card.appendChild(bannerRow('🗓️', 'Plan visit', 'A group of services from your plan, done together.', bPlan));
   });
 }
 

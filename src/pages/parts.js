@@ -57,7 +57,7 @@ function renderParts() {
   const seg = el('div', 'seg category-scroll');
   cats.forEach(c => {
     const b = el('button', c === active ? 'on' : '', html`${t(c)}`);
-    b.onclick = () => { active = c; [...seg.children].forEach(x => x.classList.toggle('on', x === b)); paint(); };
+    b.onclick = () => { active = c; segSelect(b); paint(); };
     seg.appendChild(b);
   });
   v.appendChild(seg);
@@ -207,19 +207,17 @@ function openEditPart(p) {
     const b = el('button', 'btn primary block', html`${t('Save part')}`);
     onAsyncClick(b, async () => {
       const name = $('#p_name').value.trim();
-      if (!name) return toast('Part name required', 'warn');
+      if (!name) return fail('#p_name', 'Part name required');
       const valid = opts.filter(o => o.brand.trim());
       if (!valid.length) return toast('Add at least one option', 'warn');
       const obj = { id: p ? p.id : uid(), name, icon: $('#p_icon').value.trim() || '🔩', cat: $('#p_cat').value.trim() || 'General', partsouq: $('#p_psq').value.trim().replace(/[^A-Za-z0-9]/g, ''), options: valid,
         fitment: p && p.fitment ? p.fitment : { shareable: false, modelIds: session.current().car.modelId ? [session.current().car.modelId] : [] } };
       if (p) Object.assign(p, obj); else session.current().parts.push(obj);
-      const ok = await save(); closeModal(); go('parts'); if (ok) toast(editing ? 'Part updated' : 'Part added');
+      await commit('parts', editing ? 'Part updated' : 'Part added');
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', html`${t('Delete part')}`);
-      del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { session.current().parts = session.current().parts.filter(x => x.id !== p.id); const ok = await save(); closeModal(); go('parts'); if (ok) toast('Part deleted'); });
+      const del = deleteRow('Delete part', 'parts', p, 'parts', 'Part deleted');
       card.appendChild(del);
     }
   });

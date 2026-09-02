@@ -205,6 +205,8 @@ const AR = {
   'Delete service': 'حذف الخدمة', 'Delete expense': 'حذف المصروف', 'Delete part': 'حذف القطعة', 'Remove option': 'حذف الخيار',
   // toasts
   'Keep at least one vehicle': 'احتفظ بمركبة واحدة على الأقل', 'Vehicle removed': 'تمت إزالة المركبة',
+  // undo affordance on a record delete (chrome.js deleteRow/undoToast)
+  'Undo': 'تراجع', 'Restored': 'تمت الاستعادة',
   'Fill-up updated': 'تم تحديث التعبئة', 'Fill-up added': 'تمت إضافة التعبئة', 'Fill-up deleted': 'تم حذف التعبئة',
   'Litres required': 'اللترات مطلوبة', 'Odometer required': 'العداد مطلوب',
   'Document updated': 'تم تحديث الوثيقة', 'Document added': 'تمت إضافة الوثيقة', 'Document deleted': 'تم حذف الوثيقة',

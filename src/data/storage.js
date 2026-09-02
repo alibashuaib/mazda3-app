@@ -12,12 +12,17 @@
   else Object.assign(root, api);
 })(typeof self !== 'undefined' ? self : globalThis, function () {
 
+  /* Record lists that may carry a photo, shared with applyPhotoIds. */
+  const PHOTO_LISTS = ['history', 'spending'];
+  /* Every record list a vehicle's data can hold, shared with normalizeRecords
+     and importFaults so the three stay in sync by construction. */
+  const RECORD_LISTS = ['history', 'spending', 'fuel', 'docs', 'parts', 'services'];
+
   /* Fields that may carry an image, as [containerGetter, key] pairs. */
   function photoSlots(data) {
     const slots = [];
     if (data.car) slots.push(data.car);
-    (data.history || []).forEach(e => slots.push(e));
-    (data.spending || []).forEach(e => slots.push(e));
+    PHOTO_LISTS.forEach(k => (data[k] || []).forEach(e => slots.push(e)));
     return slots;
   }
 
@@ -33,14 +38,19 @@
   /* Replace embedded data: URLs with photo ids. Returns a stripped deep copy
      plus the extracted images. Never persists a blob: URL — those are
      per-session object URLs created at hydrate time, and their id is already
-     recorded, so they are simply dropped from the copy. */
-  function splitPhotos(data, makeId) {
+     recorded, so they are simply dropped from the copy.
+
+     idForDataUrl, if given, is called with each data: URL found; returning an
+     existing id reuses it instead of minting a new one via makeId(). Wired up
+     for the localStorage backend (see saveVehicle) so an unchanged image does
+     not churn a fresh photoId on every save. */
+  function splitPhotos(data, makeId, idForDataUrl) {
     const out = JSON.parse(JSON.stringify(data));
     const photos = {};
     photoSlots(out).forEach(obj => {
       const v = obj.photo;
       if (isDataUrl(v)) {
-        const id = makeId();
+        const id = (idForDataUrl && idForDataUrl(v)) || makeId();
         photos[id] = v;
         obj.photo = '';
         obj.photoId = id;
@@ -84,12 +94,15 @@
      ids back into the live records so the next save does not re-upload the
      image.
 
-     Matched by id, never by array position. save() is fired without await by
-     markServiceDone() and logVisit(), so the user can delete a history or
+     Matched by id, never by array position. Kept as defense in depth: save()
+     is still fired without await from chooseVehicle() in main.js and the
+     plan-setup skip handler in maintenance.js, and any future fire-and-forget
+     caller inherits the same hazard — the user can delete a history or
      spending record while the write is still in flight. Zipping the live and
      stored arrays by index then shifts every record past the deletion: one
      entry silently adopts another's receipt photo, and one loses its only
-     pointer to a stored blob.
+     pointer to a stored blob. By-id matching is what makes that impossible,
+     independent of which caller awaited.
 
      A live record with no stored counterpart is left alone — it was added
      after splitPhotos took its snapshot, and its own save will claim its id. */
@@ -101,7 +114,7 @@
       else delete o.photoId;
     };
     copy(live.car, stored.car);
-    ['history', 'spending'].forEach(key => {
+    PHOTO_LISTS.forEach(key => {
       const byId = {};
       (stored[key] || []).forEach(s => { if (s && s.id) byId[s.id] = s; });
       (live[key] || []).forEach(o => { if (o && o.id) copy(o, byId[o.id]); });
@@ -119,9 +132,12 @@
      Same failure as an absent state.budget, one level down.
 
      Dates default to '' rather than today: a damaged record stays visible
-     without being given a date it never had. Takes makeId so it stays pure. */
+     without being given a date it never had. Takes makeId as an argument
+     rather than reaching for a global — but this mutates `s` in place and
+     returns it, it is not a pure function. */
   function normalizeRecords(s, makeId) {
     if (!s) return s;
+    if (!s.car || typeof s.car !== 'object' || Array.isArray(s.car)) s.car = {};
     const num = v => (typeof v === 'number' && isFinite(v)) ? v : (isFinite(Number(v)) ? Number(v) : 0);
     const str = v => typeof v === 'string' ? v : '';
     /* Non-objects are dropped rather than defaulted: there is nothing to
@@ -131,12 +147,13 @@
       s[k] = (Array.isArray(s[k]) ? s[k] : []).filter(x => x && typeof x === 'object' && !Array.isArray(x));
       return s[k];
     };
-    list('history').forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.cost = num(e.cost); e.odometer = num(e.odometer); });
-    list('spending').forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.amount = num(e.amount); });
-    list('fuel').forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.litres = num(e.litres); e.cost = num(e.cost); e.odometer = num(e.odometer); });
-    list('docs').forEach(d => { d.id = d.id || makeId(); d.date = str(d.date); });
-    list('parts').forEach(p => { if (!Array.isArray(p.options)) p.options = []; p.name = str(p.name); p.cat = str(p.cat) || 'General'; });
-    list('services').forEach(sv => { sv.id = sv.id || makeId(); sv.name = str(sv.name); sv.cost = num(sv.cost); });
+    RECORD_LISTS.forEach(list);
+    s.history.forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.cost = num(e.cost); e.odometer = num(e.odometer); });
+    s.spending.forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.amount = num(e.amount); });
+    s.fuel.forEach(e => { e.id = e.id || makeId(); e.date = str(e.date); e.litres = num(e.litres); e.cost = num(e.cost); e.odometer = num(e.odometer); });
+    s.docs.forEach(d => { d.id = d.id || makeId(); d.date = str(d.date); });
+    s.parts.forEach(p => { if (!Array.isArray(p.options)) p.options = []; p.name = str(p.name); p.cat = str(p.cat) || 'General'; });
+    s.services.forEach(sv => { sv.id = sv.id || makeId(); sv.name = str(sv.name); sv.cost = num(sv.cost); });
     return s;
   }
 
@@ -168,8 +185,19 @@
 
   const EXPORT_FORMAT = 'garage-export';
 
+  /* A photos map is expected to be id -> data: URL, ready to embed in JSON.
+     A caller that forgot to convert IDB's Blobs first would otherwise have
+     each one serialise as {} — a backup that silently contains no images
+     rather than an error. Drop anything that is not a data: URL and warn,
+     rather than write a corrupt entry. */
   function buildExport(garage, photosById, nowIso) {
-    return { format: EXPORT_FORMAT, version: 1, exportedAt: nowIso, garage, photos: photosById };
+    const photos = {};
+    Object.keys(photosById || {}).forEach(id => {
+      const v = photosById[id];
+      if (isDataUrl(v)) photos[id] = v;
+      else console.warn('[storage] dropping non-data-URL photo from export', id);
+    });
+    return { format: EXPORT_FORMAT, version: 1, exportedAt: nowIso, garage, photos };
   }
 
   /* Validates hard enough that the caller can replace the live garage without
@@ -181,6 +209,7 @@
     try { obj = JSON.parse(text); }
     catch (e) { return { ok: false, error: 'That file is not valid JSON.' }; }
     if (!obj || obj.format !== EXPORT_FORMAT) return { ok: false, error: 'That is not a Garage backup file.' };
+    if (obj.version !== 1) return { ok: false, error: 'That backup file was made by a version of Garage this app does not support.' };
     if (!obj.garage || !Array.isArray(obj.garage.vehicles)) return { ok: false, error: 'That backup file is incomplete.' };
     if (!obj.garage.vehicles.length) return { ok: false, error: 'That backup file has no vehicles in it.' };
     const faults = importFaults(obj.garage.vehicles);
@@ -188,7 +217,16 @@
     if (obj.photos && (typeof obj.photos !== 'object' || Array.isArray(obj.photos))) {
       return { ok: false, error: 'That backup file is damaged.', faults: ['photos is not an object'] };
     }
-    return { ok: true, garage: obj.garage, photos: obj.photos || {} };
+    /* Structure (the photos dict itself) must be sound to get here; individual
+       CONTENT is repaired, same philosophy as importFaults — a bad value in
+       one slot must not sink an otherwise-restorable backup. */
+    const photos = {};
+    Object.keys(obj.photos || {}).forEach(id => {
+      const v = obj.photos[id];
+      if (isDataUrl(v)) photos[id] = v;
+      else console.warn('[storage] dropping unreadable photo from import', id);
+    });
+    return { ok: true, garage: obj.garage, photos };
   }
 
   /* Structural faults that make a backup unrestorable, as a list of readable
@@ -199,8 +237,8 @@
      is damage — there is no sane restore. A record missing its date or cost is
      not: normalizeRecords fills those, and rejecting them would refuse a
      backup exported after an earlier repair, which legitimately carries empty
-     dates. Rejecting those would make the repair path a one-way trip. */
-  const RECORD_LISTS = ['history', 'spending', 'fuel', 'docs', 'parts', 'services'];
+     dates. Rejecting those would make the repair path a one-way trip.
+     RECORD_LISTS is shared with normalizeRecords — see the top of the module. */
   function importFaults(vehicles) {
     const faults = [];
     vehicles.forEach((v, i) => {
@@ -219,24 +257,38 @@
     return faults;
   }
 
-  /* data: URL -> Blob. Returns null for anything else (notably blob: URLs,
-     which must never be written to storage). */
+  /* data: URL -> Blob. Returns null for anything unreadable — not a data:
+     URL at all (notably blob: URLs, which must never be written to storage),
+     no comma separating header from payload, a header that does not declare
+     base64, or a base64 payload atob rejects. A single corrupt photo must
+     not throw out of a caller mid-batch (see migrateFromLocal). */
   function dataUrlToBlob(dataUrl) {
     if (!isDataUrl(dataUrl)) return null;
     const comma = dataUrl.indexOf(',');
+    if (comma < 0) return null;
     const header = dataUrl.slice(5, comma);
+    if (header.indexOf('base64') < 0) return null;
     const type = header.split(';')[0] || 'application/octet-stream';
-    const binary = atob(dataUrl.slice(comma + 1));
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new Blob([bytes], { type });
+    try {
+      const binary = atob(dataUrl.slice(comma + 1));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new Blob([bytes], { type });
+    } catch (e) {
+      return null;
+    }
   }
 
   function blobToDataUrl(blob) {
     return blob.arrayBuffer().then(buf => {
       const bytes = new Uint8Array(buf);
       let binary = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      // Chunked rather than fromCharCode(...bytes) or a per-byte concat loop —
+      // both blow the call stack or crawl on a large photo.
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
       return `data:${blob.type || 'application/octet-stream'};base64,${btoa(binary)}`;
     });
   }
@@ -302,9 +354,18 @@
         if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { keyPath: 'id' });
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // Another tab upgraded the schema — this connection is now stale and
+        // must get out of the way rather than block that tab's own upgrade.
+        db.onversionchange = () => { try { db.close(); } catch (e) {} };
+        resolve(db);
+      };
       req.onerror = () => reject(req.error);
-      req.onblocked = () => reject(new Error('IndexedDB blocked'));
+      req.onblocked = () => {
+        console.warn('[storage] IndexedDB open blocked by another connection');
+        reject(new Error('IndexedDB blocked'));
+      };
     });
   }
 
@@ -315,7 +376,15 @@
       tx.oncomplete = () => resolve(result);
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error || new Error('aborted'));
-      result = fn(tx);
+      try {
+        result = fn(tx);
+      } catch (e) {
+        // fn throwing mid-transaction (e.g. a bad key on put()) must not let
+        // whatever it already queued commit — abort explicitly rather than
+        // rely on the engine to notice the exception on its own.
+        try { tx.abort(); } catch (e2) {}
+        reject(e);
+      }
     });
   }
 
@@ -323,6 +392,14 @@
     return new Promise((resolve, reject) => {
       const req = db.transaction(store, 'readonly').objectStore(store).getAll();
       req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function idbGet(db, store, key) {
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(store, 'readonly').objectStore(store).get(key);
+      req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
   }
@@ -363,7 +440,10 @@
   }
 
   function openStorage(env) {
-    env = env || { protocol: location.protocol, hasIndexedDb: typeof indexedDB !== 'undefined' };
+    env = env || {
+      protocol: typeof location !== 'undefined' ? location.protocol : undefined,
+      hasIndexedDb: typeof indexedDB !== 'undefined'
+    };
     if (!shouldTryIndexedDb(env.protocol, env.hasIndexedDb)) {
       closePrevious();
       backend = { kind: 'local' };
@@ -381,6 +461,9 @@
   function loadAll() {
     if (backend.kind === 'local') {
       const garage = lsRead();
+      // Match the IDB backend's shape() — an absent activeId defaults to the
+      // first vehicle rather than leaving callers to handle two shapes.
+      if (garage && !garage.activeId && garage.vehicles.length) garage.activeId = garage.vehicles[0].id;
       return Promise.resolve({ garage, photos: {} });
     }
     const db = backend.db;
@@ -413,7 +496,7 @@
         const plan = migrationPlan(m, legacy);
         if (plan === 'migrate') {
           return migrateFromLocal(legacy).then(() => loadAll())
-            .catch(() => { backend = { kind: 'local' }; return { garage: lsRead(), photos: {} }; });
+            .catch(() => { closePrevious(); backend = { kind: 'local' }; return { garage: lsRead(), photos: {} }; });
         }
         // Nothing to migrate, but close the door behind us — see migrationPlan.
         // A failed stamp is not worth failing the boot over; it retries next load.
@@ -436,6 +519,7 @@
       Object.keys(split.photos).forEach(id => {
         const blob = dataUrlToBlob(split.photos[id]);
         if (blob) writes.push({ store: 'photos', rec: { id, blob } });
+        else console.warn('[storage] dropping unreadable photo during migration', id);
       });
       return { id: v.id, data: split.data };
     });
@@ -450,23 +534,42 @@
      re-serialised every vehicle and every photo on every change.
 
      ALWAYS resolves to the same shape — { ok, error?, photoIds, data } — so
-     callers never have to know which backend is live. */
+     callers never have to know which backend is live.
+
+     IDB-side invariant: the caller MUST hydrate stored photoIds to blob: URLs
+     (or clear `photo` outright) via hydrate()/resolvePhotos before calling
+     this. splitPhotos reads `photo: '' + photoId` as "the user removed the
+     image" — that is the only signal the UI gives it — so an unresolved
+     record has its blob deleted, not preserved. Pinned by the INVARIANT test
+     in test/idb.test.js.
+
+     activeId is optional: passing undefined leaves the stored activeId alone
+     rather than clobbering it with undefined, on both backends. */
   function saveVehicle(vehicleId, data, activeId, makeId) {
-    const split = splitPhotos(data, makeId);
-    const photoIds = Object.keys(split.photos);
     if (backend.kind === 'local') {
       const garage = lsRead() || { vehicles: [], activeId };
       const idx = garage.vehicles.findIndex(v => v.id === vehicleId);
       const prev = idx >= 0 ? garage.vehicles[idx].data : null;
-      const merged = Object.assign(collectInlinePhotos(prev), split.photos);
+      /* This backend has no photo store, so a save that did not touch an
+         image would otherwise mint it a fresh id anyway — reuse the id an
+         unchanged, byte-identical data URL already has so it does not churn
+         on every save. */
+      const prevPhotos = collectInlinePhotos(prev);
+      const inlineByUrl = {};
+      Object.keys(prevPhotos).forEach(id => { inlineByUrl[prevPhotos[id]] = id; });
+      const split = splitPhotos(data, makeId, url => inlineByUrl[url]);
+      const photoIds = Object.keys(split.photos);
+      const merged = Object.assign(prevPhotos, split.photos);
       const rec = { id: vehicleId, data: inlinePhotos(split.data, merged) };
       if (idx >= 0) garage.vehicles[idx] = rec; else garage.vehicles.push(rec);
-      garage.activeId = activeId;
+      if (activeId !== undefined) garage.activeId = activeId;
       const res = lsWrite(garage);
       return Promise.resolve(res === true
         ? { ok: true, photoIds, data: split.data }
         : { ok: false, error: res.error });
     }
+    const split = splitPhotos(data, makeId);
+    const photoIds = Object.keys(split.photos);
     const db = backend.db;
     return idbTx(db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
       const vehicles = tx.objectStore('vehicles');
@@ -480,7 +583,7 @@
         orphanedPhotoIds(prevData, split.data).forEach(id => tx.objectStore('photos').delete(id));
       };
       vehicles.put({ id: vehicleId, data: split.data });
-      putMetaPreserving(tx, { activeId });
+      if (activeId !== undefined) putMetaPreserving(tx, { activeId });
       Object.keys(split.photos).forEach(id => {
         const blob = dataUrlToBlob(split.photos[id]);
         if (blob) tx.objectStore('photos').put({ id, blob });
@@ -493,7 +596,7 @@
     if (backend.kind === 'local') {
       const garage = lsRead() || { vehicles: [], activeId };
       garage.vehicles = garage.vehicles.filter(v => v.id !== vehicleId);
-      garage.activeId = activeId;
+      if (activeId !== undefined) garage.activeId = activeId;
       const res = lsWrite(garage);
       return Promise.resolve(res === true);
     }
@@ -505,7 +608,7 @@
         photoIdsIn(prev.result && prev.result.data).forEach(id => tx.objectStore('photos').delete(id));
       };
       vehicles.delete(vehicleId);
-      putMetaPreserving(tx, { activeId });
+      if (activeId !== undefined) putMetaPreserving(tx, { activeId });
     }).then(() => true).catch(() => false);
   }
 
@@ -551,7 +654,7 @@
       try { return Promise.resolve(JSON.parse(localStorage.getItem(META_LS_KEY)) || {}); }
       catch (e) { return Promise.resolve({}); }
     }
-    return idbGetAll(backend.db, 'meta').then(rows => rows.find(x => x.key === META_KEY) || {});
+    return idbGet(backend.db, 'meta', META_KEY).then(rec => rec || {});
   }
 
   function metaSet(patch) {
@@ -616,12 +719,33 @@
     return out.filter(k => typeof k === 'string');
   }
 
+  /* Best-effort: a session where idbOpen() failed (or was never tried) falls
+     back to localStorage, but the previous user's IndexedDB data is still on
+     disk and untouched by the localStorage-only clears above. Never let this
+     block sign-out — deleteDatabase can throw on some hosts, and onblocked
+     (another tab still has the database open) can wait indefinitely, so it
+     is capped at ~2s rather than made to hang. */
+  function deleteIdbDatabase() {
+    return new Promise(resolve => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      try {
+        if (typeof indexedDB === 'undefined' || !indexedDB.deleteDatabase) { finish(); return; }
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = finish;
+        req.onerror = finish;
+        req.onblocked = () => console.warn('[storage] IndexedDB delete blocked by another connection');
+        setTimeout(finish, 2000);
+      } catch (e) { finish(); }
+    });
+  }
+
   function wipe() {
     const authKeys = localStorageKeys().filter(k => AUTH_TOKEN_KEY.test(k));
     [LS_KEY, LEGACY_V1_KEY, DIRTY_KEY, OUTBOX_KEY, META_LS_KEY].concat(authKeys).forEach(k => {
       try { localStorage.removeItem(k); } catch (e) {}
     });
-    if (!backend || backend.kind !== 'idb') return Promise.resolve(true);
+    if (!backend || backend.kind !== 'idb') return deleteIdbDatabase().then(() => true);
     return idbTx(backend.db, ['meta', 'vehicles', 'photos', 'outbox'], 'readwrite', tx => {
       tx.objectStore('meta').clear();
       tx.objectStore('vehicles').clear();

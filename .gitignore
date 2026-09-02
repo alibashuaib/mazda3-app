@@ -17,3 +17,6 @@ Thumbs.db
 # playwright
 test-results/
 playwright-report/
+
+# graphify generated graph + extraction cache (regenerable)
+graphify-out/

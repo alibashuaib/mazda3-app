@@ -65,6 +65,7 @@ const SCRIPTS = [
   'src/ui/html.js',
   'src/ui/modal.js',
   'src/ui/photo.js',
+  'src/ui/color.js',
   'src/ui/chrome.js',
   'src/data/catalog.js',
   'src/i18n/strings.ar.js',

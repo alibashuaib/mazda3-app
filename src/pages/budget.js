@@ -118,7 +118,7 @@ function openEditBudget() {
   openModal('Annual budget', 'Your target spend on the car for the year.', card => {
     card.appendChild(field('Budget (SAR / year)', html`<input id="m_budget" type="number" inputmode="numeric" value="${session.current().budget.annual}">`));
     const b = el('button', 'btn primary block', html`${t('Save')}`);
-    onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) session.current().budget.annual = v; const ok = await save(); closeModal(); go('budget'); if (ok) toast('Budget updated'); });
+    onAsyncClick(b, async () => { const v = parseInt($('#m_budget').value, 10); if (!isNaN(v)) session.current().budget.annual = v; await commit('budget', 'Budget updated'); });
     card.appendChild(b);
   });
 }
@@ -164,17 +164,15 @@ function openAddSpending(e) {
     const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
-      if (!desc) return toast('Description required', 'warn');
-      if (isNaN(amt)) return toast('Amount required', 'warn');
+      if (!desc) return fail('#x_desc', 'Description required');
+      if (isNaN(amt)) return fail('#x_amt', 'Amount required');
       const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || session.current().car.odometer, photo: xphoto };
       if (e) Object.assign(e, obj); else session.current().spending.push(obj);
-      const ok = await save(); closeModal(); go('budget'); if (ok) toast(editing ? 'Expense updated' : 'Expense added');
+      await commit('budget', editing ? 'Expense updated' : 'Expense added');
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', html`${t('Delete expense')}`);
-      del.style.marginTop = '8px'; del.style.color = 'var(--danger)';
-      onAsyncClick(del, async () => { session.current().spending = session.current().spending.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('budget'); if (ok) toast('Expense deleted'); });
+      const del = deleteRow('Delete expense', 'spending', e, 'budget', 'Expense deleted');
       card.appendChild(del);
     }
   });

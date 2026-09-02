@@ -140,13 +140,14 @@ function renderDashboard() {
   // generic photo, tinted from the paint's real verified hex (not the
   // colour's name text) so every model's colour choice shows up somehow.
   const carImage = studioCarImage(paintName, session.current().car);
-  const paintHex = swatchFor(paintName);
+  const theme = currentTheme();
+  const paintHex = swatchFor(paintName, theme);
   const paintClass = hasExactColorPhoto(modelId, paintName) ? '' : ' ' + paintFilterClass(paintHex);
   // A near-white car on the light theme (or near-black on dark) would
   // otherwise blend straight into the studio card's own surface gradient —
   // pop it with a heavier ground shadow (light theme) or a light bloom
   // behind it (dark theme), rather than an outline ring.
-  const pop = paintPop(paintHex);
+  const pop = paintPop(paintHex, theme);
   const carCard = el('div', 'card car-card car-studio' + paintClass + (pop ? ' pop-' + Object.keys(pop)[0] : ''));
   if (pop && pop.shadow) carCard.style.setProperty('--pop-shadow', pop.shadow);
   if (pop && pop.glow) carCard.style.setProperty('--pop-glow', pop.glow);

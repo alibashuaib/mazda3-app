@@ -129,9 +129,7 @@ body {
   background: linear-gradient(145deg, var(--accent), var(--accent-2));
   box-shadow: 0 8px 20px -6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.25);
 }
-.car-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .car-badge svg { width: 27px; height: 27px; }
-.car-badge.has-photo { background: var(--surface-2); }
 .car-meta h1 { font-size: 19px; font-weight: 750; letter-spacing: -.2px; }
 .car-meta p { font-size: 12.5px; color: var(--text-2); margin-top: 1px; }
 
@@ -534,6 +532,13 @@ body {
 }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Set by fail() on the input a validation toast is about, removed again on
+   the next keystroke. The ring, not just the colour, so it still reads on a
+   field whose border is already tinted by something else. */
+.field-error {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 35%, transparent);
+}
 
 .detail-row { display: flex; justify-content: space-between; padding: 11px 0; border-top: 1px solid var(--stroke-2); font-size: 13.5px; }
 .detail-row:first-of-type { border-top: 0; }
@@ -576,6 +581,16 @@ body {
   animation: toastIn .3s cubic-bezier(.22,1,.36,1);
 }
 .toast .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+/* .toast-host is pointer-events:none so a toast never blocks the page under
+   it; a toast that carries an action has to opt its own box back in. */
+.toast-action { pointer-events: auto; cursor: pointer; }
+.toast-undo {
+  margin-inline-start: 4px; padding: 4px 10px;
+  border: 1px solid var(--stroke); border-radius: 9px;
+  background: transparent; color: var(--accent-soft);
+  font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.toast-undo:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; }
 @keyframes toastIn { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* empty state */
@@ -893,7 +908,6 @@ html { scroll-behavior: smooth; }
   outline: none; transition: border-color .2s;
 }
 .wiz-km input:focus { border-color: var(--accent); }
-.wiz-km input.err { border-color: var(--danger); }
 .wiz-nav { display: flex; gap: 10px; margin-top: 26px; }
 .wiz-nav .btn { flex: 1; }
 .wiz-skip { margin-top: 10px; }

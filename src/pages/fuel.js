@@ -125,19 +125,17 @@ function openAddFuel(e) {
     const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => {
       const litres = +$('#f_l').value, odo = +$('#f_odo').value;
-      if (!litres) return toast('Litres required', 'warn');
-      if (!odo) return toast('Odometer required', 'warn');
+      if (!litres) return fail('#f_l', 'Litres required');
+      if (!odo) return fail('#f_odo', 'Odometer required');
       const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(today()), odometer: odo, litres, cost: +$('#f_cost').value || 0, full: $('#f_full').value !== 'no' };
       if (e) Object.assign(e, obj); else { session.current().fuel = session.current().fuel || []; session.current().fuel.push(obj); }
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
       if (odo > session.current().car.odometer) { session.current().car.odometer = odo; session.current().car.odoUpdatedAt = obj.date; }
-      const ok = await save(); closeModal(); go('fuel'); if (ok) toast(editing ? 'Fill-up updated' : 'Fill-up added');
+      await commit('fuel', editing ? 'Fill-up updated' : 'Fill-up added');
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', html`${t('Delete fill-up')}`);
-      del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      onAsyncClick(del, async () => { session.current().fuel = session.current().fuel.filter(x => x.id !== e.id); const ok = await save(); closeModal(); go('fuel'); if (ok) toast('Fill-up deleted'); });
+      const del = deleteRow('Delete fill-up', 'fuel', e, 'fuel', 'Fill-up deleted');
       card.appendChild(del);
     }
   });

@@ -681,6 +681,40 @@ test('signing out leaves no trace of the previous garage on screen', async () =>
   } finally { app.cleanup(); }
 });
 
+test('signing out removes the inline accent override, not just the previous car\'s markup', async () => {
+  const app = await bootApp({ protocol: 'https:' });
+  try {
+    const { api, document } = app;
+
+    // Precondition: boot's own applyAccent() call left an inline override in
+    // place for the fixture vehicle's colour.
+    assert.notStrictEqual(document.documentElement.style.getPropertyValue('--accent'), '',
+      'precondition: an accent override is set for the signed-in garage');
+
+    api.account.configure({
+      client: { auth: { signOut: () => Promise.resolve({ error: null }) }, from: () => ({}) },
+      protocol: 'https:',
+      rerender: () => { api.applyAccent(); api.renderTopbar(); api.go(app.evalInApp('current')); }
+    });
+    api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+
+    await api.account.signOut();
+
+    /* linkedom (this harness's DOM) has no getComputedStyle/CSSOM support, and
+       the harness never loads styles.css in the first place, so there is no
+       cascade here to read a "stylesheet default" back from. What this
+       asserts instead is the property applyAccent() actually controls: that
+       sign-out removes the inline override rather than leaving it at the
+       previous car's value. Leaving it in place, even unchanged, is exactly
+       the bug this guards against — the previous car's accent staying
+       painted on screen after there is no longer a vehicle to accent from. */
+    ['--accent', '--accent-soft', '--accent-2', '--accent-glow'].forEach(prop => {
+      assert.strictEqual(document.documentElement.style.getPropertyValue(prop), '',
+        `${prop} must be removed, not merely left at its old value, once there is no vehicle to accent from`);
+    });
+  } finally { app.cleanup(); }
+});
+
 /* ============================================================
    The app's own write paths must reach account.enqueueVehicle().
 
@@ -845,3 +879,150 @@ test('deleting a vehicle while signed in automatically drains without any online
     assert.strictEqual(await api.account.outboxSize(), 0, 'the automatic drain must have emptied the outbox');
   } finally { app.cleanup(); }
 });
+
+/* askWhichGarage() is the merge prompt account.js awaits through its `choose`
+   dep before it replaces one side of the garage with the other. Every account
+   test stubs `choose` out, so main.js's real implementation — and in
+   particular its dismissal path — has never been exercised.
+
+   Both buttons resolve the promise explicitly, so only Escape/backdrop/any
+   other route through closeModal() can reach opts.onDismissed. If that hook
+   were dropped, signIn() would await a promise nothing ever settles: the
+   modal closes, the app looks idle, and the sign-in silently never finishes.
+   'local' specifically, not just "settles" — dismissal is not a choice, so it
+   must fall back to the side that cannot silently delete what the user was
+   just looking at. */
+test('dismissing the merge prompt resolves it as "local" rather than hanging sign-in', () => withBoot(async ({ document, api }) => {
+  const decision = api.askWhichGarage();
+
+  assert.strictEqual(document.querySelector('#modalHost').hidden, false,
+    'precondition: askWhichGarage() opened the modal');
+
+  // Escape, not either button — the only paths that reach onDismissed.
+  api.closeModal();
+
+  const settled = await Promise.race([
+    decision,
+    new Promise(r => setImmediate(() => r('__pending__')))
+  ]);
+  assert.strictEqual(settled, 'local',
+    'a dismissed merge prompt must resolve as "local"; leaving it pending hangs signIn() forever');
+}));
+
+/* ============================================================
+   Record deletes and their undo
+   ============================================================
+   These rows delete on a single tap with no confirmation in front of them,
+   which is the right call on a phone but only because there is a way back
+   behind it. Everything below pins that way back: without it the tap is
+   simply destructive, and the absence of a confirm() becomes a bug rather
+   than a design choice. */
+
+test('deleting a record offers an undo that puts it back at its original index', () => withBoot(async ({ document, api }) => {
+  const fuel = [
+    { id: 'f1', date: '2024-01-01', odometer: 1000, litres: 30, cost: 100, full: true },
+    { id: 'f2', date: '2024-02-01', odometer: 1500, litres: 32, cost: 110, full: true },
+    { id: 'f3', date: '2024-03-01', odometer: 2000, litres: 31, cost: 105, full: true }
+  ];
+  api.session.current().fuel = fuel;
+
+  const btn = api.deleteRow('Delete fill-up', 'fuel', fuel[1], 'fuel', 'Fill-up deleted');
+  await btn.onclick();
+  assert.deepStrictEqual(api.session.current().fuel.map(x => x.id), ['f1', 'f3'],
+    'the delete itself did not land');
+
+  const undo = document.querySelector('#toastHost .toast-undo');
+  assert.ok(undo, 'a record delete must offer an undo — it is the only safety net this action has');
+
+  undo.onclick({ stopPropagation() {} });
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.deepStrictEqual(api.session.current().fuel.map(x => x.id), ['f1', 'f2', 'f3'],
+    'undo must restore the record where it was, not append it to the end');
+}));
+
+/* The photo is the half that is easy to get wrong: saveVehicle() collects the
+   now-orphaned blob and deletes the stored copy during the delete's own save,
+   and session.save() drops the in-memory one straight after. Capture it any
+   later than deleteRow() does and undo brings back a row pointing at an image
+   that no longer exists anywhere. */
+test('undoing a delete restores the receipt photo, not just the record', () => withBoot(async ({ document, api }) => {
+  const blob = { type: 'image/jpeg', size: 3 };
+  api.session.photos()['ph1'] = blob;
+  const rec = { id: 'h9', name: 'Oil change', date: '2024-05-01', odometer: 9000, cost: 200, cat: 'Maintenance', photoId: 'ph1' };
+  api.session.current().history.unshift(rec);
+
+  const puts = [];
+  const realPut = api.putPhotoBlob;
+  api.putPhotoBlob = (id, b) => { puts.push([id, b]); return realPut(id, b); };
+
+  const btn = api.deleteRow('Delete record', 'history', rec, 'maintenance', 'Record deleted');
+  await btn.onclick();
+  assert.ok(!api.session.current().history.some(x => x.id === 'h9'), 'the delete itself did not land');
+
+  document.querySelector('#toastHost .toast-undo').onclick({ stopPropagation() {} });
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.ok(api.session.current().history.some(x => x.id === 'h9'), 'undo did not restore the record');
+  assert.deepStrictEqual(puts, [['ph1', blob]],
+    'undo must re-put the blob; the record still carries a photoId and a blob: URL, so the save alone stores nothing');
+  assert.strictEqual(api.session.photos()['ph1'], blob,
+    'the in-memory photo cache must be repopulated too, or the restored row renders with no image');
+}));
+
+/* The undo window is seconds long, and a sign-out inside it clears the
+   session outright. Re-inserting blind at that point would drop the previous
+   user's record into whatever garage is loaded next. */
+test('undo after the garage is gone restores nothing', () => withBoot(async ({ document, api }) => {
+  const rec = { id: 'f7', date: '2024-04-01', odometer: 3000, litres: 20, cost: 80, full: true };
+  api.session.current().fuel = [rec];
+
+  const btn = api.deleteRow('Delete fill-up', 'fuel', rec, 'fuel', 'Fill-up deleted');
+  await btn.onclick();
+  const undo = document.querySelector('#toastHost .toast-undo');
+
+  api.session.clear();                       // sign-out, mid-undo-window
+  undo.onclick({ stopPropagation() {} });    // must not throw, and must not resurrect
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.strictEqual(api.session.garage(), null,
+    'undo re-created a garage for a session that had been signed out');
+}));
+
+test('a failed save offers no undo — there is nothing to reverse', () => withBoot(async ({ document, api }) => {
+  const rec = { id: 'f8', date: '2024-04-02', odometer: 3100, litres: 21, cost: 82, full: true };
+  api.session.current().fuel = [rec];
+  api.session.configure({ saveVehicle: () => Promise.resolve({ ok: false, error: new Error('disk full') }) });
+
+  const btn = api.deleteRow('Delete fill-up', 'fuel', rec, 'fuel', 'Fill-up deleted');
+  await btn.onclick();
+
+  assert.strictEqual(document.querySelector('#toastHost .toast-undo'), null,
+    'offering undo after a failed save promises to reverse something that never happened');
+}));
+
+/* role, not aria-live: #toastHost is a permanent live region (index.html), so
+   the announcement does not depend on the region being inserted alongside its
+   content. What the role decides is whether a message waits its turn. */
+test('a warning toast interrupts (role="alert"); a confirmation queues (role="status")', () => withBoot(async ({ document, api }) => {
+  api.toast('Vehicle added');
+  api.toast('Storage is full', 'warn');
+  const nodes = Array.from(document.querySelectorAll('#toastHost .toast'));
+  assert.deepStrictEqual(nodes.map(n => n.getAttribute('role')), ['status', 'alert'],
+    'a save that did NOT happen must not queue behind a routine confirmation');
+}));
+
+/* A toast names what is wrong; inside a long modal it does not say where, and
+   the field can be scrolled out of sight. */
+test('fail() rings the offending field and clears the ring on the next keystroke', () => withBoot(async ({ document, api }) => {
+  api.openAddFuel();
+  const litres = document.querySelector('#f_l');
+  assert.ok(litres, 'the fuel dialog no longer has a litres field — this test proves nothing');
+
+  const ret = api.fail('#f_l', 'Litres required');
+  assert.strictEqual(ret, false, 'fail() must return false so guards can stay one-liners');
+  assert.ok(litres.classList.contains('field-error'), 'the field a validation toast is about was not marked');
+
+  litres.dispatchEvent(new document.defaultView.Event('input'));
+  assert.ok(!litres.classList.contains('field-error'), 'the ring must clear on input, not outlive the mistake');
+}));

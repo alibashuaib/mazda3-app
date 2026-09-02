@@ -46,13 +46,11 @@ function openAddDoc(d) {
     onAsyncClick(b, async () => {
       const obj = { id: d ? d.id : uid(), type: $('#d_type').value, name: $('#d_name').value.trim(), expiry: $('#d_exp').value, number: $('#d_num').value.trim() };
       if (d) Object.assign(d, obj); else { session.current().docs = session.current().docs || []; session.current().docs.push(obj); }
-      const ok = await save(); closeModal(); go('dashboard'); if (ok) toast(editing ? 'Document updated' : 'Document added');
+      await commit('dashboard', editing ? 'Document updated' : 'Document added');
     });
     card.appendChild(b);
     if (editing) {
-      const del = el('button', 'btn block ghost', html`${t('Delete document')}`);
-      del.style.cssText = 'margin-top:8px;color:var(--danger)';
-      onAsyncClick(del, async () => { session.current().docs = session.current().docs.filter(x => x.id !== d.id); const ok = await save(); closeModal(); go('dashboard'); if (ok) toast('Document deleted'); });
+      const del = deleteRow('Delete document', 'docs', d, 'dashboard', 'Document deleted');
       card.appendChild(del);
     }
   });
@@ -68,7 +66,7 @@ function openEditOdo() {
       if (!isNaN(val)) { session.current().car.odometer = val; session.current().car.odoUpdatedAt = isoDate(today()); }
       const d = parseInt($('#m_daily').value, 10);
       if (!isNaN(d) && d > 0) session.current().car.dailyKm = d;
-      const ok = await save(); closeModal(); go(current); if (ok) toast('Mileage updated');
+      await commit(current, 'Mileage updated');
     });
     card.appendChild(b);
   });

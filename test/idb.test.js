@@ -327,6 +327,174 @@ test('wipe() removes the stored supabase auth token, and nothing else', async ()
   assert.strictEqual(global.localStorage.getItem('garage.lang'), 'ar');
 });
 
+/* Regression: a session where idbOpen() failed (or was never attempted, e.g.
+   file://) falls back to localStorage, but the previous user's IndexedDB
+   data is untouched by the localStorage-only clears above it in wipe(). */
+test('wipe() also deletes the IndexedDB database when the active backend is localStorage', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await storage.saveVehicle('v1', vehicleData(DATA_URL), 'v1', makeId);
+  const checkDb = await idb();
+  assert.strictEqual((await readAll(checkDb, 'photos')).length, 1);
+  checkDb.close();   // must not be left open, or it blocks the deleteDatabase() below
+
+  // simulate a later session where idbOpen failed and the app fell back
+  await storage.openStorage({ protocol: 'file:', hasIndexedDb: true });
+  assert.strictEqual(storage.backendKind(), 'local');
+
+  await storage.wipe();
+
+  // the previous user's data must not survive just because this session
+  // happens to be on the localStorage backend. wipe() deleted the whole
+  // database, so reopen (which recreates the schema) to check it's empty.
+  const backend = await storage.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  assert.strictEqual(backend.kind, 'idb');
+  assert.deepStrictEqual(await readAll(backend.db, 'vehicles'), []);
+  assert.deepStrictEqual(await readAll(backend.db, 'photos'), []);
+});
+
+test('wipe() does not hang waiting on IndexedDB deleteDatabase that never responds', async () => {
+  const storage = freshStorage();
+  await storage.openStorage({ protocol: 'file:', hasIndexedDb: false });   // local backend
+  // wipe() always attempts indexedDB.deleteDatabase() when the active
+  // backend is not idb — even here, where openStorage never touched it.
+  global.indexedDB = { deleteDatabase: () => ({}) };   // a request that never fires anything
+
+  const start = Date.now();
+  const result = await storage.wipe();
+  const elapsed = Date.now() - start;
+
+  assert.strictEqual(result, true);
+  assert.ok(elapsed < 3000, `wipe() must not block sign-out on IndexedDB, took ${elapsed}ms`);
+});
+
+/* Another tab (or a stale connection from an earlier openStorage()) upgrading
+   the schema fires 'versionchange' on this connection. Without closing on
+   it, this connection stays open and blocks that upgrade indefinitely. */
+test('idbOpen closes the connection on a versionchange fired by another connection', async () => {
+  const s = freshStorage();
+  await s.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  assert.strictEqual(s.backendKind(), 'idb');
+
+  let blocked = false, upgraded = false;
+  await new Promise((resolve, reject) => {
+    const req = global.indexedDB.open('garage', 3);
+    req.onblocked = () => { blocked = true; };
+    req.onupgradeneeded = () => { upgraded = true; };
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  assert.strictEqual(blocked, false, 'the first connection should have closed itself on versionchange');
+  assert.strictEqual(upgraded, true);
+});
+
+/* onblocked: a connection that will not close forces the new open to give
+   up rather than hang — openStorage falls back, and the reason is logged. */
+test('idbOpen warns and openStorage falls back when blocked by a connection that will not close', async () => {
+  const s = freshStorage();
+  const rawReq = global.indexedDB.open('garage', 1);
+  await new Promise((resolve, reject) => {
+    rawReq.onupgradeneeded = () => {};
+    rawReq.onsuccess = resolve;
+    rawReq.onerror = () => reject(rawReq.error);
+  });
+  const rawDb = rawReq.result;   // deliberately left open through the versionchange below
+
+  const origWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    const backend = await s.openStorage({ protocol: 'https:', hasIndexedDb: true });
+    assert.strictEqual(backend.kind, 'local', 'a blocked open must fall back rather than hang');
+    assert.ok(warnings.some(w => w.includes('blocked')), 'onblocked should be logged');
+  } finally {
+    console.warn = origWarn;
+    rawDb.close();
+  }
+});
+
+test('loadAll defaults activeId to the first vehicle on the localStorage backend when absent', async () => {
+  const s = freshStorage({ vehicles: [{ id: 'a', data: {} }, { id: 'b', data: {} }] });   // no activeId
+  await s.openStorage({ protocol: 'file:', hasIndexedDb: false });
+
+  const { garage } = await s.loadAll();
+  assert.strictEqual(garage.activeId, 'a', 'must match the IDB shape() default');
+});
+
+test('saveVehicle and removeVehicle leave activeId untouched when the argument is undefined', async () => {
+  const s = freshStorage();
+  await s.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  await s.saveVehicle('v1', vehicleData(), 'v1', makeId);
+  assert.strictEqual((await metaRec()).activeId, 'v1');
+
+  await s.saveVehicle('v1', vehicleData(), undefined, makeId);
+  assert.strictEqual((await metaRec()).activeId, 'v1', 'an undefined activeId must not clobber the stored one');
+
+  await s.saveVehicle('v2', vehicleData(), 'v2', makeId);
+  await s.removeVehicle('v2', undefined);
+  assert.strictEqual((await metaRec()).activeId, 'v2', 'removeVehicle must not clobber activeId either');
+});
+
+test('saveVehicle and removeVehicle leave activeId untouched on the localStorage backend too', async () => {
+  const s = freshStorage();
+  await s.openStorage({ protocol: 'file:', hasIndexedDb: false });
+  await s.saveVehicle('v1', vehicleData(), 'v1', makeId);
+
+  await s.saveVehicle('v1', vehicleData(), undefined, makeId);
+  assert.strictEqual((await s.loadAll()).garage.activeId, 'v1');
+
+  await s.removeVehicle('v1', undefined);
+  const { garage } = await s.loadAll();
+  assert.deepStrictEqual(garage.vehicles, []);
+  assert.strictEqual(garage.activeId, 'v1', 'an undefined activeId must not clobber the stored one, even with no vehicles left');
+});
+
+/* This backend has no photo store and rewrites the vehicle wholesale on
+   every save, so without id reuse a save that touches nothing photo-related
+   would still mint the still-inline image a fresh id every time. */
+test('saveVehicle on the localStorage backend reuses the photo id for an unchanged image', async () => {
+  const s = freshStorage();
+  await s.openStorage({ protocol: 'file:', hasIndexedDb: false });
+  const first = await s.saveVehicle('v1', vehicleData(DATA_URL), 'v1', makeId);
+  const firstId = first.photoIds[0];
+
+  const second = await s.saveVehicle('v1', vehicleData(DATA_URL), 'v1', makeId);
+  assert.deepStrictEqual(second.photoIds, [firstId], 'the photo id must not churn for an unchanged image');
+
+  // a genuinely different image still gets a fresh id
+  const third = await s.saveVehicle('v1', vehicleData(OTHER_URL), 'v1', makeId);
+  assert.notStrictEqual(third.photoIds[0], firstId);
+});
+
+/* Regression for dataUrlToBlob no longer throwing: one corrupt photo in a
+   legacy payload must be dropped, not fail the whole migration and leave
+   the user stuck on the localStorage backend forever. */
+test('migrateFromLocal drops a corrupt photo and warns, rather than blocking migration', async () => {
+  const legacy = {
+    vehicles: [{ id: 'old', data: vehicleData(DATA_URL) }],
+    activeId: 'old'
+  };
+  const s = freshStorage(legacy);
+  // corrupt the photo the legacy vehicle carries so dataUrlToBlob returns null
+  const raw = JSON.parse(global.localStorage.getItem('garage.mazda3.v2'));
+  raw.vehicles[0].data.car.photo = 'data:image/jpeg;base64,not-valid-base64!!!';
+  global.localStorage.setItem('garage.mazda3.v2', JSON.stringify(raw));
+
+  const origWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    await s.openStorage({ protocol: 'https:', hasIndexedDb: true });
+    const { garage, photos } = await s.loadAll();
+    assert.strictEqual(s.backendKind(), 'idb', 'migration must not fail out to the localStorage backend');
+    assert.deepStrictEqual(garage.vehicles.map(v => v.id), ['old']);
+    assert.deepStrictEqual(photos, {}, 'the corrupt photo must be dropped, not stored');
+    assert.ok(warnings.some(w => w.includes('dropping unreadable photo')));
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
 test('wipe() succeeds on the localStorage backend too', async () => {
   const storage = freshStorage({ vehicles: [{ id: 'a', data: {} }], activeId: 'a' });
   await storage.openStorage({ protocol: 'file:', hasIndexedDb: false });
