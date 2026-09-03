@@ -29,7 +29,30 @@ async function open(page, testInfo) {
   await page.goto(testInfo.project.metadata.appUrl);
   await page.waitForFunction(() => window.session && window.session.booted(), null, { timeout: 15000 });
   await expect(page.locator('#view')).not.toBeEmpty();
+  await ensureVehicle(page);
   return errors;
+}
+
+/* Every test below assumes a car exists — it reads #carTitle, opens the
+   profile dialog, exports the garage. That used to be free: the app seeded a
+   default Mazda 3. 49dd626 removed the seed, so a fresh browser profile now
+   lands on onboarding instead and every one of those tests failed against an
+   empty topbar. Each Playwright test gets its own context, so the garage is
+   empty every time and this has to run per test, not once per file.
+
+   Driven through the real onboarding UI rather than by writing storage
+   directly: the http and file projects use different backends (IndexedDB vs
+   localStorage), and seeding either one by hand would encode the backend
+   choice this suite exists to check. The add-vehicle dialog opens with a
+   valid default selection, so submitting it unchanged is enough. */
+async function ensureVehicle(page) {
+  const empty = await page.evaluate(() => window.session.garage().vehicles.length === 0);
+  if (!empty) return;
+  await page.click('#view button:has-text("Add a vehicle")');
+  await expect(page.locator('#modalHost')).toBeVisible();
+  await page.click('#modalCard button:has-text("Add a vehicle")');
+  await expect(page.locator('#modalHost')).toBeHidden();
+  await expect(page.locator('#carTitle')).not.toBeEmpty();
 }
 
 /* Settings used to be a standalone topbar button (#settingsBtn). It is a menu
