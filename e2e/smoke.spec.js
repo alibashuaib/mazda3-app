@@ -32,6 +32,17 @@ async function open(page, testInfo) {
   return errors;
 }
 
+/* Settings used to be a standalone topbar button (#settingsBtn). It is a menu
+   item now, so every route to it goes through the account menu — driven as a
+   real user would, trigger then item, so these keep covering the menu itself
+   rather than reaching past it into openSettings(). The item's label is
+   translated, hence matching either language. */
+async function openSettings(page) {
+  await page.click('#accountBtn');
+  await page.click('#accountMenu [role="menuitem"]:has-text("Settings"), #accountMenu [role="menuitem"]:has-text("الإعدادات")');
+  await expect(page.locator('#modalHost')).toBeVisible();
+}
+
 /* Dialogs that only display something leave themselves open. The modal host
    sits above the whole shell, so anything left open swallows later clicks. */
 async function closeModal(page) {
@@ -73,13 +84,13 @@ test('every tab renders, with icons drawn rather than printed', async ({ page },
 test('switches to Arabic and back, flipping direction both ways', async ({ page }, testInfo) => {
   await open(page, testInfo);
 
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await page.click('#modalCard .seg button:has-text("العربية")');
   await page.click('#modalCard button:has-text("Save profile")');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
 
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await page.click('#modalCard .seg button:has-text("English")');
   await page.click('#modalCard button:has-text("حفظ الملف")').catch(async () => {
     // the button carries its Arabic label while Arabic is active
@@ -93,7 +104,7 @@ test('a hostile nickname renders as text and round-trips unchanged', async ({ pa
 
   const PAYLOAD = '<b>test</b><img src=x onerror="window.__xss=1">';
 
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await page.fill('#c_nick', PAYLOAD);
   await page.click('#modalCard button:has-text("Save profile")');
 
@@ -110,7 +121,7 @@ test('a hostile nickname renders as text and round-trips unchanged', async ({ pa
   expect(await page.evaluate(() => window.__xss)).toBeUndefined();
 
   // and it must survive as data, not be mangled into entities
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await expect(page.locator('#c_nick')).toHaveValue(PAYLOAD);
 });
 
@@ -118,12 +129,12 @@ test('export then import reproduces the garage', async ({ page }, testInfo) => {
   await open(page, testInfo);
 
   const marker = `E2E ${testInfo.project.name} ${Date.now()}`;
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await page.fill('#c_nick', marker);
   await page.click('#modalCard button:has-text("Save profile")');
   await expect(page.locator('#carTitle')).toHaveText(marker);
 
-  await page.click('#settingsBtn');
+  await openSettings(page);
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.click('#modalCard button:has-text("Export backup")')
@@ -137,13 +148,13 @@ test('export then import reproduces the garage', async ({ page }, testInfo) => {
   await closeModal(page);
 
   // Change the data so a no-op import would be indistinguishable from success.
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await page.fill('#c_nick', 'overwritten');
   await page.click('#modalCard button:has-text("Save profile")');
   await expect(page.locator('#carTitle')).toHaveText('overwritten');
 
   page.once('dialog', d => d.accept());          // import warns before replacing
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await page.setInputFiles('#modalCard input[type="file"][accept="application/json"]', backup);
 
   await expect(page.locator('#carTitle')).toHaveText(marker, { timeout: 15000 });
@@ -153,7 +164,7 @@ test('the account row is absent from file://', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'file', 'checks the file:// origin only');
   await open(page, testInfo);
 
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await expect(page.locator('#modalCard')).toBeVisible();
   // account.available() is false on file:// by design (opaque origin, no auth
   // code active) — the whole account row must be omitted, not merely hidden.
@@ -164,7 +175,7 @@ test('the account row is present over http', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'http', 'checks the http origin only');
   await open(page, testInfo);
 
-  await page.click('#settingsBtn');
+  await openSettings(page);
   await expect(page.locator('#modalCard')).toBeVisible();
   // Same locator as the file:// test above: proves the selector actually
   // matches something here, so that test's zero-count assertion means what

@@ -664,13 +664,6 @@ function openSettings() {
 // either, so they'd read stale until the next save or navigation.
 function refreshForTheme() { applyAccent(); if (current === 'dashboard') go('dashboard'); }
 
-$('#themeToggle').onclick = () => {
-  const next = nextTheme(themePref());
-  setThemePref(next);
-  toast(next === 'system' ? 'Theme: follows device' : next === 'light' ? 'Theme: light' : 'Theme: dark');
-  refreshForTheme();
-};
-
 // follow the device unless the user has explicitly picked light or dark
 setThemePref(themePref());
 if (window.matchMedia) {
@@ -680,10 +673,10 @@ if (window.matchMedia) {
 }
 
 /* ---------- boot ---------- */
-$('#settingsBtn').onclick = openSettings;
 $('#openProfile').onclick = openSettings;
-$('#garageBtn').onclick = openGarage;
-$('#accountBtn').onclick = openAccount;
+/* Switch vehicle, theme, settings and account are all inside this one menu
+   now (buildAccountMenu in chrome.js); their handlers above are unchanged. */
+$('#accountBtn').onclick = toggleAccountMenu;
 // Safari private mode (and some locked-down webviews) throw on localStorage
 // access rather than just returning null — an uncaught throw here would kill
 // boot before the error card even exists to explain why. Default to 'en'.
@@ -717,9 +710,11 @@ account.configure({
   rerender: () => { applyAccent(); renderTopbar(); go(current); },
   choose: askWhichGarage
 });
-// Same guard openSettings() uses to hide its Account row on file://, where
-// sign-in cannot work at all — no point showing a topbar button for it.
-$('#accountBtn').hidden = !account.available();
+/* The old topbar account button hid itself here when sign-in was impossible.
+   The menu trigger cannot: hiding it would take the theme, settings and
+   vehicle switcher with it. buildAccountMenu() applies the same guard to the
+   Account item alone, and rebuilds on every open, so it also tracks a client
+   that only becomes available later. */
 
 session.load()
   .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist whatever hydrate() built (a migrated legacy car, or nothing)

@@ -144,6 +144,37 @@ body {
   transition: transform .15s, background .2s;
 }
 .icon-btn:active { transform: scale(.92); }
+/* ---- Account menu ---- */
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; top: calc(100% + 8px);
+  /* Logical, so the menu hangs off the trigger's trailing edge in both
+     directions — inline-end is the right edge in LTR, the left one in RTL. */
+  inset-inline-end: 0;
+  min-width: 216px; max-width: min(calc(100vw - 32px), 320px);
+  padding: 6px; z-index: 1;
+  /* Opaque, not the translucent --surface the cards use: this floats over
+     arbitrary page content, and text behind text is unreadable. */
+  background: var(--surface-solid);
+  border: 1px solid var(--stroke); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  /* The global prefers-reduced-motion rule at the end of this file flattens
+     this to .001ms, which is the app's existing pattern for every animation. */
+  animation: menu-in .14s ease-out;
+}
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
+.menu-head {
+  padding: 8px 10px 6px; font-size: 12px; font-weight: 650;
+  color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.menu-item {
+  display: block; width: 100%; font-family: inherit; font-size: 13.5px; font-weight: 600;
+  /* text-align follows the writing direction rather than being pinned left. */
+  text-align: start;
+  padding: 10px; border: 0; border-radius: 10px; cursor: pointer;
+  background: transparent; color: var(--text); transition: background .15s;
+}
+.menu-item[aria-checked="true"]::after { content: '✓'; float: inline-end; color: var(--accent); }
 .icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .i-moon { display: none; }
 :root[data-theme="light"] .i-sun { display: none; }
@@ -772,6 +803,7 @@ html { scroll-behavior: smooth; }
   .car-card:hover { border-color: var(--stroke-strong); }
   .topbar-car:hover { background: var(--surface-2); }
   .seg button:not(.on):hover { color: var(--text); }
+  .menu-item:hover { background: var(--surface-2); }
   .section-title .link:hover { text-decoration: underline; text-underline-offset: 3px; }
   .part-toggle:hover { color: var(--text); }
   .opt { transition: none; }

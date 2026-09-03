@@ -31,6 +31,11 @@ function vehicleName(c) { return joinName(c, ['year', 'make', 'model'], 'Vehicle
    badge size on both themes. */
 const BRAND_MARK = html`<svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="23" rx="16" ry="10.5" stroke="currentColor" stroke-width="2.2"/><path d="M7 26c4-9.5 9.5-13.5 15-13.5s11 4 15 13.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`;
 function renderTopbar() {
+  /* Ahead of the early return below: the account menu's trigger is present and
+     reachable even with an empty garage, so its name has to be translated on
+     every language change, not only when there is a car to describe. */
+  $('#accountBtn').setAttribute('aria-label', t('My account'));
+  $('#accountBtn').setAttribute('title', t('My account'));
   // An empty garage (no vehicle added yet) has no car to describe — go()
   // routes that case to the onboarding screen instead, which hides this
   // row entirely, so there is nothing here to keep in sync with.
@@ -285,6 +290,125 @@ function bannerRow(icon, title, sub, button) {
   row.innerHTML = html`<div class="r-ic">${icon}</div><div style="flex:1"><h3>${t(title)}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t(sub)}</p></div>`;
   if (button) row.appendChild(button);
   return row;
+}
+
+/* ============================================================
+   ACCOUNT MENU
+   The topbar's inline-end corner used to hold four standalone icon buttons:
+   switch vehicle, account, settings, theme. They are one menu now. Every
+   handler is unchanged — only the triggers moved.
+
+   The trigger is always visible, unlike the account button whose glyph it
+   inherits: that one hid itself on file://, where sign-in cannot work. Hiding
+   the trigger now would take the theme, settings and vehicle switcher down
+   with it, so only the Account ITEM is conditional.
+   ============================================================ */
+const MENU_ITEM_SEL = '[role="menuitem"], [role="menuitemcheckbox"]';
+
+function menuItems() { return Array.from($('#accountMenu').querySelectorAll(MENU_ITEM_SEL)); }
+
+/* Roving tabindex: the menu is one tab stop, arrows move within it.
+   Set and read as an ATTRIBUTE, not the .tabIndex property — the property is
+   what a browser reflects, but it is not universally implemented, and the
+   attribute is the form both a browser and the test harness agree on. */
+function focusMenuItem(idx) {
+  const items = menuItems();
+  if (!items.length) return;
+  const next = items[(idx + items.length) % items.length];
+  items.forEach(x => x.setAttribute('tabindex', x === next ? '0' : '-1'));
+  next.focus();
+}
+
+function onAccountMenuKeydown(ev) {
+  const items = menuItems();
+  /* focusMenuItem() keeps exactly one item at tabIndex 0, so the roving tab
+     stop — not document.activeElement — is the position of record. Same answer
+     in a browser, and it still works where activeElement is not tracked. */
+  const here = items.findIndex(x => x.getAttribute('tabindex') === '0');
+  switch (ev.key) {
+    case 'ArrowDown': ev.preventDefault(); focusMenuItem(here + 1); break;
+    case 'ArrowUp': ev.preventDefault(); focusMenuItem(here - 1); break;
+    case 'Home': ev.preventDefault(); focusMenuItem(0); break;
+    case 'End': ev.preventDefault(); focusMenuItem(items.length - 1); break;
+    case 'Escape': ev.preventDefault(); closeAccountMenu(true); break;
+    /* Per the ARIA menu pattern Tab closes and lets focus move on, rather
+       than trapping it the way the modal does — a menu is not modal. */
+    case 'Tab': closeAccountMenu(false); break;
+  }
+}
+
+/* mousedown, not click: a click that lands on a menu item would otherwise
+   close the menu before the item's own handler ran. */
+function onAccountMenuOutside(ev) {
+  if (!$('#accountMenu').parentElement.contains(ev.target)) closeAccountMenu(false);
+}
+
+function menuItem(label, role, onPick) {
+  const b = el('button', 'menu-item', html`${t(label)}`);
+  b.type = 'button';
+  b.setAttribute('role', role);
+  b.setAttribute('tabindex', '-1');
+  b.onclick = onPick;
+  return b;
+}
+
+function buildAccountMenu(menu) {
+  menu.innerHTML = '';
+  menu.setAttribute('aria-label', t('Account menu'));
+
+  /* The vehicle name names the menu's subject; it is not an action, so it is
+     not focusable and carries no menu role. */
+  const cur = session.current();
+  if (cur) {
+    const head = el('div', 'menu-head', html`${vehicleName(cur.car)}`);
+    head.setAttribute('role', 'presentation');
+    menu.appendChild(head);
+  }
+
+  menu.appendChild(menuItem('Switch vehicle', 'menuitem', () => { closeAccountMenu(false); openGarage(); }));
+
+  /* Binary, so it maps onto menuitemcheckbox — which means the old button's
+     third state ('system', follow the device) is no longer reachable from the
+     topbar. It is still the default until the user picks explicitly, and the
+     matchMedia listener in main.js still tracks the device for anyone who
+     never touches this. Noted in the commit message. */
+  const dark = menuItem('Dark mode', 'menuitemcheckbox', null);
+  dark.setAttribute('aria-checked', String(currentTheme() === 'dark'));
+  dark.onclick = () => {
+    setThemePref(currentTheme() === 'dark' ? 'light' : 'dark');
+    refreshForTheme();
+    /* Stays open on purpose: the point of a checkbox is seeing it flip. */
+    dark.setAttribute('aria-checked', String(currentTheme() === 'dark'));
+    dark.focus();
+  };
+  menu.appendChild(dark);
+
+  menu.appendChild(menuItem('Settings', 'menuitem', () => { closeAccountMenu(false); openSettings(); }));
+  if (account.available()) {
+    menu.appendChild(menuItem('Account', 'menuitem', () => { closeAccountMenu(false); openAccount(); }));
+  }
+}
+
+function openAccountMenu() {
+  const btn = $('#accountBtn'), menu = $('#accountMenu');
+  buildAccountMenu(menu);
+  menu.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  menu.addEventListener('keydown', onAccountMenuKeydown);
+  document.addEventListener('mousedown', onAccountMenuOutside);
+  focusMenuItem(0);
+}
+function closeAccountMenu(returnFocus) {
+  const btn = $('#accountBtn'), menu = $('#accountMenu');
+  if (menu.hidden) return;
+  menu.hidden = true;
+  btn.setAttribute('aria-expanded', 'false');
+  menu.removeEventListener('keydown', onAccountMenuKeydown);
+  document.removeEventListener('mousedown', onAccountMenuOutside);
+  if (returnFocus) btn.focus();
+}
+function toggleAccountMenu() {
+  if ($('#accountMenu').hidden) openAccountMenu(); else closeAccountMenu(true);
 }
 
 /* ---------- theme ---------- */

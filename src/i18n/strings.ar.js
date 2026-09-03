@@ -371,6 +371,9 @@ const AR = {
 
   // calendar system (Arabic only — English is always Gregorian)
   'Gregorian': 'ميلادي', 'Hijri': 'هجري', 'Both': 'كلاهما',
+  // account menu (the topbar's inline-end corner)
+  'My account': 'حسابي', 'Account menu': 'قائمة الحساب',
+  'Switch vehicle': 'تبديل المركبة', 'Dark mode': 'الوضع الداكن',
   // accounts
   'Account': 'الحساب',
   'Settings': 'الإعدادات',

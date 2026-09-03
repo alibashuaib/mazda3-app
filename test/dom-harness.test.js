@@ -15,7 +15,9 @@ test('setupDom installs a usable document', () => {
 
 test('setupDom provides the shell ids app.js reaches for at boot', () => {
   const { document, cleanup } = setupDom();
-  ['#view', '#modalHost', '#modalCard', '#toastHost', '#tabbar', '#settingsBtn', '#garageBtn', '#accountBtn', '#openProfile', '#themeToggle', '#carBadge', '#carTitle', '#carSub']
+  /* #settingsBtn, #garageBtn and #themeToggle are gone: those three topbar
+     buttons are items inside #accountMenu now, built on open. */
+  ['#view', '#modalHost', '#modalCard', '#toastHost', '#tabbar', '#accountBtn', '#accountMenu', '#openProfile', '#carBadge', '#carTitle', '#carSub']
     .forEach(sel => assert.ok(document.querySelector(sel), `${sel} must exist in the shell`));
   cleanup();
 });

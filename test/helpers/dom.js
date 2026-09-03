@@ -9,10 +9,10 @@ const SHELL = `<!doctype html><html lang="en"><body>
         <div class="car-meta"><h1 id="carTitle">Mazda 3</h1><p id="carSub">sub</p></div>
       </button>
       <div class="topbar-actions">
-        <button class="icon-btn" id="garageBtn"></button>
-        <button class="icon-btn" id="accountBtn"></button>
-        <button class="icon-btn" id="settingsBtn"></button>
-        <button class="icon-btn" id="themeToggle"></button>
+        <div class="menu-wrap">
+          <button class="icon-btn" id="accountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="accountMenu"></button>
+          <div class="menu" id="accountMenu" role="menu" hidden></div>
+        </div>
       </div>
     </header>
     <main id="view" class="view"></main>
