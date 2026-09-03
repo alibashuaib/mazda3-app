@@ -369,6 +369,8 @@ const AR = {
   'That backup file is incomplete.': 'ملف النسخة الاحتياطية غير مكتمل.',
   'Could not read that file.': 'تعذّرت قراءة هذا الملف.',
 
+  // calendar system (Arabic only — English is always Gregorian)
+  'Gregorian': 'ميلادي', 'Hijri': 'هجري', 'Both': 'كلاهما',
   // accounts
   'Account': 'الحساب',
   'Settings': 'الإعدادات',

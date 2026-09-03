@@ -250,6 +250,33 @@ function segSelect(btn, nodes) {
   Array.from(group).forEach(x => x.classList.toggle('on', x === btn));
 }
 
+/* A `.seg` row that is also announced as one control. The bare rows above are
+   a set of buttons a screen reader reports individually, with no indication
+   they form a group or which one is active — `.on` is a class, and a class
+   says nothing to assistive tech. radiogroup/radio is the right mapping: these
+   pick one value from a fixed set, they do not navigate anywhere.
+
+   `options` is [value, label] pairs; labels are pre-translated by the caller,
+   since some are bilingual on purpose. onPick receives the chosen value. */
+function segGroup(label, options, current, onPick) {
+  const seg = el('div', 'seg');
+  seg.setAttribute('role', 'radiogroup');
+  seg.setAttribute('aria-label', label);
+  options.forEach(([value, text]) => {
+    const b = el('button', value === current ? 'on' : '', html`${text}`);
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(value === current));
+    b.onclick = () => {
+      segSelect(b);
+      Array.from(seg.children).forEach(x => x.setAttribute('aria-checked', String(x === b)));
+      onPick(value);
+    };
+    seg.appendChild(b);
+  });
+  return seg;
+}
+
 /* The icon / heading / sub-line / button row used for the account and plan
    prompts. `sub` goes through t() like the title, which is a no-op for the
    values that are already text (an email address has no translation). */

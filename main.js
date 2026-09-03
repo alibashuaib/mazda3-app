@@ -494,14 +494,34 @@ function openSettings() {
     // language switch
     card.appendChild(field('Language / اللغة', ''));
     let selectedLang = lang;
-    const langSeg = el('div', 'seg');
+    const langSeg = segGroup('Language / اللغة', [['en', 'English'], ['ar', 'العربية']], lang,
+      code => { selectedLang = code; syncCalendarRow(); });
     langSeg.style.margin = '0 0 16px';
-    [['en', 'English'], ['ar', 'العربية']].forEach(([code, label]) => {
-      const b = el('button', lang === code ? 'on' : '', html`${label}`);
-      b.onclick = () => { selectedLang = code; segSelect(b); };
-      langSeg.appendChild(b);
-    });
     card.appendChild(langSeg);
+
+    /* Calendar — Arabic only, since English is always Gregorian. Hidden rather
+       than disabled: a disabled control invites the reader to work out why,
+       and for an English UI there is nothing to work out.
+
+       Visibility follows the language SEGMENT, not the applied `lang`. The
+       language switch is deferred to Save (below), so while this modal is open
+       the segment is the only thing that says which language the user is
+       choosing — gating on `lang` would leave the row missing right after they
+       tap العربية, which reads as the control being broken.
+
+       Unlike language, the calendar applies on tap: persisted immediately and
+       the view behind repainted, so the change is visible without a Save. */
+    const calRow = el('div');
+    const calField = field('Calendar / التقويم', '');
+    const calSeg = segGroup('Calendar / التقويم',
+      [['gregory', t('Gregorian')], ['islamic', t('Hijri')], ['both', t('Both')]],
+      calendar, applyCalendar);
+    calSeg.style.margin = '0 0 16px';
+    calRow.appendChild(calField);
+    calRow.appendChild(calSeg);
+    function syncCalendarRow() { calRow.hidden = selectedLang !== 'ar'; }
+    syncCalendarRow();
+    card.appendChild(calRow);
 
     // account row — absent entirely from file://, where sign-in cannot work
     if (account.available()) {
@@ -668,6 +688,7 @@ $('#accountBtn').onclick = openAccount;
 // access rather than just returning null — an uncaught throw here would kill
 // boot before the error card even exists to explain why. Default to 'en'.
 try { lang = localStorage.getItem('garage.lang') || 'en'; } catch (e) { lang = 'en'; }
+calendar = readCalendarPref();   // guards its own storage access, same reason
 document.documentElement.setAttribute('lang', lang);
 document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
 applyNavLabels();

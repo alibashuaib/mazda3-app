@@ -61,3 +61,164 @@ test('switching language switches date language, with no reload', () => withBoot
   assert.notStrictEqual(en, ar);
   assert.strictEqual(evalInApp(`fmtDate('2027-03-03', ${DMY})`), en);
 }));
+
+/* ---------- calendar system (Arabic only) ---------- */
+
+/* Bidi isolates are invisible but real characters; strip them before matching
+   on content so a failure reports the date, not a wall of escapes. */
+const unwrap = s => s.replace(/[⁦-⁩]/g, '');
+
+function arWith(evalInApp, cal) {
+  evalInApp("lang = 'ar'");
+  evalInApp(`calendar = ${JSON.stringify(cal)}`);
+  return unwrap(evalInApp(`fmtDate('2027-03-03', ${DMY})`));
+}
+
+test('the calendar pref defaults to gregory and rejects junk', () => withBoot(async ({ evalInApp }) => {
+  assert.strictEqual(evalInApp('readCalendarPref()'), 'gregory');
+  evalInApp("localStorage.setItem('garage.calendar', 'julian')");
+  assert.strictEqual(evalInApp('readCalendarPref()'), 'gregory');
+  evalInApp("localStorage.setItem('garage.calendar', 'islamic')");
+  assert.strictEqual(evalInApp('readCalendarPref()'), 'islamic');
+  evalInApp("localStorage.removeItem('garage.calendar')");
+}));
+
+test('Hijri resolves to a real islamic calendar, never silently to gregory', () => withBoot(async ({ evalInApp }) => {
+  /* An unsupported calendar key resolves back to 'gregory' rather than
+     throwing, which would render "Hijri" dates that are quietly Gregorian. */
+  const resolved = evalInApp('hijriCalendar()');
+  assert.match(resolved, /^islamic/, `hijriCalendar() picked ${JSON.stringify(resolved)}`);
+}));
+
+test('Hijri renders a Hijri year with its era marker', () => withBoot(async ({ evalInApp }) => {
+  const out = arWith(evalInApp, 'islamic');
+  assert.match(out, /1448/, `expected a Hijri year in ${JSON.stringify(out)}`);
+  assert.doesNotMatch(out, /2027/, `Gregorian year leaked into Hijri output: ${JSON.stringify(out)}`);
+  assert.match(out, /هـ/, `Hijri date is not self-identifying: ${JSON.stringify(out)}`);
+}));
+
+test('a day/month-only Hijri date gets no stray era marker', () => withBoot(async ({ evalInApp }) => {
+  evalInApp("lang = 'ar'"); evalInApp("calendar = 'islamic'");
+  const out = unwrap(evalInApp(`fmtDate('2027-03-03', { day: 'numeric', month: 'short' })`));
+  assert.doesNotMatch(out, /هـ/, `era marker with no year to qualify: ${JSON.stringify(out)}`);
+}));
+
+test('Both shows Gregorian first, then Hijri', () => withBoot(async ({ evalInApp }) => {
+  const both = arWith(evalInApp, 'both');
+  assert.match(both, /2027/);
+  assert.match(both, /1448/);
+  assert.ok(both.indexOf('2027') < both.indexOf('1448'), `Hijri came first in ${JSON.stringify(both)}`);
+  assert.match(both, / · /);
+}));
+
+test('every Arabic calendar mode isolates its dates for bidi', () => withBoot(async ({ evalInApp }) => {
+  for (const cal of ['gregory', 'islamic', 'both']) {
+    evalInApp("lang = 'ar'"); evalInApp(`calendar = ${JSON.stringify(cal)}`);
+    const raw = evalInApp(`fmtDate('2027-03-03', ${DMY})`);
+    assert.match(raw, /⁨.*⁩/, `${cal}: no bidi isolation`);
+  }
+  /* Both is two separate dates joined by a separator — each needs its own
+     isolate, or the digits either side of the "·" reorder against each other. */
+  evalInApp("calendar = 'both'");
+  const both = evalInApp(`fmtDate('2027-03-03', ${DMY})`);
+  assert.strictEqual((both.match(/⁨/g) || []).length, 2, `both: ${JSON.stringify(both)}`);
+}));
+
+test('English ignores the calendar pref entirely', () => withBoot(async ({ evalInApp }) => {
+  evalInApp("lang = 'en'");
+  const plain = evalInApp(`fmtDate('2027-03-03', ${DMY})`);
+  for (const cal of ['islamic', 'both']) {
+    evalInApp(`calendar = ${JSON.stringify(cal)}`);
+    assert.strictEqual(evalInApp(`fmtDate('2027-03-03', ${DMY})`), plain,
+      `calendar=${cal} changed English output`);
+  }
+  /* No isolates in English either — nothing there is bidirectional. */
+  assert.doesNotMatch(plain, /[⁦-⁩]/);
+}));
+
+test('no Arabic-Indic digits in any calendar mode', () => withBoot(async ({ evalInApp }) => {
+  for (const cal of ['gregory', 'islamic', 'both']) {
+    const out = arWith(evalInApp, cal);
+    assert.doesNotMatch(out, /[٠-٩۰-۹]/, `${cal}: ${JSON.stringify(out)}`);
+  }
+}));
+
+test('no English month names in Arabic, in any calendar mode', () => withBoot(async ({ evalInApp }) => {
+  for (const cal of ['gregory', 'islamic', 'both']) {
+    const out = arWith(evalInApp, cal);
+    assert.doesNotMatch(out, /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/, `${cal}: ${JSON.stringify(out)}`);
+  }
+}));
+
+/* ---------- the settings control ---------- */
+
+const calGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Calendar"]');
+const langGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Language"]');
+const rowOf = group => group.previousSibling.parentNode;   // the wrapper holding label + seg
+
+test('the calendar control is hidden in English and shown in Arabic', () => withBoot(async ({ document, api, evalInApp }) => {
+  api.openSettings();
+  assert.ok(calGroup(document), 'the calendar control is absent from the dialog entirely');
+  assert.strictEqual(rowOf(calGroup(document)).hidden, true, 'calendar control visible in an English UI');
+  api.closeModal();
+
+  evalInApp("lang = 'ar'");
+  api.openSettings();
+  assert.strictEqual(rowOf(calGroup(document)).hidden, false, 'calendar control hidden in an Arabic UI');
+}));
+
+/* The language switch is deferred to Save, so the segment is the only signal
+   of intent while the dialog is open. Gating on the applied `lang` would leave
+   the row missing right after tapping العربية. */
+test('tapping العربية reveals the calendar control without a Save', () => withBoot(async ({ document, api }) => {
+  api.openSettings();
+  const row = rowOf(calGroup(document));
+  assert.strictEqual(row.hidden, true);
+
+  Array.from(langGroup(document).children).find(b => b.getAttribute('aria-checked') === 'false').onclick();
+  assert.strictEqual(row.hidden, false, 'calendar control did not appear when Arabic was picked');
+
+  Array.from(langGroup(document).children).find(b => /English/.test(b.textContent)).onclick();
+  assert.strictEqual(row.hidden, true, 'calendar control did not disappear when English was picked back');
+}));
+
+test('picking a calendar applies and persists on tap, with no Save', () => withBoot(async ({ document, api, evalInApp }) => {
+  evalInApp("lang = 'ar'");
+  api.openSettings();
+  const hijri = Array.from(calGroup(document).children)[1];
+  hijri.onclick();
+
+  assert.strictEqual(evalInApp('calendar'), 'islamic', 'the tap did not apply');
+  assert.strictEqual(evalInApp("localStorage.getItem('garage.calendar')"), 'islamic', 'the tap did not persist');
+  assert.strictEqual(hijri.getAttribute('aria-checked'), 'true');
+  evalInApp("localStorage.removeItem('garage.calendar')");
+}));
+
+test('both segments are announced as one control with a live selection', () => withBoot(async ({ document, api, evalInApp }) => {
+  evalInApp("lang = 'ar'");
+  api.openSettings();
+  for (const group of [langGroup(document), calGroup(document)]) {
+    const buttons = Array.from(group.children);
+    assert.ok(buttons.length >= 2, 'a segment with nothing to choose between');
+    assert.ok(buttons.every(b => b.getAttribute('role') === 'radio'), 'a segment button is not a radio');
+    /* Exactly one selected — `.on` is a class, and a class says nothing to
+       assistive tech, so aria-checked is what actually reports the state. */
+    assert.strictEqual(buttons.filter(b => b.getAttribute('aria-checked') === 'true').length, 1,
+      `${group.getAttribute('aria-label')}: selection is not exactly one`);
+    const other = buttons.find(b => b.getAttribute('aria-checked') === 'false');
+    other.onclick();
+    assert.strictEqual(other.getAttribute('aria-checked'), 'true', 'aria-checked did not follow the tap');
+    assert.strictEqual(buttons.filter(b => b.getAttribute('aria-checked') === 'true').length, 1,
+      'two options reported as selected at once');
+  }
+  evalInApp("localStorage.removeItem('garage.calendar')");
+}));
+
+test('applyCalendar persists, and an invalid value lands on gregory', () => withBoot(async ({ evalInApp }) => {
+  evalInApp("applyCalendar('islamic')");
+  assert.strictEqual(evalInApp('calendar'), 'islamic');
+  assert.strictEqual(evalInApp("localStorage.getItem('garage.calendar')"), 'islamic');
+  evalInApp("applyCalendar('julian')");
+  assert.strictEqual(evalInApp('calendar'), 'gregory');
+  evalInApp("localStorage.removeItem('garage.calendar')");
+}));

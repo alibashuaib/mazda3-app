@@ -41,9 +41,70 @@ function toLocalDate(d) {
    helpers.js's fmt(), and a date in Arabic-Indic digits beside a distance in
    Latin ones reads as two different number systems in one line. */
 const AR_LOCALE = 'ar-u-ca-gregory-nu-latn';
+
+/* Calendar system, Arabic only — English is always Gregorian. A global lexical
+   `let` hydrated at boot, exactly like `lang` above, so the render path reads a
+   variable instead of hitting localStorage once per date on a long list. */
+let calendar = 'gregory';
+const CALENDARS = ['gregory', 'islamic', 'both'];
+/* Anything unrecognised — absent, corrupt, or from a future version — reads as
+   'gregory'. No migration: the absent case and the default are the same value. */
+function readCalendarPref() {
+  try {
+    const v = localStorage.getItem('garage.calendar');
+    return CALENDARS.indexOf(v) >= 0 ? v : 'gregory';
+  } catch (e) { return 'gregory'; }
+}
+function applyCalendar(c) {
+  calendar = CALENDARS.indexOf(c) >= 0 ? c : 'gregory';
+  try { localStorage.setItem('garage.calendar', calendar); } catch (e) {}
+  go(current);            // dates live in the view; the topbar carries none
+}
+
+/* Umm al-Qura is Saudi Arabia's civil calendar and the right default for this
+   app's users, but not every ICU build ships it — an unsupported calendar key
+   silently resolves back to 'gregory', which would render "Hijri" dates that
+   are quietly Gregorian. Probe once and cache: this runs on every date. */
+let hijriCal = null;
+function hijriCalendar() {
+  if (hijriCal) return hijriCal;
+  for (const c of ['islamic-umalqura', 'islamic', 'islamic-civil']) {
+    try {
+      if (Intl.DateTimeFormat('ar-u-ca-' + c).resolvedOptions().calendar.indexOf('islamic') === 0) {
+        return (hijriCal = c);
+      }
+    } catch (e) {}
+  }
+  return (hijriCal = 'islamic');
+}
+
+/* Unicode bidi isolation — the text-level equivalent of <bdi>. It survives the
+   html`` escaping every call site goes through, which markup would not: a
+   literal <bdi> would arrive on screen as visible tag text, and reaching for
+   raw() to avoid that would widen the escaping guard test's blast radius for
+   a purely typographic concern. Without isolation the Latin digits at the
+   seam of "3 مارس 2027 · 24 رمضان 1448 هـ" reorder against each other. */
+const FSI = '⁨', PDI = '⁩';
+function isolate(s) { return FSI + s + PDI; }
+
+function fmtHijri(date, opts) {
+  /* ICU appends the era marker ("هـ") whenever a year is shown, which is what
+     makes a Hijri date self-identifying next to a Gregorian one. Asking for it
+     explicitly guarantees it on builds that would otherwise drop it — but only
+     alongside a year, since a bare day/month has no year to disambiguate and
+     would just collect a stray marker. */
+  const o = opts && opts.year ? Object.assign({}, opts, { era: 'short' }) : opts;
+  return date.toLocaleDateString('ar-u-ca-' + hijriCalendar() + '-nu-latn', o);
+}
+
 function fmtDate(d, opts) {
   const date = toLocalDate(d);
-  return date.toLocaleDateString(lang === 'ar' ? AR_LOCALE : 'en', opts);
+  if (lang !== 'ar') return date.toLocaleDateString('en', opts);
+  const greg = () => isolate(date.toLocaleDateString(AR_LOCALE, opts));
+  const hijri = () => isolate(fmtHijri(date, opts));
+  if (calendar === 'islamic') return hijri();
+  if (calendar === 'both') return greg() + ' · ' + hijri();
+  return greg();
 }
 
 const NAV_KEYS = { dashboard: 'Dashboard', maintenance: 'Maintenance', parts: 'Parts', fuel: 'Fuel', budget: 'Budget', reports: 'Reports' };
