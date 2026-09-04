@@ -362,15 +362,13 @@ function openGarage() {
       list.appendChild(it);
     });
     card.appendChild(list);
-    // Previously the only way to reach the active car's settings from here
-    // was clicking its row — easy to miss since every other row's click
-    // switches vehicle instead. An explicit button removes that ambiguity.
-    const settings = el('button', 'btn ghost block', html`${t('Settings')}`);
-    settings.style.marginTop = '14px';
-    settings.onclick = () => { closeModal(); openSettings(); };
-    card.appendChild(settings);
+    /* No Settings button here. It existed because clicking the active row was
+       the only way through to settings and was easy to miss — but settings is
+       a top-level item in the account menu now, so a second entry point inside
+       a dialog about vehicles is one more thing to read past. Clicking the
+       active row still opens it. */
     const add = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add a vehicle')}`);
-    add.style.marginTop = '10px';
+    add.style.marginTop = '14px';
     add.onclick = () => addVehicle();
     card.appendChild(add);
   });
