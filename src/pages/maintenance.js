@@ -78,10 +78,7 @@ function buildPlan(v) {
   const shown = withinHorizon(all, cutoff, 3);
 
   const wrap = el('div', 'plan-list');
-  let lastYear = null;
   shown.forEach((ms, idx) => {
-    const yr = ms.date.getFullYear();
-    if (yr !== lastYear) { wrap.appendChild(el('div', 'plan-year', html`${String(yr)}`)); lastYear = yr; }
     const isNext = idx === 0;
     const card = el('div', 'card plan-ms' + (ms.major ? ' major' : '') + (isNext ? ' next' : ''));
     card.innerHTML = html`
