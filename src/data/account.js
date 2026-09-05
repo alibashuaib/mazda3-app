@@ -196,6 +196,19 @@
     return enqueue({ kind: 'vehicle', vehicleId: id, data: stripPhotos(data) });
   }
 
+  /* Without this, switching/adding/removing the active vehicle only ever
+     updates the LOCAL garage.activeId (session.switchVehicle, or the direct
+     session.setVehicles() calls in main.js's addVehicle/deleteVehicle) — the
+     server's garage.active_id row is only ever written from uploadAll()'s
+     own pushGarage() call. The next boot's pull()/adopt() then hands back
+     that stale active_id and overwrites the local switch, so the app opens
+     back on whichever vehicle was active when the account first synced,
+     regardless of what the user picked since. enqueueGarage() no-ops when
+     signed out and never rejects, same as enqueueVehicle(). */
+  function enqueueGarage(activeId) {
+    return enqueue({ kind: 'garage', activeId });
+  }
+
   /* A pending 'vehicle' push for THIS id is moot once a tombstone is queued
      for it — Phase 4a's old pushTombstone had the equivalent guard
      (clearDirty(id), "a pending data push for a deleted vehicle is moot")
@@ -246,7 +259,7 @@
      delete of the same vehicle cannot resurrect it; a photo's own deletion
      from Storage drains after that, once the row that referenced it is
      already gone server-side. */
-  const KIND_ORDER = { photo: 0, vehicle: 1, tombstone: 2, 'photo-delete': 3 };
+  const KIND_ORDER = { photo: 0, vehicle: 1, garage: 1, tombstone: 2, 'photo-delete': 3 };
 
   function drainOne(entry) {
     if (entry.kind === 'photo') {
@@ -259,6 +272,7 @@
       return deletePhotoRemote(entry.photoId).then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
     }
     const run = entry.kind === 'tombstone' ? pushTombstoneRow(entry.vehicleId)
+      : entry.kind === 'garage' ? pushGarage(entry.activeId)
       : pushVehicle(entry.vehicleId, entry.data);
     return run.then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
   }
@@ -667,7 +681,7 @@
   return {
     configure, reset, available, user, setUserForTest,
     stripPhotos, pushVehicle, pushGarage,
-    enqueueVehicle, enqueueTombstone, enqueuePhoto, drain, outboxSize,
+    enqueueVehicle, enqueueGarage, enqueueTombstone, enqueuePhoto, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
     signIn, signOut, expire, start, sync,
     SUPABASE_URL, SUPABASE_ANON_KEY

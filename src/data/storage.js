@@ -304,6 +304,32 @@
   const OUTBOX_KEY = 'garage.sync.outbox';   // localStorage-backend fallback, JSON array
   const META_KEY = 'meta';
   const META_LS_KEY = 'garage.sync.meta';   // localStorage-backend meta, since that backend has no `meta` store
+  /* A quick, always-synchronous record of which vehicle is active, written
+     the instant switchVehicle()/setVehicles() changes it — independent of
+     the full (async) saveVehicle() write below, which splits photos and
+     writes the whole vehicle record on both backends. A refresh fired right
+     after a switch, before that write lands, otherwise reverts to whichever
+     vehicle was active before the switch, because loadAll() has nothing
+     fresher to read yet. localStorage.setItem() cannot be outrun by a
+     refresh the way an IndexedDB transaction or even a localStorage
+     read-modify-write of the whole garage blob can, so this key is what
+     loadAll() below actually trusts for activeId — see getQuickActiveId(). */
+  const QUICK_ACTIVE_KEY = 'garage.activeId';
+  function setQuickActiveId(id) {
+    try { localStorage.setItem(QUICK_ACTIVE_KEY, id); } catch (e) {}
+  }
+  function getQuickActiveId() {
+    try { return localStorage.getItem(QUICK_ACTIVE_KEY); } catch (e) { return null; }
+  }
+  /* Sign-out must not leave this pointing at the outgoing user's vehicle id —
+     applyQuickActiveId()'s existence check happens to make that harmless in
+     practice (ids are uid()s, so a collision with the next signed-in user's
+     own vehicles is exceedingly unlikely), but leaving stale data lying
+     around instead of clearing it is exactly the kind of thing that turns
+     into a bug once anything else about vehicle ids changes. */
+  function clearQuickActiveId() {
+    try { localStorage.removeItem(QUICK_ACTIVE_KEY); } catch (e) {}
+  }
 
   /* Before the garage existed the app stored ONE car's data object directly
      under the v1 key. A user who has not opened the app since then still has
@@ -458,7 +484,24 @@
      backend, a first run with no data migrates the localStorage garage in
      place — non-destructively; the old key is never deleted, so a user who
      opens index.html from disk afterwards still finds their data. */
+  /* Whichever activeId the backend itself produced can lag a switch that
+     hasn't finished its full (async) write yet — see QUICK_ACTIVE_KEY's own
+     comment. The quick key is only trusted when it names a vehicle actually
+     present in what was just loaded — a vehicle removed (on this device or,
+     for a signed-in garage, another one) since the switch must not resurrect
+     it as active just because a stale key still points at it. */
+  function applyQuickActiveId(result) {
+    if (!result || !result.garage || !result.garage.vehicles || !result.garage.vehicles.length) return result;
+    const quick = getQuickActiveId();
+    if (quick && result.garage.vehicles.some(v => v.id === quick)) result.garage.activeId = quick;
+    return result;
+  }
+
   function loadAll() {
+    return loadAllRaw().then(applyQuickActiveId);
+  }
+
+  function loadAllRaw() {
     if (backend.kind === 'local') {
       const garage = lsRead();
       // Match the IDB backend's shape() — an absent activeId defaults to the
@@ -495,7 +538,7 @@
         const legacy = lsRead();
         const plan = migrationPlan(m, legacy);
         if (plan === 'migrate') {
-          return migrateFromLocal(legacy).then(() => loadAll())
+          return migrateFromLocal(legacy).then(() => loadAllRaw())
             .catch(() => { closePrevious(); backend = { kind: 'local' }; return { garage: lsRead(), photos: {} }; });
         }
         // Nothing to migrate, but close the door behind us — see migrationPlan.
@@ -761,6 +804,7 @@
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
     parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind,
-    outboxAdd, outboxAll, outboxRemove, metaGet, metaSet, getPhotoBlob, putPhotoBlob
+    outboxAdd, outboxAll, outboxRemove, metaGet, metaSet, getPhotoBlob, putPhotoBlob,
+    setQuickActiveId, getQuickActiveId, clearQuickActiveId
   };
 });

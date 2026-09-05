@@ -461,13 +461,23 @@ function applyAccent() {
     s.removeProperty('--accent-soft');
     s.removeProperty('--accent-2');
     s.removeProperty('--accent-glow');
+    // No vehicle to remember either — leaving a stale cache here is what a
+    // future sign-in's first frame would flash before its own applyAccent()
+    // call replaces it.
+    try { localStorage.removeItem('garage.accent'); } catch (e) {}
     return;
   }
   const theme = currentTheme();
   const [acc, soft] = accentForColor(session.current().car && session.current().car.color, theme);
   const [r, g, b] = hexToRgb(acc);
+  const accent2 = darkenHex(acc, 0.72);
+  const glow = `rgba(${r}, ${g}, ${b}, .35)`;
   s.setProperty('--accent', acc);
   s.setProperty('--accent-soft', soft);
-  s.setProperty('--accent-2', darkenHex(acc, 0.72));
-  s.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, .35)`);
+  s.setProperty('--accent-2', accent2);
+  s.setProperty('--accent-glow', glow);
+  // Cached so index.html's inline boot script can paint this on the very
+  // first frame, before session.load() resolves — see its own comment for
+  // why that gap otherwise always shows styles.css's hardcoded red default.
+  try { localStorage.setItem('garage.accent', JSON.stringify({ accent: acc, soft, accent2, glow })); } catch (e) {}
 }

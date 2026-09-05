@@ -712,6 +712,20 @@ test('signing out removes the inline accent override, not just the previous car\
       assert.strictEqual(document.documentElement.style.getPropertyValue(prop), '',
         `${prop} must be removed, not merely left at its old value, once there is no vehicle to accent from`);
     });
+    assert.strictEqual(app.evalInApp("localStorage.getItem('garage.accent')"), null,
+      'signing out must drop the cached accent too, or index.html\'s pre-paint script would flash the old car\'s colour on the next load');
+  } finally { app.cleanup(); }
+});
+
+test('applyAccent() caches the accent to localStorage, for index.html\'s pre-paint script to read before session.load() resolves', async () => {
+  const app = await bootApp({ protocol: 'https:' });
+  try {
+    const { document, evalInApp } = app;
+    const live = document.documentElement.style.getPropertyValue('--accent');
+    const cached = JSON.parse(evalInApp("localStorage.getItem('garage.accent')"));
+    assert.strictEqual(cached.accent, live,
+      'the cached accent must match what applyAccent() actually painted, or the pre-paint script would flash a stale colour');
+    ['soft', 'accent2', 'glow'].forEach(k => assert.ok(cached[k], `cached accent is missing ${k}`));
   } finally { app.cleanup(); }
 });
 
@@ -753,12 +767,16 @@ test('adding a vehicle while signed in queues it, and draining pushes it to the 
 
     const added = api.session.garage().vehicles.map(v => v.id).filter(id => before.indexOf(id) < 0);
     assert.strictEqual(added.length, 1, 'precondition: the dialog added exactly one vehicle');
-    assert.strictEqual(await api.account.outboxSize(), 1,
-      'the new vehicle was never queued — the next boot\'s adopt() would delete it as stale');
+    // Two entries: the vehicle itself, and the garage's new activeId — the
+    // new vehicle becomes active on add, and that never reaches
+    // session.save()'s afterSave hook either, so it needs its own enqueue.
+    assert.strictEqual(await api.account.outboxSize(), 2,
+      'the new vehicle and its activeId were never both queued — the next boot\'s adopt() would delete the vehicle as stale, or switch back to the old active one');
 
     await api.account.drain();
 
     assert.ok(upserts.vehicles.some(r => r.id === added[0]), 'draining the outbox must push the queued vehicle');
+    assert.ok(upserts.garage.some(r => r.active_id === added[0]), 'draining the outbox must push the new activeId');
   } finally { app.cleanup(); }
 });
 

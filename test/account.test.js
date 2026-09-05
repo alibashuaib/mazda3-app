@@ -165,6 +165,49 @@ test('enqueueVehicle is a no-op when signed out', async () => {
   assert.strictEqual(await account.outboxSize(), 0);
 });
 
+test('enqueueGarage adds a garage entry to the outbox', async () => {
+  await freshStorage();
+  signInAs(fullClient({ rows: [] }));
+
+  await account.enqueueGarage('v1');
+
+  assert.strictEqual(await account.outboxSize(), 1);
+});
+
+test('enqueueGarage is a no-op when signed out', async () => {
+  await freshStorage();
+  account.reset();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+
+  await account.enqueueGarage('v1');
+
+  assert.strictEqual(await account.outboxSize(), 0);
+});
+
+test('drain() pushes a queued garage entry and removes it on success', async () => {
+  await freshStorage();
+  const client = fullClient({ rows: [] });
+  signInAs(client);
+  await account.enqueueGarage('v1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.strictEqual(client.calls.garage.length, 1);
+  assert.strictEqual(client.calls.garage[0].active_id, 'v1');
+});
+
+test('drain() leaves a failed garage push queued for the next drain', async () => {
+  await freshStorage();
+  const client = fullClient({ failUpsert: true });
+  signInAs(client);
+  await account.enqueueGarage('v1');
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1, 'a failed push must stay in the outbox, not be dropped');
+});
+
 test('drain() pushes a queued vehicle entry and removes it on success', async () => {
   await freshStorage();
   const client = fullClient({ rows: [] });

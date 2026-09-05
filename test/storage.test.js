@@ -626,3 +626,56 @@ test('getPhotoBlob/putPhotoBlob are no-ops on the localStorage backend', async (
   assert.strictEqual(await storage.putPhotoBlob('p1', {}), false);
   assert.strictEqual(await storage.getPhotoBlob('p1'), null);
 });
+
+test('setQuickActiveId/getQuickActiveId/clearQuickActiveId round-trip', () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../src/data/storage.js')];
+  const storage = require('../src/data/storage.js');
+
+  assert.strictEqual(storage.getQuickActiveId(), null, 'nothing written yet');
+  storage.setQuickActiveId('v2');
+  assert.strictEqual(storage.getQuickActiveId(), 'v2');
+  storage.clearQuickActiveId();
+  assert.strictEqual(storage.getQuickActiveId(), null, 'sign-out must not leave the outgoing id behind');
+});
+
+/* The actual bug this pair guards: a switch's quick key must win over
+   whatever activeId a slower save already landed on disk, as long as it
+   still names a vehicle that exists — see QUICK_ACTIVE_KEY's comment in
+   storage.js. */
+test('loadAll trusts the quick active id over a stale stored activeId', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../src/data/storage.js')];
+  const storage = require('../src/data/storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  await storage.saveVehicle('v1', sampleData(), 'v1', makeIdFactory());
+  await storage.saveVehicle('v2', sampleData(), 'v1', makeIdFactory());   // slower save still landed on v1
+
+  storage.setQuickActiveId('v2');   // switch already happened, refresh fires before that save resolves
+
+  const { garage } = await storage.loadAll();
+  assert.strictEqual(garage.activeId, 'v2', 'quick key must win over the stale on-disk activeId');
+});
+
+test('loadAll ignores a quick active id naming a vehicle that no longer exists', async () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../src/data/storage.js')];
+  const storage = require('../src/data/storage.js');
+  await storage.openStorage({ protocol: 'http:', hasIndexedDb: false });
+
+  await storage.saveVehicle('v1', sampleData(), 'v1', makeIdFactory());
+  storage.setQuickActiveId('removed');   // a stale key from a vehicle deleted since
+
+  const { garage } = await storage.loadAll();
+  assert.strictEqual(garage.activeId, 'v1', 'a quick key naming no real vehicle must not resurrect it');
+});

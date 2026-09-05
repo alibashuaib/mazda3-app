@@ -218,3 +218,31 @@ test('afterSave does not fire for a save whose generation is stale', async () =>
   assert.strictEqual(await pending, false);
   assert.deepStrictEqual(calls, [], 'a stale write must have no side effects at all');
 });
+
+/* Fix 3: session must write the always-synchronous quick-active-id key (in
+   storage.js) on every path that changes the active vehicle, and clear it on
+   sign-out — see setQuickActiveId()'s comment there for the refresh race
+   this guards against. session.js's `dep` is bound to the real storage.js at
+   require time, so this exercises the actual pair rather than a stub. */
+test('setVehicles/switchVehicle/clear drive the real quick active id', () => {
+  global.localStorage = (() => {
+    const m = new Map();
+    return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i] ?? null, get length() { return m.size; } };
+  })();
+  delete require.cache[require.resolve('../src/data/storage.js')];
+  delete require.cache[require.resolve('../src/data/session.js')];
+  const storage = require('../src/data/storage.js');
+  const freshSession = require('../src/data/session.js');
+
+  freshSession.clear();
+  assert.strictEqual(storage.getQuickActiveId(), null, 'sign-out must clear any prior key');
+
+  freshSession.setVehicles([vehicle('a', 'Red'), vehicle('b', 'Blue')], 'b');
+  assert.strictEqual(storage.getQuickActiveId(), 'b');
+
+  freshSession.switchVehicle('a');
+  assert.strictEqual(storage.getQuickActiveId(), 'a');
+
+  freshSession.clear();
+  assert.strictEqual(storage.getQuickActiveId(), null);
+});
