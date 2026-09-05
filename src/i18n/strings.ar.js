@@ -173,12 +173,14 @@ const AR = {
   // service detail
   'Distance left': 'المسافة المتبقية', 'Parts for this service': 'قطع هذه الخدمة',
   // garage / vehicle names
-  'Vehicle': 'مركبة', 'My car': 'سيارتي', 'Select colour': 'اختر اللون',
+  'Vehicle': 'مركبة', 'My car': 'سيارتي', 'Select colour': 'اختر اللون', 'Car colour': 'لون السيارة', 'Change car colour': 'تغيير لون السيارة', 'Colour updated': 'تم تحديث اللون',
   // modal subs
   'Record a refuel to track economy & cost.': 'سجّل التعبئة لتتبع الاستهلاك والتكلفة.',
   'Track renewals so you never miss an expiry.': 'تابع التجديدات حتى لا يفوتك أي انتهاء.',
   'Keep this current so due dates stay accurate.': 'حدّثه باستمرار لتبقى مواعيد الاستحقاق دقيقة.',
   'These details personalise the app and its badge.': 'هذه التفاصيل تخصص التطبيق وشعاره.',
+  'App preferences, your account, and this car’s details.': 'تفضيلات التطبيق، حسابك، وتفاصيل هذه السيارة.',
+  'Pick this car’s paint — the app’s accent follows it.': 'اختر طلاء هذه السيارة — يتبعه لون التطبيق.',
   'Your target spend on the car for the year.': 'هدف إنفاقك على السيارة خلال العام.',
   'Record work already done on your car.': 'سجّل عملاً تم إنجازه على سيارتك.',
   'Set the interval and last service point.': 'حدد الفترة وآخر نقطة صيانة.',

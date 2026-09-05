@@ -152,7 +152,8 @@ function renderDashboard() {
   if (pop && pop.shadow) carCard.style.setProperty('--pop-shadow', pop.shadow);
   if (pop && pop.glow) carCard.style.setProperty('--pop-glow', pop.glow);
   carCard.dataset.vehicleShape = modelId === 'mazda2' ? 'hatch' : /^cx/.test(modelId) ? 'suv' : 'sedan';
-  carCard.title = t('Edit car profile');
+  carCard.title = t('Change car colour');
+  carCard.onclick = openCarColor;
   carCard.innerHTML = html`
     <span class="studio-orbit" aria-hidden="true"></span>
     ${carImage ? html`<img class="studio-car" src="${carImage}" alt="${carName} — ${paintName}">` : ''}`;

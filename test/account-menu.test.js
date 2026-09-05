@@ -85,7 +85,7 @@ test('the current vehicle is named, but is not a menu item', () => withBoot(asyn
 }));
 
 test('Switch vehicle and Settings open their existing dialogs and close the menu', () => withBoot(async ({ document, api }) => {
-  for (const [re, dialogTitle] of [[/Switch vehicle/, /Your garage|مرآبك|المرآب/], [/Settings/, /Car profile|ملف السيارة/]]) {
+  for (const [re, dialogTitle] of [[/Switch vehicle/, /Your garage|مرآبك|المرآب/], [/Settings/, /Settings|الإعدادات/]]) {
     api.toggleAccountMenu();
     byLabel(document, re).onclick();
     assert.strictEqual(menu(document).hidden, true, `${re} left the menu open`);

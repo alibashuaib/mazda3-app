@@ -346,6 +346,52 @@ function go(route, intent) {
 }
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.route)));
 
+/* Clicking the car on the dashboard. The card has carried cursor:pointer, an
+   :active nudge and an "Edit car profile" tooltip since it was built, but never
+   a handler — the affordance was there and the action was not. Paint is the one
+   thing about a car worth putting a tap away (it drives the app's whole accent),
+   so this is a focused picker rather than the full Settings dialog.
+
+   Applies on click and closes: a colour list where every row is a preview of
+   itself has nothing left for a Save button to confirm. */
+function openCarColor() {
+  if (!session.booted()) return;
+  const c = session.current().car;
+  const meta = CAR_MODELS.find(m => m.id === c.modelId);
+  // Same source as Settings' own colour field: the paints that generation was
+  // actually sold in, not a free-text colour.
+  const opts = meta ? meta.colors.slice() : [c.color || DEFAULT_COLOR];
+  const theme = currentTheme();
+  const sel = opts.find(x => normalizeColorName(x) === normalizeColorName(c.color)) || opts[0];
+
+  openModal(t('Car colour'), t('Pick this car’s paint — the app’s accent follows it.'), card => {
+    const list = el('div', 'color-list');
+    list.setAttribute('role', 'radiogroup');
+    list.setAttribute('aria-label', t('Car colour'));
+    opts.forEach(name => {
+      const opt = el('button', 'color-opt' + (name === sel ? ' sel' : ''),
+        html`<span class="sw" style="${swatchStyle(name, theme)}"></span><span>${name}</span>`);
+      opt.type = 'button';
+      opt.setAttribute('role', 'radio');
+      opt.setAttribute('aria-checked', String(name === sel));
+      /* onAsyncClick, like every other write in this file: the save is awaited,
+         and a second tap while it is in flight would otherwise queue a second
+         write of a different colour. */
+      onAsyncClick(opt, async () => {
+        if (name === sel) { closeModal(); return; }
+        session.current().car.color = name;
+        let ok = false;
+        try { ok = await save(); } catch (e) {}
+        // Accent, badge and the studio render all derive from the paint.
+        applyAccent(); renderTopbar(); closeModal(); go(current);
+        if (ok) toast('Colour updated');
+      });
+      list.appendChild(opt);
+    });
+    card.appendChild(list);
+  });
+}
+
 function openGarage() {
   if (!session.booted()) return;
   openModal(t('Your garage'), t('Switch between your vehicles or add another.'), card => {
@@ -487,7 +533,10 @@ function openAccount() {
 
 function openSettings() {
   if (!session.booted()) return;
-  openModal(t('Car profile'), t('These details personalise the app and its badge.'), card => {
+  /* "Settings", not "Car profile": this dialog stopped being only about the
+     car once language, calendar, account and backup moved into it. The car's
+     own fields are still here, below those. */
+  openModal(t('Settings'), t('App preferences, your account, and this car’s details.'), card => {
     const c = session.current().car;
     // language switch
     card.appendChild(field('Language / اللغة', ''));
