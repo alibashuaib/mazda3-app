@@ -46,28 +46,6 @@ test('accentForColor: every verified Mazda paint\'s soft colour is >=4.5:1 again
   assert.deepStrictEqual(failures, [], `paints failing WCAG AA (4.5:1):\n${failures.join('\n')}`);
 });
 
-test('paintFilterClass: bucket boundaries', () => {
-  // l > 0.82 -> white
-  assert.strictEqual(color.paintFilterClass('#f5f5f5'), 'paint-white');
-  // l < 0.15 -> black
-  assert.strictEqual(color.paintFilterClass('#0a0a0a'), 'paint-black');
-  // low saturation, l > 0.55 -> silver; l <= 0.55 -> gray
-  assert.strictEqual(color.paintFilterClass('#b0b2b5'), 'paint-silver');
-  assert.strictEqual(color.paintFilterClass('#4a4b4d'), 'paint-gray');
-  // hue < 15 or >= 350 -> red
-  assert.strictEqual(color.paintFilterClass('#d6203c'), 'paint-red');
-  assert.strictEqual(color.paintFilterClass('#d61030'), 'paint-red');
-  // hue < 55: saturated -> copper, muted -> titanium
-  assert.strictEqual(color.paintFilterClass('#b0702c'), 'paint-copper');
-  assert.strictEqual(color.paintFilterClass('#8a7a5c'), 'paint-titanium');
-  // hue < 170 -> green
-  assert.strictEqual(color.paintFilterClass('#1f9d6b'), 'paint-green');
-  // hue < 265 -> blue
-  assert.strictEqual(color.paintFilterClass('#2f6df0'), 'paint-blue');
-  // hue >= 265 (violet/magenta) falls through to gray
-  assert.strictEqual(color.paintFilterClass('#8a2fd0'), 'paint-gray');
-});
-
 test('realPaintHex: matches a normalized name, stripping a "(code ...)" suffix, on either side', () => {
   const [fullName, hex] = Object.entries(MAZDA_PAINTS).find(([n]) => /\(code/i.test(n));
   const legacy = fullName.replace(/\s*\(code[^)]*\)\s*$/i, '');

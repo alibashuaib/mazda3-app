@@ -314,7 +314,7 @@ function renderOnboarding() {
   const card = el('div', 'card');
   card.style.cssText = 'text-align:center;padding:40px 24px;margin-top:10vh';
   card.innerHTML = html`
-    <div style="font-size:40px;margin-bottom:12px">🚗</div>
+    <div style="width:40px;height:40px;margin:0 auto 12px;color:var(--text-2)">${raw(BRAND_MARK)}</div>
     <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">${t('Add your first vehicle')}</h2>
     <p class="muted" style="margin-bottom:20px">${t('Pick your Mazda and its engine — its SkyActiv service plan is set up for you.')}</p>`;
   const btn = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add a vehicle')}`);
@@ -406,7 +406,7 @@ function openGarage() {
       const active = v.id === session.garage().activeId;
       const it = el('div', 'item');
       it.innerHTML = html`
-        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : '🚗'}</div>
+        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : html`<span style="display:inline-flex;width:60%;height:60%;color:var(--text-3)">${raw(BRAND_MARK)}</span>`}</div>
         <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
         <div class="item-side">${active ? html`<span class="pill ok">${t('Active')}</span>` : html`<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
       it.onclick = () => { if (active) { closeModal(); openSettings(); } else chooseVehicle(v.id); };

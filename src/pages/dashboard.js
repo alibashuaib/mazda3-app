@@ -25,11 +25,11 @@ const GENERIC_MODEL_IMAGE = {
   cx90: 'assets/mazda-cx90.png'
 };
 /* Real per-colour photography, keyed by modelId then by colorSlug(name).
-   This is genuine studio/render art — not the generic photo pushed through
-   a CSS tint. Populate a model's entry as real shots for its colours
-   arrive; any colour left out falls back to GENERIC_MODEL_IMAGE + a
-   paintFilterClass tint (see renderDashboard). Naming convention for new
-   files: assets/<modelId>-<colorSlug>.png. See
+   This is genuine studio/render art. Populate a model's entry as real
+   shots for its colours arrive; any colour left out falls back to
+   GENERIC_MODEL_IMAGE, shown plain — no CSS tint, since a filtered guess
+   at the paint looked worse than just admitting no exact photo exists.
+   Naming convention for new files: assets/<modelId>-<colorSlug>.png. See
    docs/superpowers/plans/2026-08-26-per-colour-car-photos.md for the full
    asset list still needed. */
 const CAR_COLOR_PHOTOS = {
@@ -101,12 +101,6 @@ const CAR_COLOR_PHOTOS = {
 function colorSlug(name) {
   return (name || '').toLowerCase().replace(/\s*\(code[^)]*\)\s*$/, '').trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
-/* True only when real per-colour photography exists for this exact paint —
-   never true for a tinted generic photo. */
-function hasExactColorPhoto(modelId, color) {
-  const byModel = CAR_COLOR_PHOTOS[modelId];
-  return !!(byModel && byModel[colorSlug(color)]);
-}
 function studioCarImage(color, car) {
   const modelId = car && car.modelId;
   const byModel = CAR_COLOR_PHOTOS[modelId];
@@ -135,20 +129,18 @@ function renderDashboard() {
   const carName = session.current().car.nickname || [session.current().car.year, session.current().car.make, session.current().car.model].filter(Boolean).join(' ');
   const paintName = session.current().car.color || 'Meteor Gray';
   const modelId = session.current().car.modelId || 'unknown';
-  // Real per-colour photography (CAR_COLOR_PHOTOS) needs no tint — it's the
-  // actual paint already. Anything else falls back to that model's one
-  // generic photo, tinted from the paint's real verified hex (not the
-  // colour's name text) so every model's colour choice shows up somehow.
+  // Real per-colour photography (CAR_COLOR_PHOTOS) is the actual paint
+  // already. Anything else falls back to that model's one generic photo,
+  // shown plain — no CSS tint guessing at a colour it isn't.
   const carImage = studioCarImage(paintName, session.current().car);
   const theme = currentTheme();
   const paintHex = swatchFor(paintName, theme);
-  const paintClass = hasExactColorPhoto(modelId, paintName) ? '' : ' ' + paintFilterClass(paintHex);
   // A near-white car on the light theme (or near-black on dark) would
   // otherwise blend straight into the studio card's own surface gradient —
   // pop it with a heavier ground shadow (light theme) or a light bloom
   // behind it (dark theme), rather than an outline ring.
   const pop = paintPop(paintHex, theme);
-  const carCard = el('div', 'card car-card car-studio' + paintClass + (pop ? ' pop-' + Object.keys(pop)[0] : ''));
+  const carCard = el('div', 'card car-card car-studio' + (pop ? ' pop-' + Object.keys(pop)[0] : ''));
   if (pop && pop.shadow) carCard.style.setProperty('--pop-shadow', pop.shadow);
   if (pop && pop.glow) carCard.style.setProperty('--pop-glow', pop.glow);
   carCard.dataset.vehicleShape = modelId === 'mazda2' ? 'hatch' : /^cx/.test(modelId) ? 'suv' : 'sedan';

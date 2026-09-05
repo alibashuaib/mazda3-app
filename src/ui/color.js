@@ -58,21 +58,6 @@
     if (h < 0) h += 360;
     return { h, s, l };
   }
-  /* Real per-car paint doesn't come with a distinct studio photo for every
-     model — most vehicles ship a single reference image. A CSS filter bucket
-     picked from the actual verified paint hex (not the colour's name text)
-     is how the "same car, different colour" look reaches every model. */
-  function paintFilterClass(hex) {
-    const { h, s, l } = hexToHsl(hex);
-    if (l > 0.82) return 'paint-white';
-    if (l < 0.15) return 'paint-black';
-    if (s < 0.13) return l > 0.55 ? 'paint-silver' : 'paint-gray';
-    if (h < 15 || h >= 350) return 'paint-red';
-    if (h < 55) return s > 0.35 ? 'paint-copper' : 'paint-titanium';
-    if (h < 170) return 'paint-green';
-    if (h < 265) return 'paint-blue';
-    return 'paint-gray';
-  }
   /* Shared normalization for a stored colour name: lowercased, with any
      trailing "(code ...)"/"(Code ...)" paint-code suffix stripped. Used on
      BOTH sides of the realPaintHex lookup below (the stored name and every
@@ -195,7 +180,7 @@
   }
 
   return {
-    hexToRgb, rgbToHex, darkenHex, lightenHex, hexToHsl, paintFilterClass,
+    hexToRgb, rgbToHex, darkenHex, lightenHex, hexToHsl,
     normalizeColorName, realPaintHex, CAR_ACCENTS, currentTheme,
     accentForColor, swatchFor, paintOutline, swatchStyle, paintPop
   };
