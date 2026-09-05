@@ -32,7 +32,7 @@ const AR = {
   'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
   // schedule basis (severe vs dealer)
-  'Jeddah (severe)': 'جدة (مكثّف)', 'Dealer (normal)': 'الوكيل (عادي)', 'dealer': 'الوكيل', 'severe': 'مكثّف',
+  'Community (tighter)': 'المجتمع (أقصر)', 'Dealer (10,000 km)': 'الوكيل (10,000 كم)', 'Dealer': 'الوكيل', 'Community': 'المجتمع',
   'Dealer interval (km)': 'فترة الوكيل (كم)', 'Dealer interval (mo)': 'فترة الوكيل (شهر)', 'same as above': 'كما بالأعلى',
   // community gearbox (ATF) parts + note
   'Community rec.': 'توصية المجتمع',
@@ -50,8 +50,8 @@ const AR = {
   'Update your plan': 'تحديث خطتك', 'Re-answer the setup questions if anything’s changed.': 'أعد الإجابة على أسئلة الإعداد إذا تغيّر أي شيء.',
   'No services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
   'km': 'كم', 'Step': 'خطوة', 'of': 'من', 'Back': 'رجوع', 'Next': 'التالي', 'Finish': 'إنهاء',
-  'Which schedule fits your car?': 'ما الجدول الأنسب لسيارتك؟',
-  'Jeddah heat & dust call for shorter intervals; the dealer sheet is the standard Mazda schedule.': 'حرارة وغبار جدة يتطلبان فترات أقصر؛ جدول الوكيل هو الجدول القياسي لمازدا.',
+  'Do you follow the dealer schedule or the community schedule?': 'هل تتبع جدول الوكيل أم جدول المجتمع؟',
+  'Dealer service follows Mazda’s official sheet — e.g. oil every 10,000 km. Community service is tighter, often recommended for GCC heat & dust.': 'خدمة الوكيل تتبع جدول مازدا الرسمي — مثلاً تغيير الزيت كل 10,000 كم. خدمة المجتمع أقصر، وغالبًا ما يُنصح بها بسبب حرارة وغبار دول الخليج.',
   'Current odometer': 'عداد السيارة الحالي', 'Keeps every due date and estimate accurate.': 'يحافظ على دقة كل تاريخ استحقاق وتقدير.',
   'How much do you drive?': 'كم تقود يومياً؟',
   'Used to turn km into calendar dates, and to adjust the plan to your driving style — a rough average is fine.': 'يُستخدم لتحويل الكيلومترات إلى تواريخ، ولتكييف الخطة مع أسلوب قيادتك — تقدير تقريبي يكفي.',

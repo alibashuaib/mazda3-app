@@ -270,11 +270,11 @@ function openPlanSetup() {
       if (step === 0) {
         body.innerHTML = html`
           <div class="item-ic">📍</div>
-          <h3>${t('Which schedule fits your car?')}</h3>
-          <p>${t('Jeddah heat & dust call for shorter intervals; the dealer sheet is the standard Mazda schedule.')}</p>
+          <h3>${t('Do you follow the dealer schedule or the community schedule?')}</h3>
+          <p>${t('Dealer service follows Mazda’s official sheet — e.g. oil every 10,000 km. Community service is tighter, often recommended for GCC heat & dust.')}</p>
           <div class="wiz-choice">
-            <button class="wiz-opt ${basis === 'severe' ? 'on' : ''}" data-v="severe">${t('Jeddah (severe)')}</button>
-            <button class="wiz-opt ${basis === 'normal' ? 'on' : ''}" data-v="normal">${t('Dealer (normal)')}</button>
+            <button class="wiz-opt ${basis === 'severe' ? 'on' : ''}" data-v="severe">${t('Community (tighter)')}</button>
+            <button class="wiz-opt ${basis === 'normal' ? 'on' : ''}" data-v="normal">${t('Dealer (10,000 km)')}</button>
           </div>`;
         body.querySelectorAll('.wiz-opt').forEach(btn => btn.onclick = () => {
           basis = btn.dataset.v;
@@ -503,7 +503,7 @@ function openServiceDetail(s) {
     const box = el('div');
     box.innerHTML = html`
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
-      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? html` <span class="muted" style="font-size:11px">· ${t(session.current().severity === 'severe' ? 'dealer' : 'severe')} ${fmt(session.current().severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
+      <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? html` <span class="muted" style="font-size:11px">· ${t(session.current().severity === 'severe' ? 'Dealer' : 'Community')} ${fmt(session.current().severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
       <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${fmtDate(s.lastDate, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${fmtDate(st.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
