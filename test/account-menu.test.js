@@ -68,11 +68,22 @@ test('the trigger is a closed menu button until it is opened', () => withBoot(as
   assert.ok(menu(document).getAttribute('aria-label'), 'the menu is unnamed');
 }));
 
-test('every function from the old corner is still reachable', () => withBoot(async ({ document, api }) => {
+test('the remaining corner controls are reachable', () => withBoot(async ({ document, api }) => {
   api.toggleAccountMenu();
   assert.ok(byLabel(document, /Switch vehicle/), 'the vehicle switcher was lost in the move');
   assert.ok(byLabel(document, /Dark mode/), 'the theme toggle was lost in the move');
-  assert.ok(byLabel(document, /Settings/), 'settings was lost in the move');
+  assert.ok(byLabel(document, /العربية/), 'the language switch was not added');
+  assert.ok(byLabel(document, /Export backup/), 'backup export was not added');
+  assert.ok(byLabel(document, /Import backup/), 'backup import was not added');
+}));
+
+test('language switches directly from the menu', () => withBoot(async ({ document, api, evalInApp }) => {
+  api.toggleAccountMenu();
+  byLabel(document, /العربية/).onclick();
+  assert.strictEqual(document.documentElement.getAttribute('lang'), 'ar');
+  assert.strictEqual(document.documentElement.getAttribute('dir'), 'rtl');
+  assert.strictEqual(menu(document).hidden, true, 'language switch left the menu open');
+  assert.strictEqual(evalInApp("localStorage.getItem('garage.lang')"), 'ar');
 }));
 
 test('the current vehicle is named, but is not a menu item', () => withBoot(async ({ document, api }) => {
@@ -84,15 +95,12 @@ test('the current vehicle is named, but is not a menu item', () => withBoot(asyn
   assert.ok(!items(document).includes(head), 'the vehicle label is focusable as a menu item');
 }));
 
-test('Switch vehicle and Settings open their existing dialogs and close the menu', () => withBoot(async ({ document, api }) => {
-  for (const [re, dialogTitle] of [[/Switch vehicle/, /Your garage|مرآبك|المرآب/], [/Settings/, /Settings|الإعدادات/]]) {
-    api.toggleAccountMenu();
-    byLabel(document, re).onclick();
-    assert.strictEqual(menu(document).hidden, true, `${re} left the menu open`);
-    assert.strictEqual(document.querySelector('#modalHost').hidden, false, `${re} opened no dialog`);
-    assert.match(document.querySelector('#modalTitle').textContent, dialogTitle);
-    api.closeModal();
-  }
+test('Switch vehicle opens its dialog and closes the menu', () => withBoot(async ({ document, api }) => {
+  api.toggleAccountMenu();
+  byLabel(document, /Switch vehicle/).onclick();
+  assert.strictEqual(menu(document).hidden, true, 'Switch vehicle left the menu open');
+  assert.strictEqual(document.querySelector('#modalHost').hidden, false, 'Switch vehicle opened no dialog');
+  assert.match(document.querySelector('#modalTitle').textContent, /Your garage|مرآبك|المرآب/);
 }));
 
 /* The one item that must NOT close: a checkbox you cannot see flip is a
@@ -144,7 +152,7 @@ test('Tab closes the menu without pulling focus back, unlike the modal', () => w
 test('arrows and Home/End move focus, and wrap', () => withBoot(async ({ document, api }) => {
   api.toggleAccountMenu();
   const list = items(document);
-  assert.ok(list.length >= 3, 'too few items to test movement');
+  assert.ok(list.length >= 2, 'too few items to test movement');
   const watch = watchFocus(document);
 
   key(document, 'ArrowDown');
@@ -170,13 +178,12 @@ test('the menu is one tab stop — a roving tabindex, not four', () => withBoot(
 /* The button whose glyph the trigger inherits used to hide itself here. The
    trigger cannot: that would take the theme, settings and vehicle switcher
    down with it on a protocol where only sign-in is impossible. */
-test('on file:// the trigger stays, and only the Account item is dropped', () => withBoot({ protocol: 'file:' }, async ({ document, api }) => {
+test('the trigger stays on file:// and account is never exposed', () => withBoot({ protocol: 'file:' }, async ({ document, api }) => {
   assert.strictEqual(trigger(document).hidden, false, 'the whole menu vanished on file://');
   api.toggleAccountMenu();
   assert.strictEqual(byLabel(document, /^Account$/), undefined, 'sign-in offered where it cannot work');
   assert.ok(byLabel(document, /Switch vehicle/), 'the vehicle switcher was lost on file://');
   assert.ok(byLabel(document, /Dark mode/), 'the theme toggle was lost on file://');
-  assert.ok(byLabel(document, /Settings/), 'settings was lost on file://');
 }));
 
 test('the menu is translated, trigger included', () => withBoot(async ({ document, api, evalInApp }) => {

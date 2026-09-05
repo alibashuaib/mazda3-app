@@ -1,4 +1,4 @@
-# Garage — Mazda care app
+# Car Care — Mazda care app
 
 A modern, fully responsive web app to keep any Mazda in top condition — pick your model, generation and engine from the built-in catalog (Mazda 2 through CX-90) and it sets up a matching service plan. Supports multiple vehicles in one garage.
 Pure HTML/CSS/JS — no build step, no dependencies. All data is saved locally in your browser (`localStorage`/IndexedDB) and is fully editable in-app.

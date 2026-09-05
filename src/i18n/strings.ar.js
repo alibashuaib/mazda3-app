@@ -32,7 +32,7 @@ const AR = {
   'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
   // schedule basis (severe vs dealer)
-  'Community (tighter)': 'المجتمع (أقصر)', 'Dealer (10,000 km)': 'الوكيل (10,000 كم)', 'Dealer': 'الوكيل', 'Community': 'المجتمع',
+  'Community (tighter)': 'المجتمع (أقصر)', 'Dealer (10,000 km)': 'الوكيل (10,000 كم)', 'Dealer': 'الوكيل', 'Community': 'المجتمع', 'Severe': 'شديد',
   'Dealer interval (km)': 'فترة الوكيل (كم)', 'Dealer interval (mo)': 'فترة الوكيل (شهر)', 'same as above': 'كما بالأعلى',
   // community gearbox (ATF) parts + note
   'Community rec.': 'توصية المجتمع',
@@ -131,7 +131,7 @@ const AR = {
   'By category': 'حسب الفئة', 'Amount': 'المبلغ', 'Share': 'النسبة', 'All purchases': 'كل المشتريات', 'Item': 'البند', 'Purchases & Spending Report': 'تقرير المشتريات والمصروفات',
   'Health score': 'درجة الحالة', 'Lifetime service cost': 'تكلفة الصيانة الإجمالية', 'Upcoming &amp; overdue services': 'الخدمات القادمة والمتأخرة',
   'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
-  'Garage · Mazda care app': 'Garage · تطبيق العناية بمازدا', 'Report generated': 'صدر التقرير',
+  'Car Care · Mazda care app': 'Car Care · تطبيق العناية بمازدا', 'Report generated': 'صدر التقرير',
   // part names
   'Engine Oil 5W-30': 'زيت محرك 5W-30', 'Oil Filter': 'فلتر الزيت', 'Fuel System Cleaner (additive)': 'منظف نظام الوقود (إضافة)', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
   'Spark Plugs (each)': 'بواجي الإشعال (للحبة)', 'Front Brake Pads': 'فحمات الفرامل الأمامية', 'Rear Brake Pads': 'فحمات الفرامل الخلفية',
@@ -180,7 +180,7 @@ const AR = {
   'Track renewals so you never miss an expiry.': 'تابع التجديدات حتى لا يفوتك أي انتهاء.',
   'Keep this current so due dates stay accurate.': 'حدّثه باستمرار لتبقى مواعيد الاستحقاق دقيقة.',
   'These details personalise the app and its badge.': 'هذه التفاصيل تخصص التطبيق وشعاره.',
-  'App preferences, your account, and this car’s details.': 'تفضيلات التطبيق، حسابك، وتفاصيل هذه السيارة.',
+  'This car’s details.': 'تفاصيل هذه السيارة.',
   'Pick this car’s paint — the app’s accent follows it.': 'اختر طلاء هذه السيارة — يتبعه لون التطبيق.',
   'Your target spend on the car for the year.': 'هدف إنفاقك على السيارة خلال العام.',
   'Record work already done on your car.': 'سجّل عملاً تم إنجازه على سيارتك.',
@@ -375,11 +375,11 @@ const AR = {
   // calendar system (Arabic only — English is always Gregorian)
   'Gregorian': 'ميلادي', 'Hijri': 'هجري', 'Both': 'كلاهما',
   // account menu (the topbar's inline-end corner)
-  'My account': 'حسابي', 'Account menu': 'قائمة الحساب',
+  'My account': 'حسابي', 'Account menu': 'قائمة الحساب', 'English': 'الإنجليزية',
   'Switch vehicle': 'تبديل المركبة', 'Dark mode': 'الوضع الداكن',
   // accounts
   'Account': 'الحساب',
-  'Settings': 'الإعدادات',
+  'Car profile': 'ملف السيارة',
   'Garage': 'المرآب',
   'Switch vehicles or add another': 'بدّل بين المركبات أو أضف أخرى',
   'Car profile, language, plan setup': 'ملف السيارة، اللغة، إعداد الخطة',

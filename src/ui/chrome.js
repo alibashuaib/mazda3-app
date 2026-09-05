@@ -57,7 +57,7 @@ function renderTopbar() {
   $('#carBadge').innerHTML = BRAND_MARK;
   // index.html ships a fixed generic title; this is a multi-vehicle garage,
   // so the tab should name whichever vehicle is actually active.
-  document.title = 'Garage — ' + title;
+  document.title = 'Car Care — ' + title;
   // Cached so index.html's inline boot script can paint the right vehicle's
   // name on the very first frame, before session.load() resolves — same gap,
   // same fix, as applyAccent()'s own 'garage.accent' cache above. Without
@@ -400,10 +400,35 @@ function buildAccountMenu(menu) {
   };
   menu.appendChild(dark);
 
-  menu.appendChild(menuItem('Settings', 'menuitem', () => { closeAccountMenu(false); openSettings(); }));
-  if (account.available()) {
-    menu.appendChild(menuItem('Account', 'menuitem', () => { closeAccountMenu(false); openAccount(); }));
-  }
+  const nextLanguage = lang === 'ar' ? 'English' : 'العربية';
+  menu.appendChild(menuItem(nextLanguage, 'menuitem', () => {
+    closeAccountMenu(false);
+    applyLang(lang === 'ar' ? 'en' : 'ar');
+  }));
+
+  menu.appendChild(menuItem('Export backup', 'menuitem', () => {
+    closeAccountMenu(false);
+    exportGarage();
+  }));
+
+  menu.appendChild(menuItem('Import backup', 'menuitem', () => {
+    closeAccountMenu(false);
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.hidden = true;
+    input.onchange = ev => {
+      const file = ev.target.files && ev.target.files[0];
+      if (file) importGarage(file);
+      input.remove();
+    };
+    document.body.appendChild(input);
+    input.click();
+  }));
+
+  /* No "Settings"/"Car profile" entry here on purpose: the topbar's own car
+     button (#openProfile) already opens this same dialog, and having it in
+     both places was redundant. */
 }
 
 function openAccountMenu() {

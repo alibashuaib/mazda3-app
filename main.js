@@ -328,7 +328,7 @@ function renderOnboarding() {
   $('#carTitle').textContent = '';
   $('#carSub').textContent = '';
   $('#carBadge').innerHTML = '';
-  document.title = 'Garage';
+  document.title = 'Car Care';
   const view = $('#view');
   view.className = 'view';
   view.innerHTML = '';
@@ -485,14 +485,14 @@ function openAccount() {
   const signedIn = !!account.user();
   openModal(t('Account'), signedIn ? t('Signed in as') + ' ' + account.user().email : t('Your garage stays on this device.'), card => {
     if (signedIn) {
-      // Garage and Settings aren't account-specific, but only surfaced here
-      // once signed in — a list, not a pair of buttons, matching the row
-      // style "Your garage"'s own vehicle list already uses.
+      // Garage and Car profile aren't account-specific, but only surfaced
+      // here once signed in — a list, not a pair of buttons, matching the
+      // row style "Your garage"'s own vehicle list already uses.
       const list = el('div', 'list');
       list.style.marginBottom = '16px';
       [
         ['🚗', 'Garage', 'Switch vehicles or add another', openGarage],
-        ['⚙️', 'Settings', 'Car profile, language, plan setup', openSettings]
+        ['⚙️', 'Car profile', 'Car profile, language, plan setup', openSettings]
       ].forEach(([icon, title, sub, open]) => {
         const it = el('div', 'item');
         it.innerHTML = html`
@@ -559,32 +559,21 @@ function openAccount() {
 
 function openSettings() {
   if (!session.booted()) return;
-  /* "Settings", not "Car profile": this dialog stopped being only about the
-     car once language, calendar, account and backup moved into it. The car's
-     own fields are still here, below those. */
-  openModal(t('Settings'), t('App preferences, your account, and this car’s details.'), card => {
+  /* Named "Car profile" — that's how it's reached now (the topbar's car
+     button). Language moved to the account menu, so this is the car's own
+     fields plus the one setting that lives nowhere else: the maintenance
+     schedule basis, otherwise buried in the plan-setup wizard. */
+  openModal(t('Car profile'), t('This car’s details.'), card => {
     const c = session.current().car;
-    // language switch
-    card.appendChild(field('Language / اللغة', ''));
-    let selectedLang = lang;
-    const langSeg = segGroup('Language / اللغة', [['en', 'English'], ['ar', 'العربية']], lang,
-      code => { selectedLang = code; syncCalendarRow(); });
-    langSeg.style.margin = '0 0 16px';
-    card.appendChild(langSeg);
 
     /* Calendar — Arabic only, since English is always Gregorian. Hidden rather
        than disabled: a disabled control invites the reader to work out why,
-       and for an English UI there is nothing to work out.
-
-       Visibility follows the language SEGMENT, not the applied `lang`. The
-       language switch is deferred to Save (below), so while this modal is open
-       the segment is the only thing that says which language the user is
-       choosing — gating on `lang` would leave the row missing right after they
-       tap العربية, which reads as the control being broken.
-
-       Unlike language, the calendar applies on tap: persisted immediately and
-       the view behind repainted, so the change is visible without a Save. */
+       and for an English UI there is nothing to work out. Language no longer
+       switches from within this modal, so visibility just follows the applied
+       `lang` directly — it can't go stale mid-dialog the way it could when a
+       local segment here also controlled it. */
     const calRow = el('div');
+    calRow.hidden = lang !== 'ar';
     const calField = field('Calendar / التقويم', '');
     const calSeg = segGroup('Calendar / التقويم',
       [['gregory', t('Gregorian')], ['islamic', t('Hijri')], ['both', t('Both')]],
@@ -592,30 +581,21 @@ function openSettings() {
     calSeg.style.margin = '0 0 16px';
     calRow.appendChild(calField);
     calRow.appendChild(calSeg);
-    function syncCalendarRow() { calRow.hidden = selectedLang !== 'ar'; }
-    syncCalendarRow();
     card.appendChild(calRow);
 
-    // account row — absent entirely from file://, where sign-in cannot work
-    if (account.available()) {
-      const acctBtn = el('button', account.user() ? 'btn ghost' : 'btn', html`${account.user() ? t('Account') : t('Sign in')}`);
-      acctBtn.onclick = () => { closeModal(); openAccount(); };
-      // The sub-line is an email when signed in — t() passes it through
-      // unchanged, so only the signed-out placeholder is actually translated.
-      const acctRow = bannerRow('👤', 'Account', account.user() ? account.user().email : 'Not signed in', acctBtn);
-      acctRow.style.margin = '0 0 16px';
-      card.appendChild(acctRow);
-    }
-
-    // plan setup wizard — schedule basis, odometer & service history
-    const setUp = session.current().planSetupDone;
-    const planBtn = el('button', setUp ? 'btn ghost' : 'btn', html`${t(setUp ? 'Edit' : 'Set up')}`);
-    planBtn.onclick = () => { closeModal(); openPlanSetup(); };
-    const planRow = setUp
-      ? bannerRow('🧭', 'Update your plan', 'Re-answer the setup questions if anything’s changed.', planBtn)
-      : bannerRow('🧭', 'Set up your plan', 'Tell the plan which major services you’ve already done.', planBtn);
-    planRow.style.margin = '0 0 16px';
-    card.appendChild(planRow);
+    /* Maintenance schedule basis — same 'severe'/'normal' field the plan-setup
+       wizard writes to (maintenance.js), just editable here too so changing
+       it doesn't require rerunning the whole wizard. Deferred to Save, like
+       the car's other fields, rather than applied on tap like the calendar:
+       it isn't cosmetic, it changes due-date math throughout the app. */
+    let selectedSeverity = session.current().severity === 'normal' ? 'normal' : 'severe';
+    const svField = field('Maintenance schedule / جدول الصيانة', '');
+    const svSeg = segGroup('Maintenance schedule / جدول الصيانة',
+      [['severe', t('Severe')], ['normal', t('Dealer')]],
+      selectedSeverity, v => { selectedSeverity = v; });
+    svSeg.style.margin = '0 0 16px';
+    card.appendChild(svField);
+    card.appendChild(svSeg);
 
     let photo = c.photo || '';
 
@@ -688,10 +668,10 @@ function openSettings() {
         engine: $('#c_engine').value.trim(), transmission: $('#c_trans').value,
         plate: $('#c_plate').value.trim(), vin: $('#c_vin').value.trim().toUpperCase(), photo
       });
+      session.current().severity = selectedSeverity;
       let ok = false;
       try { ok = await save(); } catch (e) {}
       // photo may exceed quota — verify it stuck
-      if (selectedLang !== lang) applyLang(selectedLang);
       applyAccent(); renderTopbar(); closeModal(); go(current); if (ok) toast('Profile saved');
     });
     card.appendChild(b);
@@ -711,22 +691,6 @@ function openSettings() {
       });
       card.appendChild(del);
     }
-    const backup = el('div');
-    backup.style.cssText = 'margin-top:22px;padding-top:16px;border-top:1px solid var(--stroke)';
-    backup.innerHTML = html`<div class="section-title"><div class="section-title-left"><h2>${t('Backup & restore')}</h2></div></div>
-      <p style="font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:12px">${t('A backup file holds every vehicle, service, receipt and photo.')}</p>`;
-    const exp = el('button', 'btn block', html`${t('Export backup')}`);
-    exp.onclick = exportGarage;
-    const imp = el('button', 'btn block ghost', html`${t('Import backup')}`);
-    imp.style.marginTop = '8px';
-    const impFile = el('input');
-    impFile.type = 'file';
-    impFile.accept = 'application/json';
-    impFile.hidden = true;
-    impFile.onchange = ev => { const f = ev.target.files[0]; if (f) importGarage(f); };
-    imp.onclick = () => impFile.click();
-    backup.append(exp, imp, impFile);
-    card.appendChild(backup);
   });
 }
 
@@ -783,11 +747,8 @@ account.configure({
   rerender: () => { applyAccent(); renderTopbar(); go(current); },
   choose: askWhichGarage
 });
-/* The old topbar account button hid itself here when sign-in was impossible.
-   The menu trigger cannot: hiding it would take the theme, settings and
-   vehicle switcher with it. buildAccountMenu() applies the same guard to the
-   Account item alone, and rebuilds on every open, so it also tracks a client
-   that only becomes available later. */
+/* The menu trigger stays available because it owns vehicle switching and the
+   theme control, even though account/sign-in is no longer exposed in the UI. */
 
 session.load()
   .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist whatever hydrate() built (a migrated legacy car, or nothing)

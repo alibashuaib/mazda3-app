@@ -59,7 +59,7 @@ function reportHeader(title) {
     </div>`;
 }
 function reportFooter() {
-  return html`<div class="rpt-foot"><span>${t('Garage · Mazda care app')}</span><span>${t('Report generated')} ${fmtDate(today(), { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
+  return html`<div class="rpt-foot"><span>${t('Car Care · Mazda care app')}</span><span>${t('Report generated')} ${fmtDate(today(), { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>`;
 }
 function reportService() {
   const hist = [...session.current().history].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);

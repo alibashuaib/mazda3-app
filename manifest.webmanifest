@@ -1,6 +1,6 @@
 {
-  "name": "Garage — Mazda care",
-  "short_name": "Garage",
+  "name": "Car Care",
+  "short_name": "Car Care",
   "description": "Car care, maintenance, parts, fuel & budget tracker for your Mazda.",
   "start_url": "./",
   "scope": "./",
