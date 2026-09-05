@@ -126,14 +126,10 @@ body {
   display: grid; place-items: center;
   font-weight: 800; font-size: 15px; letter-spacing: .5px;
   color: #fff;
-  /* Fixed light plate, not the accent gradient: the emblem carries its own
-     chrome/grey colouring rather than currentColor, so it needs a background
-     that stays legible regardless of which car's accent colour is active. */
-  background: linear-gradient(145deg, #fff, #e7e8ea);
-  box-shadow: 0 8px 20px -6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.6);
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 20px -6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.25);
 }
-.car-badge svg { width: 27px; height: 27px; }
-.car-badge .brand-mark { width: 29px; height: 29px; object-fit: contain; }
+.car-badge svg { width: 25px; height: 25px; }
 .car-meta h1 { font-size: 19px; font-weight: 750; letter-spacing: -.2px; }
 .car-meta p { font-size: 12.5px; color: var(--text-2); margin-top: 1px; }
 
