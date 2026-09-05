@@ -689,7 +689,7 @@ body {
     max-width: 1200px;
     padding: 0 34px 44px;
     display: grid;
-    grid-template-columns: 244px minmax(0, 1fr);
+    grid-template-columns: 176px minmax(0, 1fr);
     grid-template-rows: auto 1fr;
     grid-template-areas: "nav top" "nav main";
     column-gap: 22px;
@@ -704,19 +704,19 @@ body {
     position: sticky;
     top: 26px;
     left: auto; right: auto; bottom: auto; transform: none;
-    width: 244px; height: auto;
-    display: flex; flex-direction: column; gap: 6px;
-    padding: 16px 14px;
-    border-radius: 22px;
+    width: 176px; height: auto;
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 12px 10px;
+    border-radius: 20px;
     align-self: start;
   }
   .tab {
-    flex-direction: row; justify-content: flex-start; gap: 14px;
-    padding: 13px 16px; font-size: 14px; font-weight: 600;
-    border-radius: 14px;
+    flex-direction: row; justify-content: flex-start; gap: 10px;
+    padding: 11px 12px; font-size: 13px; font-weight: 600;
+    border-radius: 12px;
   }
-  .tab svg { width: 21px; height: 21px; }
-  .tab span { font-size: 14px; }
+  .tab svg { width: 19px; height: 19px; }
+  .tab span { font-size: 13px; }
   .tab:hover { color: var(--text); background: var(--surface-2); }
   .tab.is-active svg { transform: none; }
 
