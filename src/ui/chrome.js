@@ -26,10 +26,12 @@ function carTitle() { return joinName(session.current().car, ['make', 'model'], 
 function vehicleName(c) { return joinName(c, ['year', 'make', 'model'], 'Vehicle'); }
 /* A brand mark, not per-car initials — every vehicle in the garage is a
    Mazda, so "M3"/"CX5" text never told the user anything CarTitle/CarSub
-   didn't already say better. A stylized wing-over-oval mark (not a
-   pixel copy of Mazda's official corporate logo file) reads clearly at
-   badge size on both themes. */
-const BRAND_MARK = html`<svg viewBox="0 0 44 44" fill="none"><ellipse cx="22" cy="23" rx="16" ry="10.5" stroke="currentColor" stroke-width="2.2"/><path d="M7 26c4-9.5 9.5-13.5 15-13.5s11 4 15 13.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`;
+   didn't already say better. Mazda's own winged-oval emblem (assets/mazda-
+   logo.svg, from Wikimedia Commons, CC0), not a redrawn approximation. It
+   ships in its own chrome/grey gradients rather than currentColor, so the
+   badge plate behind it is a fixed light chip instead of the accent
+   gradient, keeping the emblem legible against every car's accent colour. */
+const BRAND_MARK = html`<img class="brand-mark" src="assets/mazda-logo.svg" alt="Mazda">`;
 function renderTopbar() {
   /* Ahead of the early return below: the account menu's trigger is present and
      reachable even with an empty garage, so its name has to be translated on
