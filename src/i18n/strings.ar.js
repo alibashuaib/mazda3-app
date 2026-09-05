@@ -35,6 +35,7 @@ const AR = {
   'Jeddah (severe)': 'جدة (مكثّف)', 'Dealer (normal)': 'الوكيل (عادي)', 'dealer': 'الوكيل', 'severe': 'مكثّف',
   'Dealer interval (km)': 'فترة الوكيل (كم)', 'Dealer interval (mo)': 'فترة الوكيل (شهر)', 'same as above': 'كما بالأعلى',
   // community gearbox (ATF) parts + note
+  'Community rec.': 'توصية المجتمع',
   'Transmission Fluid Filter': 'فلتر زيت القير', 'Transmission Pan Sealant': 'غراء كارتر القير (سيليكون)',
   'Community rec. (Mazda CX-5 group + info guide): renew ATF every 60–80k km per gearbox condition. Mazda Genuine ATF-FZ only (K020-W0-052E4), ~4.5–4.7 L per drain — buy 5×1 L. Replace the pan filter (FZ01-21-500) and reseal the pan with silicone (Dirko HT / Reinzosil / Mopar — better than dealer sealant), applied cleanly. Go easy on the gearbox for the first ~800 km. Check the fluid level to spec. No additives.': 'توصية المجتمع (قروب مازدا CX-5 + دليل المعلومات): جدّد زيت القير كل 60–80 ألف كم حسب حالة القير. زيت مازدا الأصلي ATF-FZ فقط (K020-W0-052E4)، ~4.5–4.7 لتر لكل تغيير — اشترِ 5×1 لتر. استبدل فلتر الكارتر (FZ01-21-500) وأعد غلق الكارتر بالسيليكون (Dirko HT / Reinzosil / Mopar — أفضل من غراء الوكالة) بطريقة نظيفة. لا تُجهد القير أول ~800 كم. تأكد من معيار الزيت. لا تستخدم معالجات.',
   // milestone plan

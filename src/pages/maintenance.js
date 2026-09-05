@@ -509,7 +509,7 @@ function openServiceDetail(s) {
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>
       <div class="detail-row"><span class="k">${t('Est. cost')}</span><span class="v">${sar(s.cost)} SAR</span></div>
       ${s.pendingParts && s.pendingParts.length ? html`<div class="log-pending ${s.pendingParts.some(n => partCrit(n) === 'high') ? 'danger' : s.pendingParts.some(n => partCrit(n) === 'med') ? 'warn' : 'ok'}" style="margin-top:14px">⚠️ ${t('Do next service')}: ${raw(s.pendingParts.map(n => html`${t(n)} <span class="crit">(${critLabel(n)})</span>`).join('، '))}</div>` : ''}
-      ${s.note ? html`<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${t(s.note)}</p>` : ''}`;
+      ${s.note ? html`<p class="muted" style="font-size:12.5px;margin-top:14px;line-height:1.5">${s.note.startsWith('Community rec.') ? html`<span class="opt-tag alt" style="margin-inline-end:6px">${t('Community rec.')}</span>` : ''}${t(s.note)}</p>` : ''}`;
     card.appendChild(box);
 
     // Parts this service needs — pulled live from the Parts catalog
