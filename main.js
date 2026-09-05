@@ -31,6 +31,12 @@ function chooseVehicle(id) {
   closeModal();
   if (!session.garage().vehicles.some(v => v.id === id)) return;  // unknown id must not blank the app
   switchVehicle(id); save();
+  // Best-effort, not awaited: the local switch already happened and the UI
+  // has moved on. Without this the server's garage.active_id row is never
+  // updated, so the next boot's pull()/adopt() overwrites the local switch
+  // with whichever vehicle was active when the account first synced — see
+  // enqueueGarage()'s comment in account.js.
+  account.enqueueGarage(id).then(kickSync);
   applyAccent(); renderTopbar(); go('dashboard');
 }
 function addVehicle() { openAddVehicle(); }
@@ -85,6 +91,12 @@ function openAddVehicle() {
       if (ok) {
         applyPhotoIds(v.data, res.data);
         Promise.all([account.enqueueVehicle(v.id, res.data)].concat(res.photoIds.map(pid => account.enqueuePhoto(pid)))).then(kickSync);
+        // The new vehicle became active above (session.setVehicles(..., v.id))
+        // but that never reaches session.save(), so nothing else pushes it —
+        // same reason enqueueVehicle() above is explicit rather than relying
+        // on the afterSave hook. Without this the server's active_id stays on
+        // whatever it was, and the next boot's pull() switches back to it.
+        account.enqueueGarage(v.id).then(kickSync);
       }
       applyAccent(); renderTopbar(); closeModal(); go('dashboard');
       if (ok) toast('Vehicle added');
@@ -118,6 +130,11 @@ async function deleteVehicle(id) {
   // never rejects on its own no-op paths, so no .catch() is needed here.
   // reconnect/next-boot remains the fallback if this device is offline now.
   account.enqueueTombstone(id, photoIds).then(kickSync);
+  // Deleting the active vehicle picks a new one (setVehicles's kept[0]
+  // fallback above) — push it unconditionally rather than only when it
+  // changed; an extra upsert of the same id is harmless, and skipping it
+  // when it didn't change is not worth the extra bookkeeping.
+  account.enqueueGarage(session.garage().activeId).then(kickSync);
   if (ok) toast('Vehicle removed');
   else toast('Could not save your change.', 'warn');
 }
@@ -235,6 +252,10 @@ function importGarage(file) {
           Promise.all([account.enqueueVehicle(v.id, res.data)].concat(res.photoIds.map(pid => account.enqueuePhoto(pid)))).then(kickSync);
         }
       }
+      // The imported activeId, same reason: only enqueueGarage() gets it to the
+      // server, and only once — not per vehicle — since it does not change
+      // inside the loop above.
+      account.enqueueGarage(session.garage().activeId).then(kickSync);
       // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
       const keptIds = session.garage().vehicles.map(v => v.id);
       for (const id of priorIds) {

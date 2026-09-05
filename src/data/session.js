@@ -120,6 +120,9 @@
     const active = vehicles.find(v => v.id === activeId) || vehicles[0] || null;
     _garage.activeId = active ? active.id : null;
     _state = active ? active.data : null;
+    // Synchronous, unlike the save() this is always followed by — see
+    // setQuickActiveId()'s own comment in storage.js for why that matters.
+    if (active) dep.setQuickActiveId(active.id);
   }
 
   function switchVehicle(id) {
@@ -128,6 +131,7 @@
     if (!v) return;                 // unknown id must not blank the app
     _garage.activeId = id;
     _state = v.data;
+    dep.setQuickActiveId(id);
   }
 
   /* Boot. Mirrors app.js:3211-3219, with hydrate moved in from app.js:989. */
@@ -190,6 +194,7 @@
     _state = null;
     _booted = false;
     _photos = {};
+    dep.clearQuickActiveId();
   }
 
   return {

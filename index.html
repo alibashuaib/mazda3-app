@@ -10,6 +10,32 @@
       document.documentElement.setAttribute('data-theme', p || sys);
     })();
   </script>
+  <script>
+    /* Same reason as the theme script above: styles.css's :root hardcodes
+       --accent/--accent-soft/--accent-2/--accent-glow to the "soul red"
+       bucket colour (see chrome.js's CAR_ACCENTS). applyAccent() overrides
+       them with the active car's real colour, but only runs once session.js
+       has finished its async storage read — which is never before the
+       browser's first paint. Without this, EVERY refresh briefly shows the
+       red default (most visibly the page's own background glow, which is
+       painted at the html/body level, not inside #view) regardless of which
+       car or colour is actually active. chrome.js's applyAccent() writes
+       this cache on every successful call; it is deliberately silent (no
+       stylesheet default to fall back to here) when nothing was cached yet
+       — a genuinely first-ever load has no prior colour to guess at, and
+       the stylesheet's own default is a fine first frame for that one case. */
+    (function () {
+      try {
+        var a = JSON.parse(localStorage.getItem('garage.accent'));
+        if (!a) return;
+        var s = document.documentElement.style;
+        s.setProperty('--accent', a.accent);
+        s.setProperty('--accent-soft', a.soft);
+        s.setProperty('--accent-2', a.accent2);
+        s.setProperty('--accent-glow', a.glow);
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f1013" />
