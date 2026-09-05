@@ -692,7 +692,7 @@ body {
     grid-template-columns: 244px minmax(0, 1fr);
     grid-template-rows: auto 1fr;
     grid-template-areas: "nav top" "nav main";
-    column-gap: 36px;
+    column-gap: 22px;
     align-items: start;
   }
   .topbar { grid-area: top; position: sticky; top: 0; padding: 26px 4px 14px; }
