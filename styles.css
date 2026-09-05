@@ -724,6 +724,14 @@ body {
   .view .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .toast-host { bottom: 34px; }
+
+  /* Onboarding has no vehicle, so #tabbar is hidden rather than removed —
+     the grid column it sits in would otherwise stay reserved, leaving a
+     blank 244px gutter and an off-centre onboarding card. */
+  .app-shell.no-chrome {
+    display: block;
+    max-width: 640px;
+  }
 }
 
 /* Keep part names and prices readable on wide desktops. */

@@ -287,6 +287,11 @@ function setChromeVisible(visible) {
   $('#openProfile').hidden = !visible;
   $('.topbar-actions').hidden = !visible;
   $('#tabbar').hidden = !visible;
+  // Desktop reserves a 244px sidebar column for #tabbar. Hiding that element
+  // still leaves the grid column allocated, so onboarding rendered as a thin
+  // off-centre card next to a blank gutter. This class lets the desktop media
+  // query collapse the sidebar column only while there is no nav to show.
+  $('#app').classList.toggle('no-chrome', !visible);
 }
 function renderOnboarding() {
   // The onboarding screen has no vehicle, so it must always render with the
