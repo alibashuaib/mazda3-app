@@ -86,11 +86,11 @@ function buildPlan(v) {
     const card = el('div', 'card plan-ms' + (ms.major ? ' major' : '') + (isNext ? ' next' : ''));
     card.innerHTML = html`
       <div class="plan-ms-head">
-        <div class="plan-km">${fmtDate(ms.date, { month: 'short', year: 'numeric' })}</div>
+        <div class="plan-km">${fmt(ms.km)}<span>km</span></div>
         <div class="plan-meta">
           ${isNext ? html`<span class="plan-badge next">${t('Next up')}</span>` : ''}
           ${ms.major ? html`<span class="plan-badge">${t('Major service')}</span>` : ''}
-          <span class="plan-when">≈ ${fmt(ms.km)} km</span>
+          <span class="plan-when">≈ ${fmtDate(ms.date, { month: 'short', year: 'numeric' })}</span>
         </div>
       </div>
       <div class="plan-items">
