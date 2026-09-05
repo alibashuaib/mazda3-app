@@ -45,8 +45,11 @@ function renderMaintenance() {
   v.appendChild(pageIntro('Maintenance', 'Your service schedule and full work history — tracked by distance and time.'));
 
   const modeSeg = el('div', 'seg');
+  // internal mode values stay 'Plan' (used throughout this file); only the
+  // visible tab label changed to "Service" per user request.
+  const modeLabels = { Schedule: 'Schedule', Plan: 'Service', History: 'History' };
   ['Schedule', 'Plan', 'History'].forEach(m => {
-    const b = el('button', m === maintMode ? 'on' : '', html`${t(m)}`);
+    const b = el('button', m === maintMode ? 'on' : '', html`${t(modeLabels[m])}`);
     b.onclick = () => { if (maintMode === m) return; maintMode = m; segSelect(b); paintMode(); };
     modeSeg.appendChild(b);
   });
