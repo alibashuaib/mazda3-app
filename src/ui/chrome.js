@@ -55,14 +55,14 @@ function renderTopbar() {
   $('#carTitle').textContent = title;
   $('#carSub').textContent = sub;
   $('#carBadge').innerHTML = BRAND_MARK;
-  // index.html ships a fixed "2016 Mazda 3" title; this is a multi-vehicle
-  // garage, so the tab should name whichever vehicle is actually active.
+  // index.html ships a fixed generic title; this is a multi-vehicle garage,
+  // so the tab should name whichever vehicle is actually active.
   document.title = 'Garage — ' + title;
   // Cached so index.html's inline boot script can paint the right vehicle's
   // name on the very first frame, before session.load() resolves — same gap,
   // same fix, as applyAccent()'s own 'garage.accent' cache above. Without
-  // this every refresh flashes the skeleton's hardcoded "Mazda 3" for a
-  // moment, regardless of which vehicle is actually active.
+  // this every refresh flashes the skeleton's generic "My car" placeholder
+  // for a moment, regardless of which vehicle is actually active.
   try { localStorage.setItem('garage.topbar', JSON.stringify({ title, sub })); } catch (e) {}
 }
 

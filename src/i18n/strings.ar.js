@@ -131,7 +131,7 @@ const AR = {
   'By category': 'حسب الفئة', 'Amount': 'المبلغ', 'Share': 'النسبة', 'All purchases': 'كل المشتريات', 'Item': 'البند', 'Purchases & Spending Report': 'تقرير المشتريات والمصروفات',
   'Health score': 'درجة الحالة', 'Lifetime service cost': 'تكلفة الصيانة الإجمالية', 'Upcoming &amp; overdue services': 'الخدمات القادمة والمتأخرة',
   'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
-  'Garage · Mazda 3 care app': 'Garage · تطبيق العناية بمازدا 3', 'Report generated': 'صدر التقرير',
+  'Garage · Mazda care app': 'Garage · تطبيق العناية بمازدا', 'Report generated': 'صدر التقرير',
   // part names
   'Engine Oil 5W-30': 'زيت محرك 5W-30', 'Oil Filter': 'فلتر الزيت', 'Fuel System Cleaner (additive)': 'منظف نظام الوقود (إضافة)', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
   'Spark Plugs (each)': 'بواجي الإشعال (للحبة)', 'Front Brake Pads': 'فحمات الفرامل الأمامية', 'Rear Brake Pads': 'فحمات الفرامل الخلفية',

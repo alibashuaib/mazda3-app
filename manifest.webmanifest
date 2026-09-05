@@ -1,7 +1,7 @@
 {
-  "name": "Garage — Mazda 3 care",
+  "name": "Garage — Mazda care",
   "short_name": "Garage",
-  "description": "Car care, maintenance, parts, fuel & budget tracker for a 2016 Mazda 3.",
+  "description": "Car care, maintenance, parts, fuel & budget tracker for your Mazda.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
