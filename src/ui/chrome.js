@@ -479,5 +479,9 @@ function applyAccent() {
   // Cached so index.html's inline boot script can paint this on the very
   // first frame, before session.load() resolves — see its own comment for
   // why that gap otherwise always shows styles.css's hardcoded red default.
-  try { localStorage.setItem('garage.accent', JSON.stringify({ accent: acc, soft, accent2, glow })); } catch (e) {}
+  // `theme` is cached too: `soft` is computed against a specific theme's
+  // background to hold WCAG AA contrast (see accentForColor()'s comment),
+  // so the boot script must not apply it when the OS-preferred theme has
+  // since flipped out from under a stale cache — it checks this field.
+  try { localStorage.setItem('garage.accent', JSON.stringify({ accent: acc, soft, accent2, glow, theme })); } catch (e) {}
 }
