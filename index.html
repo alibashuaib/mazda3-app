@@ -30,9 +30,18 @@
         if (!a) return;
         var s = document.documentElement.style;
         s.setProperty('--accent', a.accent);
-        s.setProperty('--accent-soft', a.soft);
         s.setProperty('--accent-2', a.accent2);
         s.setProperty('--accent-glow', a.glow);
+        // a.soft was computed against ONE theme's background to hold WCAG AA
+        // contrast (see chrome.js's applyAccent()/color.js's accentForColor()).
+        // If the OS-preferred theme flipped since this cache was written —
+        // e.g. system dark/light auto-switch while the app was closed — the
+        // theme script above already set data-theme to the NEW theme, so
+        // applying a.soft here would paint contrast tuned for the OLD one.
+        // Leave --accent-soft at styles.css's default in that case; the real
+        // applyAccent() call after session.load() corrects it moments later.
+        var theme = document.documentElement.getAttribute('data-theme');
+        if (a.theme === theme) s.setProperty('--accent-soft', a.soft);
       } catch (e) {}
     })();
   </script>
