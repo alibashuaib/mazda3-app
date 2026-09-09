@@ -132,3 +132,24 @@ test('submitPrice() resolves false on an insert error', async () => {
   assert.strictEqual(ok, false);
   account.setUserForTest(null);
 });
+
+test('getAverages() maps rows from the view by item_id', async () => {
+  pricing.configure({ client: {
+    from: table => {
+      assert.strictEqual(table, 'price_item_averages');
+      return { select: () => ({ in: (_col, ids) => {
+        assert.deepStrictEqual(ids, ['item1', 'item2']);
+        return Promise.resolve({ data: [{ item_id: 'item1', avg_price: 250.5, sample_count: 3 }], error: null });
+      } }) };
+    }
+  } });
+  const averages = await pricing.getAverages(['item1', 'item2']);
+  assert.deepStrictEqual(averages.get('item1'), { avgPrice: 250.5, sampleCount: 3 });
+  assert.strictEqual(averages.has('item2'), false);
+});
+
+test('getAverages() resolves an empty Map for an empty list without calling the client', async () => {
+  pricing.configure({ client: { from: () => { throw new Error('must not be called'); } } });
+  const averages = await pricing.getAverages([]);
+  assert.strictEqual(averages.size, 0);
+});

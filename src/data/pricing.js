@@ -40,5 +40,18 @@
     ).then(res => !(res && res.error));
   }
 
-  return { configure, reset, available, searchItems, createItem, submitPrice };
+  function getAverages(itemIds) {
+    if (!env.client || !itemIds || !itemIds.length) return Promise.resolve(new Map());
+    return Promise.resolve(
+      env.client.from('price_item_averages').select('item_id,avg_price,sample_count').in('item_id', itemIds)
+    ).then(res => {
+      const map = new Map();
+      if (res && !res.error) {
+        (res.data || []).forEach(row => map.set(row.item_id, { avgPrice: row.avg_price, sampleCount: row.sample_count }));
+      }
+      return map;
+    });
+  }
+
+  return { configure, reset, available, searchItems, createItem, submitPrice, getAverages };
 });
