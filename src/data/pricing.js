@@ -18,6 +18,12 @@
   function configure(next) { env = Object.assign({}, env, next || {}); }
   function reset() { env = { client: null }; }
   function available() { return !!env.client; }
+  function searchItems(query) {
+    if (!env.client) return Promise.resolve([]);
+    return Promise.resolve(
+      env.client.from('price_items').select('id,label,category').ilike('label', `%${query}%`).limit(20)
+    ).then(res => res.error ? [] : res.data);
+  }
 
-  return { configure, reset, available };
+  return { configure, reset, available, searchItems };
 });
