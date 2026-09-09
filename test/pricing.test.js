@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const pricing = require('../src/data/pricing.js');
+const account = require('../src/data/account.js');
 
 function fakeClient() {
   return { from: () => ({}) };
@@ -99,4 +100,35 @@ test('createItem() resolves null on an insert error', async () => {
 test('createItem() resolves null with no client configured', async () => {
   const item = await pricing.createItem('x', 'y', null);
   assert.strictEqual(item, null);
+});
+
+test('submitPrice() inserts an observation when signed in', async () => {
+  let inserted;
+  account.setUserForTest({ id: 'u1' });
+  pricing.configure({ client: {
+    from: table => {
+      assert.strictEqual(table, 'price_observations');
+      return { insert: row => { inserted = row; return Promise.resolve({ error: null }); } };
+    }
+  } });
+  const ok = await pricing.submitPrice('item1', 250);
+  assert.strictEqual(ok, true);
+  assert.strictEqual(inserted.item_id, 'item1');
+  assert.strictEqual(inserted.price, 250);
+  account.setUserForTest(null);
+});
+
+test('submitPrice() resolves false when signed out, without touching the client', async () => {
+  account.setUserForTest(null);
+  pricing.configure({ client: { from: () => { throw new Error('must not be called'); } } });
+  const ok = await pricing.submitPrice('item1', 250);
+  assert.strictEqual(ok, false);
+});
+
+test('submitPrice() resolves false on an insert error', async () => {
+  account.setUserForTest({ id: 'u1' });
+  pricing.configure({ client: { from: () => ({ insert: () => Promise.resolve({ error: new Error('offline') }) }) } });
+  const ok = await pricing.submitPrice('item1', 250);
+  assert.strictEqual(ok, false);
+  account.setUserForTest(null);
 });

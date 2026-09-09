@@ -33,5 +33,12 @@
     ).then(res => (res && res.error) ? null : (res.data || null));
   }
 
-  return { configure, reset, available, searchItems, createItem };
+  function submitPrice(itemId, price) {
+    if (!env.client || !account.user()) return Promise.resolve(false);
+    return Promise.resolve(
+      env.client.from('price_observations').insert({ item_id: itemId, price })
+    ).then(res => !(res && res.error));
+  }
+
+  return { configure, reset, available, searchItems, createItem, submitPrice };
 });
