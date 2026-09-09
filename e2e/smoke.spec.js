@@ -55,14 +55,11 @@ async function ensureVehicle(page) {
   await expect(page.locator('#carTitle')).not.toBeEmpty();
 }
 
-/* Settings used to be a standalone topbar button (#settingsBtn). It is a menu
-   item now, so every route to it goes through the account menu — driven as a
-   real user would, trigger then item, so these keep covering the menu itself
-   rather than reaching past it into openSettings(). The item's label is
-   translated, hence matching either language. */
+/* The account menu no longer has a Settings/Car profile entry — it was
+   redundant with the topbar's own car button (#openProfile), which has
+   always opened this same dialog and is the one real users click. */
 async function openSettings(page) {
-  await page.click('#accountBtn');
-  await page.click('#accountMenu [role="menuitem"]:has-text("Settings"), #accountMenu [role="menuitem"]:has-text("الإعدادات")');
+  await page.click('#openProfile');
   await expect(page.locator('#modalHost')).toBeVisible();
 }
 
@@ -105,20 +102,19 @@ test('every tab renders, with icons drawn rather than printed', async ({ page },
 });
 
 test('switches to Arabic and back, flipping direction both ways', async ({ page }, testInfo) => {
+  // Language lives in the account menu, not the car profile — it applies on
+  // tap, with no Save step to go through.
   await open(page, testInfo);
 
-  await openSettings(page);
-  await page.click('#modalCard .seg button:has-text("العربية")');
-  await page.click('#modalCard button:has-text("Save profile")');
+  await page.click('#accountBtn');
+  await page.click('#accountMenu [role="menuitem"]:has-text("العربية")');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
 
-  await openSettings(page);
-  await page.click('#modalCard .seg button:has-text("English")');
-  await page.click('#modalCard button:has-text("حفظ الملف")').catch(async () => {
-    // the button carries its Arabic label while Arabic is active
-    await page.click('#modalCard .btn.primary.block');
-  });
+  // The item's own label is translated along with the rest of the menu, so
+  // once Arabic is active it reads "الإنجليزية", not "English".
+  await page.click('#accountBtn');
+  await page.click('#accountMenu [role="menuitem"]:has-text("الإنجليزية")');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
 });
 
@@ -148,6 +144,41 @@ test('a hostile nickname renders as text and round-trips unchanged', async ({ pa
   await expect(page.locator('#c_nick')).toHaveValue(PAYLOAD);
 });
 
+test('car profile updates render immediately and survive a reload', async ({ page }, testInfo) => {
+  const errors = await open(page, testInfo);
+  const beforeImage = await page.locator('.studio-car').getAttribute('src');
+
+  await openSettings(page);
+  await page.fill('#c_nick', 'Road Tester');
+  await page.fill('#c_year', '2022');
+  await page.selectOption('#c_trans', 'Manual');
+  await page.fill('#c_vin', 'jm1bp123456789012');
+  await page.click('#c_colorPick .color-trigger');
+  await page.locator('#c_colorPick .color-opt').nth(1).click();
+  const expectedColor = await page.locator('#c_color').inputValue();
+  await page.click('#modalCard button:has-text("Save profile")');
+
+  await expect(page.locator('#carTitle')).toHaveText('Road Tester');
+  await expect(page.locator('#carSub')).toContainText('2022');
+  await expect(page.locator('#carSub')).toContainText('Manual');
+  await expect(page.locator('#carSub')).toContainText(expectedColor);
+  await expect(page).toHaveTitle(/Car Care — Road Tester/);
+  await expect(page.locator('.studio-car')).not.toHaveAttribute('src', beforeImage);
+
+  await page.reload();
+  await page.waitForFunction(() => window.session && window.session.booted(), null, { timeout: 15000 });
+  await expect(page.locator('#carTitle')).toHaveText('Road Tester');
+  await expect(page).toHaveTitle(/Car Care — Road Tester/);
+
+  await openSettings(page);
+  await expect(page.locator('#c_nick')).toHaveValue('Road Tester');
+  await expect(page.locator('#c_year')).toHaveValue('2022');
+  await expect(page.locator('#c_trans')).toHaveValue('Manual');
+  await expect(page.locator('#c_vin')).toHaveValue('JM1BP123456789012');
+  await expect(page.locator('#c_color')).toHaveValue(expectedColor);
+  expect(errors, `uncaught page errors: ${errors.join(' | ')}`).toEqual([]);
+});
+
 test('export then import reproduces the garage', async ({ page }, testInfo) => {
   await open(page, testInfo);
 
@@ -157,18 +188,16 @@ test('export then import reproduces the garage', async ({ page }, testInfo) => {
   await page.click('#modalCard button:has-text("Save profile")');
   await expect(page.locator('#carTitle')).toHaveText(marker);
 
-  await openSettings(page);
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.click('#modalCard button:has-text("Export backup")')
+    (async () => {
+      await page.click('#accountBtn');
+      await page.click('#accountMenu [role="menuitem"]:has-text("Export backup")');
+    })()
   ]);
   const backup = path.join(os.tmpdir(), `garage-e2e-${testInfo.project.name}.json`);
   await download.saveAs(backup);
   expect(fs.statSync(backup).size, 'the backup file is empty').toBeGreaterThan(100);
-
-  // Export leaves the dialog open — unlike Save, it has no reason to close it.
-  // The backdrop would swallow the next click on the settings button.
-  await closeModal(page);
 
   // Change the data so a no-op import would be indistinguishable from success.
   await openSettings(page);
@@ -177,33 +206,26 @@ test('export then import reproduces the garage', async ({ page }, testInfo) => {
   await expect(page.locator('#carTitle')).toHaveText('overwritten');
 
   page.once('dialog', d => d.accept());          // import warns before replacing
-  await openSettings(page);
-  await page.setInputFiles('#modalCard input[type="file"][accept="application/json"]', backup);
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    (async () => {
+      await page.click('#accountBtn');
+      await page.click('#accountMenu [role="menuitem"]:has-text("Import backup")');
+    })()
+  ]);
+  await chooser.setFiles(backup);
 
   await expect(page.locator('#carTitle')).toHaveText(marker, { timeout: 15000 });
 });
 
-test('the account row is absent from file://', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'file', 'checks the file:// origin only');
+test('account and plan setup are absent from the car profile', async ({ page }, testInfo) => {
   await open(page, testInfo);
 
   await openSettings(page);
   await expect(page.locator('#modalCard')).toBeVisible();
-  // account.available() is false on file:// by design (opaque origin, no auth
-  // code active) — the whole account row must be omitted, not merely hidden.
   await expect(page.locator('#modalCard').getByText('Account', { exact: true })).toHaveCount(0);
-});
-
-test('the account row is present over http', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'http', 'checks the http origin only');
-  await open(page, testInfo);
-
-  await openSettings(page);
-  await expect(page.locator('#modalCard')).toBeVisible();
-  // Same locator as the file:// test above: proves the selector actually
-  // matches something here, so that test's zero-count assertion means what
-  // it claims rather than passing because the selector never matched anything.
-  await expect(page.locator('#modalCard').getByText('Account', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('#modalCard').getByText(/Set up your plan|Update your plan/)).toHaveCount(0);
+  await expect(page.locator('#modalCard').getByText('Backup & restore', { exact: true })).toHaveCount(0);
 });
 
 test('an online listener is registered after boot, over http', async ({ page }, testInfo) => {

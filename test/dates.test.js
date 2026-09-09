@@ -153,9 +153,12 @@ test('no English month names in Arabic, in any calendar mode', () => withBoot(as
 /* ---------- the settings control ---------- */
 
 const calGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Calendar"]');
-const langGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Language"]');
+const svGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Maintenance schedule"]');
 const rowOf = group => group.previousSibling.parentNode;   // the wrapper holding label + seg
 
+// Language moved to the account menu (account-menu.test.js), so the calendar
+// control's visibility now just follows the applied `lang` directly — there is
+// no longer a language segment in this dialog to tap and check against.
 test('the calendar control is hidden in English and shown in Arabic', () => withBoot(async ({ document, api, evalInApp }) => {
   api.openSettings();
   assert.ok(calGroup(document), 'the calendar control is absent from the dialog entirely');
@@ -165,21 +168,6 @@ test('the calendar control is hidden in English and shown in Arabic', () => with
   evalInApp("lang = 'ar'");
   api.openSettings();
   assert.strictEqual(rowOf(calGroup(document)).hidden, false, 'calendar control hidden in an Arabic UI');
-}));
-
-/* The language switch is deferred to Save, so the segment is the only signal
-   of intent while the dialog is open. Gating on the applied `lang` would leave
-   the row missing right after tapping العربية. */
-test('tapping العربية reveals the calendar control without a Save', () => withBoot(async ({ document, api }) => {
-  api.openSettings();
-  const row = rowOf(calGroup(document));
-  assert.strictEqual(row.hidden, true);
-
-  Array.from(langGroup(document).children).find(b => b.getAttribute('aria-checked') === 'false').onclick();
-  assert.strictEqual(row.hidden, false, 'calendar control did not appear when Arabic was picked');
-
-  Array.from(langGroup(document).children).find(b => /English/.test(b.textContent)).onclick();
-  assert.strictEqual(row.hidden, true, 'calendar control did not disappear when English was picked back');
 }));
 
 test('picking a calendar applies and persists on tap, with no Save', () => withBoot(async ({ document, api, evalInApp }) => {
@@ -197,7 +185,7 @@ test('picking a calendar applies and persists on tap, with no Save', () => withB
 test('both segments are announced as one control with a live selection', () => withBoot(async ({ document, api, evalInApp }) => {
   evalInApp("lang = 'ar'");
   api.openSettings();
-  for (const group of [langGroup(document), calGroup(document)]) {
+  for (const group of [svGroup(document), calGroup(document)]) {
     const buttons = Array.from(group.children);
     assert.ok(buttons.length >= 2, 'a segment with nothing to choose between');
     assert.ok(buttons.every(b => b.getAttribute('role') === 'radio'), 'a segment button is not a radio');

@@ -194,6 +194,30 @@ test('every Mazda3 BM/BN factory colour uses an exact photo instead of a tint', 
   }
 }));
 
+test('every Mazda3 BP factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'mazda3bp';
+  car.model = '3';
+  const photos = {
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda3-bp.png?v=halo-free-65',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda3bp-soul-red-crystal-metallic.png?v=halo-free-65',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3bp-snowflake-white-pearl-mica.png?v=halo-free-65',
+    'Jet Black Mica (Code 41W)': 'assets/mazda3bp-jet-black-mica.png?v=halo-free-65',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3bp-deep-crystal-blue-mica.png?v=halo-free-65',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/mazda3bp-polymetal-gray-metallic.png?v=halo-free-65',
+    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda3bp-platinum-quartz-metallic.png?v=halo-free-65',
+    'Ceramic Metallic (Code 47A)': 'assets/mazda3bp-ceramic-metallic.png?v=halo-free-65'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
 test('every Mazda2 DJ factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
   const car = api.session.current().car;
   car.modelId = 'mazda2';

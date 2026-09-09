@@ -42,14 +42,28 @@ function renderTopbar() {
   // An empty garage (no vehicle added yet) has no car to describe — go()
   // routes that case to the onboarding screen instead, which hides this
   // row entirely, so there is nothing here to keep in sync with.
-  if (!session.current()) return;
+  if (!session.current()) {
+    // No vehicle to remember either — same reason applyAccent() clears its
+    // own cache in this case: a stale name here is what a future sign-in's
+    // first frame would flash before its own renderTopbar() call replaces it.
+    try { localStorage.removeItem('garage.topbar'); } catch (e) {}
+    return;
+  }
   const c = session.current().car;
-  $('#carTitle').textContent = carTitle();
-  $('#carSub').textContent = [c.year, c.engine, c.transmission, c.color].filter(Boolean).join(' · ');
+  const title = carTitle();
+  const sub = [c.year, c.engine, c.transmission, c.color].filter(Boolean).join(' · ');
+  $('#carTitle').textContent = title;
+  $('#carSub').textContent = sub;
   $('#carBadge').innerHTML = BRAND_MARK;
-  // index.html ships a fixed "2016 Mazda 3" title; this is a multi-vehicle
-  // garage, so the tab should name whichever vehicle is actually active.
-  document.title = 'Garage — ' + carTitle();
+  // index.html ships a fixed generic title; this is a multi-vehicle garage,
+  // so the tab should name whichever vehicle is actually active.
+  document.title = 'Car Care — ' + title;
+  // Cached so index.html's inline boot script can paint the right vehicle's
+  // name on the very first frame, before session.load() resolves — same gap,
+  // same fix, as applyAccent()'s own 'garage.accent' cache above. Without
+  // this every refresh flashes the skeleton's generic "My car" placeholder
+  // for a moment, regardless of which vehicle is actually active.
+  try { localStorage.setItem('garage.topbar', JSON.stringify({ title, sub })); } catch (e) {}
 }
 
 /* ============================================================
@@ -386,10 +400,35 @@ function buildAccountMenu(menu) {
   };
   menu.appendChild(dark);
 
-  menu.appendChild(menuItem('Settings', 'menuitem', () => { closeAccountMenu(false); openSettings(); }));
-  if (account.available()) {
-    menu.appendChild(menuItem('Account', 'menuitem', () => { closeAccountMenu(false); openAccount(); }));
-  }
+  const nextLanguage = lang === 'ar' ? 'English' : 'العربية';
+  menu.appendChild(menuItem(nextLanguage, 'menuitem', () => {
+    closeAccountMenu(false);
+    applyLang(lang === 'ar' ? 'en' : 'ar');
+  }));
+
+  menu.appendChild(menuItem('Export backup', 'menuitem', () => {
+    closeAccountMenu(false);
+    exportGarage();
+  }));
+
+  menu.appendChild(menuItem('Import backup', 'menuitem', () => {
+    closeAccountMenu(false);
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.hidden = true;
+    input.onchange = ev => {
+      const file = ev.target.files && ev.target.files[0];
+      if (file) importGarage(file);
+      input.remove();
+    };
+    document.body.appendChild(input);
+    input.click();
+  }));
+
+  /* No "Settings"/"Car profile" entry here on purpose: the topbar's own car
+     button (#openProfile) already opens this same dialog, and having it in
+     both places was redundant. */
 }
 
 function openAccountMenu() {

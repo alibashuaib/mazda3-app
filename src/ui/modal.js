@@ -33,6 +33,10 @@ function onModalKeydown(ev) {
 
 function openModal(title, sub, bodyBuilder, opts) {
   const host = $('#modalHost'), card = $('#modalCard');
+  // #modalCard is reused for every dialog — reset any per-dialog class a
+  // previous bodyBuilder added (e.g. openCarColor's narrower width) so it
+  // doesn't leak into whatever opens next.
+  card.className = 'modal-card';
   card.innerHTML = '<div class="modal-grip"></div>';
   const h = el('h2', null, html`${t(title)}`);
   h.id = 'modalTitle';
