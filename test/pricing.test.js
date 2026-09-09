@@ -53,3 +53,50 @@ test('searchItems() resolves [] on query error rather throwing', async () => {
   const result = await pricing.searchItems('paint');
   assert.deepStrictEqual(result, []);
 });
+
+test('createItem() inserts resolves created row', async () => {
+  let inserted;
+  pricing.configure({
+    client: {
+      from: table => {
+        assert.strictEqual(table, 'price_items');
+        return {
+          insert: row => {
+            inserted = row;
+            return {
+              select: () => ({
+                single: () => Promise.resolve({ data: Object.assign({ id: 'new1' }, row), error: null })
+              })
+            };
+          }
+        };
+      }
+    }
+  });
+  const item = await pricing.createItem('Paint — bumper only', 'Paint', null);
+  assert.strictEqual(item.id, 'new1');
+  assert.strictEqual(inserted.label, 'Paint — bumper only');
+  assert.strictEqual(inserted.category, 'Paint');
+  assert.strictEqual(inserted.source_part_no, null);
+});
+
+test('createItem() resolves null on an insert error', async () => {
+  pricing.configure({
+    client: {
+      from: () => ({
+        insert: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: null, error: new Error('offline') })
+          })
+        })
+      })
+    }
+  });
+  const item = await pricing.createItem('Paint — bumper only', 'Paint', null);
+  assert.strictEqual(item, null);
+});
+
+test('createItem() resolves null with no client configured', async () => {
+  const item = await pricing.createItem('x', 'y', null);
+  assert.strictEqual(item, null);
+});

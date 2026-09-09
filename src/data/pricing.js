@@ -24,6 +24,12 @@
       env.client.from('price_items').select('id,label,category').ilike('label', `%${query}%`).limit(20)
     ).then(res => res.error ? [] : res.data);
   }
+  function createItem(label, category, sourcePartNo) {
+    if (!env.client) return Promise.resolve(null);
+    return Promise.resolve(
+      env.client.from('price_items').insert({ label, category, source_part_no: sourcePartNo }).select().single()
+    ).then(res => res.error ? null : (res.data || null));
+  }
 
-  return { configure, reset, available, searchItems };
+  return { configure, reset, available, searchItems, createItem };
 });
