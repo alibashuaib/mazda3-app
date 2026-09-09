@@ -170,6 +170,30 @@ test('every CX-9 TB factory colour uses an exact photo instead of a tint', () =>
   }
 }));
 
+test('every CX-9 TC factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'cx9';
+  car.model = 'CX-9';
+  const photos = {
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda-cx9-tc.png',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx9-soul-red-crystal-metallic.png',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx9-snowflake-white-pearl-mica.png',
+    'Jet Black Mica (Code 41W)': 'assets/cx9-jet-black-mica.png',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx9-deep-crystal-blue-mica.png',
+    'Sonic Silver Metallic (Code 45P)': 'assets/cx9-sonic-silver-metallic.png',
+    'Titanium Flash Mica (Code 42S)': 'assets/cx9-titanium-flash-mica.png',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/cx9-polymetal-gray-metallic.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
 test('every Mazda3 BM/BN factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
   const car = api.session.current().car;
   car.modelId = 'mazda3bm';

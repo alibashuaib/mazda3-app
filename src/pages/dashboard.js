@@ -127,6 +127,16 @@ const CAR_COLOR_PHOTOS = {
     'metropolitan-gray-mica': 'assets/cx9tb-metropolitan-gray-mica.png',
     'stormy-blue-mica': 'assets/cx9tb-stormy-blue-mica.png'
   },
+  cx9: {
+    'machine-gray-metallic': 'assets/mazda-cx9-tc.png',
+    'soul-red-crystal-metallic': 'assets/cx9-soul-red-crystal-metallic.png',
+    'snowflake-white-pearl-mica': 'assets/cx9-snowflake-white-pearl-mica.png',
+    'jet-black-mica': 'assets/cx9-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/cx9-deep-crystal-blue-mica.png',
+    'sonic-silver-metallic': 'assets/cx9-sonic-silver-metallic.png',
+    'titanium-flash-mica': 'assets/cx9-titanium-flash-mica.png',
+    'polymetal-gray-metallic': 'assets/cx9-polymetal-gray-metallic.png'
+  },
   mazda3bm: {
     'meteor-gray-mica': 'assets/mazda3-studio.png',
     'soul-red-metallic': 'assets/mazda3-soul-red.png',
