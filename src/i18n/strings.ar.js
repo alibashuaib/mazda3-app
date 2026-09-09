@@ -90,7 +90,7 @@ const AR = {
   'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save changes': 'حفظ التغييرات', 'Save profile': 'حفظ الملف',
   'Save part': 'حفظ القطعة', 'Remove': 'إزالة', 'Remove this vehicle': 'إزالة هذه المركبة', 'Delete': 'حذف',
   // crowdsourced price averages
-  'Community price': 'سعر المجتمع', 'reports': 'تقييم', 'No reports yet': 'لا توجد تقييمات بعد', 'Report price': 'شارك سعرك', 'Search add item…': 'ابحث أو أضف عنصراً…', 'Add "%s" new item': 'أضف "%s" كعنصر جديد', 'Your price (SAR)': 'سعرك (ريال)', 'Submit price': 'إرسال السعر', 'Price submitted ✓': 'تم إرسال السعر ✓', 'Sign in see share community prices.': 'سجّل الدخول لعرض أو مشاركة أسعار المجتمع.',
+  'Community price': 'سعر المجتمع', 'reports': 'تقييم', 'No reports yet': 'لا توجد تقييمات بعد', 'Report your price': 'شارك سعرك', 'Search or add an item…': 'ابحث أو أضف عنصراً…', 'Add "%s" as a new item': 'أضف "%s" كعنصر جديد', 'Your price (SAR)': 'سعرك (ريال)', 'Submit price': 'إرسال السعر', 'Price submitted ✓': 'تم إرسال السعر ✓', 'Sign in to see or share community prices.': 'سجّل الدخول لعرض أو مشاركة أسعار المجتمع.',
   // report types
   'Service history': 'سجل الصيانة', 'Purchases': 'المشتريات', 'Full summary': 'ملخص كامل',
   // built-in service names
