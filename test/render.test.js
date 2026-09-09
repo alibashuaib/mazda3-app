@@ -199,14 +199,14 @@ test('every Mazda3 BP factory colour uses an exact photo instead of a tint', () 
   car.modelId = 'mazda3bp';
   car.model = '3';
   const photos = {
-    'Machine Gray Metallic (Code 46G)': 'assets/mazda3-bp.png',
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda3bp-soul-red-crystal-metallic.png',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3bp-snowflake-white-pearl-mica.png',
-    'Jet Black Mica (Code 41W)': 'assets/mazda3bp-jet-black-mica.png',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3bp-deep-crystal-blue-mica.png',
-    'Polymetal Gray Metallic (Code 47C)': 'assets/mazda3bp-polymetal-gray-metallic.png',
-    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda3bp-platinum-quartz-metallic.png',
-    'Ceramic Metallic (Code 47A)': 'assets/mazda3bp-ceramic-metallic.png'
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda3-bp.png?v=halo-free-65',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda3bp-soul-red-crystal-metallic.png?v=halo-free-65',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3bp-snowflake-white-pearl-mica.png?v=halo-free-65',
+    'Jet Black Mica (Code 41W)': 'assets/mazda3bp-jet-black-mica.png?v=halo-free-65',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3bp-deep-crystal-blue-mica.png?v=halo-free-65',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/mazda3bp-polymetal-gray-metallic.png?v=halo-free-65',
+    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda3bp-platinum-quartz-metallic.png?v=halo-free-65',
+    'Ceramic Metallic (Code 47A)': 'assets/mazda3bp-ceramic-metallic.png?v=halo-free-65'
   };
 
   for (const [color, src] of Object.entries(photos)) {

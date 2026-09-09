@@ -737,6 +737,11 @@ body {
     max-height: 86vh;
   }
   .modal-grip { display: none; }
+  /* Car colour — nothing but a list of swatch + name rows, so the shared
+     480px modal width just stretches them thin with dead space to the right.
+     Wide enough that the longest paint name ("Snowflake White Pearl Mica
+     (Code 25D)") fits on one line instead of wrapping. */
+  .modal-card.color-modal { max-width: 400px; }
 }
 @keyframes pop { from { transform: scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
 

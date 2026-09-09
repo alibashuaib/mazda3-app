@@ -115,8 +115,9 @@ function studioCarImage(color, car) {
   const modelId = car && car.modelId;
   const byModel = CAR_COLOR_PHOTOS[modelId];
   const exact = byModel && byModel[colorSlug(color)];
-  if (exact) return exact;
-  if (GENERIC_MODEL_IMAGE[modelId]) return GENERIC_MODEL_IMAGE[modelId];
+  const freshAsset = url => modelId === 'mazda3bp' ? `${url}?v=halo-free-65` : url;
+  if (exact) return freshAsset(exact);
+  if (GENERIC_MODEL_IMAGE[modelId]) return freshAsset(GENERIC_MODEL_IMAGE[modelId]);
   if (modelId === 'mazda3bm') return 'assets/mazda3-studio.png';
   return '';
 }

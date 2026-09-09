@@ -391,6 +391,9 @@ function openCarColor() {
   const sel = opts.find(x => normalizeColorName(x) === normalizeColorName(c.color)) || opts[0];
 
   openModal(t('Car colour'), t('Pick this car’s paint — the app’s accent follows it.'), card => {
+    // Nothing else lives in this dialog, so the full 480px desktop modal
+    // width (see .color-modal below) just leaves the list looking stretched.
+    card.classList.add('color-modal');
     const list = el('div', 'color-list');
     list.setAttribute('role', 'radiogroup');
     list.setAttribute('aria-label', t('Car colour'));
