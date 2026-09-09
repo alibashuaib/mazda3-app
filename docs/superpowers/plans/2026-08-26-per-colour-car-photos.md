@@ -49,7 +49,7 @@ keeps working for every colour not yet covered.
 
 ## Full asset list still needed (as of 2026-08-26)
 
-`mazda2`, `mazda3bm`, `mazda6`, `cx3`, `cx5ke`, and `cx9tb` are complete.
+`mazda2`, `mazda3bm`, `mazda3bp`, `mazda6`, `cx3`, `cx30`, `cx5ke`, `cx5kf`, `cx5gen3`, and `cx9tb` are complete.
 Every other model is fully outstanding. `[m.id]-[colorSlug]` → source catalogue colour, generated
 from `CAR_MODELS` in `src/data/catalog.js`:
 
@@ -60,7 +60,7 @@ soul-red-crystal-metallic, snowflake-white-pearl-mica, jet-black-mica,
 deep-crystal-blue-mica, dynamic-blue-mica, machine-gray-metallic,
 ceramic-metallic, platinum-quartz-metallic
 
-### mazda3bp (8)
+### mazda3bp (complete — 8/8)
 machine-gray-metallic, soul-red-crystal-metallic, snowflake-white-pearl-mica,
 jet-black-mica, deep-crystal-blue-mica, polymetal-gray-metallic,
 platinum-quartz-metallic, ceramic-metallic
@@ -75,7 +75,7 @@ machine-gray-metallic, soul-red-crystal-metallic, snowflake-white-pearl-mica,
 jet-black-mica, deep-crystal-blue-mica, dynamic-blue-mica, ceramic-metallic,
 titanium-flash-mica, polymetal-gray-metallic
 
-### cx30 (9)
+### cx30 (complete — 9/9)
 machine-gray-metallic, soul-red-crystal-metallic, snowflake-white-pearl-mica,
 jet-black-mica, deep-crystal-blue-mica, polymetal-gray-metallic,
 platinum-quartz-metallic, ceramic-metallic, aero-gray-metallic
@@ -85,13 +85,13 @@ meteor-gray-mica, soul-red-metallic, crystal-white-pearl-mica,
 jet-black-mica, blue-reflex-mica, sky-blue-mica, stormy-blue-mica,
 liquid-silver-metallic, metropolitan-gray-mica, zeal-red-mica
 
-### cx5kf (10)
+### cx5kf (complete — 10/10)
 machine-gray-metallic, soul-red-crystal-metallic, snowflake-white-pearl-mica,
 rhodium-white-premium, jet-black-mica, deep-crystal-blue-mica,
 eternal-blue-mica, sonic-silver-metallic, polymetal-gray-metallic,
 zircon-sand-metallic
 
-### cx5gen3 (6)
+### cx5gen3 (complete — 6/6)
 navy-blue-mica, soul-red-crystal-metallic, rhodium-white-premium,
 machine-gray-metallic, jet-black-mica, aero-gray-metallic
 

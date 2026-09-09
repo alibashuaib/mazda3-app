@@ -168,13 +168,14 @@ body {
   color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .menu-item {
-  display: block; width: 100%; font-family: inherit; font-size: 13.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 10px; width: 100%; font-family: inherit; font-size: 13.5px; font-weight: 600;
   /* text-align follows the writing direction rather than being pinned left. */
   text-align: start;
   padding: 10px; border: 0; border-radius: 10px; cursor: pointer;
   background: transparent; color: var(--text); transition: background .15s;
 }
-.menu-item[aria-checked="true"]::after { content: '✓'; float: inline-end; color: var(--accent); }
+.menu-item-ic { flex: none; font-size: 15px; line-height: 1; width: 18px; text-align: center; }
+.menu-item[aria-checked="true"]::after { content: '✓'; margin-inline-start: auto; color: var(--accent); }
 .icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .i-moon { display: none; }
 :root[data-theme="light"] .i-sun { display: none; }

@@ -360,8 +360,10 @@ function onAccountMenuOutside(ev) {
   if (!$('#accountMenu').parentElement.contains(ev.target)) closeAccountMenu(false);
 }
 
-function menuItem(label, role, onPick) {
-  const b = el('button', 'menu-item', html`${t(label)}`);
+function menuItem(label, role, onPick, icon, raw) {
+  // raw: skip t() — used for the language item, whose label names a language
+  // in that language's own script and must not itself get translated.
+  const b = el('button', 'menu-item', html`<span class="menu-item-ic">${icon || ''}</span>${raw ? label : t(label)}`);
   b.type = 'button';
   b.setAttribute('role', role);
   b.setAttribute('tabindex', '-1');
@@ -382,21 +384,19 @@ function buildAccountMenu(menu) {
     menu.appendChild(head);
   }
 
-  menu.appendChild(menuItem('Switch vehicle', 'menuitem', () => { closeAccountMenu(false); openGarage(); }));
+  menu.appendChild(menuItem('Switch vehicle', 'menuitem', () => { closeAccountMenu(false); openGarage(); }, '🚗'));
 
   /* Binary, so it maps onto menuitemcheckbox — which means the old button's
      third state ('system', follow the device) is no longer reachable from the
      topbar. It is still the default until the user picks explicitly, and the
      matchMedia listener in main.js still tracks the device for anyone who
      never touches this. Noted in the commit message. */
-  const dark = menuItem('Dark mode', 'menuitemcheckbox', null);
+  const dark = menuItem('Dark mode', 'menuitemcheckbox', null, currentTheme() === 'dark' ? '🌙' : '☀️');
   dark.setAttribute('aria-checked', String(currentTheme() === 'dark'));
   dark.onclick = () => {
     setThemePref(currentTheme() === 'dark' ? 'light' : 'dark');
     refreshForTheme();
-    /* Stays open on purpose: the point of a checkbox is seeing it flip. */
-    dark.setAttribute('aria-checked', String(currentTheme() === 'dark'));
-    dark.focus();
+    closeAccountMenu(false);
   };
   menu.appendChild(dark);
 
@@ -404,12 +404,12 @@ function buildAccountMenu(menu) {
   menu.appendChild(menuItem(nextLanguage, 'menuitem', () => {
     closeAccountMenu(false);
     applyLang(lang === 'ar' ? 'en' : 'ar');
-  }));
+  }, '🌐', true));
 
   menu.appendChild(menuItem('Export backup', 'menuitem', () => {
     closeAccountMenu(false);
     exportGarage();
-  }));
+  }, '📤'));
 
   menu.appendChild(menuItem('Import backup', 'menuitem', () => {
     closeAccountMenu(false);
@@ -424,7 +424,7 @@ function buildAccountMenu(menu) {
     };
     document.body.appendChild(input);
     input.click();
-  }));
+  }, '📥'));
 
   /* No "Settings"/"Car profile" entry here on purpose: the topbar's own car
      button (#openProfile) already opens this same dialog, and having it in

@@ -70,7 +70,7 @@ function renderMaintenance() {
 function buildPlan(v) {
   const intro = el('p');
   intro.style.cssText = 'font-size:12.5px;line-height:1.55;color:var(--text-2);margin:2px 4px 14px';
-  intro.textContent = t('What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.');
+  intro.textContent = t('What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole milestone.');
   v.appendChild(intro);
 
   const all = planForward();
@@ -89,14 +89,14 @@ function buildPlan(v) {
         <div class="plan-km">${fmt(ms.km)}<span>km</span></div>
         <div class="plan-meta">
           ${isNext ? html`<span class="plan-badge next">${t('Next up')}</span>` : ''}
-          ${ms.major ? html`<span class="plan-badge">${t('Major service')}</span>` : ''}
+          ${ms.major ? html`<span class="plan-badge">${t('Major milestone')}</span>` : ''}
           <span class="plan-when">≈ ${fmtDate(ms.date, { month: 'short', year: 'numeric' })}</span>
         </div>
       </div>
       <div class="plan-items">
         ${ms.items.map((s, i) => html`<button class="plan-chip" data-i="${i}"><i>${s.icon || '🔧'}</i>${t(s.name)}</button>`)}
       </div>
-      <button class="plan-log">${iconSvg('check')}${t('Log this visit')}</button>`;
+      <button class="plan-log">${iconSvg('check')}${t('Log this milestone')}</button>`;
     card.querySelectorAll('.plan-chip').forEach(btn => btn.onclick = () => {
       const s = ms.items[+btn.dataset.i];
       openLogConfirm([s], { checklist: true, onDone: () => { go('maintenance'); } });
@@ -123,7 +123,7 @@ function openLogConfirm(services, opts) {
   const defIdx = p => { const i = p.options.findIndex(o => o.tag === 'OEM'); return i >= 0 ? i : 0; };
   const laborShare = svc => { const lp = partsForService(svc); if (!lp.length) return 0; const dflt = lp.reduce((a, p) => a + Number(p.options[defIdx(p)].price || 0), 0); return Math.max(0, Number(svc.cost || 0) - dflt); };
   const doneState = new Map(); services.forEach(s => doneState.set(s.id, true));
-  openModal(opts.title || (services.length > 1 ? 'Log a plan visit' : services[0].name),
+  openModal(opts.title || (services.length > 1 ? 'Log a service milestone' : services[0].name),
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
       r.append(field('Odometer (km)', html`<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : session.current().car.odometer}">`),
@@ -138,7 +138,7 @@ function openLogConfirm(services, opts) {
         head.innerHTML = html`<div class="log-svc-title">${svc.icon || '🔧'} ${t(svc.name)}</div>`;
         const body = el('div', 'log-svc-body');
         const note = el('div', 'log-svc-note');
-        note.textContent = '↪ ' + t('Carried to your next visit');
+        note.textContent = '↪ ' + t('Carried to your next milestone');
         note.style.display = 'none';
 
         if (svc.pendingParts && svc.pendingParts.length) {  // parts marked None last time
@@ -215,13 +215,13 @@ function openLogConfirm(services, opts) {
           const cost = svcCost(svc); grand += cost; nDone++; lastName = svc.name;
           session.current().history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
         });
-        if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service visit')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
+        if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service milestone')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
         if (odo > (session.current().car.odometer || 0)) session.current().car.odometer = odo;
         const ok = await save(); closeModal();
         (opts.onDone || (() => go('maintenance')))();
         if (ok) {
           if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
-          else if (!opts.onDone) toast(nDone > 1 ? 'Visit logged ✓' : 'Service logged ✓');
+          else if (!opts.onDone) toast(nDone > 1 ? 'Milestone logged ✓' : 'Service logged ✓');
           if (nPartSkip) toast(`⚠️ ${nPartSkip} ${t('part(s) to redo next service')}`, 'warn');
         }
       });
@@ -642,14 +642,14 @@ function openEditService(s) {
 }
 
 function openLogService() {
-  openModal('Log a service', 'A single service, or a whole plan visit at once.', card => {
+  openModal('Log a service', 'A single service item, or a whole service milestone at once.', card => {
     const bSingle = el('button', 'btn', html`${t('Choose')}`);
     bSingle.onclick = () => { closeModal(); openLogSingleService(); };
-    card.appendChild(bannerRow('🔧', 'Single service', 'Pick one thing you just had done.', bSingle));
+    card.appendChild(bannerRow('🔧', 'Single service item', 'Pick one thing you just had done.', bSingle));
 
     const bPlan = el('button', 'btn', html`${t('Choose')}`);
     bPlan.onclick = () => { closeModal(); openLogPlanVisit(); };
-    card.appendChild(bannerRow('🗓️', 'Plan visit', 'A group of services from your plan, done together.', bPlan));
+    card.appendChild(bannerRow('🗓️', 'Service milestone', 'A group of service items from your plan, done together.', bPlan));
   });
 }
 
@@ -667,14 +667,14 @@ function openLogSingleService() {
 
 function openLogPlanVisit() {
   const milestones = planForward().slice(0, 6);
-  openModal('Log a plan visit', 'Pick an upcoming group of services — logs everything in it at once.', card => {
+  openModal('Log a service milestone', 'Pick an upcoming service milestone — logs everything in it at once.', card => {
     if (!milestones.length) { card.appendChild(emptyState('🗓️', 'Nothing scheduled — you’re all caught up!')); return; }
     const list = el('div', 'list');
     milestones.forEach(ms => {
       const it = el('div', 'item');
       it.innerHTML = html`
         <div class="item-ic">${ms.major ? '🛠️' : '🗓️'}</div>
-        <div class="item-main"><h3>${fmt(ms.km)} km${ms.major ? ' · ' + t('Major service') : ''}</h3><p>${ms.items.map(s => t(s.name)).join(', ')}</p></div>
+        <div class="item-main"><h3>${fmt(ms.km)} km${ms.major ? ' · ' + t('Major milestone') : ''}</h3><p>${ms.items.map(s => t(s.name)).join(', ')}</p></div>
         <div class="item-side"><span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Log ›')}</span></div>`;
       it.onclick = () => { closeModal(); openLogConfirm(ms.items, { checklist: true, onDone: () => { go('maintenance'); } }); };
       list.appendChild(it);

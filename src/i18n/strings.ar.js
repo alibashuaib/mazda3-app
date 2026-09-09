@@ -39,9 +39,9 @@ const AR = {
   'Transmission Fluid Filter': 'فلتر زيت القير', 'Transmission Pan Sealant': 'غراء كارتر القير (سيليكون)',
   'Community rec. (Mazda CX-5 group + info guide): renew ATF every 60–80k km per gearbox condition. Mazda Genuine ATF-FZ only (K020-W0-052E4), ~4.5–4.7 L per drain — buy 5×1 L. Replace the pan filter (FZ01-21-500) and reseal the pan with silicone (Dirko HT / Reinzosil / Mopar — better than dealer sealant), applied cleanly. Go easy on the gearbox for the first ~800 km. Check the fluid level to spec. No additives.': 'توصية المجتمع (قروب مازدا CX-5 + دليل المعلومات): جدّد زيت القير كل 60–80 ألف كم حسب حالة القير. زيت مازدا الأصلي ATF-FZ فقط (K020-W0-052E4)، ~4.5–4.7 لتر لكل تغيير — اشترِ 5×1 لتر. استبدل فلتر الكارتر (FZ01-21-500) وأعد غلق الكارتر بالسيليكون (Dirko HT / Reinzosil / Mopar — أفضل من غراء الوكالة) بطريقة نظيفة. لا تُجهد القير أول ~800 كم. تأكد من معيار الزيت. لا تستخدم معالجات.',
   // milestone plan
-  'Plan': 'الخطة', 'Major service': 'صيانة رئيسية', 'mo': 'شهر', 'yr': 'سنة', 'Next up': 'التالي',
-  'What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole visit.': 'ما هو قادم، مبني من خدماتك ومتى أُجريت كل منها آخر مرة. اضغط على مهمة لتسجيلها، أو سجّل زيارة كاملة.',
-  'Log this visit': 'سجّل هذه الزيارة', 'Visit logged ✓': 'تم تسجيل الزيارة ✓', 'Service visit': 'زيارة صيانة',
+  'Plan': 'الخطة', 'Major milestone': 'دورية كبرى', 'mo': 'شهر', 'yr': 'سنة', 'Next up': 'التالي',
+  'What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole milestone.': 'ما هو قادم، مبني من خدماتك ومتى أُجريت كل منها آخر مرة. اضغط على مهمة لتسجيلها، أو سجّل دورية كاملة.',
+  'Log this milestone': 'سجّل هذه الدورية', 'Milestone logged ✓': 'تم تسجيل الدورية ✓', 'Service milestone': 'دورية صيانة',
   'Show later years': 'عرض السنوات القادمة', 'Nothing scheduled — you’re all caught up!': 'لا شيء مجدول — أنت محدّث بالكامل!',
   'This adapts to when you actually service the car — log a task off its usual interval and the plan re-times itself. Edit intervals under Schedule.': 'يتكيّف هذا مع وقت صيانتك الفعلي للسيارة — سجّل مهمة خارج فترتها المعتادة وتعيد الخطة ضبط توقيتها. عدّل الفترات من الجدول.',
   // first-time plan setup — step-by-step wizard
@@ -70,13 +70,13 @@ const AR = {
   'All': 'الكل', 'OK': 'سليمة',
   // buttons
   'Log a service': 'تسجيل خدمة', 'Add spending': 'إضافة مصروف', 'Add fill-up': 'إضافة تعبئة', 'Mark done now': 'تحديد كمنجز',
-  'A single service, or a whole plan visit at once.': 'خدمة واحدة، أو زيارة خطة كاملة دفعة واحدة.',
-  'Single service': 'خدمة واحدة', 'Pick one thing you just had done.': 'اختر شيئاً واحداً أنجزته للتو.', 'Choose': 'اختيار',
-  'Plan visit': 'زيارة الخطة', 'A group of services from your plan, done together.': 'مجموعة خدمات من خطتك، أُنجزت معاً.',
-  'Log a plan visit': 'تسجيل زيارة الخطة', 'Pick an upcoming group of services — logs everything in it at once.': 'اختر مجموعة خدمات قادمة — يسجّل كل ما فيها دفعة واحدة.',
+  'A single service item, or a whole service milestone at once.': 'بند صيانة واحد، أو دورية كاملة دفعة واحدة.',
+  'Single service item': 'بند صيانة واحد', 'Pick one thing you just had done.': 'اختر شيئاً واحداً أنجزته للتو.', 'Choose': 'اختيار',
+  'A group of service items from your plan, done together.': 'مجموعة بنود صيانة من خطتك، أُنجزت معاً.',
+  'Log a service milestone': 'تسجيل دورية صيانة', 'Pick an upcoming service milestone — logs everything in it at once.': 'اختر دورية قادمة — يسجّل كل ما فيها دفعة واحدة.',
   'Log it': 'سجّلها', 'No linked parts': 'لا توجد قطع مرتبطة',
   'Pick the parts you used (OEM or alternative), then log it.': 'اختر القطع التي استخدمتها (أصلية أو بديلة)، ثم سجّلها.',
-  'Done': 'تمّت', 'Not yet': 'ليس بعد', 'Carried to your next visit': 'مُرحّلة إلى زيارتك القادمة',
+  'Done': 'تمّت', 'Not yet': 'ليس بعد', 'Carried to your next milestone': 'مُرحّلة إلى دوريتك القادمة',
   // add-vehicle picker
   'Add a Mazda': 'إضافة مازدا', 'Pick the model and engine — its SkyActiv service plan is set up for you.': 'اختر الطراز والمحرك — تُجهّز خطة صيانة SkyActiv تلقائياً.',
   'Vehicle added': 'تمت إضافة المركبة', 'e.g. 2019': 'مثال: 2019',
@@ -375,7 +375,7 @@ const AR = {
   // calendar system (Arabic only — English is always Gregorian)
   'Gregorian': 'ميلادي', 'Hijri': 'هجري', 'Both': 'كلاهما',
   // account menu (the topbar's inline-end corner)
-  'My account': 'حسابي', 'Account menu': 'قائمة الحساب', 'English': 'الإنجليزية',
+  'My account': 'حسابي', 'Account menu': 'قائمة الحساب',
   'Switch vehicle': 'تبديل المركبة', 'Dark mode': 'الوضع الداكن',
   // accounts
   'Account': 'الحساب',

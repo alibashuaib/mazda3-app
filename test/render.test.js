@@ -218,6 +218,79 @@ test('every Mazda3 BP factory colour uses an exact photo instead of a tint', () 
   }
 }));
 
+test('every CX-30 DM factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'cx30';
+  car.model = 'CX-30';
+  const photos = {
+    'Machine Gray Metallic (Code 46G)': 'assets/cx30-machine-gray-metallic.png',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx30-soul-red-crystal-metallic.png',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx30-snowflake-white-pearl-mica.png',
+    'Jet Black Mica (Code 41W)': 'assets/cx30-jet-black-mica.png',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx30-deep-crystal-blue-mica.png',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/cx30-polymetal-gray-metallic.png',
+    'Platinum Quartz Metallic (Code 47S)': 'assets/cx30-platinum-quartz-metallic.png',
+    'Ceramic Metallic (Code 47A)': 'assets/cx30-ceramic-metallic.png',
+    'Aero Gray Metallic (Code 52C)': 'assets/cx30-aero-gray-metallic.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
+test('every CX-5 KF factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'cx5kf';
+  car.model = 'CX-5';
+  const photos = {
+    'Machine Gray Metallic (Code 46G)': 'assets/cx5kf-machine-gray-metallic.png',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx5kf-soul-red-crystal-metallic.png',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx5kf-snowflake-white-pearl-mica.png',
+    'Rhodium White Premium (Code 51K)': 'assets/cx5kf-rhodium-white-premium.png',
+    'Jet Black Mica (Code 41W)': 'assets/cx5kf-jet-black-mica.png',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx5kf-deep-crystal-blue-mica.png',
+    'Eternal Blue Mica (Code 45B)': 'assets/cx5kf-eternal-blue-mica.png',
+    'Sonic Silver Metallic (Code 45P)': 'assets/cx5kf-sonic-silver-metallic.png',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/cx5kf-polymetal-gray-metallic.png',
+    'Zircon Sand Metallic (Code 48T)': 'assets/cx5kf-zircon-sand-metallic.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
+test('every CX-5 Gen3 factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
+  const car = api.session.current().car;
+  car.modelId = 'cx5gen3';
+  car.model = 'CX-5';
+  const photos = {
+    'Navy Blue Mica': 'assets/cx5gen3-navy-blue-mica.png',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx5gen3-soul-red-crystal-metallic.png',
+    'Rhodium White Premium (Code 51K)': 'assets/cx5gen3-rhodium-white-premium.png',
+    'Machine Gray Metallic (Code 46G)': 'assets/cx5gen3-machine-gray-metallic.png',
+    'Jet Black Mica (Code 41W)': 'assets/cx5gen3-jet-black-mica.png',
+    'Aero Gray Metallic (Code 52C)': 'assets/cx5gen3-aero-gray-metallic.png'
+  };
+
+  for (const [color, src] of Object.entries(photos)) {
+    car.color = color;
+    api.go('dashboard');
+    const studio = document.querySelector('.car-studio');
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
+  }
+}));
+
 test('every Mazda2 DJ factory colour uses an exact photo instead of a tint', () => withBoot(async ({ document, api }) => {
   const car = api.session.current().car;
   car.modelId = 'mazda2';

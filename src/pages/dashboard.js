@@ -43,6 +43,37 @@ const CAR_COLOR_PHOTOS = {
     'platinum-quartz-metallic': 'assets/mazda3bp-platinum-quartz-metallic.png',
     'ceramic-metallic': 'assets/mazda3bp-ceramic-metallic.png'
   },
+  cx30: {
+    'machine-gray-metallic': 'assets/cx30-machine-gray-metallic.png',
+    'soul-red-crystal-metallic': 'assets/cx30-soul-red-crystal-metallic.png',
+    'snowflake-white-pearl-mica': 'assets/cx30-snowflake-white-pearl-mica.png',
+    'jet-black-mica': 'assets/cx30-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/cx30-deep-crystal-blue-mica.png',
+    'polymetal-gray-metallic': 'assets/cx30-polymetal-gray-metallic.png',
+    'platinum-quartz-metallic': 'assets/cx30-platinum-quartz-metallic.png',
+    'ceramic-metallic': 'assets/cx30-ceramic-metallic.png',
+    'aero-gray-metallic': 'assets/cx30-aero-gray-metallic.png'
+  },
+  cx5kf: {
+    'machine-gray-metallic': 'assets/cx5kf-machine-gray-metallic.png',
+    'soul-red-crystal-metallic': 'assets/cx5kf-soul-red-crystal-metallic.png',
+    'snowflake-white-pearl-mica': 'assets/cx5kf-snowflake-white-pearl-mica.png',
+    'rhodium-white-premium': 'assets/cx5kf-rhodium-white-premium.png',
+    'jet-black-mica': 'assets/cx5kf-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/cx5kf-deep-crystal-blue-mica.png',
+    'eternal-blue-mica': 'assets/cx5kf-eternal-blue-mica.png',
+    'sonic-silver-metallic': 'assets/cx5kf-sonic-silver-metallic.png',
+    'polymetal-gray-metallic': 'assets/cx5kf-polymetal-gray-metallic.png',
+    'zircon-sand-metallic': 'assets/cx5kf-zircon-sand-metallic.png'
+  },
+  cx5gen3: {
+    'navy-blue-mica': 'assets/cx5gen3-navy-blue-mica.png',
+    'soul-red-crystal-metallic': 'assets/cx5gen3-soul-red-crystal-metallic.png',
+    'rhodium-white-premium': 'assets/cx5gen3-rhodium-white-premium.png',
+    'machine-gray-metallic': 'assets/cx5gen3-machine-gray-metallic.png',
+    'jet-black-mica': 'assets/cx5gen3-jet-black-mica.png',
+    'aero-gray-metallic': 'assets/cx5gen3-aero-gray-metallic.png'
+  },
   cx3: {
     'machine-gray-metallic': 'assets/mazda-cx3-dk.png',
     'soul-red-crystal-metallic': 'assets/cx3-soul-red-crystal-metallic.png',
