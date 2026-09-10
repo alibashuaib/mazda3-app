@@ -161,7 +161,7 @@ function openAddSpending(e) {
           if (!q) return;
           pricing.searchItems(q).then(items => {
             const list = document.getElementById('x_item_list');
-            list.innerHTML = items.map(it => `<option value="${it.label}">`).join('');
+            list.innerHTML = items.map(it => html`<option value="${it.label}">`).join('');
             const exact = items.find(it => it.label === q);
             if (!exact) return;
             return pricing.getAverages([exact.id]).then(averages => {
