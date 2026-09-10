@@ -25,15 +25,25 @@
     ).then(res => (res && res.error) ? [] : (res.data || [])).catch(() => []);
   }
 
+  // ilike wildcard/escape chars have no special meaning to a user typing a
+  // label — escape them so ilike below does an exact (case-insensitive)
+  // match, not a pattern match.
+  function escapeLikePattern(s) {
+    return String(s).replace(/[%_\\]/g, ch => '\\' + ch);
+  }
+
   // Exact-label lookup, used by findOrCreateItem() below instead of
   // searchItems()'s substring/limit(20) match — that match can silently
   // miss an existing item once more than 20 rows share a substring, which
   // would create a permanent duplicate (price_items has no update/delete
-  // policy). Backed by the unique index on lower(label) in schema.sql.
+  // policy). Case-insensitive via ilike, to match the case-insensitive
+  // unique index on lower(label) in schema.sql — an .eq() here would miss
+  // an existing row that differs only in case, defeating that index's
+  // whole purpose.
   function findExactItem(label) {
     if (!env.client) return Promise.resolve(null);
     return Promise.resolve(
-      env.client.from('price_items').select('id,label,category').eq('label', label).maybeSingle()
+      env.client.from('price_items').select('id,label,category').ilike('label', escapeLikePattern(label)).maybeSingle()
     ).then(res => (res && res.error) ? null : (res.data || null)).catch(() => null);
   }
 

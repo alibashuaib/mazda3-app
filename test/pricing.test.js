@@ -114,7 +114,7 @@ test('createItem() resolves the exact-match row on a unique-violation race', asy
               single: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key' } })
             })
           }),
-          select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: winner, error: null }) }) })
+          select: () => ({ ilike: () => ({ maybeSingle: () => Promise.resolve({ data: winner, error: null }) }) })
         };
       }
     }
@@ -129,7 +129,7 @@ test('findExactItem() resolves the matching row', async () => {
     client: {
       from: table => {
         assert.strictEqual(table, 'price_items');
-        return { select: () => ({ eq: (col, val) => {
+        return { select: () => ({ ilike: (col, val) => {
           assert.strictEqual(col, 'label');
           assert.strictEqual(val, 'Paint — full respray');
           return { maybeSingle: () => Promise.resolve({ data: row, error: null }) };
@@ -141,9 +141,39 @@ test('findExactItem() resolves the matching row', async () => {
   assert.deepStrictEqual(item, row);
 });
 
+test('findExactItem() uses ilike (case-insensitive), not eq, matching the schema\'s unique index on lower(label)', async () => {
+  const row = { id: 'a1', label: 'Car Paint Job', category: 'Paint' };
+  pricing.configure({
+    client: {
+      // No eq() on this fake client at all — if findExactItem regressed
+      // back to .eq(), this throws instead of silently missing a
+      // case-differing row the way the real API would.
+      from: () => ({ select: () => ({ ilike: (col, val) => {
+        assert.strictEqual(col, 'label');
+        assert.strictEqual(val, 'car paint job');
+        return { maybeSingle: () => Promise.resolve({ data: row, error: null }) };
+      } }) })
+    }
+  });
+  const item = await pricing.findExactItem('car paint job');
+  assert.deepStrictEqual(item, row);
+});
+
+test('findExactItem() escapes ilike wildcard characters so a typed % or _ is literal', async () => {
+  pricing.configure({
+    client: {
+      from: () => ({ select: () => ({ ilike: (col, val) => {
+        assert.strictEqual(val, 'brake pads (front\\_left)');
+        return { maybeSingle: () => Promise.resolve({ data: null, error: null }) };
+      } }) })
+    }
+  });
+  await pricing.findExactItem('brake pads (front_left)');
+});
+
 test('findExactItem() resolves null when nothing matches', async () => {
   pricing.configure({
-    client: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }) }
+    client: { from: () => ({ select: () => ({ ilike: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }) }
   });
   const item = await pricing.findExactItem('nope');
   assert.strictEqual(item, null);
@@ -154,7 +184,7 @@ test('findOrCreateItem() reuses an existing item without creating one', async ()
   pricing.configure({
     client: {
       from: () => ({
-        select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: existing, error: null }) }) }),
+        select: () => ({ ilike: () => ({ maybeSingle: () => Promise.resolve({ data: existing, error: null }) }) }),
         insert: () => { throw new Error('must not create when one already exists'); }
       })
     }
@@ -167,7 +197,7 @@ test('findOrCreateItem() creates a new item when none exists', async () => {
   pricing.configure({
     client: {
       from: () => ({
-        select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
+        select: () => ({ ilike: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
         insert: row => ({ select: () => ({ single: () => Promise.resolve({ data: Object.assign({ id: 'new1' }, row), error: null }) }) })
       })
     }
