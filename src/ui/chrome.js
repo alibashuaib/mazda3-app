@@ -400,7 +400,7 @@ function buildAccountMenu(menu) {
   };
   menu.appendChild(dark);
 
-  const nextLanguage = lang === 'ar' ? 'English' : 'العربية';
+  const nextLanguage = lang === 'ar' ? t('English') : 'العربية';
   menu.appendChild(menuItem(nextLanguage, 'menuitem', () => {
     closeAccountMenu(false);
     applyLang(lang === 'ar' ? 'en' : 'ar');

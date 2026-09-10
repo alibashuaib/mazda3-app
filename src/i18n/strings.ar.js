@@ -13,6 +13,10 @@
 const AR = {
   // nav
   'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Parts': 'القطع', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
+  // account menu — language switch item names the *other* language; 'العربية'
+  // is shown raw (own script, no translation needed), but 'English' needs
+  // this entry so it reads in Arabic script once Arabic is active.
+  'English': 'الإنجليزية',
   // statuses / pills
   'Overdue': 'متأخرة', 'Due soon': 'قريبة الاستحقاق', 'On track': 'على المسار', 'Active': 'الحالية', 'Switch ›': 'تبديل ›',
   // dashboard tiles / labels
