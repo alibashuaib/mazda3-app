@@ -80,8 +80,7 @@ function renderParts() {
        for "no data", only for the modal's own empty state. */
     if (pricing.available()) {
       items.forEach(p => {
-        pricing.searchItems(p.name).then(found => {
-          const match = found.find(it => it.label === p.name);
+        pricing.findExactItem(p.name).then(match => {
           if (!match) return;
           return pricing.getAverages([match.id]).then(averages => {
             const avg = averages.get(match.id);
@@ -258,9 +257,7 @@ function openReportPrice(p) {
     onAsyncClick(b, async () => {
       const price = Number($('#rp_price').value);
       if (!(price > 0)) return fail('#rp_price', 'Price required');
-      const found = await pricing.searchItems(p.name);
-      const existing = found.find(it => it.label === p.name);
-      const item = existing || await pricing.createItem(p.name, p.cat, p.partsouq || null);
+      const item = await pricing.findOrCreateItem(p.name, p.cat, p.partsouq || null);
       const ok = item && await pricing.submitPrice(item.id, price);
       if (ok) { toast('Price submitted ✓'); closeModal(); go('parts'); }
       else toast('Sign in to see or share community prices.', 'warn');

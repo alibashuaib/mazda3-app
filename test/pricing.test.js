@@ -102,6 +102,81 @@ test('createItem() resolves null with no client configured', async () => {
   assert.strictEqual(item, null);
 });
 
+test('createItem() resolves the exact-match row on a unique-violation race', async () => {
+  const winner = { id: 'won1', label: 'Paint — bumper only', category: 'Paint' };
+  pricing.configure({
+    client: {
+      from: table => {
+        assert.strictEqual(table, 'price_items');
+        return {
+          insert: () => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key' } })
+            })
+          }),
+          select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: winner, error: null }) }) })
+        };
+      }
+    }
+  });
+  const item = await pricing.createItem('Paint — bumper only', 'Paint', null);
+  assert.deepStrictEqual(item, winner);
+});
+
+test('findExactItem() resolves the matching row', async () => {
+  const row = { id: 'a1', label: 'Paint — full respray', category: 'Paint' };
+  pricing.configure({
+    client: {
+      from: table => {
+        assert.strictEqual(table, 'price_items');
+        return { select: () => ({ eq: (col, val) => {
+          assert.strictEqual(col, 'label');
+          assert.strictEqual(val, 'Paint — full respray');
+          return { maybeSingle: () => Promise.resolve({ data: row, error: null }) };
+        } }) };
+      }
+    }
+  });
+  const item = await pricing.findExactItem('Paint — full respray');
+  assert.deepStrictEqual(item, row);
+});
+
+test('findExactItem() resolves null when nothing matches', async () => {
+  pricing.configure({
+    client: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }) }
+  });
+  const item = await pricing.findExactItem('nope');
+  assert.strictEqual(item, null);
+});
+
+test('findOrCreateItem() reuses an existing item without creating one', async () => {
+  const existing = { id: 'e1', label: 'Paint', category: 'Paint' };
+  pricing.configure({
+    client: {
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: existing, error: null }) }) }),
+        insert: () => { throw new Error('must not create when one already exists'); }
+      })
+    }
+  });
+  const item = await pricing.findOrCreateItem('Paint', 'Paint', null);
+  assert.deepStrictEqual(item, existing);
+});
+
+test('findOrCreateItem() creates a new item when none exists', async () => {
+  pricing.configure({
+    client: {
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
+        insert: row => ({ select: () => ({ single: () => Promise.resolve({ data: Object.assign({ id: 'new1' }, row), error: null }) }) })
+      })
+    }
+  });
+  const item = await pricing.findOrCreateItem('Paint', 'Paint', null);
+  assert.strictEqual(item.id, 'new1');
+  assert.strictEqual(item.label, 'Paint');
+});
+
 test('submitPrice() inserts an observation when signed in', async () => {
   let inserted;
   account.setUserForTest({ id: 'u1' });

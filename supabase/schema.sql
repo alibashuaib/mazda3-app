@@ -111,6 +111,15 @@ create table if not exists public.price_items (
   created_at     timestamptz not null default now()
 );
 
+-- Case-insensitive uniqueness on the label. price_items is meant to be a
+-- single canonical shared list (see spec's "shared canonical item list, not
+-- fuzzy text matching" decision) and has no update/delete policy at all, so
+-- a duplicate created here is permanent — this index is what makes the
+-- app-side find-or-create in pricing.js's createItem() safe to rely on
+-- under concurrent submitters, instead of merely convention.
+create unique index if not exists price_items_label_key
+  on public.price_items (lower(label));
+
 create table if not exists public.price_observations (
   id           uuid        primary key default gen_random_uuid(),
   item_id      uuid        not null references public.price_items on delete cascade,
@@ -126,7 +135,14 @@ create index if not exists price_observations_item_idx
 -- observations are insert-only, so a plain default is enough — no update
 -- path exists that a client-supplied timestamp could smuggle a bad value
 -- through.
-create or replace view public.price_item_averages as
+-- security_invoker: the view runs with the querying user's own RLS, not the
+-- view owner's — without this a Postgres view is SECURITY DEFINER-like by
+-- default and silently bypasses price_observations' RLS. Harmless today
+-- (read_price_observations already grants select to every authenticated
+-- user) but it makes the spec's "inherits that table's select policy"
+-- claim actually enforced by the view, not just coincidentally true.
+create or replace view public.price_item_averages
+  with (security_invoker = true) as
   select item_id, avg(price)::numeric(10,2) as avg_price, count(*) as sample_count
   from public.price_observations
   group by item_id;

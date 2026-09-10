@@ -162,7 +162,8 @@ function openAddSpending(e) {
           pricing.searchItems(q).then(items => {
             const list = document.getElementById('x_item_list');
             list.innerHTML = items.map(it => html`<option value="${it.label}">`).join('');
-            const exact = items.find(it => it.label === q);
+          }).catch(() => {});
+          pricing.findExactItem(q).then(exact => {
             if (!exact) return;
             return pricing.getAverages([exact.id]).then(averages => {
               const avg = averages.get(exact.id);
@@ -170,7 +171,7 @@ function openAddSpending(e) {
                 ? `🌍 ${t('Community price')}: ${sar(avg.avgPrice)} SAR (${avg.sampleCount} ${t('reports')})`
                 : t('No reports yet');
             });
-          });
+          }).catch(() => {});
         };
       }
     }
@@ -198,7 +199,7 @@ function openAddSpending(e) {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return fail('#x_desc', 'Description required');
       if (isNaN(amt)) return fail('#x_amt', 'Amount required');
-      if (pricing.available()) {
+      if (pricing.available() && amt > 0) {
         const itemSearch = document.getElementById('x_item_search');
         const q = itemSearch && itemSearch.value.trim();
         if (q) {
@@ -206,12 +207,13 @@ function openAddSpending(e) {
           // Deliberately not awaited — this is a best-effort contribution to
           // the community price catalog and must never block or fail the
           // expense save itself (see Task 9: never affects the UI/count).
-          pricing.searchItems(q)
-            .then(items => {
-              const existing = items.find(it => it.label === q);
-              return existing ? existing : pricing.createItem(q, cat, null);
-            })
-            .then(item => item && amt > 0 && pricing.submitPrice(item.id, amt));
+          // The amt > 0 gate above runs before findOrCreateItem so a
+          // zero/negative entry never creates a permanent catalog item with
+          // no observation behind it.
+          pricing.findOrCreateItem(q, cat, null)
+            .then(item => item && pricing.submitPrice(item.id, amt))
+            .then(ok => { if (!ok) toast('Sign in to see or share community prices.', 'warn'); })
+            .catch(() => toast('Sign in to see or share community prices.', 'warn'));
         }
       }
       const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || session.current().car.odometer, photo: xphoto };
