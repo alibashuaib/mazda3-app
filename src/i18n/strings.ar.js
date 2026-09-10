@@ -104,7 +104,7 @@ const AR = {
   'Oil every ~7,500 km': 'الزيت كل ~7,500 كم', 'Tire pressure 36 PSI': 'ضغط الإطارات 36 رطل', 'Battery every 2–3 years': 'البطارية كل 2–3 سنوات', 'Wash the underbody': 'اغسل أسفل السيارة',
   // categories
   'Engine': 'المحرك', 'Interior': 'الداخلية', 'Brakes': 'الفرامل', 'Exterior': 'الخارجية', 'Electrical': 'الكهرباء',
-  'Drivetrain': 'نقل الحركة', 'Suspension': 'التعليق', 'A/C': 'التكييف', 'Tires': 'الإطارات', 'General': 'عام',
+  'Drivetrain': 'نقل الحركة', 'Suspension': 'التعليق', 'A/C': 'التكييف', 'Tires': 'الإطارات', 'Paint': 'الدهان', 'General': 'عام',
   // spending categories / doc types
   'Insurance': 'التأمين', 'Registration (Istimara)': 'الاستمارة', 'Vehicle Inspection (Fahes)': 'الفحص الدوري',
   'Driving License': 'رخصة القيادة', 'Warranty': 'الضمان', 'Other': 'أخرى',
