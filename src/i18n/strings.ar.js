@@ -13,6 +13,10 @@
 const AR = {
   // nav
   'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Parts': 'القطع', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
+  // account menu — language switch item names the *other* language; 'العربية'
+  // is shown raw (own script, no translation needed), but 'English' needs
+  // this entry so it reads in Arabic script once Arabic is active.
+  'English': 'الإنجليزية',
   // statuses / pills
   'Overdue': 'متأخرة', 'Due soon': 'قريبة الاستحقاق', 'On track': 'على المسار', 'Active': 'الحالية', 'Switch ›': 'تبديل ›',
   // dashboard tiles / labels
@@ -89,6 +93,8 @@ const AR = {
   'Update mileage': 'تحديث العداد', 'Set annual budget': 'تعيين الميزانية السنوية', 'Add a vehicle': 'إضافة مركبة', 'Add option': 'إضافة خيار',
   'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save changes': 'حفظ التغييرات', 'Save profile': 'حفظ الملف',
   'Save part': 'حفظ القطعة', 'Remove': 'إزالة', 'Remove this vehicle': 'إزالة هذه المركبة', 'Delete': 'حذف',
+  // crowdsourced price averages
+  'Community price': 'سعر المجتمع', 'reports': 'تقييم', 'No reports yet': 'لا توجد تقييمات بعد', 'Report your price': 'شارك سعرك', 'Search or add an item…': 'ابحث أو أضف عنصراً…', 'Add "%s" as a new item': 'أضف "%s" كعنصر جديد', 'Your price (SAR)': 'سعرك (ريال)', 'Submit price': 'إرسال السعر', 'Price submitted ✓': 'تم إرسال السعر ✓', 'Sign in to see or share community prices.': 'سجّل الدخول لعرض أو مشاركة أسعار المجتمع.', 'Price required': 'السعر مطلوب', 'Search shared item': 'ابحث عن عنصر مشترك', 'e.g. Car paint job': 'مثال: دهان السيارة',
   // report types
   'Service history': 'سجل الصيانة', 'Purchases': 'المشتريات', 'Full summary': 'ملخص كامل',
   // built-in service names
@@ -102,7 +108,7 @@ const AR = {
   'Oil every ~7,500 km': 'الزيت كل ~7,500 كم', 'Tire pressure 36 PSI': 'ضغط الإطارات 36 رطل', 'Battery every 2–3 years': 'البطارية كل 2–3 سنوات', 'Wash the underbody': 'اغسل أسفل السيارة',
   // categories
   'Engine': 'المحرك', 'Interior': 'الداخلية', 'Brakes': 'الفرامل', 'Exterior': 'الخارجية', 'Electrical': 'الكهرباء',
-  'Drivetrain': 'نقل الحركة', 'Suspension': 'التعليق', 'A/C': 'التكييف', 'Tires': 'الإطارات', 'General': 'عام',
+  'Drivetrain': 'نقل الحركة', 'Suspension': 'التعليق', 'A/C': 'التكييف', 'Tires': 'الإطارات', 'Paint': 'الدهان', 'General': 'عام',
   // spending categories / doc types
   'Insurance': 'التأمين', 'Registration (Istimara)': 'الاستمارة', 'Vehicle Inspection (Fahes)': 'الفحص الدوري',
   'Driving License': 'رخصة القيادة', 'Warranty': 'الضمان', 'Other': 'أخرى',

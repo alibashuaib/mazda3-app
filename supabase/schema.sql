@@ -96,3 +96,88 @@ drop policy if exists own_photos on storage.objects;
 create policy own_photos on storage.objects for all
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text)
   with check (bucket_id = 'photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Crowdsourced price averages. Public/shared tables — unlike vehicles/garage
+-- above, RLS here grants every authenticated user read access to everyone's
+-- rows, because the whole point is seeing what other people paid. See
+-- docs/superpowers/specs/2026-09-10-crowdsourced-price-averages-design.md.
+
+create table if not exists public.price_items (
+  id             uuid        primary key default gen_random_uuid(),
+  label          text        not null,
+  category       text        not null,
+  source_part_no text,
+  created_by     uuid        not null default auth.uid() references auth.users,
+  created_at     timestamptz not null default now()
+);
+
+-- Case-insensitive uniqueness on the label. price_items is meant to be a
+-- single canonical shared list (see spec's "shared canonical item list, not
+-- fuzzy text matching" decision) and has no update/delete policy at all, so
+-- a duplicate created here is permanent — this index is what makes the
+-- app-side find-or-create in pricing.js's createItem() safe to rely on
+-- under concurrent submitters, instead of merely convention.
+create unique index if not exists price_items_label_key
+  on public.price_items (lower(label));
+
+create table if not exists public.price_observations (
+  id           uuid        primary key default gen_random_uuid(),
+  item_id      uuid        not null references public.price_items on delete cascade,
+  user_id      uuid        not null default auth.uid() references auth.users on delete cascade,
+  price        numeric     not null check (price > 0),
+  submitted_at timestamptz not null default now()
+);
+
+create index if not exists price_observations_item_idx
+  on public.price_observations (item_id);
+
+-- Reuses set_updated_at()'s sibling idea (server-authored timestamp) but
+-- observations are insert-only, so a plain default is enough — no update
+-- path exists that a client-supplied timestamp could smuggle a bad value
+-- through.
+-- security_invoker: the view runs with the querying user's own RLS, not the
+-- view owner's — without this a Postgres view is SECURITY DEFINER-like by
+-- default and silently bypasses price_observations' RLS. Harmless today
+-- (read_price_observations already grants select to every authenticated
+-- user) but it makes the spec's "inherits that table's select policy"
+-- claim actually enforced by the view, not just coincidentally true.
+create or replace view public.price_item_averages
+  with (security_invoker = true) as
+  select item_id, avg(price)::numeric(10,2) as avg_price, count(*) as sample_count
+  from public.price_observations
+  group by item_id;
+
+alter table public.price_items enable row level security;
+alter table public.price_observations enable row level security;
+
+drop policy if exists read_price_items on public.price_items;
+create policy read_price_items on public.price_items for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists insert_price_items on public.price_items;
+create policy insert_price_items on public.price_items for insert
+  with check (created_by = auth.uid());
+
+-- No update/delete policy on price_items at all — deliberate, see spec's
+-- "Immutable items, no moderation" decision. RLS defaults to deny when no
+-- policy matches, so this alone is what makes items permanent.
+
+drop policy if exists read_price_observations on public.price_observations;
+create policy read_price_observations on public.price_observations for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists own_price_observations on public.price_observations;
+create policy own_price_observations on public.price_observations for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists update_own_price_observations on public.price_observations;
+create policy update_own_price_observations on public.price_observations for update
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists delete_own_price_observations on public.price_observations;
+create policy delete_own_price_observations on public.price_observations for delete
+  using (user_id = auth.uid());
+
+grant select, insert on public.price_items to authenticated;
+grant select, insert, update, delete on public.price_observations to authenticated;
+grant select on public.price_item_averages to authenticated;

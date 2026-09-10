@@ -125,7 +125,7 @@ function openEditBudget() {
 
 function openAddSpending(e) {
   const editing = !!e;
-  const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
+  const cats = ['Maintenance', 'Tires', 'Parts', 'Paint', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
       const quickParts = compatibleParts();
@@ -141,6 +141,39 @@ function openAddSpending(e) {
       note.textContent = t('— autofill from a part');
       quickPick.querySelector('label').append(' ', note);
       card.appendChild(quickPick);
+
+      // Shared-item picker — server-backed, open-ended (unlike the static
+      // Quick pick above): typing a label that matches a price_items row
+      // shows the crowdsourced average; typing one that doesn't exist yet
+      // just becomes a new shared item on save (see the save handler below).
+      if (pricing.available()) {
+        card.appendChild(field('Search shared item',
+          html`<input id="x_item_search" list="x_item_list" placeholder="${t('e.g. Car paint job')}"><datalist id="x_item_list"></datalist>`));
+        const avgLine = document.createElement('div');
+        avgLine.className = 'muted';
+        avgLine.setAttribute('style', 'font-size:11px;margin:-8px 0 10px');
+        avgLine.id = 'x_item_avg';
+        card.appendChild(avgLine);
+        const searchInput = document.getElementById('x_item_search');
+        searchInput.oninput = () => {
+          const q = searchInput.value.trim();
+          document.getElementById('x_item_avg').textContent = '';
+          if (!q) return;
+          pricing.searchItems(q).then(items => {
+            const list = document.getElementById('x_item_list');
+            list.innerHTML = items.map(it => html`<option value="${it.label}">`).join('');
+          }).catch(() => {});
+          pricing.findExactItem(q).then(exact => {
+            if (!exact) return;
+            return pricing.getAverages([exact.id]).then(averages => {
+              const avg = averages.get(exact.id);
+              document.getElementById('x_item_avg').textContent = avg
+                ? `🌍 ${t('Community price')}: ${sar(avg.avgPrice)} SAR (${avg.sampleCount} ${t('reports')})`
+                : t('No reports yet');
+            });
+          }).catch(() => {});
+        };
+      }
     }
     card.appendChild(field('Description', html`<input id="x_desc" value="${e ? e.desc : ''}" placeholder="${t('e.g. New front brake pads')}">`));
     const row = el('div', 'field-row');
@@ -166,6 +199,23 @@ function openAddSpending(e) {
       const desc = $('#x_desc').value.trim(); const amt = +$('#x_amt').value;
       if (!desc) return fail('#x_desc', 'Description required');
       if (isNaN(amt)) return fail('#x_amt', 'Amount required');
+      if (pricing.available() && amt > 0) {
+        const itemSearch = document.getElementById('x_item_search');
+        const q = itemSearch && itemSearch.value.trim();
+        if (q) {
+          const cat = $('#x_cat').value;
+          // Deliberately not awaited — this is a best-effort contribution to
+          // the community price catalog and must never block or fail the
+          // expense save itself (see Task 9: never affects the UI/count).
+          // The amt > 0 gate above runs before findOrCreateItem so a
+          // zero/negative entry never creates a permanent catalog item with
+          // no observation behind it.
+          pricing.findOrCreateItem(q, cat, null)
+            .then(item => item && pricing.submitPrice(item.id, amt))
+            .then(ok => { if (!ok) toast('Sign in to see or share community prices.', 'warn'); })
+            .catch(() => toast('Sign in to see or share community prices.', 'warn'));
+        }
+      }
       const obj = { id: e ? e.id : uid(), desc, amount: amt, date: $('#x_date').value || isoDate(today()), cat: $('#x_cat').value, odometer: +$('#x_odo').value || session.current().car.odometer, photo: xphoto };
       if (e) Object.assign(e, obj); else session.current().spending.push(obj);
       await commit('budget', editing ? 'Expense updated' : 'Expense added');
