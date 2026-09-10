@@ -738,8 +738,10 @@ session.configure({
    always see env.client === null and never build one. */
 const canSignIn = typeof supabase !== 'undefined' && location.protocol !== 'file:';
 
+const supabaseClient = canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null;
+
 account.configure({
-  client: canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null,
+  client: supabaseClient,
   /* The re-render half of sign-out. session.clear() revokes object URLs, but a
      decoded <img> stays painted until something rebuilds the view — so
      account.js never calls clear() without calling this after it.
@@ -750,6 +752,8 @@ account.configure({
   rerender: () => { applyAccent(); renderTopbar(); go(current); },
   choose: askWhichGarage
 });
+
+pricing.configure({ client: supabaseClient });
 /* The menu trigger stays available because it owns vehicle switching and the
    theme control, even though account/sign-in is no longer exposed in the UI. */
 
