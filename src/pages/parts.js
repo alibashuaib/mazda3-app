@@ -257,12 +257,12 @@ function openReportPrice(p) {
     const b = el('button', 'btn primary block', html`${t('Submit price')}`);
     onAsyncClick(b, async () => {
       const price = Number($('#rp_price').value);
-      if (!(price > 0)) return fail('#rp_price', 'Your price (SAR)');
+      if (!(price > 0)) return fail('#rp_price', 'Price required');
       const found = await pricing.searchItems(p.name);
       const existing = found.find(it => it.label === p.name);
       const item = existing || await pricing.createItem(p.name, p.cat, p.partsouq || null);
       const ok = item && await pricing.submitPrice(item.id, price);
-      if (ok) { toast('Price submitted ✓'); closeModal(); }
+      if (ok) { toast('Price submitted ✓'); closeModal(); go('parts'); }
       else toast('Sign in to see or share community prices.', 'warn');
     });
     card.appendChild(b);
