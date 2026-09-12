@@ -73,6 +73,25 @@ function renderParts() {
     items.forEach(p => list.appendChild(partCard(p)));
     search.querySelector('.part-count').textContent = String(items.length);
     if (!items.length) list.appendChild(emptyState('🔎', 'No matching parts.'));
+    /* One search per visible part, by its own catalog name — this only finds
+       a price_items row once some earlier submission created one via that
+       exact label (openReportPrice below seeds it that way). Parts with no
+       submissions yet simply render no badge — there's no placeholder text
+       for "no data", only for the modal's own empty state. */
+    if (pricing.available()) {
+      items.forEach(p => {
+        pricing.findExactItem(p.name).then(match => {
+          if (!match) return;
+          return pricing.getAverages([match.id]).then(averages => {
+            const avg = averages.get(match.id);
+            const slot = document.getElementById(`avg_${p.id}`);
+            if (avg && avg.sampleCount > 0 && slot) {
+              slot.textContent = `🌍 ${t('Community price')}: ${sar(avg.avgPrice)} SAR (${avg.sampleCount} ${t('reports')})`;
+            }
+          });
+        });
+      });
+    }
   }
   search.querySelector('input').oninput = e => { query = e.target.value.trim(); paint(); };
   paint();
@@ -109,6 +128,7 @@ function partCard(p) {
       <div style="text-align:right">
         <div style="font-weight:750;font-size:14px">${t('from')} ${sar(cheapest)} <span class="muted" style="font-size:11px">SAR</span></div>
         <div class="muted" style="font-size:11px">${p.options.length} ${t('options')}</div>
+        <div class="muted" id="avg_${p.id}" style="font-size:11px;margin-top:2px"></div>
       </div>
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
@@ -133,12 +153,15 @@ function partCard(p) {
       ${p.partsouq ? html`<a class="btn" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer" style="width:100%;margin-top:12px;font-size:12.5px;padding:11px;text-decoration:none;color:var(--accent-soft)">${raw(t('🔎 Live price &amp; alternatives on PartSouq ↗'))}</a>` : ''}
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-edit>${t('Edit')}</button>
+        ${pricing.available() ? html`<button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-report>${t('Report your price')}</button>` : ''}
       </div>
     </div>`;
   const toggle = () => card.classList.toggle('open');
   card.querySelector('.part-head').onclick = e => { if (!e.target.closest('.part-toggle') && !e.target.closest('button')) toggle(); };
   card.querySelector('.part-toggle').onclick = toggle;
   card.querySelector('[data-edit]').onclick = e => { e.stopPropagation(); openEditPart(p); };
+  const reportBtn = card.querySelector('[data-report]');
+  if (reportBtn) reportBtn.onclick = e => { e.stopPropagation(); openReportPrice(p); };
   card.querySelectorAll('[data-svc]').forEach(btn => btn.onclick = e => {
     e.stopPropagation();
     const s = session.current().services.find(x => x.id === btn.dataset.svc);
@@ -220,5 +243,25 @@ function openEditPart(p) {
       const del = deleteRow('Delete part', 'parts', p, 'parts', 'Part deleted');
       card.appendChild(del);
     }
+  });
+}
+
+/* Reuses the shared price_items row for this part's catalog name if one
+   already exists (created by an earlier report against the same part),
+   otherwise creates it — keyed by the part's own name so later lookups
+   (partCard's average badge, and any other reporter) find the same row. */
+function openReportPrice(p) {
+  openModal('Report your price', null, card => {
+    card.appendChild(field('Your price (SAR)', html`<input id="rp_price" type="number" inputmode="decimal" min="0">`));
+    const b = el('button', 'btn primary block', html`${t('Submit price')}`);
+    onAsyncClick(b, async () => {
+      const price = Number($('#rp_price').value);
+      if (!(price > 0)) return fail('#rp_price', 'Price required');
+      const item = await pricing.findOrCreateItem(p.name, p.cat, p.partsouq || null);
+      const ok = item && await pricing.submitPrice(item.id, price);
+      if (ok) { toast('Price submitted ✓'); closeModal(); go('parts'); }
+      else toast('Sign in to see or share community prices.', 'warn');
+    });
+    card.appendChild(b);
   });
 }

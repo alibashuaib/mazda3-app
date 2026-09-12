@@ -76,6 +76,7 @@ const SCRIPTS = [
   'src/data/session.js',
   'src/data/status.js',
   'src/data/account.js',
+  'src/data/pricing.js',
   'src/core/async-click.js',
   'src/pages/dashboard.js',
   'src/pages/maintenance.js',
