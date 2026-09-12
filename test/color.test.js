@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const color = require('../src/ui/color.js');
-const { MAZDA_PAINTS } = require('../src/data/catalog.js');
+const { MAZDA_PAINTS, CAR_MODELS } = require('../src/data/catalog.js');
 
 // WCAG 2.x relative luminance / contrast ratio, per the spec formula.
 function channel(c) {
@@ -55,6 +55,28 @@ test('realPaintHex: matches a normalized name, stripping a "(code ...)" suffix, 
   assert.strictEqual(color.realPaintHex('not a real paint'), null);
   assert.strictEqual(color.realPaintHex(''), null);
   assert.strictEqual(color.realPaintHex(undefined), null);
+});
+
+test('every model uses the same canonical theme for the same factory paint', () => {
+  const themesByPaint = new Map();
+  for (const model of CAR_MODELS) {
+    for (const name of model.colors) {
+      const expectedHex = MAZDA_PAINTS[name];
+      assert.ok(expectedHex, `${model.id}/${name}: missing canonical Mazda paint`);
+      assert.strictEqual(color.swatchFor(name, 'light'), expectedHex, `${model.id}/${name}: wrong swatch`);
+      const key = color.normalizeColorName(name);
+      const theme = {
+        light: color.accentForColor(name, 'light'),
+        dark: color.accentForColor(name, 'dark'),
+        swatch: color.swatchStyle(name, 'dark')
+      };
+      if (themesByPaint.has(key)) {
+        assert.deepStrictEqual(theme, themesByPaint.get(key), `${model.id}/${name}: model-specific theme drift`);
+      } else {
+        themesByPaint.set(key, theme);
+      }
+    }
+  }
 });
 
 test('normalizeColorName: lowercases and strips a trailing "(code ...)" suffix', () => {

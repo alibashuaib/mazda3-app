@@ -125,7 +125,7 @@ function openEditBudget() {
 
 function openAddSpending(e) {
   const editing = !!e;
-  const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Insurance', 'Other'];
+  const cats = ['Maintenance', 'Tires', 'Parts', 'Paint', 'Fuel', 'Electrical', 'Insurance', 'Other'];
   openModal(editing ? 'Edit expense' : 'Add spending', 'Log money spent on the car.', card => {
     if (!editing) {
       const quickParts = compatibleParts();

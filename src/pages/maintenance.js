@@ -123,7 +123,7 @@ function openLogConfirm(services, opts) {
   const defIdx = p => { const i = p.options.findIndex(o => o.tag === 'OEM'); return i >= 0 ? i : 0; };
   const laborShare = svc => { const lp = partsForService(svc); if (!lp.length) return 0; const dflt = lp.reduce((a, p) => a + Number(p.options[defIdx(p)].price || 0), 0); return Math.max(0, Number(svc.cost || 0) - dflt); };
   const doneState = new Map(); services.forEach(s => doneState.set(s.id, true));
-  openModal(opts.title || (services.length > 1 ? 'Log a service milestone' : services[0].name),
+  openModal(opts.title || (services.length > 1 ? 'Log a milestone' : services[0].name),
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
       r.append(field('Odometer (km)', html`<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : session.current().car.odometer}">`),
@@ -215,7 +215,7 @@ function openLogConfirm(services, opts) {
           const cost = svcCost(svc); grand += cost; nDone++; lastName = svc.name;
           session.current().history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
         });
-        if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Service milestone')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
+        if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Milestone')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
         if (odo > (session.current().car.odometer || 0)) session.current().car.odometer = odo;
         const ok = await save(); closeModal();
         (opts.onDone || (() => go('maintenance')))();
@@ -642,14 +642,14 @@ function openEditService(s) {
 }
 
 function openLogService() {
-  openModal('Log a service', 'A single service item, or a whole service milestone at once.', card => {
+  openModal('Log a service', 'A single service, or a whole milestone at once.', card => {
     const bSingle = el('button', 'btn', html`${t('Choose')}`);
     bSingle.onclick = () => { closeModal(); openLogSingleService(); };
-    card.appendChild(bannerRow('🔧', 'Single service item', 'Pick one thing you just had done.', bSingle));
+    card.appendChild(bannerRow('🔧', 'Single service', 'Pick one thing you just had done.', bSingle));
 
     const bPlan = el('button', 'btn', html`${t('Choose')}`);
     bPlan.onclick = () => { closeModal(); openLogPlanVisit(); };
-    card.appendChild(bannerRow('🗓️', 'Service milestone', 'A group of service items from your plan, done together.', bPlan));
+    card.appendChild(bannerRow('🗓️', 'Milestone', 'A group of services from your plan, done together.', bPlan));
   });
 }
 
@@ -667,7 +667,7 @@ function openLogSingleService() {
 
 function openLogPlanVisit() {
   const milestones = planForward().slice(0, 6);
-  openModal('Log a service milestone', 'Pick an upcoming service milestone — logs everything in it at once.', card => {
+  openModal('Log a milestone', 'Pick an upcoming milestone — logs everything in it at once.', card => {
     if (!milestones.length) { card.appendChild(emptyState('🗓️', 'Nothing scheduled — you’re all caught up!')); return; }
     const list = el('div', 'list');
     milestones.forEach(ms => {

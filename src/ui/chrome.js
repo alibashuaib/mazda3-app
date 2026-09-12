@@ -507,7 +507,8 @@ function applyAccent() {
     return;
   }
   const theme = currentTheme();
-  const [acc, soft] = accentForColor(session.current().car && session.current().car.color, theme);
+  const car = session.current().car || {};
+  const [acc, soft] = accentForColor(car.color, theme);
   const [r, g, b] = hexToRgb(acc);
   const accent2 = darkenHex(acc, 0.72);
   const glow = `rgba(${r}, ${g}, ${b}, .35)`;
