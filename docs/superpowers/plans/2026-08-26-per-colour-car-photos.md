@@ -7,10 +7,9 @@ through a `paintFilterClass` CSS tint. The tint (added in
 show up" fix) is a *fallback*, not the end state; this doc tracks closing
 the gap colour by colour, model by model.
 
-**Status:** scaffolding is in place (`CAR_COLOR_PHOTOS` manifest,
-`colorSlug()`, `hasExactColorPhoto()` in `src/pages/dashboard.js`). Zero new
-photos have been supplied yet — every model but `mazda3bm` still renders via
-the tint.
+**Current status:** Every catalog model and paint has a distinct photo in
+`CAR_COLOR_PHOTOS`. The catalog, asset files, and offline cache are checked by
+`test/render.test.js`. The notes below record the original rollout plan.
 
 ## How it works today
 

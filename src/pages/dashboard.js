@@ -30,8 +30,8 @@ const GENERIC_MODEL_IMAGE = {
    GENERIC_MODEL_IMAGE, shown plain — no CSS tint, since a filtered guess
    at the paint looked worse than just admitting no exact photo exists.
    Naming convention for new files: assets/<modelId>-<colorSlug>.png. See
-   docs/superpowers/plans/2026-08-26-per-colour-car-photos.md for the full
-   asset list still needed. */
+   docs/superpowers/plans/2026-08-26-per-colour-car-photos.md for the
+   original rollout plan. */
 const CAR_COLOR_PHOTOS = {
   mazda3bp: {
     'machine-gray-metallic': 'assets/mazda3-bp.png',
@@ -136,6 +136,54 @@ const CAR_COLOR_PHOTOS = {
     'sonic-silver-metallic': 'assets/cx9-sonic-silver-metallic.png',
     'titanium-flash-mica': 'assets/cx9-titanium-flash-mica.png',
     'polymetal-gray-metallic': 'assets/cx9-polymetal-gray-metallic.png'
+  },
+  cx50: {
+    'machine-gray-metallic': 'assets/cx50-machine-gray-metallic.png',
+    'soul-red-crystal-metallic': 'assets/cx50-soul-red-crystal-metallic.png',
+    'wind-chill-pearl': 'assets/cx50-wind-chill-pearl.png',
+    'jet-black-mica': 'assets/cx50-jet-black-mica.png',
+    'ingot-blue-metallic': 'assets/cx50-ingot-blue-metallic.png',
+    'polymetal-gray-metallic': 'assets/cx50-polymetal-gray-metallic.png',
+    'zircon-sand-metallic': 'assets/cx50-zircon-sand-metallic.png',
+    'cypress': 'assets/cx50-cypress.png'
+  },
+  cx60: {
+    'machine-gray-metallic': 'assets/cx60-machine-gray-metallic.png',
+    'soul-red-crystal-metallic': 'assets/cx60-soul-red-crystal-metallic.png',
+    'rhodium-white-premium': 'assets/cx60-rhodium-white-premium.png',
+    'jet-black-mica': 'assets/cx60-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/cx60-deep-crystal-blue-mica.png',
+    'platinum-quartz-metallic': 'assets/cx60-platinum-quartz-metallic.png',
+    'sonic-silver-metallic': 'assets/cx60-sonic-silver-metallic.png',
+    'artisan-red-premium': 'assets/cx60-artisan-red-premium.png'
+  },
+  cx70: {
+    'melting-copper-metallic': 'assets/cx70-melting-copper-metallic.png',
+    'soul-red-crystal-metallic': 'assets/cx70-soul-red-crystal-metallic.png',
+    'rhodium-white-premium': 'assets/cx70-rhodium-white-premium.png',
+    'jet-black-mica': 'assets/cx70-jet-black-mica.png',
+    'polymetal-gray-metallic': 'assets/mazda-cx70.png',
+    'zircon-sand-metallic': 'assets/cx70-zircon-sand-metallic.png'
+  },
+  cx80: {
+    'artisan-red-premium': 'assets/cx80-artisan-red-premium.png',
+    'soul-red-crystal-metallic': 'assets/cx80-soul-red-crystal-metallic.png',
+    'rhodium-white-premium': 'assets/cx80-rhodium-white-premium.png',
+    'machine-gray-metallic': 'assets/mazda-cx80.png',
+    'jet-black-mica': 'assets/cx80-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/cx80-deep-crystal-blue-mica.png',
+    'platinum-quartz-metallic': 'assets/cx80-platinum-quartz-metallic.png',
+    'melting-copper-metallic': 'assets/cx80-melting-copper-metallic.png'
+  },
+  cx90: {
+    'artisan-red-premium': 'assets/cx90-artisan-red-premium.png',
+    'soul-red-crystal-metallic': 'assets/cx90-soul-red-crystal-metallic.png',
+    'rhodium-white-premium': 'assets/cx90-rhodium-white-premium.png',
+    'machine-gray-metallic': 'assets/mazda-cx90.png',
+    'jet-black-mica': 'assets/cx90-jet-black-mica.png',
+    'deep-crystal-blue-mica': 'assets/cx90-deep-crystal-blue-mica.png',
+    'platinum-quartz-metallic': 'assets/cx90-platinum-quartz-metallic.png',
+    'polymetal-gray-metallic': 'assets/cx90-polymetal-gray-metallic.png'
   },
   mazda3bm: {
     'meteor-gray-mica': 'assets/mazda3-studio.png',

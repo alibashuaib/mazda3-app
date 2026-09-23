@@ -1,5 +1,5 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-v70';
+const CACHE = 'garage-v83';
 const ASSETS = ['./', './index.html', './styles.css', './assets/mazda3-studio.png', './assets/mazda3-soul-red.png', './assets/mazda3-snowflake-white.png', './assets/mazda3-jet-black.png', './assets/mazda3-deep-crystal-blue.png', './assets/mazda3-blue-reflex.png', './assets/mazda3-liquid-silver.png', './assets/mazda3-titanium-flash.png', './assets/mazda2-dj.png', './assets/mazda3-bp.png', './assets/mazda6-gj.png', './assets/mazda-cx3-dk.png', './assets/mazda-cx30-dm.png', './assets/mazda-cx5-ke.png', './assets/cx5ke-soul-red-metallic.png', './assets/cx5ke-crystal-white-pearl-mica.png', './assets/cx5ke-jet-black-mica.png', './assets/cx5ke-blue-reflex-mica.png', './assets/cx5ke-sky-blue-mica.png', './assets/cx5ke-stormy-blue-mica.png', './assets/cx5ke-liquid-silver-metallic.png', './assets/cx5ke-metropolitan-gray-mica.png', './assets/cx5ke-zeal-red-mica.png', './assets/mazda-cx5-kf.png', './assets/mazda-cx5-gen3.png', './assets/mazda-cx9-tb.png', './assets/cx9tb-brilliant-black-clearcoat.png', './assets/cx9tb-crystal-white-pearl-mica.png', './assets/cx9tb-copper-red-mica.png', './assets/cx9tb-liquid-silver-metallic.png', './assets/cx9tb-metropolitan-gray-mica.png', './assets/cx9tb-stormy-blue-mica.png', './assets/mazda-cx9-tc.png', './assets/mazda-cx50.png', './assets/mazda-cx60.png', './assets/mazda-cx70.png', './assets/mazda-cx80.png', './assets/mazda-cx90.png', './src/core/helpers.js', './src/ui/html.js', './src/ui/modal.js', './src/ui/photo.js', './src/ui/color.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js', './src/i18n/lang.js', './src/core/schedule.js', './src/data/storage.js', './src/data/normalize.js', './src/data/session.js', './src/data/status.js', './vendor/supabase.js', './src/data/account.js', './src/data/pricing.js', './src/core/async-click.js', './src/pages/dashboard.js', './src/pages/maintenance.js', './src/pages/parts.js', './src/pages/fuel.js', './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js', './main.js', './manifest.webmanifest', './icon.svg'];
 ASSETS.push(
   './assets/mazda3bp-soul-red-crystal-metallic.png',
@@ -78,6 +78,45 @@ ASSETS.push(
   './assets/cx3-ceramic-metallic.png',
   './assets/cx3-titanium-flash-mica.png',
   './assets/cx3-polymetal-gray-metallic.png'
+);
+ASSETS.push(
+  './assets/cx50-machine-gray-metallic.png',
+  './assets/cx50-soul-red-crystal-metallic.png',
+  './assets/cx50-wind-chill-pearl.png',
+  './assets/cx50-jet-black-mica.png',
+  './assets/cx50-ingot-blue-metallic.png',
+  './assets/cx50-polymetal-gray-metallic.png',
+  './assets/cx50-zircon-sand-metallic.png',
+  './assets/cx50-cypress.png',
+  './assets/cx60-machine-gray-metallic.png',
+  './assets/cx60-soul-red-crystal-metallic.png',
+  './assets/cx60-rhodium-white-premium.png',
+  './assets/cx60-jet-black-mica.png',
+  './assets/cx60-deep-crystal-blue-mica.png',
+  './assets/cx60-platinum-quartz-metallic.png',
+  './assets/cx60-sonic-silver-metallic.png',
+  './assets/cx60-artisan-red-premium.png'
+);
+ASSETS.push(
+  './assets/cx70-melting-copper-metallic.png',
+  './assets/cx70-soul-red-crystal-metallic.png',
+  './assets/cx70-rhodium-white-premium.png',
+  './assets/cx70-jet-black-mica.png',
+  './assets/cx70-zircon-sand-metallic.png',
+  './assets/cx80-artisan-red-premium.png',
+  './assets/cx80-soul-red-crystal-metallic.png',
+  './assets/cx80-rhodium-white-premium.png',
+  './assets/cx80-jet-black-mica.png',
+  './assets/cx80-deep-crystal-blue-mica.png',
+  './assets/cx80-platinum-quartz-metallic.png',
+  './assets/cx80-melting-copper-metallic.png',
+  './assets/cx90-artisan-red-premium.png',
+  './assets/cx90-soul-red-crystal-metallic.png',
+  './assets/cx90-rhodium-white-premium.png',
+  './assets/cx90-jet-black-mica.png',
+  './assets/cx90-deep-crystal-blue-mica.png',
+  './assets/cx90-platinum-quartz-metallic.png',
+  './assets/cx90-polymetal-gray-metallic.png'
 );
 
 self.addEventListener('install', e => {
