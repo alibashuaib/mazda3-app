@@ -175,7 +175,7 @@ body {
   background: transparent; color: var(--text); transition: background .15s;
 }
 .menu-item-ic { flex: none; font-size: 15px; line-height: 1; width: 18px; text-align: center; }
-.menu-item[aria-checked="true"]::after { content: '✓'; margin-inline-start: auto; color: var(--accent); }
+.menu-item[aria-checked="true"]::after { content: '✓'; margin-inline-start: auto; color: var(--accent-soft); }
 .icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .i-moon { display: none; }
 :root[data-theme="light"] .i-sun { display: none; }
