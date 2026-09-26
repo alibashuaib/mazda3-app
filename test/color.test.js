@@ -46,6 +46,18 @@ test('accentForColor: every verified Mazda paint\'s soft colour is >=4.5:1 again
   assert.deepStrictEqual(failures, [], `paints failing WCAG AA (4.5:1):\n${failures.join('\n')}`);
 });
 
+test('model and custom paints keep white button text readable and accents visible in both themes', () => {
+  const failures = [];
+  const paints = CAR_MODELS.flatMap(model => model.colors).concat(['', ...color.CAR_ACCENTS.map(([keys]) => keys[0])]);
+  for (const name of paints) for (const theme of ['light', 'dark']) {
+    const [accent, soft] = color.accentForColor(name, theme);
+    if (contrastRatio(accent, '#ffffff') < 4.5) failures.push(`${name}/${theme}: button text`);
+    if (contrastRatio(accent, '#0f1013') < 3) failures.push(`${name}/${theme}: dark accent`);
+    if (contrastRatio(soft, theme === 'light' ? '#ffffff' : '#1c1f25') < 4.5) failures.push(`${name}/${theme}: link text`);
+  }
+  assert.deepStrictEqual(failures, []);
+});
+
 test('realPaintHex: matches a normalized name, stripping a "(code ...)" suffix, on either side', () => {
   const [fullName, hex] = Object.entries(MAZDA_PAINTS).find(([n]) => /\(code/i.test(n));
   const legacy = fullName.replace(/\s*\(code[^)]*\)\s*$/i, '');
