@@ -13,6 +13,7 @@ Thumbs.db
 
 # isolated worktrees for feature work
 .worktrees/
+.claude/
 
 # playwright
 test-results/
