@@ -44,6 +44,28 @@
   function rgbToHex(r, g, b) { return '#' + [r, g, b].map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join(''); }
   function darkenHex(hex, f) { const [r, g, b] = hexToRgb(hex); return rgbToHex(r * f, g * f, b * f); }
   function lightenHex(hex, f) { const [r, g, b] = hexToRgb(hex); return rgbToHex(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
+  function luminance(hex) {
+    const [r, g, b] = hexToRgb(hex).map(v => {
+      const s = v / 255;
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  // White text on the accent needs 4.5:1; the accent itself needs 3:1
+  // against the dark page. Both hold when luminance stays in this band.
+  function usableAccent(hex) {
+    const value = luminance(hex);
+    if (value >= 0.12 && value <= 0.18) return hex;
+    const darken = value > 0.18;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo + hi) / 2;
+      const candidate = darken ? darkenHex(hex, mid) : lightenHex(hex, mid);
+      if (darken ? luminance(candidate) <= 0.18 : luminance(candidate) < 0.12) lo = mid;
+      else hi = mid;
+    }
+    return darken ? darkenHex(hex, lo) : lightenHex(hex, hi);
+  }
   function hexToHsl(hex) {
     const [r8, g8, b8] = hexToRgb(hex);
     const r = r8 / 255, g = g8 / 255, b = b8 / 255;
@@ -131,10 +153,11 @@
       // buckets are the best guess left.
       const c = (name || '').toLowerCase();
       const hit = CAR_ACCENTS.find(([keys]) => keys.some(k => c.includes(k)));
-      return hit ? [hit[1], hit[2]] : ['#d6203c', '#ff5c6e'];
+      const fallback = hit ? hit[1] : '#d6203c';
+      const usable = usableAccent(fallback);
+      return [usable, theme === 'light' ? darkenHex(usable, 0.55) : lightenHex(usable, 0.45)];
     }
-    const { l } = hexToHsl(hex);
-    const usable = l > 0.78 ? darkenHex(hex, 0.55) : l < 0.22 ? lightenHex(hex, 0.5) : hex;
+    const usable = usableAccent(hex);
     // --accent-soft is read as literal small link-text colour ("View ›",
     // "Switch ›", …) directly on the page background. A fixed "lighten by
     // X" only reads clearly on the dark theme's near-black background —

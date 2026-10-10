@@ -7,10 +7,9 @@ through a `paintFilterClass` CSS tint. The tint (added in
 show up" fix) is a *fallback*, not the end state; this doc tracks closing
 the gap colour by colour, model by model.
 
-**Status:** scaffolding is in place (`CAR_COLOR_PHOTOS` manifest,
-`colorSlug()`, `hasExactColorPhoto()` in `src/pages/dashboard.js`). Zero new
-photos have been supplied yet — every model but `mazda3bm` still renders via
-the tint.
+**Current status:** Every catalog model and paint has a distinct photo in
+`CAR_COLOR_PHOTOS`. The catalog, asset files, and offline cache are checked by
+`test/render.test.js`. The notes below record the original rollout plan.
 
 ## How it works today
 
@@ -24,12 +23,12 @@ the tint.
    via `paintFilterClass(swatchFor(color))` (a real hue/sat/lightness bucket
    derived from the paint's verified hex in `MAZDA_PAINTS`, not the colour's
    name text).
-3. `mazda3bm`'s legacy untinted fallback (`assets/mazda3-studio.png`), or
+3. `mazda3bm`'s legacy untinted fallback (`assets/mazda3-studio.webp`), or
    `''` if the model has no image at all.
 
 ## Adding a real photo
 
-1. Name the file `assets/<modelId>-<colorSlug>.png` (see the full list
+1. Name the file `assets/<modelId>-<colorSlug>.webp` (see the full list
    below for every `modelId`/`colorSlug` pair the catalogue currently
    needs). `colorSlug()` strips the `(Code XXXX)` suffix, lowercases, and
    hyphenates — e.g. `Soul Red Crystal Metallic (Code 46V)` →
@@ -139,6 +138,6 @@ exists.
 
 - No change to the tint fallback's quality — it stays as-is for any
   colour without a real photo.
-- No automatic file-discovery (e.g. probing `assets/<slug>.png` via
+- No automatic file-discovery (e.g. probing `assets/<slug>.webp` via
   `<img onerror>`) — an explicit manifest line was chosen so a missing or
   misnamed file fails loudly in review, not as a silent 404 in production.
