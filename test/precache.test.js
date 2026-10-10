@@ -79,3 +79,10 @@ test('the sw cache version is bumped whenever the asset list changes', () => {
   assert.ok(m, 'sw.js: CACHE must stay in the garage-v<N> form the activate() cleanup keys on');
   assert.ok(Number(m[1]) >= 45, 'sw.js: CACHE version went backwards');
 });
+
+test('service-worker updates bypass HTTP cache and refresh an already-controlled app', () => {
+  const src = read('main.js');
+  assert.match(src, /register\('sw\.js', \{ updateViaCache: 'none' \}\)/);
+  assert.match(src, /addEventListener\('controllerchange'/);
+  assert.match(src, /if \(hadServiceWorker\) location\.reload\(\)/);
+});

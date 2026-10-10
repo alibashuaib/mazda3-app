@@ -710,5 +710,13 @@ if (typeof window !== 'undefined') {
 
 /* ---------- PWA: offline + installable ---------- */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const hadServiceWorker = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadServiceWorker) location.reload();
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then(registration => registration.update())
+      .catch(() => {});
+  });
 }
