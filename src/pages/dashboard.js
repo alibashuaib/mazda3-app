@@ -8,192 +8,192 @@
 /* One generic reference photo per model — used whenever no exact per-colour
    photo exists for the car's actual paint (see CAR_COLOR_PHOTOS below). */
 const GENERIC_MODEL_IMAGE = {
-  mazda2: 'assets/mazda2-dj.png',
-  mazda3bp: 'assets/mazda3-bp.png',
-  mazda6: 'assets/mazda6-gj.png',
-  cx3: 'assets/mazda-cx3-dk.png',
-  cx30: 'assets/mazda-cx30-dm.png',
-  cx5ke: 'assets/mazda-cx5-ke.png',
-  cx5kf: 'assets/mazda-cx5-kf.png',
-  cx5gen3: 'assets/mazda-cx5-gen3.png',
-  cx9tb: 'assets/mazda-cx9-tb.png',
-  cx9: 'assets/mazda-cx9-tc.png',
-  cx50: 'assets/mazda-cx50.png',
-  cx60: 'assets/mazda-cx60.png',
-  cx70: 'assets/mazda-cx70.png',
-  cx80: 'assets/mazda-cx80.png',
-  cx90: 'assets/mazda-cx90.png'
+  mazda2: 'assets/mazda2-dj.webp',
+  mazda3bp: 'assets/mazda3-bp.webp',
+  mazda6: 'assets/mazda6-gj.webp',
+  cx3: 'assets/mazda-cx3-dk.webp',
+  cx30: 'assets/mazda-cx30-dm.webp',
+  cx5ke: 'assets/mazda-cx5-ke.webp',
+  cx5kf: 'assets/mazda-cx5-kf.webp',
+  cx5gen3: 'assets/mazda-cx5-gen3.webp',
+  cx9tb: 'assets/mazda-cx9-tb.webp',
+  cx9: 'assets/mazda-cx9-tc.webp',
+  cx50: 'assets/mazda-cx50.webp',
+  cx60: 'assets/mazda-cx60.webp',
+  cx70: 'assets/mazda-cx70.webp',
+  cx80: 'assets/mazda-cx80.webp',
+  cx90: 'assets/mazda-cx90.webp'
 };
 /* Real per-colour photography, keyed by modelId then by colorSlug(name).
    This is genuine studio/render art. Populate a model's entry as real
    shots for its colours arrive; any colour left out falls back to
    GENERIC_MODEL_IMAGE, shown plain — no CSS tint, since a filtered guess
    at the paint looked worse than just admitting no exact photo exists.
-   Naming convention for new files: assets/<modelId>-<colorSlug>.png. See
+   Naming convention for new files: assets/<modelId>-<colorSlug>.webp. See
    docs/superpowers/plans/2026-08-26-per-colour-car-photos.md for the
    original rollout plan. */
 const CAR_COLOR_PHOTOS = {
   mazda3bp: {
-    'machine-gray-metallic': 'assets/mazda3-bp.png',
-    'soul-red-crystal-metallic': 'assets/mazda3bp-soul-red-crystal-metallic.png',
-    'snowflake-white-pearl-mica': 'assets/mazda3bp-snowflake-white-pearl-mica.png',
-    'jet-black-mica': 'assets/mazda3bp-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/mazda3bp-deep-crystal-blue-mica.png',
-    'polymetal-gray-metallic': 'assets/mazda3bp-polymetal-gray-metallic.png',
-    'platinum-quartz-metallic': 'assets/mazda3bp-platinum-quartz-metallic.png',
-    'ceramic-metallic': 'assets/mazda3bp-ceramic-metallic.png'
+    'machine-gray-metallic': 'assets/mazda3-bp.webp',
+    'soul-red-crystal-metallic': 'assets/mazda3bp-soul-red-crystal-metallic.webp',
+    'snowflake-white-pearl-mica': 'assets/mazda3bp-snowflake-white-pearl-mica.webp',
+    'jet-black-mica': 'assets/mazda3bp-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/mazda3bp-deep-crystal-blue-mica.webp',
+    'polymetal-gray-metallic': 'assets/mazda3bp-polymetal-gray-metallic.webp',
+    'platinum-quartz-metallic': 'assets/mazda3bp-platinum-quartz-metallic.webp',
+    'ceramic-metallic': 'assets/mazda3bp-ceramic-metallic.webp'
   },
   cx30: {
-    'machine-gray-metallic': 'assets/cx30-machine-gray-metallic.png',
-    'soul-red-crystal-metallic': 'assets/cx30-soul-red-crystal-metallic.png',
-    'snowflake-white-pearl-mica': 'assets/cx30-snowflake-white-pearl-mica.png',
-    'jet-black-mica': 'assets/cx30-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/cx30-deep-crystal-blue-mica.png',
-    'polymetal-gray-metallic': 'assets/cx30-polymetal-gray-metallic.png',
-    'platinum-quartz-metallic': 'assets/cx30-platinum-quartz-metallic.png',
-    'ceramic-metallic': 'assets/cx30-ceramic-metallic.png',
-    'aero-gray-metallic': 'assets/cx30-aero-gray-metallic.png'
+    'machine-gray-metallic': 'assets/cx30-machine-gray-metallic.webp',
+    'soul-red-crystal-metallic': 'assets/cx30-soul-red-crystal-metallic.webp',
+    'snowflake-white-pearl-mica': 'assets/cx30-snowflake-white-pearl-mica.webp',
+    'jet-black-mica': 'assets/cx30-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/cx30-deep-crystal-blue-mica.webp',
+    'polymetal-gray-metallic': 'assets/cx30-polymetal-gray-metallic.webp',
+    'platinum-quartz-metallic': 'assets/cx30-platinum-quartz-metallic.webp',
+    'ceramic-metallic': 'assets/cx30-ceramic-metallic.webp',
+    'aero-gray-metallic': 'assets/cx30-aero-gray-metallic.webp'
   },
   cx5kf: {
-    'machine-gray-metallic': 'assets/cx5kf-machine-gray-metallic.png',
-    'soul-red-crystal-metallic': 'assets/cx5kf-soul-red-crystal-metallic.png',
-    'snowflake-white-pearl-mica': 'assets/cx5kf-snowflake-white-pearl-mica.png',
-    'rhodium-white-premium': 'assets/cx5kf-rhodium-white-premium.png',
-    'jet-black-mica': 'assets/cx5kf-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/cx5kf-deep-crystal-blue-mica.png',
-    'eternal-blue-mica': 'assets/cx5kf-eternal-blue-mica.png',
-    'sonic-silver-metallic': 'assets/cx5kf-sonic-silver-metallic.png',
-    'polymetal-gray-metallic': 'assets/cx5kf-polymetal-gray-metallic.png',
-    'zircon-sand-metallic': 'assets/cx5kf-zircon-sand-metallic.png'
+    'machine-gray-metallic': 'assets/cx5kf-machine-gray-metallic.webp',
+    'soul-red-crystal-metallic': 'assets/cx5kf-soul-red-crystal-metallic.webp',
+    'snowflake-white-pearl-mica': 'assets/cx5kf-snowflake-white-pearl-mica.webp',
+    'rhodium-white-premium': 'assets/cx5kf-rhodium-white-premium.webp',
+    'jet-black-mica': 'assets/cx5kf-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/cx5kf-deep-crystal-blue-mica.webp',
+    'eternal-blue-mica': 'assets/cx5kf-eternal-blue-mica.webp',
+    'sonic-silver-metallic': 'assets/cx5kf-sonic-silver-metallic.webp',
+    'polymetal-gray-metallic': 'assets/cx5kf-polymetal-gray-metallic.webp',
+    'zircon-sand-metallic': 'assets/cx5kf-zircon-sand-metallic.webp'
   },
   cx5gen3: {
-    'navy-blue-mica': 'assets/cx5gen3-navy-blue-mica.png',
-    'soul-red-crystal-metallic': 'assets/cx5gen3-soul-red-crystal-metallic.png',
-    'rhodium-white-premium': 'assets/cx5gen3-rhodium-white-premium.png',
-    'machine-gray-metallic': 'assets/cx5gen3-machine-gray-metallic.png',
-    'jet-black-mica': 'assets/cx5gen3-jet-black-mica.png',
-    'aero-gray-metallic': 'assets/cx5gen3-aero-gray-metallic.png'
+    'navy-blue-mica': 'assets/cx5gen3-navy-blue-mica.webp',
+    'soul-red-crystal-metallic': 'assets/cx5gen3-soul-red-crystal-metallic.webp',
+    'rhodium-white-premium': 'assets/cx5gen3-rhodium-white-premium.webp',
+    'machine-gray-metallic': 'assets/cx5gen3-machine-gray-metallic.webp',
+    'jet-black-mica': 'assets/cx5gen3-jet-black-mica.webp',
+    'aero-gray-metallic': 'assets/cx5gen3-aero-gray-metallic.webp'
   },
   cx3: {
-    'machine-gray-metallic': 'assets/mazda-cx3-dk.png',
-    'soul-red-crystal-metallic': 'assets/cx3-soul-red-crystal-metallic.png',
-    'snowflake-white-pearl-mica': 'assets/cx3-snowflake-white-pearl-mica.png',
-    'jet-black-mica': 'assets/cx3-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/cx3-deep-crystal-blue-mica.png',
-    'dynamic-blue-mica': 'assets/cx3-dynamic-blue-mica.png',
-    'ceramic-metallic': 'assets/cx3-ceramic-metallic.png',
-    'titanium-flash-mica': 'assets/cx3-titanium-flash-mica.png',
-    'polymetal-gray-metallic': 'assets/cx3-polymetal-gray-metallic.png'
+    'machine-gray-metallic': 'assets/mazda-cx3-dk.webp',
+    'soul-red-crystal-metallic': 'assets/cx3-soul-red-crystal-metallic.webp',
+    'snowflake-white-pearl-mica': 'assets/cx3-snowflake-white-pearl-mica.webp',
+    'jet-black-mica': 'assets/cx3-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/cx3-deep-crystal-blue-mica.webp',
+    'dynamic-blue-mica': 'assets/cx3-dynamic-blue-mica.webp',
+    'ceramic-metallic': 'assets/cx3-ceramic-metallic.webp',
+    'titanium-flash-mica': 'assets/cx3-titanium-flash-mica.webp',
+    'polymetal-gray-metallic': 'assets/cx3-polymetal-gray-metallic.webp'
   },
   mazda2: {
-    'soul-red-crystal-metallic': 'assets/mazda2-soul-red-crystal-metallic.png',
-    'snowflake-white-pearl-mica': 'assets/mazda2-snowflake-white-pearl-mica.png',
-    'jet-black-mica': 'assets/mazda2-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/mazda2-deep-crystal-blue-mica.png',
-    'dynamic-blue-mica': 'assets/mazda2-dynamic-blue-mica.png',
-    'machine-gray-metallic': 'assets/mazda2-dj.png',
-    'ceramic-metallic': 'assets/mazda2-ceramic-metallic.png',
-    'platinum-quartz-metallic': 'assets/mazda2-platinum-quartz-metallic.png'
+    'soul-red-crystal-metallic': 'assets/mazda2-soul-red-crystal-metallic.webp',
+    'snowflake-white-pearl-mica': 'assets/mazda2-snowflake-white-pearl-mica.webp',
+    'jet-black-mica': 'assets/mazda2-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/mazda2-deep-crystal-blue-mica.webp',
+    'dynamic-blue-mica': 'assets/mazda2-dynamic-blue-mica.webp',
+    'machine-gray-metallic': 'assets/mazda2-dj.webp',
+    'ceramic-metallic': 'assets/mazda2-ceramic-metallic.webp',
+    'platinum-quartz-metallic': 'assets/mazda2-platinum-quartz-metallic.webp'
   },
   mazda6: {
-    'machine-gray-metallic': 'assets/mazda6-gj.png',
-    'soul-red-metallic': 'assets/mazda6-soul-red-metallic.png',
-    'soul-red-crystal-metallic': 'assets/mazda6-soul-red-crystal-metallic.png',
-    'snowflake-white-pearl-mica': 'assets/mazda6-snowflake-white-pearl-mica.png',
-    'jet-black-mica': 'assets/mazda6-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/mazda6-deep-crystal-blue-mica.png',
-    'blue-reflex-mica': 'assets/mazda6-blue-reflex-mica.png',
-    'sonic-silver-metallic': 'assets/mazda6-sonic-silver-metallic.png',
-    'titanium-flash-mica': 'assets/mazda6-titanium-flash-mica.png'
+    'machine-gray-metallic': 'assets/mazda6-gj.webp',
+    'soul-red-metallic': 'assets/mazda6-soul-red-metallic.webp',
+    'soul-red-crystal-metallic': 'assets/mazda6-soul-red-crystal-metallic.webp',
+    'snowflake-white-pearl-mica': 'assets/mazda6-snowflake-white-pearl-mica.webp',
+    'jet-black-mica': 'assets/mazda6-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/mazda6-deep-crystal-blue-mica.webp',
+    'blue-reflex-mica': 'assets/mazda6-blue-reflex-mica.webp',
+    'sonic-silver-metallic': 'assets/mazda6-sonic-silver-metallic.webp',
+    'titanium-flash-mica': 'assets/mazda6-titanium-flash-mica.webp'
   },
   cx5ke: {
-    'meteor-gray-mica': 'assets/mazda-cx5-ke.png',
-    'soul-red-metallic': 'assets/cx5ke-soul-red-metallic.png',
-    'crystal-white-pearl-mica': 'assets/cx5ke-crystal-white-pearl-mica.png',
-    'jet-black-mica': 'assets/cx5ke-jet-black-mica.png',
-    'blue-reflex-mica': 'assets/cx5ke-blue-reflex-mica.png',
-    'sky-blue-mica': 'assets/cx5ke-sky-blue-mica.png',
-    'stormy-blue-mica': 'assets/cx5ke-stormy-blue-mica.png',
-    'liquid-silver-metallic': 'assets/cx5ke-liquid-silver-metallic.png',
-    'metropolitan-gray-mica': 'assets/cx5ke-metropolitan-gray-mica.png',
-    'zeal-red-mica': 'assets/cx5ke-zeal-red-mica.png'
+    'meteor-gray-mica': 'assets/mazda-cx5-ke.webp',
+    'soul-red-metallic': 'assets/cx5ke-soul-red-metallic.webp',
+    'crystal-white-pearl-mica': 'assets/cx5ke-crystal-white-pearl-mica.webp',
+    'jet-black-mica': 'assets/cx5ke-jet-black-mica.webp',
+    'blue-reflex-mica': 'assets/cx5ke-blue-reflex-mica.webp',
+    'sky-blue-mica': 'assets/cx5ke-sky-blue-mica.webp',
+    'stormy-blue-mica': 'assets/cx5ke-stormy-blue-mica.webp',
+    'liquid-silver-metallic': 'assets/cx5ke-liquid-silver-metallic.webp',
+    'metropolitan-gray-mica': 'assets/cx5ke-metropolitan-gray-mica.webp',
+    'zeal-red-mica': 'assets/cx5ke-zeal-red-mica.webp'
   },
   cx9tb: {
-    'dolphin-gray-mica': 'assets/mazda-cx9-tb.png',
-    'brilliant-black-clearcoat': 'assets/cx9tb-brilliant-black-clearcoat.png',
-    'crystal-white-pearl-mica': 'assets/cx9tb-crystal-white-pearl-mica.png',
-    'copper-red-mica': 'assets/cx9tb-copper-red-mica.png',
-    'liquid-silver-metallic': 'assets/cx9tb-liquid-silver-metallic.png',
-    'metropolitan-gray-mica': 'assets/cx9tb-metropolitan-gray-mica.png',
-    'stormy-blue-mica': 'assets/cx9tb-stormy-blue-mica.png'
+    'dolphin-gray-mica': 'assets/mazda-cx9-tb.webp',
+    'brilliant-black-clearcoat': 'assets/cx9tb-brilliant-black-clearcoat.webp',
+    'crystal-white-pearl-mica': 'assets/cx9tb-crystal-white-pearl-mica.webp',
+    'copper-red-mica': 'assets/cx9tb-copper-red-mica.webp',
+    'liquid-silver-metallic': 'assets/cx9tb-liquid-silver-metallic.webp',
+    'metropolitan-gray-mica': 'assets/cx9tb-metropolitan-gray-mica.webp',
+    'stormy-blue-mica': 'assets/cx9tb-stormy-blue-mica.webp'
   },
   cx9: {
-    'machine-gray-metallic': 'assets/mazda-cx9-tc.png',
-    'soul-red-crystal-metallic': 'assets/cx9-soul-red-crystal-metallic.png',
-    'snowflake-white-pearl-mica': 'assets/cx9-snowflake-white-pearl-mica.png',
-    'jet-black-mica': 'assets/cx9-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/cx9-deep-crystal-blue-mica.png',
-    'sonic-silver-metallic': 'assets/cx9-sonic-silver-metallic.png',
-    'titanium-flash-mica': 'assets/cx9-titanium-flash-mica.png',
-    'polymetal-gray-metallic': 'assets/cx9-polymetal-gray-metallic.png'
+    'machine-gray-metallic': 'assets/mazda-cx9-tc.webp',
+    'soul-red-crystal-metallic': 'assets/cx9-soul-red-crystal-metallic.webp',
+    'snowflake-white-pearl-mica': 'assets/cx9-snowflake-white-pearl-mica.webp',
+    'jet-black-mica': 'assets/cx9-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/cx9-deep-crystal-blue-mica.webp',
+    'sonic-silver-metallic': 'assets/cx9-sonic-silver-metallic.webp',
+    'titanium-flash-mica': 'assets/cx9-titanium-flash-mica.webp',
+    'polymetal-gray-metallic': 'assets/cx9-polymetal-gray-metallic.webp'
   },
   cx50: {
-    'machine-gray-metallic': 'assets/cx50-machine-gray-metallic.png',
-    'soul-red-crystal-metallic': 'assets/cx50-soul-red-crystal-metallic.png',
-    'wind-chill-pearl': 'assets/cx50-wind-chill-pearl.png',
-    'jet-black-mica': 'assets/cx50-jet-black-mica.png',
-    'ingot-blue-metallic': 'assets/cx50-ingot-blue-metallic.png',
-    'polymetal-gray-metallic': 'assets/cx50-polymetal-gray-metallic.png',
-    'zircon-sand-metallic': 'assets/cx50-zircon-sand-metallic.png',
-    'cypress': 'assets/cx50-cypress.png'
+    'machine-gray-metallic': 'assets/cx50-machine-gray-metallic.webp',
+    'soul-red-crystal-metallic': 'assets/cx50-soul-red-crystal-metallic.webp',
+    'wind-chill-pearl': 'assets/cx50-wind-chill-pearl.webp',
+    'jet-black-mica': 'assets/cx50-jet-black-mica.webp',
+    'ingot-blue-metallic': 'assets/cx50-ingot-blue-metallic.webp',
+    'polymetal-gray-metallic': 'assets/cx50-polymetal-gray-metallic.webp',
+    'zircon-sand-metallic': 'assets/cx50-zircon-sand-metallic.webp',
+    'cypress': 'assets/cx50-cypress.webp'
   },
   cx60: {
-    'machine-gray-metallic': 'assets/cx60-machine-gray-metallic.png',
-    'soul-red-crystal-metallic': 'assets/cx60-soul-red-crystal-metallic.png',
-    'rhodium-white-premium': 'assets/cx60-rhodium-white-premium.png',
-    'jet-black-mica': 'assets/cx60-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/cx60-deep-crystal-blue-mica.png',
-    'platinum-quartz-metallic': 'assets/cx60-platinum-quartz-metallic.png',
-    'sonic-silver-metallic': 'assets/cx60-sonic-silver-metallic.png',
-    'artisan-red-premium': 'assets/cx60-artisan-red-premium.png'
+    'machine-gray-metallic': 'assets/cx60-machine-gray-metallic.webp',
+    'soul-red-crystal-metallic': 'assets/cx60-soul-red-crystal-metallic.webp',
+    'rhodium-white-premium': 'assets/cx60-rhodium-white-premium.webp',
+    'jet-black-mica': 'assets/cx60-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/cx60-deep-crystal-blue-mica.webp',
+    'platinum-quartz-metallic': 'assets/cx60-platinum-quartz-metallic.webp',
+    'sonic-silver-metallic': 'assets/cx60-sonic-silver-metallic.webp',
+    'artisan-red-premium': 'assets/cx60-artisan-red-premium.webp'
   },
   cx70: {
-    'melting-copper-metallic': 'assets/cx70-melting-copper-metallic.png',
-    'soul-red-crystal-metallic': 'assets/cx70-soul-red-crystal-metallic.png',
-    'rhodium-white-premium': 'assets/cx70-rhodium-white-premium.png',
-    'jet-black-mica': 'assets/cx70-jet-black-mica.png',
-    'polymetal-gray-metallic': 'assets/mazda-cx70.png',
-    'zircon-sand-metallic': 'assets/cx70-zircon-sand-metallic.png'
+    'melting-copper-metallic': 'assets/cx70-melting-copper-metallic.webp',
+    'soul-red-crystal-metallic': 'assets/cx70-soul-red-crystal-metallic.webp',
+    'rhodium-white-premium': 'assets/cx70-rhodium-white-premium.webp',
+    'jet-black-mica': 'assets/cx70-jet-black-mica.webp',
+    'polymetal-gray-metallic': 'assets/mazda-cx70.webp',
+    'zircon-sand-metallic': 'assets/cx70-zircon-sand-metallic.webp'
   },
   cx80: {
-    'artisan-red-premium': 'assets/cx80-artisan-red-premium.png',
-    'soul-red-crystal-metallic': 'assets/cx80-soul-red-crystal-metallic.png',
-    'rhodium-white-premium': 'assets/cx80-rhodium-white-premium.png',
-    'machine-gray-metallic': 'assets/mazda-cx80.png',
-    'jet-black-mica': 'assets/cx80-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/cx80-deep-crystal-blue-mica.png',
-    'platinum-quartz-metallic': 'assets/cx80-platinum-quartz-metallic.png',
-    'melting-copper-metallic': 'assets/cx80-melting-copper-metallic.png'
+    'artisan-red-premium': 'assets/cx80-artisan-red-premium.webp',
+    'soul-red-crystal-metallic': 'assets/cx80-soul-red-crystal-metallic.webp',
+    'rhodium-white-premium': 'assets/cx80-rhodium-white-premium.webp',
+    'machine-gray-metallic': 'assets/mazda-cx80.webp',
+    'jet-black-mica': 'assets/cx80-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/cx80-deep-crystal-blue-mica.webp',
+    'platinum-quartz-metallic': 'assets/cx80-platinum-quartz-metallic.webp',
+    'melting-copper-metallic': 'assets/cx80-melting-copper-metallic.webp'
   },
   cx90: {
-    'artisan-red-premium': 'assets/cx90-artisan-red-premium.png',
-    'soul-red-crystal-metallic': 'assets/cx90-soul-red-crystal-metallic.png',
-    'rhodium-white-premium': 'assets/cx90-rhodium-white-premium.png',
-    'machine-gray-metallic': 'assets/mazda-cx90.png',
-    'jet-black-mica': 'assets/cx90-jet-black-mica.png',
-    'deep-crystal-blue-mica': 'assets/cx90-deep-crystal-blue-mica.png',
-    'platinum-quartz-metallic': 'assets/cx90-platinum-quartz-metallic.png',
-    'polymetal-gray-metallic': 'assets/cx90-polymetal-gray-metallic.png'
+    'artisan-red-premium': 'assets/cx90-artisan-red-premium.webp',
+    'soul-red-crystal-metallic': 'assets/cx90-soul-red-crystal-metallic.webp',
+    'rhodium-white-premium': 'assets/cx90-rhodium-white-premium.webp',
+    'machine-gray-metallic': 'assets/mazda-cx90.webp',
+    'jet-black-mica': 'assets/cx90-jet-black-mica.webp',
+    'deep-crystal-blue-mica': 'assets/cx90-deep-crystal-blue-mica.webp',
+    'platinum-quartz-metallic': 'assets/cx90-platinum-quartz-metallic.webp',
+    'polymetal-gray-metallic': 'assets/cx90-polymetal-gray-metallic.webp'
   },
   mazda3bm: {
-    'meteor-gray-mica': 'assets/mazda3-studio.png',
-    'soul-red-metallic': 'assets/mazda3-soul-red.png',
-    'snowflake-white-pearl-mica': 'assets/mazda3-snowflake-white.png',
-    'jet-black-mica': 'assets/mazda3-jet-black.png',
-    'deep-crystal-blue-mica': 'assets/mazda3-deep-crystal-blue.png',
-    'blue-reflex-mica': 'assets/mazda3-blue-reflex.png',
-    'liquid-silver-metallic': 'assets/mazda3-liquid-silver.png',
-    'titanium-flash-mica': 'assets/mazda3-titanium-flash.png'
+    'meteor-gray-mica': 'assets/mazda3-studio.webp',
+    'soul-red-metallic': 'assets/mazda3-soul-red.webp',
+    'snowflake-white-pearl-mica': 'assets/mazda3-snowflake-white.webp',
+    'jet-black-mica': 'assets/mazda3-jet-black.webp',
+    'deep-crystal-blue-mica': 'assets/mazda3-deep-crystal-blue.webp',
+    'blue-reflex-mica': 'assets/mazda3-blue-reflex.webp',
+    'liquid-silver-metallic': 'assets/mazda3-liquid-silver.webp',
+    'titanium-flash-mica': 'assets/mazda3-titanium-flash.webp'
   }
 };
 /* 'Soul Red Metallic (Code 41V)' -> 'soul-red-metallic' */
@@ -207,7 +207,7 @@ function studioCarImage(color, car) {
   const freshAsset = url => modelId === 'mazda3bp' ? `${url}?v=halo-free-65` : url;
   if (exact) return freshAsset(exact);
   if (GENERIC_MODEL_IMAGE[modelId]) return freshAsset(GENERIC_MODEL_IMAGE[modelId]);
-  if (modelId === 'mazda3bm') return 'assets/mazda3-studio.png';
+  if (modelId === 'mazda3bm') return 'assets/mazda3-studio.webp';
   return '';
 }
 

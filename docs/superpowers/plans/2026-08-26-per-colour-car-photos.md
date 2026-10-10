@@ -23,12 +23,12 @@ the gap colour by colour, model by model.
    via `paintFilterClass(swatchFor(color))` (a real hue/sat/lightness bucket
    derived from the paint's verified hex in `MAZDA_PAINTS`, not the colour's
    name text).
-3. `mazda3bm`'s legacy untinted fallback (`assets/mazda3-studio.png`), or
+3. `mazda3bm`'s legacy untinted fallback (`assets/mazda3-studio.webp`), or
    `''` if the model has no image at all.
 
 ## Adding a real photo
 
-1. Name the file `assets/<modelId>-<colorSlug>.png` (see the full list
+1. Name the file `assets/<modelId>-<colorSlug>.webp` (see the full list
    below for every `modelId`/`colorSlug` pair the catalogue currently
    needs). `colorSlug()` strips the `(Code XXXX)` suffix, lowercases, and
    hyphenates — e.g. `Soul Red Crystal Metallic (Code 46V)` →
@@ -138,6 +138,6 @@ exists.
 
 - No change to the tint fallback's quality — it stays as-is for any
   colour without a real photo.
-- No automatic file-discovery (e.g. probing `assets/<slug>.png` via
+- No automatic file-discovery (e.g. probing `assets/<slug>.webp` via
   `<img onerror>`) — an explicit manifest line was chosen so a missing or
   misnamed file fails loudly in review, not as a silent 404 in production.

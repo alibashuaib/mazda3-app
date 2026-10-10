@@ -59,13 +59,13 @@ test('sw.js does not precache files that no longer exist', () => {
 });
 
 test('sw.js precaches only one generic image per vehicle model', () => {
-  const cachedImages = [...swAssets()].filter(asset => asset.startsWith('assets/') && asset.endsWith('.png'));
+  const cachedImages = [...swAssets()].filter(asset => asset.startsWith('assets/') && asset.endsWith('.webp'));
   const genericImages = [
-    'assets/mazda3-studio.png', 'assets/mazda2-dj.png', 'assets/mazda3-bp.png',
-    'assets/mazda6-gj.png', 'assets/mazda-cx3-dk.png', 'assets/mazda-cx30-dm.png',
-    'assets/mazda-cx5-ke.png', 'assets/mazda-cx5-kf.png', 'assets/mazda-cx5-gen3.png',
-    'assets/mazda-cx9-tb.png', 'assets/mazda-cx9-tc.png', 'assets/mazda-cx50.png',
-    'assets/mazda-cx60.png', 'assets/mazda-cx70.png', 'assets/mazda-cx80.png', 'assets/mazda-cx90.png'
+    'assets/mazda3-studio.webp', 'assets/mazda2-dj.webp', 'assets/mazda3-bp.webp',
+    'assets/mazda6-gj.webp', 'assets/mazda-cx3-dk.webp', 'assets/mazda-cx30-dm.webp',
+    'assets/mazda-cx5-ke.webp', 'assets/mazda-cx5-kf.webp', 'assets/mazda-cx5-gen3.webp',
+    'assets/mazda-cx9-tb.webp', 'assets/mazda-cx9-tc.webp', 'assets/mazda-cx50.webp',
+    'assets/mazda-cx60.webp', 'assets/mazda-cx70.webp', 'assets/mazda-cx80.webp', 'assets/mazda-cx90.webp'
   ];
   assert.deepStrictEqual(cachedImages.sort(), genericImages.sort());
 });
