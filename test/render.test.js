@@ -62,15 +62,13 @@ test('the app boots without throwing and lands on the dashboard', () => withBoot
   assertHealthyRender(view, 'dashboard');
 }));
 
-test('every catalog paint has a distinct existing photo cached for offline use', () => withBoot(async ({ document, api, evalInApp }) => {
+test('every catalog paint has a distinct existing photo', () => withBoot(async ({ document, api, evalInApp }) => {
   const { models, photos, slug } = evalInApp('({ models: CAR_MODELS, photos: CAR_COLOR_PHOTOS, slug: colorSlug })');
-  const worker = fs.readFileSync(path.join(__dirname, '../sw.js'), 'utf8');
   for (const model of models) {
     const images = model.colors.map(color => {
       const image = photos[model.id]?.[slug(color)];
       assert.ok(image, `${model.id}: missing ${color}`);
       assert.ok(fs.existsSync(path.join(__dirname, '..', image)), `${model.id}: missing file ${image}`);
-      assert.ok(worker.includes(`'./${image}'`), `${model.id}: ${image} is not precached`);
       if (['cx50', 'cx60', 'cx70', 'cx80', 'cx90'].includes(model.id)) {
         Object.assign(api.session.current().car, { modelId: model.id, color });
         api.go('dashboard');
@@ -80,6 +78,16 @@ test('every catalog paint has a distinct existing photo cached for offline use',
     });
     assert.strictEqual(new Set(images).size, images.length, `${model.id}: paints share an image`);
   }
+}));
+
+test('an unavailable paint photo falls back to the model image', () => withBoot(async ({ document, api }) => {
+  Object.assign(api.session.current().car, { modelId: 'cx60', color: 'Platinum Quartz Metallic' });
+  api.go('dashboard');
+  const image = document.querySelector('.studio-car');
+  assert.strictEqual(image.getAttribute('src'), 'assets/cx60-platinum-quartz-metallic.png');
+  image.onerror();
+  assert.strictEqual(image.getAttribute('src'), 'assets/mazda-cx60.png');
+  assert.strictEqual(image.onerror, null, 'fallback failure would otherwise loop forever');
 }));
 
 /* main.js used to auto-seed a demo 2016 Mazda 3 the moment a device had no

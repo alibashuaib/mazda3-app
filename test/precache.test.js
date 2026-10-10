@@ -58,6 +58,18 @@ test('sw.js does not precache files that no longer exist', () => {
     `sw.js precaches missing files — install() calls cache.addAll(), which rejects atomically if any single entry 404s, leaving the app with no precache at all:\n  ${stale.join('\n  ')}`);
 });
 
+test('sw.js precaches only one generic image per vehicle model', () => {
+  const cachedImages = [...swAssets()].filter(asset => asset.startsWith('assets/') && asset.endsWith('.png'));
+  const genericImages = [
+    'assets/mazda3-studio.png', 'assets/mazda2-dj.png', 'assets/mazda3-bp.png',
+    'assets/mazda6-gj.png', 'assets/mazda-cx3-dk.png', 'assets/mazda-cx30-dm.png',
+    'assets/mazda-cx5-ke.png', 'assets/mazda-cx5-kf.png', 'assets/mazda-cx5-gen3.png',
+    'assets/mazda-cx9-tb.png', 'assets/mazda-cx9-tc.png', 'assets/mazda-cx50.png',
+    'assets/mazda-cx60.png', 'assets/mazda-cx70.png', 'assets/mazda-cx80.png', 'assets/mazda-cx90.png'
+  ];
+  assert.deepStrictEqual(cachedImages.sort(), genericImages.sort());
+});
+
 test('the sw cache version is bumped whenever the asset list changes', () => {
   /* Not a drift check — just a floor. A stale CACHE name means activate()
      never evicts the old cache, so returning visitors keep the previous

@@ -249,6 +249,14 @@ function renderDashboard() {
   carCard.innerHTML = html`
     <span class="studio-orbit" aria-hidden="true"></span>
     ${carImage ? html`<img class="studio-car" src="${carImage}" alt="${carName} — ${paintName}">` : ''}`;
+  const carImageEl = carCard.querySelector('.studio-car');
+  const genericImage = studioCarImage('', { modelId });
+  if (carImageEl && genericImage && genericImage !== carImage) {
+    carImageEl.onerror = () => {
+      carImageEl.onerror = null;
+      carImageEl.src = genericImage;
+    };
+  }
   const topRow = el('div', 'top-row');
   topRow.appendChild(carCard);
 
