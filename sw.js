@@ -1,5 +1,5 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-v109';
+const CACHE = 'garage-v110';
 const ASSETS = [
   './', './index.html', './styles.css',
   './assets/mazda3-studio.webp', './assets/mazda2-dj.webp', './assets/mazda3-bp.webp',
