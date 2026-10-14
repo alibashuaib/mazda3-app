@@ -273,6 +273,10 @@ language plpgsql security definer set search_path = public as $$
 declare cm text;
 begin
   if tg_op = 'DELETE' then cm := old.car_model_id; else cm := new.car_model_id; end if;
+  -- Cascade from a car delete: the parent is gone, so logging would break the FK.
+  if tg_op = 'DELETE' and not exists (select 1 from public.car_models where id = cm) then
+    return old;
+  end if;
   if tg_op = 'UPDATE' then
     insert into public.dealer_plan_changes (car_model_id, item_id, before, after)
     values (cm, new.id, to_jsonb(old), to_jsonb(new));
@@ -323,6 +327,11 @@ create policy read_dealer_plan_items on public.dealer_plan_items for select to a
 drop policy if exists admin_write_dealer_plan_items on public.dealer_plan_items;
 create policy admin_write_dealer_plan_items on public.dealer_plan_items for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
+
+-- Explicit grants (see the vehicles/garage note above); RLS still enforces admin-only writes.
+grant select on public.car_models, public.dealer_plan_items to anon, authenticated;
+grant insert, update, delete on public.car_models, public.dealer_plan_items to authenticated;
+grant select on public.dealer_plan_changes to authenticated;
 
 alter table public.dealer_plan_changes enable row level security;
 drop policy if exists admin_read_dealer_plan_changes on public.dealer_plan_changes;

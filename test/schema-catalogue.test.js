@@ -28,3 +28,13 @@ test('role is not user-editable', () => {
   assert.match(sql, /revoke update on public\.profiles from authenticated/);
   assert.match(sql, /grant update \(share_community\) on public\.profiles to authenticated/);
 });
+
+test('catalogue tables have explicit grants', () => {
+  assert.match(sql, /grant select on public\.car_models, public\.dealer_plan_items to anon, authenticated;/);
+  assert.match(sql, /grant insert, update, delete on public\.car_models, public\.dealer_plan_items to authenticated;/);
+  assert.match(sql, /grant select on public\.dealer_plan_changes to authenticated;/);
+});
+
+test('item trigger skips logging when the parent car is already deleted', () => {
+  assert.match(sql, /tg_op = 'DELETE' and not exists \(select 1 from public\.car_models where id = cm\)/);
+});

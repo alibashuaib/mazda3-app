@@ -50,4 +50,18 @@ do $$ declare n int; begin
   if n = 0 then raise exception 'FAIL: admin edit was not logged'; end if;
 end $$;
 
+-- Deleting a car that has items must cascade cleanly (the item delete trigger
+-- must not try to log against the vanished car).
+do $$ begin
+  insert into public.car_models (id, model, generation, engine) values ('rls-test:del', 'x', 'x', 'x');
+  insert into public.dealer_plan_items (car_model_id, service) values ('rls-test:del', 'x');
+  begin
+    delete from public.car_models where id = 'rls-test:del';
+  exception when others then
+    raise exception 'FAIL: admin could not delete a car that has items (%)', sqlerrm;
+  end;
+  if exists (select 1 from public.dealer_plan_items where car_model_id = 'rls-test:del') then
+    raise exception 'FAIL: car delete did not cascade to its items'; end if;
+end $$;
+
 rollback;
