@@ -86,7 +86,7 @@
      untouched item writes nothing and logs nothing. */
   function itemPatch(before, fields) {
     const prev = { interval_km: before.interval_km ?? null, interval_months: before.interval_months ?? null,
-      note: before.note || '', parts: before.parts || [] };
+      note: before.note || '', parts: parseParts(formatParts(before.parts)) };
     const next = { interval_km: num(fields.interval_km), interval_months: num(fields.interval_months),
       note: String(fields.note || '').trim(), parts: parseParts(fields.parts) };
     const patch = {};
