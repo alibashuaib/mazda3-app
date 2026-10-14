@@ -312,3 +312,14 @@ test('normalizeData seeds dealer normal intervals where they differ', () => {
   assert.strictEqual(oil.normalKm, 10000);
   assert.strictEqual(oil.normalMonths, 12);
 });
+
+test('buildProfile stamps the catalogue id of the chosen model and engine', () => {
+  const s = buildProfile('cx5kf', 0, { odometer: 0 });
+  assert.strictEqual(s.car.catalogId, 'cx5kf:' + s.car.engine.toLowerCase().replace(/[^a-z0-9.]+/g, '-'));
+});
+
+test('normalizeData heals a missing catalogId on a known model', () => {
+  const s = buildProfile('mazda3bm', 0, { odometer: 0 });
+  delete s.car.catalogId;
+  assert.ok(normalizeData(s).car.catalogId.startsWith('mazda3bm:'));
+});

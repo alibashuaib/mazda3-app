@@ -29,7 +29,7 @@
     const colors = Array.isArray(m.colors) && m.colors.length ? m.colors : [dep.DEFAULT_COLOR];
     const requestedColor = colors.find(x => paintKey(x) === paintKey(opts.color));
     const s = {
-      car: { nickname: '', make: 'Mazda', model: m.model, modelId: m.id, year: opts.year || '', engine, transmission: 'Automatic',
+      car: { nickname: '', make: 'Mazda', model: m.model, modelId: m.id, year: opts.year || '', engine, catalogId: dep.catalogId(m.id, engine), transmission: 'Automatic',
         color: requestedColor || colors[0], plate: '', vin: '', photo: '', odometer: odo, dailyKm: 40 },
       budget: { annual: 6000 },
       services: dep.skyactivServices(oilL, dep.engineInfo(m.id, engine)),
@@ -65,6 +65,8 @@
       else if (model === 'CX-90') s.car.modelId = 'cx90';
       else s.car.modelId = '';
     }
+    if (!s.car.catalogId && s.car.engine && dep.CAR_MODELS.some(m => m.id === s.car.modelId))
+      s.car.catalogId = dep.catalogId(s.car.modelId, s.car.engine);
     const activeModel = dep.CAR_MODELS.find(m => m.id === s.car.modelId);
     if (activeModel) {
       const allowedColors = Array.isArray(activeModel.colors) && activeModel.colors.length
