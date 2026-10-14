@@ -1,5 +1,5 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-v112';
+const CACHE = 'garage-v113';
 const ASSETS = [
   './', './index.html', './styles.css',
   './assets/mazda3-studio.webp', './assets/mazda2-dj.webp', './assets/mazda3-bp.webp',
@@ -11,7 +11,7 @@ const ASSETS = [
   './src/ui/color.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js',
   './src/i18n/lang.js', './src/core/schedule.js', './src/data/storage.js', './src/data/normalize.js',
   './src/data/session.js', './src/data/status.js', './vendor/supabase.js', './src/data/account.js',
-  './src/data/pricing.js', './src/core/async-click.js', './src/pages/dashboard.js',
+  './src/data/pricing.js', './src/data/remote-catalog.js', './src/data/admin.js', './src/core/async-click.js', './src/pages/dashboard.js',
   './src/pages/maintenance.js', './src/pages/parts.js', './src/pages/fuel.js',
   './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js',
   './main.js', './manifest.webmanifest', './icon.svg'

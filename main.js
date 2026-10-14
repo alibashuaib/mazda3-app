@@ -64,6 +64,7 @@ function openAddVehicle() {
     onAsyncClick(b, async () => {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '', color: colorSel.value }));
+      remoteCatalog.applyDealerPlan(data, { force: true });   // a new car takes the current shared plan
       const v = { id: uid(), data };
       session.setVehicles(session.garage().vehicles.concat([v]), v.id);
       const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
@@ -350,6 +351,7 @@ function go(route, intent) {
   // `routes` — must not throw out of routes[route]() below and leave the nav
   // dead with no view rendered at all. Fall back to dashboard instead.
   if (!routes[route]) route = 'dashboard';
+  syncDealerPlan();
   setChromeVisible(true);
   revokeObjectUrls();
   refreshPhotoUrls();
@@ -678,6 +680,16 @@ account.configure({
 });
 
 pricing.configure({ client: supabaseClient });
+remoteCatalog.configure({ client: supabaseClient, metaGet, metaSet });
+catalogAdmin.configure({ client: supabaseClient });
+
+/* Puts a newer shared dealer plan onto the car on screen. session.save()
+   fires the afterSave hook, so a signed-in change is queued for sync too. */
+function syncDealerPlan() {
+  if (!remoteCatalog.applyDealerPlan(session.current())) return false;
+  session.save();
+  return true;
+}
 /* The menu trigger stays available because it owns vehicle switching and the
    theme control, even though account/sign-in is no longer exposed in the UI. */
 
@@ -695,7 +707,14 @@ session.load()
        the "could not open your garage" error card — that would hide a
        working, already-rendered app behind an error message about a sync
        feature that failed, for a garage that opened just fine. */
-    account.start().catch(err => console.error('account.start() failed:', err));
+    account.start()
+      .then(() => catalogAdmin.isAdmin())
+      .catch(err => console.error('account.start() failed:', err));
+    // Same rule as account.start(): after first paint, and never fatal.
+    remoteCatalog.load()
+      .then(() => remoteCatalog.refresh())
+      .then(() => { if (syncDealerPlan()) go(current); })
+      .catch(err => console.error('catalogue refresh failed:', err));
   })
   .catch(err => {
     document.getElementById('view').innerHTML =
