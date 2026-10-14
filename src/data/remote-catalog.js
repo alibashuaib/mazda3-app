@@ -22,7 +22,8 @@
 
   function load() {
     return Promise.resolve(env.metaGet()).then(meta => {
-      if (meta && meta.catalogue) cache = meta.catalogue;
+      const c = meta && meta.catalogue;
+      if (c && Array.isArray(c.models) && Array.isArray(c.items)) cache = c;
       return !!cache;
     }).catch(() => false);
   }
@@ -63,6 +64,11 @@
     const m = car && model(car.catalogId);
     if (!m || car.planVersion === m.plan_updated_at) return false;
     if (!car.planVersion && !(opts && opts.force)) { car.planVersion = m.plan_updated_at; return true; }
+    // Strictly newer, compared as times (Postgres trims fractional zeros, so
+    // strings aren't comparable); unparseable counts as older. A stale cache
+    // must never downgrade a car another device already updated.
+    const have = Date.parse(car.planVersion);
+    if (!(opts && opts.force) && have >= Date.parse(m.plan_updated_at)) return false;
     const byName = new Map(dealerPlan(m.id).map(x => [x.service, x]));
     (data.services || []).forEach(s => {
       const item = byName.get(s.name);
