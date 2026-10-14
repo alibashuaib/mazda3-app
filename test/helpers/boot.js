@@ -87,6 +87,7 @@ const SCRIPTS = [
   'src/pages/budget.js',
   'src/pages/reports.js',
   'src/pages/documents.js',
+  'src/pages/admin.js',
   'main.js'
 ];
 

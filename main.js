@@ -297,7 +297,7 @@ function openHealthBreakdown() {
 /* ============================================================
    ROUTER
    ============================================================ */
-const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, parts: renderParts, fuel: renderFuel, budget: renderBudget, reports: renderReports };
+const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, parts: renderParts, fuel: renderFuel, budget: renderBudget, reports: renderReports, admin: renderAdmin };
 let current = 'dashboard';
 let navIntent = null; // cross-page link target, consumed by the destination page's render
 /* Hides the car badge/title, the topbar icon buttons, and the bottom nav —
@@ -698,7 +698,7 @@ session.load()
   .then(() => {
     applyAccent();
     renderTopbar();
-    go('dashboard');
+    go(location.hash === '#admin' ? 'admin' : 'dashboard');
     /* After the first paint, never before: a slow or absent network must not
        delay the app a user can already use offline. Caught right here, not by
        the .catch() below: the app is already painted and usable at this
