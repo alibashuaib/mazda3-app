@@ -77,3 +77,10 @@ test('describeChange names the service and the changed fields', () => {
     after: { service: 'Engine Oil & Filter', interval_km: 9000 } });
   assert.strictEqual(s, 'Engine Oil & Filter: interval_km 10000 → 9000');
 });
+
+test('itemPatch ignores jsonb key order and missing part fields', () => {
+  const f = { interval_km: '10000', interval_months: '12', note: 'n' };
+  const base = { interval_km: 10000, interval_months: 12, note: 'n' };
+  assert.strictEqual(admin.itemPatch({ ...base, parts: [{ qty: 1, name: 'A', part_no: 'X' }] }, { ...f, parts: 'A | X' }), null);
+  assert.strictEqual(admin.itemPatch({ ...base, parts: [{ name: 'B' }] }, { ...f, parts: 'B' }), null);
+});
