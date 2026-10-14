@@ -92,3 +92,16 @@ project (it is idempotent — safe to re-run in full).
    `updated_at` reflects the actual server time, not the device's skewed
    clock.
 5. Result: _____
+
+## Phase 5a — shared catalogue and admin (2026-10-15)
+
+Prerequisite: the live project from the steps above, with real `SUPABASE_URL` / `SUPABASE_ANON_KEY` in `src/data/account.js`.
+
+1. Apply `supabase/schema.sql`, then `supabase/seed-catalogue.sql`, in the SQL editor. Re-run both once: no errors, no duplicate rows (`select count(*) from car_models` unchanged).
+2. Sign up two accounts. Promote one: `update public.profiles set role = 'admin' where user_id = '<uuid>';`
+3. Put both uuids into `supabase/tests/catalogue-rls.sql` and run it. Pass = finishes with no `FAIL:` error.
+4. Open `/#admin` signed out → sign-in form. Sign in as the non-admin → "This account is not an admin."
+5. Sign in as the admin → list of 16+ cars. Open Mazda 3 BM 2.0L, change Engine Oil & Filter dealer interval to 9000, save → toast "Catalogue saved"; "Recent changes" shows `interval_km 10000 → 9000`.
+6. In a second browser (anonymous, with a Mazda 3 BM 2.0L car that has been opened once before step 5), reload → the Maintenance page shows Dealer 9,000 km for Engine Oil & Filter.
+7. Turn the network off and reload that second browser → the app opens and still shows 9,000.
+8. Set the interval back to 10000.
