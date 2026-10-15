@@ -83,7 +83,8 @@ function renderFuel() {
   const list = el('div', 'list');
   if (!rows.length) list.appendChild(emptyState('⛽', 'No fill-ups logged yet.\nTap "Add fill-up" after your next refuel.'));
   [...rows].reverse().forEach(({ e, l100, km }) => {
-    const it = el('div', 'card entry');
+    const it = el('button', 'card entry fuel-entry');
+    it.type = 'button';
     it.innerHTML = html`
       <div class="e-ic">⛽</div>
       <div class="e-main">
@@ -124,10 +125,11 @@ function openAddFuel(e) {
     card.appendChild(field('Tank', html`<select id="f_full"><option value="yes"${!e || e.full !== false ? ' selected' : ''}>${t('Full tank')}</option><option value="no"${e && e.full === false ? ' selected' : ''}>${t('Partial fill')}</option></select>`));
     const b = el('button', 'btn primary block', html`${t('Save')}`);
     onAsyncClick(b, async () => {
-      const litres = +$('#f_l').value, odo = +$('#f_odo').value;
-      if (!litres) return fail('#f_l', 'Litres required');
-      if (!odo) return fail('#f_odo', 'Odometer required');
-      const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(today()), odometer: odo, litres, cost: +$('#f_cost').value || 0, full: $('#f_full').value !== 'no' };
+      const litres = +$('#f_l').value, odo = +$('#f_odo').value, cost = +$('#f_cost').value;
+      if (!Number.isFinite(litres) || litres <= 0) return fail('#f_l', 'Litres must be greater than zero');
+      if (!$('#f_odo').value.trim() || !Number.isFinite(odo) || odo < 0) return fail('#f_odo', 'Odometer must be zero or greater');
+      if (!Number.isFinite(cost) || cost < 0) return fail('#f_cost', 'Cost must be zero or greater');
+      const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(today()), odometer: odo, litres, cost, full: $('#f_full').value !== 'no' };
       if (e) Object.assign(e, obj); else { session.current().fuel = session.current().fuel || []; session.current().fuel.push(obj); }
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
       if (odo > session.current().car.odometer) { session.current().car.odometer = odo; session.current().car.odoUpdatedAt = obj.date; }

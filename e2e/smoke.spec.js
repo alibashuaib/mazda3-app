@@ -179,45 +179,6 @@ test('car profile updates render immediately and survive a reload', async ({ pag
   expect(errors, `uncaught page errors: ${errors.join(' | ')}`).toEqual([]);
 });
 
-test('export then import reproduces the garage', async ({ page }, testInfo) => {
-  await open(page, testInfo);
-
-  const marker = `E2E ${testInfo.project.name} ${Date.now()}`;
-  await openSettings(page);
-  await page.fill('#c_nick', marker);
-  await page.click('#modalCard button:has-text("Save profile")');
-  await expect(page.locator('#carTitle')).toHaveText(marker);
-
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    (async () => {
-      await page.click('#accountBtn');
-      await page.click('#accountMenu [role="menuitem"]:has-text("Export backup")');
-    })()
-  ]);
-  const backup = path.join(os.tmpdir(), `garage-e2e-${testInfo.project.name}.json`);
-  await download.saveAs(backup);
-  expect(fs.statSync(backup).size, 'the backup file is empty').toBeGreaterThan(100);
-
-  // Change the data so a no-op import would be indistinguishable from success.
-  await openSettings(page);
-  await page.fill('#c_nick', 'overwritten');
-  await page.click('#modalCard button:has-text("Save profile")');
-  await expect(page.locator('#carTitle')).toHaveText('overwritten');
-
-  page.once('dialog', d => d.accept());          // import warns before replacing
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    (async () => {
-      await page.click('#accountBtn');
-      await page.click('#accountMenu [role="menuitem"]:has-text("Import backup")');
-    })()
-  ]);
-  await chooser.setFiles(backup);
-
-  await expect(page.locator('#carTitle')).toHaveText(marker, { timeout: 15000 });
-});
-
 test('account and plan setup are absent from the car profile', async ({ page }, testInfo) => {
   await open(page, testInfo);
 
@@ -235,12 +196,43 @@ test('an online listener is registered after boot, over http', async ({ page }, 
   expect(hasListener).toBe(true);
 });
 
+test('fuel fields have accessible labels and invalid values do not save', async ({ page }, testInfo) => {
+  await open(page, testInfo);
+  await page.click('.tab[data-route="fuel"]');
+  await page.getByRole('button', { name: 'Add fill-up' }).click();
+  await page.getByLabel('Litres', { exact: true }).fill('-42');
+  await page.getByLabel('Odometer (km)', { exact: true }).fill('100');
+  await page.getByLabel('Cost (SAR)', { exact: true }).fill('95');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  expect(await page.evaluate(() => session.current().fuel.length)).toBe(0);
+  await expect(page.locator('#f_l')).toHaveClass(/field-error/);
+  await page.getByLabel('Litres', { exact: true }).fill('42');
+  await page.getByLabel('Cost (SAR)', { exact: true }).fill('-95');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  expect(await page.evaluate(() => session.current().fuel.length)).toBe(0);
+  await expect(page.locator('#f_cost')).toHaveClass(/field-error/);
+  await page.getByLabel('Cost (SAR)', { exact: true }).fill('0');
+  await page.getByLabel('Odometer (km)', { exact: true }).fill('0');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#modalHost')).toBeHidden();
+  const record = page.locator('#view button.fuel-entry');
+  await record.focus();
+  await expect(record).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#modalTitle')).toHaveText('Edit fill-up');
+  await closeModal(page);
+  await record.focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('#modalTitle')).toHaveText('Edit fill-up');
+});
+
 test('the vendored client loads and does not break boot', async ({ page }, testInfo) => {
-  // vendor/supabase.js is an unconditional <script> tag, so the SDK global
-  // exists on both origins even though only http constructs a client from it.
+  // vendor/supabase.js is injected after first paint, and only off file:,
+  // where no client can be built anyway.
   const errors = await open(page, testInfo);
 
-  expect(await page.evaluate(() => typeof window.supabase)).toBe('object');
+  if (testInfo.project.name === 'http') await page.waitForFunction(() => typeof window.supabase === 'object');
+  else expect(await page.evaluate(() => typeof window.supabase)).toBe('undefined');
   expect(errors, `uncaught page errors: ${errors.join(' | ')}`).toEqual([]);
 });
 

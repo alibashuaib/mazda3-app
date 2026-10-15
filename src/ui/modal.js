@@ -82,5 +82,10 @@ function field(label, inputHtml) {
   // openAddSpending's "Quick pick" note) builds it itself, after this
   // returns, as real DOM nodes appended to the <label> element.
   f.innerHTML = html`<label>${t(label)}</label>${inputHtml}`;
+  const control = f.querySelector('input:not([type="hidden"]), select, textarea, button');
+  if (control) {
+    if (!control.id) control.id = 'field-' + uid();
+    f.querySelector('label').setAttribute('for', control.id);
+  }
   return f;
 }

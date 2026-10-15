@@ -73,8 +73,6 @@ test('the remaining corner controls are reachable', () => withBoot(async ({ docu
   assert.ok(byLabel(document, /Switch vehicle/), 'the vehicle switcher was lost in the move');
   assert.ok(byLabel(document, /Dark mode/), 'the theme toggle was lost in the move');
   assert.ok(byLabel(document, /العربية/), 'the language switch was not added');
-  assert.ok(byLabel(document, /Export backup/), 'backup export was not added');
-  assert.ok(byLabel(document, /Import backup/), 'backup import was not added');
 }));
 
 test('language switches directly from the menu', () => withBoot(async ({ document, api, evalInApp }) => {

@@ -477,6 +477,7 @@ body {
 .spend-bars .sb.now .col { background: linear-gradient(180deg, #6fa8ff, #3f7ef0); }
 
 .entry { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.fuel-entry { width: 100%; font: inherit; color: inherit; text-align: start; cursor: pointer; }
 .entry .e-ic { width: 38px; height: 38px; border-radius: 11px; background: var(--surface-2); display: grid; place-items: center; font-size: 17px; flex: none; }
 .entry .e-main { flex: 1; min-width: 0; }
 .entry .e-main h3 { font-size: 13.5px; font-weight: 600; }
@@ -1017,6 +1018,13 @@ html { scroll-behavior: smooth; }
 [dir="rtl"] .car-card-cap { text-align: right; }
 /* keep the printable A4 report left-to-right regardless of UI language */
 [dir="rtl"] .rpt-paper { direction: ltr; text-align: left; }
+
+/* Cards and tiles scroll, so on phones their backdrop blur is re-rendered
+   every frame. They sit over the already-soft .ambient glow, so dropping it
+   costs almost nothing visually. The fixed topbar/tab bar keep theirs. */
+@media (hover: none) {
+  .card, .tile { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
 
 /* Honor reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {

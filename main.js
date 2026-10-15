@@ -156,132 +156,6 @@ function kickSync() {
   if (typeof navigator === 'undefined' || navigator.onLine !== false) account.drain();
 }
 
-/* A backup the user controls, before any server exists. Photos are inlined
-   as base64 so a single file is the whole garage. */
-async function exportGarage() {
-  // session.photos() hands back the live cache; read it once so every id and
-  // blob below comes from the same snapshot instead of whatever the session
-  // happens to hold at the moment each individual lookup runs.
-  try {
-    const live = session.photos();
-    const photos = {};
-    await Promise.all(Object.keys(live).map(async id => { photos[id] = await blobToDataUrl(live[id]); }));
-    const payload = buildExport(session.garage(), photos, new Date().toISOString());
-    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `garage-backup-${isoDate(today())}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    toast('Backup downloaded');
-  } catch (err) {
-    // blobToDataUrl() reads each photo Blob with blob.arrayBuffer(), which can
-    // reject; left unhandled this was a silent unhandled-rejection with no
-    // feedback to the user at all.
-    console.error(err);
-    toast('Could not create a backup. Please try again.', 'warn');
-  }
-}
-
-/* Import **replaces** the garage. It must ask first — this is destructive. */
-function importGarage(file) {
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const parsed = parseImport(reader.result);
-    if (!parsed.ok) {
-      // The toast has room for one line; the specifics go where they can be read.
-      if (parsed.faults) console.warn('Backup rejected:', parsed.faults.join('; '));
-      return toast(parsed.error, 'warn');
-    }
-    if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
-    // The garage and the photo cache must change together: normalize every
-    // vehicle first (still touching only `parsed`, not session state), THEN
-    // swap the photo cache, THEN call session.setVehicles(). A throw during
-    // normalizing now lands before anything session-owned has been touched,
-    // so the OLD garage is never left paired with the IMPORTED photo cache.
-    // parseImport validates the shape; this catches everything else.
-    try {
-      // Kept as full records, not just ids: the loop below that tombstones
-      // dropped vehicles needs each one's photoIds, and by then setVehicles()
-      // has already replaced session.garage() with the imported data.
-      const priorVehicles = session.garage().vehicles;
-      const priorIds = priorVehicles.map(v => v.id);
-      // The backup's .photo fields are stale blob: URLs from the exporting session.
-      // Restore real data: URLs from the backup's own photos dict, or splitPhotos
-      // will treat them as already-stored and persist nothing.
-      parsed.garage.vehicles.forEach(v => {
-        // A backup from the localStorage backend carries its images inline; one from
-        // IndexedDB carries them in `photos` with stale blob: URLs in the records.
-        // Merge both so neither origin loses data. collectInlinePhotos ignores blob: URLs.
-        const merged = Object.assign(collectInlinePhotos(v.data), parsed.photos);
-        v.data = inlinePhotos(v.data, merged);
-        normalizeData(v.data);
-      });
-      // Build the replacement cache in a scratch object first, touching nothing
-      // session-owned. Only once every dataUrlToBlob() call below has returned —
-      // so a throw partway through decoding a malformed entry lands before
-      // anything session-owned has been touched — do we clear the live cache and
-      // fill it from the scratch one. The old ordering (empty the live cache,
-      // then refill it in place) left the OLD garage paired with an EMPTIED
-      // cache if the refill loop ever threw partway through; this can't.
-      const newPhotos = {};
-      Object.keys(parsed.photos).forEach(id => {
-        const blob = dataUrlToBlob(parsed.photos[id]);
-        if (blob) newPhotos[id] = blob;
-      });
-      // session.photos() hands back the live cache, not a settable property —
-      // swap its contents for the scratch object's, all in one go now that
-      // every entry in it is known good.
-      const cache = session.photos();
-      Object.keys(cache).forEach(id => { delete cache[id]; });
-      Object.assign(cache, newPhotos);
-      // setVehicles picks the backup's activeId, or vehicles[0] if it is missing.
-      session.setVehicles(parsed.garage.vehicles, parsed.garage.activeId);
-      let ok = true;
-      for (const v of session.garage().vehicles) {
-        const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
-        if (!res.ok) ok = false;
-        // Same reason as openAddVehicle: a direct saveVehicle() never reaches
-        // session.save()'s afterSave hook, so an imported vehicle would be
-        // deleted as stale by the next boot's adopt() — and its photos, left
-        // unenqueued, would upload nowhere, leaving other devices to pull a
-        // vehicle whose photoId references 404. kickSync() is sequenced after
-        // both enqueues settle, not fired synchronously — see the matching
-        // comment in openAddVehicle for why.
-        else {
-          Promise.all([account.enqueueVehicle(v.id, res.data)].concat(res.photoIds.map(pid => account.enqueuePhoto(pid)))).then(kickSync);
-        }
-      }
-      // The imported activeId, same reason: only enqueueGarage() gets it to the
-      // server, and only once — not per vehicle — since it does not change
-      // inside the loop above.
-      account.enqueueGarage(session.garage().activeId).then(kickSync);
-      // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
-      const keptIds = session.garage().vehicles.map(v => v.id);
-      for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) {
-          const doomed = priorVehicles.find(v => v.id === id);
-          const photoIds = doomed ? photoIdsIn(doomed.data) : [];
-          await removeVehicle(id, session.garage().activeId);
-          account.enqueueTombstone(id, photoIds).then(kickSync);
-        }
-      }
-      // The save loop minted fresh photo ids, so re-read from storage to bring
-      // memory back in sync with what was actually persisted. session.load()
-      // is exactly that read plus the hydrate the boot path uses.
-      await session.load();
-      closeModal();
-      applyAccent(); renderTopbar(); go('dashboard');
-      toast(ok ? 'Garage restored' : 'Restored, but some data could not be saved', ok ? undefined : 'warn');
-    } catch (err) {
-      console.error(err);
-      toast('That backup could not be restored. Please reload the page.', 'warn');
-    }
-  };
-  reader.onerror = () => toast('Could not read that file.', 'warn');
-  reader.readAsText(file);
-}
-
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
   const bad = servicesRanked().filter(r => r.st.level !== 'ok');
@@ -430,7 +304,7 @@ function openGarage() {
       const active = v.id === session.garage().activeId;
       const it = el('div', 'item');
       it.innerHTML = html`
-        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : html`<span style="display:inline-flex;width:60%;height:60%;color:var(--text-3)">${raw(BRAND_MARK)}</span>`}</div>
+        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" decoding="async" style="width:100%;height:100%;object-fit:cover">` : html`<span style="display:inline-flex;width:60%;height:60%;color:var(--text-3)">${raw(BRAND_MARK)}</span>`}</div>
         <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
         <div class="item-side">${active ? html`<span class="pill ok">${t('Active')}</span>` : html`<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
       it.onclick = () => { if (active) { closeModal(); openSettings(); } else chooseVehicle(v.id); };
@@ -658,14 +532,32 @@ session.configure({
 });
 
 /* Gate on the protocol directly. account.available() also requires a client,
-   and this expression is what SUPPLIES the client — calling it here would
+   and connectBackend() is what SUPPLIES the client — calling it here would
    always see env.client === null and never build one. */
-const canSignIn = typeof supabase !== 'undefined' && location.protocol !== 'file:';
+const canSignIn = location.protocol !== 'file:';
 
-const supabaseClient = canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null;
+function connectBackend() {
+  const client = supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY);
+  account.configure({ client });
+  pricing.configure({ client });
+}
+
+/* vendor/supabase.js is ~137 KB that nothing on first paint needs, so it is
+   injected after the first render instead of being a <script> tag. A global
+   that already exists (the Node harness's stub) connects synchronously, so
+   tests see a configured client straight after boot as before. */
+function loadBackend() {
+  if (!canSignIn || account.available()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/supabase.js';
+    s.onload = () => { connectBackend(); resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
 
 account.configure({
-  client: supabaseClient,
   /* The re-render half of sign-out. session.clear() revokes object URLs, but a
      decoded <img> stays painted until something rebuilds the view — so
      account.js never calls clear() without calling this after it.
@@ -677,7 +569,7 @@ account.configure({
   choose: askWhichGarage
 });
 
-pricing.configure({ client: supabaseClient });
+if (canSignIn && typeof supabase !== 'undefined') connectBackend();
 /* The menu trigger stays available because it owns vehicle switching and the
    theme control, even though account/sign-in is no longer exposed in the UI. */
 
@@ -695,7 +587,7 @@ session.load()
        the "could not open your garage" error card — that would hide a
        working, already-rendered app behind an error message about a sync
        feature that failed, for a garage that opened just fine. */
-    account.start().catch(err => console.error('account.start() failed:', err));
+    loadBackend().then(() => account.start()).catch(err => console.error('account.start() failed:', err));
   })
   .catch(err => {
     document.getElementById('view').innerHTML =

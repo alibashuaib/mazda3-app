@@ -7,6 +7,39 @@ const { bootApp } = require('./helpers/boot.js');
 
 const ROUTES = ['dashboard', 'maintenance', 'parts', 'fuel', 'budget', 'reports'];
 
+test('field links labels to existing controls and gives anonymous controls unique ids', () => withBoot(({ api }) => {
+  const named = api.field('Litres', api.html`<input id="litres">`);
+  assert.strictEqual(named.querySelector('label').getAttribute('for'), 'litres');
+  const first = api.field('Tank', api.html`<select><option>Full</option></select>`);
+  const second = api.field('Tank', api.html`<select><option>Partial</option></select>`);
+  assert.ok(first.querySelector('select').id);
+  assert.strictEqual(first.querySelector('label').getAttribute('for'), first.querySelector('select').id);
+  assert.notStrictEqual(first.querySelector('select').id, second.querySelector('select').id);
+  const picker = api.field('Color', api.html`<input type="hidden" id="color"><button type="button">Choose color</button>`);
+  assert.strictEqual(picker.querySelector('label').getAttribute('for'), picker.querySelector('button').id);
+  assert.ok(api.field('Quick pick', '').querySelector('label'));
+}));
+
+test('fuel validation rejects invalid values without changing an existing record', () => withBoot(async ({ api, document }) => {
+  const entry = { id: 'fuel', date: '2026-01-01', odometer: 100, litres: 42, cost: 95, full: true };
+  api.session.current().fuel = [entry];
+  const original = { ...entry };
+  for (const [field, value] of [['f_l', '-42'], ['f_l', '0'], ['f_l', 'Infinity'], ['f_odo', '-1'], ['f_odo', ''], ['f_cost', '-95'], ['f_cost', 'Infinity']]) {
+    api.openAddFuel(entry);
+    document.querySelector('#' + field).value = value;
+    await document.querySelector('#modalCard button').onclick();
+    assert.deepStrictEqual(entry, original, field + '=' + value + ' changed the record');
+    assert.ok(document.querySelector('#' + field).classList.contains('field-error'));
+    api.closeModal();
+  }
+  api.openAddFuel(entry);
+  document.querySelector('#f_odo').value = '0';
+  document.querySelector('#f_cost').value = '0';
+  await document.querySelector('#modalCard button').onclick();
+  assert.strictEqual(entry.odometer, 0);
+  assert.strictEqual(entry.cost, 0);
+}));
+
 /* Every test needs bootApp()'s cleanup() to run even when an assertion
    throws partway through the body — otherwise the next test's setupDom()
    overwrites most globals, but URL.createObjectURL is installed under an

@@ -406,26 +406,6 @@ function buildAccountMenu(menu) {
     applyLang(lang === 'ar' ? 'en' : 'ar');
   }, '🌐', true));
 
-  menu.appendChild(menuItem('Export backup', 'menuitem', () => {
-    closeAccountMenu(false);
-    exportGarage();
-  }, '📤'));
-
-  menu.appendChild(menuItem('Import backup', 'menuitem', () => {
-    closeAccountMenu(false);
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.hidden = true;
-    input.onchange = ev => {
-      const file = ev.target.files && ev.target.files[0];
-      if (file) importGarage(file);
-      input.remove();
-    };
-    document.body.appendChild(input);
-    input.click();
-  }, '📥'));
-
   /* No "Settings"/"Car profile" entry here on purpose: the topbar's own car
      button (#openProfile) already opens this same dialog, and having it in
      both places was redundant. */
