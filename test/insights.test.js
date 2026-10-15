@@ -93,3 +93,53 @@ test('fuelContribution: negative or non-finite odometer -> null', () => {
     assert.strictEqual(ins.fuelContribution({ modelId: 'm', vehicleId: 'v', entry: e, l100: 8 }), null);
   }
 });
+
+function metaStore() {
+  let m = {};
+  return { metaGet: () => Promise.resolve(m), metaSet: p => { m = Object.assign({}, m, p); return Promise.resolve(true); } };
+}
+
+test.beforeEach(() => ins.reset());
+
+test('sharing defaults to on and the notice to unseen', async () => {
+  ins.configure(metaStore());
+  assert.strictEqual(await ins.shareEnabled(), true);
+  assert.strictEqual(await ins.noticeSeen(), false);
+  await ins.markNoticeSeen();
+  assert.strictEqual(await ins.noticeSeen(), true);
+});
+
+test('turning sharing off persists and deletes past contributions', async () => {
+  const calls = [];
+  ins.configure(Object.assign(metaStore(), { client: { rpc: (fn, args) => { calls.push([fn, args]); return Promise.resolve({ data: 3, error: null }); } } }));
+  await ins.setShare(false);
+  assert.strictEqual(await ins.shareEnabled(), false);
+  assert.deepStrictEqual(calls, [['delete_my_contributions', undefined]]);
+});
+
+test('submit sends rows through the RPC and reports success', async () => {
+  let sent;
+  ins.configure({ client: { rpc: (fn, args) => { sent = [fn, args]; return Promise.resolve({ data: 1, error: null }); } } });
+  assert.strictEqual(await ins.submit([{ source_key: 'k' }]), true);
+  assert.deepStrictEqual(sent, ['submit_contributions', { rows: [{ source_key: 'k' }] }]);
+});
+
+test('submit returns false on RPC error or without a client, never throws', async () => {
+  assert.strictEqual(await ins.submit([{}]), false);
+  ins.configure({ client: { rpc: () => Promise.resolve({ data: null, error: new Error('x') }) } });
+  assert.strictEqual(await ins.submit([{}]), false);
+  ins.configure({ client: { rpc: () => Promise.reject(new Error('offline')) } });
+  assert.strictEqual(await ins.submit([{}]), false);
+});
+
+test('getFuelStats and getBrandLife return rows, or [] on error/unavailable', async () => {
+  assert.deepStrictEqual(await ins.getFuelStats('m'), []);
+  const rows = [{ n: 6 }];
+  const q = table => ({ select: () => ({ eq: () => { const r = Promise.resolve({ data: rows, error: null });
+    r.eq = () => Promise.resolve({ data: rows, error: null }); return r; } }) });
+  ins.configure({ client: { from: q } });
+  assert.deepStrictEqual(await ins.getFuelStats('m'), rows);
+  assert.deepStrictEqual(await ins.getBrandLife('m', 'brake pads'), rows);
+  ins.configure({ client: { from: () => { throw new Error('boom'); } } });
+  assert.deepStrictEqual(await ins.getFuelStats('m'), []);
+});
