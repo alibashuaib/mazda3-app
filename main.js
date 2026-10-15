@@ -684,11 +684,12 @@ remoteCatalog.configure({ client: supabaseClient, metaGet, metaSet });
 catalogAdmin.configure({ client: supabaseClient });
 
 /* Puts a newer shared dealer plan onto the car on screen. session.save()
-   fires the afterSave hook, so a signed-in change is queued for sync too. */
+   fires the afterSave hook, so a signed-in change is queued for sync too.
+   Returns applyDealerPlan's result: 'changed', 'stamped' or false. */
 function syncDealerPlan() {
-  if (!remoteCatalog.applyDealerPlan(session.current())) return false;
-  session.save();
-  return true;
+  const res = remoteCatalog.applyDealerPlan(session.current());
+  if (res) session.save();
+  return res;
 }
 /* The menu trigger stays available because it owns vehicle switching and the
    theme control, even though account/sign-in is no longer exposed in the UI. */
@@ -713,7 +714,7 @@ session.load()
     // Same rule as account.start(): after first paint, and never fatal.
     remoteCatalog.load()
       .then(() => remoteCatalog.refresh())
-      .then(() => { if (syncDealerPlan()) go(current); })
+      .then(() => { if (syncDealerPlan() === 'changed') go(current); })   // a bare version stamp must not wipe a half-typed form
       .catch(err => console.error('catalogue refresh failed:', err));
   })
   .catch(err => {

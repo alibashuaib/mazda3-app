@@ -11,11 +11,16 @@ const ITEMS = [
 
 function fakeClient(opts) {
   opts = opts || {};
+  const items = opts.items || ITEMS;
   return { from: table => ({ select: () => {
-    const res = Promise.resolve(opts.error
+    const reply = rows => Promise.resolve(opts.error
       ? { data: null, error: { message: 'offline' } }
-      : { data: table === 'car_models' ? MODELS : ITEMS, error: null });
+      : { data: rows, error: null });
+    // PostgREST caps an unranged response at max-rows, silently
+    const res = reply(table === 'car_models' ? MODELS : items.slice(0, opts.maxRows || Infinity));
     res.eq = () => res;
+    res.order = () => res;
+    res.range = (from, to) => reply(items.slice(from, to + 1));
     return res;
   } }) };
 }
@@ -40,6 +45,13 @@ test('refresh caches the catalogue in meta and serves plans in sort order', asyn
   assert.strictEqual(await rc.refresh(), true);
   assert.deepStrictEqual(rc.dealerPlan(MODELS[0].id).map(i => i.service), ['Engine Oil & Filter', 'Engine Air Filter']);
   assert.strictEqual(meta.peek().catalogue.models.length, 1);
+});
+
+test('refresh pages through dealer_plan_items so no rows are truncated', async () => {
+  const items = Array.from({ length: 5 }, (_, n) => ({ car_model_id: MODELS[0].id, service: 'S' + n, sort: n }));
+  rc.configure(Object.assign({ client: fakeClient({ items, maxRows: 2 }), pageSize: 2 }, memMeta()));
+  assert.strictEqual(await rc.refresh(), true);
+  assert.strictEqual(rc.dealerPlan(MODELS[0].id).length, 5);
 });
 
 test('refresh error keeps the previous cache', async () => {
@@ -68,13 +80,32 @@ test('applyDealerPlan ignores a car not in the catalogue', async () => {
   assert.strictEqual(rc.applyDealerPlan(d), false);
 });
 
-test('first sight only stamps the version, keeping hand-edited intervals', async () => {
+test('first sight applies a corrected interval to a service still on the built-in default', async () => {
+  rc.configure(Object.assign({ client: fakeClient() }, memMeta()));
+  await rc.refresh();
+  const d = car(undefined);   // oil sits on NORMAL_SCHED's [10000, 12]; the admin set 9000
+  assert.strictEqual(rc.applyDealerPlan(d), 'changed');
+  assert.strictEqual(d.car.planVersion, MODELS[0].plan_updated_at);
+  assert.strictEqual(d.services[0].normalKm, 9000);
+});
+
+test('first sight keeps a hand-edited dealer interval and only stamps', async () => {
   rc.configure(Object.assign({ client: fakeClient() }, memMeta()));
   await rc.refresh();
   const d = car(undefined);
-  assert.strictEqual(rc.applyDealerPlan(d), true);
+  d.services[0].normalKm = 12000;   // the user's own value, not the built-in default
+  assert.strictEqual(rc.applyDealerPlan(d), 'stamped');
   assert.strictEqual(d.car.planVersion, MODELS[0].plan_updated_at);
-  assert.strictEqual(d.services[0].normalKm, 10000);
+  assert.strictEqual(d.services[0].normalKm, 12000);
+});
+
+test('first sight fills a service with no dealer interval yet', async () => {
+  rc.configure(Object.assign({ client: fakeClient() }, memMeta()));
+  await rc.refresh();
+  const d = car(undefined);
+  d.services.push({ name: 'Engine Air Filter' });
+  rc.applyDealerPlan(d);
+  assert.strictEqual(d.services[2].normalKm, 40000);
 });
 
 test('force applies the plan to a new car', async () => {
@@ -89,7 +120,7 @@ test('a newer plan version applies; services the plan lacks are untouched', asyn
   rc.configure(Object.assign({ client: fakeClient() }, memMeta()));
   await rc.refresh();
   const d = car('2026-10-01T00:00:00+00:00');
-  assert.strictEqual(rc.applyDealerPlan(d), true);
+  assert.strictEqual(rc.applyDealerPlan(d), 'changed');
   assert.strictEqual(d.services[0].normalKm, 9000);
   assert.strictEqual(d.services[1].normalKm, 20000);
   assert.strictEqual(rc.applyDealerPlan(d), false, 'same version must be a no-op');
@@ -108,7 +139,7 @@ test('an unparseable planVersion counts as older and applies', async () => {
   rc.configure(Object.assign({ client: fakeClient() }, memMeta()));
   await rc.refresh();
   const d = car('garbage');
-  assert.strictEqual(rc.applyDealerPlan(d), true);
+  assert.strictEqual(rc.applyDealerPlan(d), 'changed');
   assert.strictEqual(d.services[0].normalKm, 9000);
 });
 
