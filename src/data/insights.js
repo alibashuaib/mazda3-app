@@ -58,8 +58,16 @@
   const shareEnabled = () => env.metaGet().then(m => m.insightsShare !== false);
   const noticeSeen = () => env.metaGet().then(m => m.insightsNoticeSeen === true);
   const markNoticeSeen = () => env.metaSet({ insightsNoticeSeen: true }).then(() => {});
+  /* Opt-out records a pending delete first so a failed RPC is retried by flushPendingDelete. */
   function setShare(on) {
-    return env.metaSet({ insightsShare: !!on }).then(() => { if (!on) return deleteMine(); }).then(() => {});
+    if (on) return env.metaSet({ insightsShare: true }).then(() => true);
+    return env.metaSet({ insightsShare: false, insightsDeletePending: true }).then(flushPendingDelete);
+  }
+  function flushPendingDelete() {
+    return env.metaGet().then(m => {
+      if (m.insightsDeletePending !== true) return true;
+      return deleteMine().then(ok => ok ? env.metaSet({ insightsDeletePending: false }).then(() => true) : false);
+    }).catch(() => false);
   }
 
   function rpc(fn, args) {
@@ -81,5 +89,5 @@
   const getFuelStats = modelId => stats('fuel_stats', { modelId });
   const getBrandLife = (modelId, itemKey) => stats('brand_life', { modelId, itemKey });
 
-  return { band, monthOf, fuelContribution, partContributions, predictNext, configure, reset, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, submit, deleteMine, getFuelStats, getBrandLife };
+  return { band, monthOf, fuelContribution, partContributions, predictNext, configure, reset, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife };
 });

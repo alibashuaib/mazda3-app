@@ -143,3 +143,51 @@ test('getFuelStats and getBrandLife return rows, or [] on error/unavailable', as
   ins.configure({ client: { from: () => { throw new Error('boom'); } } });
   assert.deepStrictEqual(await ins.getFuelStats('m'), []);
 });
+
+const okClient = calls => ({ rpc: (fn, args) => { calls.push([fn, args]); return Promise.resolve({ data: 1, error: null }); } });
+
+test('opt-out offline: resolves false, stays off, delete stays pending', async () => {
+  const store = metaStore();
+  ins.configure(store);
+  assert.strictEqual(await ins.setShare(false), false);
+  assert.strictEqual(await ins.shareEnabled(), false);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
+});
+
+test('opt-out with a rejecting RPC: resolves false and delete stays pending', async () => {
+  const store = metaStore();
+  ins.configure(Object.assign(store, { client: { rpc: () => Promise.reject(new Error('offline')) } }));
+  assert.strictEqual(await ins.setShare(false), false);
+  assert.strictEqual(await ins.shareEnabled(), false);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
+});
+
+test('successful opt-out delete clears the pending flag; opting in leaves it alone', async () => {
+  const store = metaStore();
+  ins.configure(Object.assign(store, { client: okClient([]) }));
+  assert.strictEqual(await ins.setShare(false), true);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, false);
+  await store.metaSet({ insightsDeletePending: true });
+  assert.strictEqual(await ins.setShare(true), true);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
+});
+
+test('flushPendingDelete retries a failed delete once a client works', async () => {
+  const store = metaStore();
+  ins.configure(store);
+  await ins.setShare(false);
+  assert.strictEqual(await ins.flushPendingDelete(), false);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
+  const calls = [];
+  ins.configure({ client: okClient(calls) });
+  assert.strictEqual(await ins.flushPendingDelete(), true);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, false);
+  assert.deepStrictEqual(calls, [['delete_my_contributions', undefined]]);
+});
+
+test('flushPendingDelete with nothing pending makes no call', async () => {
+  const calls = [];
+  ins.configure(Object.assign(metaStore(), { client: okClient(calls) }));
+  assert.strictEqual(await ins.flushPendingDelete(), true);
+  assert.deepStrictEqual(calls, []);
+});
