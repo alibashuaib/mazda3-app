@@ -58,16 +58,12 @@ test('sw.js does not precache files that no longer exist', () => {
     `sw.js precaches missing files — install() calls cache.addAll(), which rejects atomically if any single entry 404s, leaving the app with no precache at all:\n  ${stale.join('\n  ')}`);
 });
 
-test('sw.js precaches only one generic image per vehicle model', () => {
+test('sw.js precaches only the default car image', () => {
+  /* The other model photos are ~600 KB each; the fetch handler caches the one
+     a user's dashboard shows on first online view. Precaching all of them
+     cost every install ~10 MB for cars the user does not own. */
   const cachedImages = [...swAssets()].filter(asset => asset.startsWith('assets/') && asset.endsWith('.webp'));
-  const genericImages = [
-    'assets/mazda3-studio.webp', 'assets/mazda2-dj.webp', 'assets/mazda3-bp.webp',
-    'assets/mazda6-gj.webp', 'assets/mazda-cx3-dk.webp', 'assets/mazda-cx30-dm.webp',
-    'assets/mazda-cx5-ke.webp', 'assets/mazda-cx5-kf.webp', 'assets/mazda-cx5-gen3.webp',
-    'assets/mazda-cx9-tb.webp', 'assets/mazda-cx9-tc.webp', 'assets/mazda-cx50.webp',
-    'assets/mazda-cx60.webp', 'assets/mazda-cx70.webp', 'assets/mazda-cx80.webp', 'assets/mazda-cx90.webp'
-  ];
-  assert.deepStrictEqual(cachedImages.sort(), genericImages.sort());
+  assert.deepStrictEqual(cachedImages, ['assets/mazda3-studio.webp']);
 });
 
 test('the sw cache version is bumped whenever the asset list changes', () => {

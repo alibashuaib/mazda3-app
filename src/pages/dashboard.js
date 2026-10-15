@@ -248,7 +248,7 @@ function renderDashboard() {
   carCard.onclick = openCarColor;
   carCard.innerHTML = html`
     <span class="studio-orbit" aria-hidden="true"></span>
-    ${carImage ? html`<img class="studio-car" src="${carImage}" alt="${carName} — ${paintName}">` : ''}`;
+    ${carImage ? html`<img class="studio-car" src="${carImage}" fetchpriority="high" alt="${carName} — ${paintName}">` : ''}`;
   const carImageEl = carCard.querySelector('.studio-car');
   const genericImage = studioCarImage('', { modelId });
   if (carImageEl && genericImage && genericImage !== carImage) {
