@@ -54,13 +54,16 @@ test('partContributions: no earlier replacement -> km_since_prev null, still con
   const rows = ins.partContributions({ modelId: 'm', vehicleId: 'v',
     historyEntry: hist('h1', 30000, [{ part: 'Oil filter', price: 25 }]), priorHistory: [] });
   assert.strictEqual(rows.length, 1);
-  assert.strictEqual(rows[0].km_since_prev, null);
+  assert.strictEqual(rows[0].km_since_prev, undefined);
+  assert.ok(!('engine' in rows[0]));
 });
 
-test('partContributions skips zero-price parts', () => {
+test('partContributions skips parts with no price and ignores prior entries at or after this odometer', () => {
   const rows = ins.partContributions({ modelId: 'm', vehicleId: 'v',
-    historyEntry: hist('h1', 20000, [{ part: 'Free', price: 0 }, { part: 'Paid', price: 10 }]), priorHistory: [] });
-  assert.deepStrictEqual(rows.map(r => r.item_key), ['paid']);
+    historyEntry: hist('h2', 20000, [{ part: 'A', brand: 'x', price: 0 }, { part: 'B', brand: 'y', price: 10 }]),
+    priorHistory: [hist('h3', 20000, [{ part: 'B', brand: 'y', price: 9 }])] });
+  assert.deepStrictEqual(rows.map(r => r.item_key), ['b']);
+  assert.strictEqual(rows[0].km_since_prev, undefined);
 });
 
 test('partContributions uses the latest earlier entry', () => {
@@ -76,4 +79,17 @@ test('predictNext gives range and status', () => {
     { fromKm: 60000, toKm: 75000, usedKm: 25000, status: 'early' });
   assert.strictEqual(ins.predictNext(life, 15000, 70000).status, 'inRange');
   assert.strictEqual(ins.predictNext(life, 15000, 80000).status, 'overdue');
+});
+
+test('fuelContribution: zero cost gives null price_per_l; positive cost is rounded', () => {
+  const e = { id: 'f1', date: '2026-08-17', odometer: 1000, litres: 40, cost: 0 };
+  assert.strictEqual(ins.fuelContribution({ modelId: 'm', vehicleId: 'v', entry: e, l100: 8 }).price_per_l, null);
+  assert.strictEqual(ins.fuelContribution({ modelId: 'm', vehicleId: 'v', entry: Object.assign({}, e, { cost: 92 }), l100: 8 }).price_per_l, 2.3);
+});
+
+test('fuelContribution: negative or non-finite odometer -> null', () => {
+  for (const odometer of [-1, NaN, Infinity, undefined]) {
+    const e = { id: 'f1', date: '2026-08-17', odometer, litres: 40, cost: 90 };
+    assert.strictEqual(ins.fuelContribution({ modelId: 'm', vehicleId: 'v', entry: e, l100: 8 }), null);
+  }
 });
