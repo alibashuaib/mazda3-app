@@ -384,6 +384,12 @@ const AR = {
   // account menu (the topbar's inline-end corner)
   'My account': 'حسابي', 'Account menu': 'قائمة الحساب',
   'Switch vehicle': 'تبديل المركبة', 'Dark mode': 'الوضع الداكن',
+  // community insights
+  'Share anonymous data': 'مشاركة بيانات مجهولة',
+  'Sharing anonymous data': 'تتم مشاركة بيانات مجهولة',
+  'Stopped sharing and removed your shared data': 'تم إيقاف المشاركة وحذف بياناتك المشتركة',
+  'Stopped sharing. Your shared data will be removed when you are back online.': 'تم إيقاف المشاركة. ستُحذف بياناتك المشتركة عند عودة الاتصال.',
+  'Your anonymous car data now helps other owners. Turn it off in the menu.': 'بيانات سيارتك المجهولة تساعد الآن ملاك آخرين. يمكنك إيقافها من القائمة.',
   // accounts
   'Car profile': 'ملف السيارة',
   'Switch vehicles or add another': 'بدّل بين المركبات أو أضف أخرى',

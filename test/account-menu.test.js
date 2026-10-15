@@ -191,3 +191,15 @@ test('the menu is translated, trigger included', () => withBoot(async ({ documen
     assert.match(b.textContent, /[؀-ۿ]/, `untranslated menu item: ${JSON.stringify(b.textContent)}`);
   }
 }));
+
+test('Share anonymous data checkbox shows only when signed in', () => withBoot(async ({ document: d, api }) => {
+  trigger(d).click();
+  assert.ok(!byLabel(d, /Share anonymous data/), 'signed-out users must not see a sharing control');
+  trigger(d).click();
+  api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+  trigger(d).click();
+  const item = byLabel(d, /Share anonymous data/);
+  assert.ok(item, 'sharing toggle was not added');
+  assert.strictEqual(item.getAttribute('role'), 'menuitemcheckbox');
+  assert.ok(['true', 'false'].includes(item.getAttribute('aria-checked')));
+}));

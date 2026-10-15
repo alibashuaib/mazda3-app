@@ -596,7 +596,13 @@ session.load()
        the "could not open your garage" error card — that would hide a
        working, already-rendered app behind an error message about a sync
        feature that failed, for a garage that opened just fine. */
-    loadBackend().then(() => account.start()).then(() => { if (account.user()) insights.flushPendingDelete(); }).catch(err => console.error('account.start() failed:', err));
+    loadBackend().then(() => account.start()).then(() => {
+      if (!account.user()) return;
+      insights.flushPendingDelete();
+      return insights.noticeSeen().then(seen => {
+        if (!seen) { toast('Your anonymous car data now helps other owners. Turn it off in the menu.'); insights.markNoticeSeen(); }
+      });
+    }).catch(err => console.error('account.start() failed:', err));
   })
   .catch(err => {
     document.getElementById('view').innerHTML =
