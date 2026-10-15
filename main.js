@@ -540,6 +540,7 @@ function connectBackend() {
   const client = supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY);
   account.configure({ client });
   pricing.configure({ client });
+  insights.configure({ client, metaGet, metaSet });
 }
 
 /* vendor/supabase.js is ~137 KB that nothing on first paint needs, so it is
@@ -566,7 +567,8 @@ account.configure({
      was set for, so without this the previous car's accent colour would
      stay painted across a sign-out that leaves no vehicle behind. */
   rerender: () => { applyAccent(); renderTopbar(); go(current); },
-  choose: askWhichGarage
+  choose: askWhichGarage,
+  submitContributions: rows => insights.submit(rows)
 });
 
 if (canSignIn && typeof supabase !== 'undefined') connectBackend();
@@ -587,7 +589,7 @@ session.load()
        the "could not open your garage" error card — that would hide a
        working, already-rendered app behind an error message about a sync
        feature that failed, for a garage that opened just fine. */
-    loadBackend().then(() => account.start()).catch(err => console.error('account.start() failed:', err));
+    loadBackend().then(() => account.start()).then(() => { if (account.user()) insights.flushPendingDelete(); }).catch(err => console.error('account.start() failed:', err));
   })
   .catch(err => {
     document.getElementById('view').innerHTML =

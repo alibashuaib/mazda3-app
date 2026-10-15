@@ -45,6 +45,7 @@
        An unread hook on the configure surface only invites a future caller to
        assume it does something. */
     choose: () => Promise.resolve('server'),
+    submitContributions: null,
     protocol: null            // null means "read location.protocol"
   };
   let env = Object.assign({}, DEFAULTS);
@@ -249,6 +250,10 @@
     return enqueue({ kind: 'photo', photoId: id });
   }
 
+  function enqueueContribution(rows) {
+    return enqueue({ kind: 'contribution', rows });
+  }
+
   function outboxSize() {
     return deps.outboxAll().then(entries => entries.length);
   }
@@ -259,7 +264,7 @@
      delete of the same vehicle cannot resurrect it; a photo's own deletion
      from Storage drains after that, once the row that referenced it is
      already gone server-side. */
-  const KIND_ORDER = { photo: 0, vehicle: 1, garage: 1, tombstone: 2, 'photo-delete': 3 };
+  const KIND_ORDER = { photo: 0, vehicle: 1, garage: 1, tombstone: 2, 'photo-delete': 3, contribution: 1 };
 
   function drainOne(entry) {
     if (entry.kind === 'photo') {
@@ -267,6 +272,10 @@
         const run = blob ? uploadPhoto(entry.photoId, blob) : Promise.resolve(true);
         return run.then(ok => ok && deps.outboxRemove(entry.id));
       }).catch(() => {});
+    }
+    if (entry.kind === 'contribution') {
+      return Promise.resolve(env.submitContributions ? env.submitContributions(entry.rows) : true)
+        .then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
     }
     if (entry.kind === 'photo-delete') {
       return deletePhotoRemote(entry.photoId).then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
@@ -681,7 +690,7 @@
   return {
     configure, reset, available, user, setUserForTest,
     stripPhotos, pushVehicle, pushGarage,
-    enqueueVehicle, enqueueGarage, enqueueTombstone, enqueuePhoto, drain, outboxSize,
+    enqueueVehicle, enqueueGarage, enqueueTombstone, enqueuePhoto, enqueueContribution, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
     signIn, signOut, expire, start, sync,
     SUPABASE_URL, SUPABASE_ANON_KEY
