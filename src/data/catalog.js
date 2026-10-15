@@ -490,8 +490,16 @@ function fuelSystemCleanerPart(modelId) {
   ] }, modelId);
 }
 
+  /* Stable key for one catalogue entry: model + engine. The server's
+     car_models.id is the same string, so a garage car and its shared plan
+     meet without a lookup table. */
+  function catalogId(modelId, engineName) {
+    return modelId + ':' + String(engineName || '').toLowerCase()
+      .replace(/[^a-z0-9.]+/g, '-').replace(/^-|-$/g, '');
+  }
+
   return {
-    DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, NORMAL_SCHED, ATF_NOTE,
+    DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, NORMAL_SCHED, ATF_NOTE, catalogId,
     skyactivServices, sharedParts, partsForModel,
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
     atfFilterPart, atfSealantPart, fuelSystemCleanerPart,

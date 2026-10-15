@@ -385,6 +385,13 @@ function buildAccountMenu(menu) {
   }
 
   menu.appendChild(menuItem('Switch vehicle', 'menuitem', () => { closeAccountMenu(false); openGarage(); }, '🚗'));
+  if (catalogAdmin.knownAdmin()) {
+    const n = catalogAdmin.draftCount();
+    menu.appendChild(menuItem(t('Admin') + (n ? ` (${n})` : ''), 'menuitem', () => {
+      closeAccountMenu(false);
+      go('admin');
+    }, '🛠️', true));
+  }
 
   /* Binary, so it maps onto menuitemcheckbox — which means the old button's
      third state ('system', follow the device) is no longer reachable from the
