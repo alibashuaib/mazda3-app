@@ -199,6 +199,7 @@ function openLogConfirm(services, opts) {
       onAsyncClick(b, async () => {
         const odo = +$('#lc_odo').value || session.current().car.odometer;
         const date = $('#lc_date').value || isoDate(today());
+        const logged = [];
         let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
         services.forEach(svc => {
           if (doneState.get(svc.id) === false) { svc.deferred = true; svc.deferredAt = date; nSkip++; return; }
@@ -213,11 +214,14 @@ function openLogConfirm(services, opts) {
           skippedParts.forEach(n => pend.add(n)); chosen.forEach(c => pend.delete(c.part));
           svc.pendingParts = [...pend]; nPartSkip += skippedParts.length;
           const cost = svcCost(svc); grand += cost; nDone++; lastName = svc.name;
-          session.current().history.push({ id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen });
+          const h = { id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen };
+          session.current().history.push(h); logged.push(h);
         });
         if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Milestone')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
         if (odo > (session.current().car.odometer || 0)) session.current().car.odometer = odo;
+        const cur = session.current(), vid = session.garage().activeId;
         const ok = await save(); closeModal();
+        if (ok) contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history })));
         (opts.onDone || (() => go('maintenance')))();
         if (ok) {
           if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);

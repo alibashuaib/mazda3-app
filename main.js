@@ -156,6 +156,13 @@ function kickSync() {
   if (typeof navigator === 'undefined' || navigator.onLine !== false) account.drain();
 }
 
+/* Fire-and-forget: queue anonymous insight rows when the user opted in.
+   Must never reject or delay a local save. */
+function contribute(rows) {
+  if (!rows || !rows.length) return;
+  insights.shareEnabled().then(on => on && account.enqueueContribution(rows)).then(kickSync).catch(() => {});
+}
+
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
   const bad = servicesRanked().filter(r => r.st.level !== 'ok');

@@ -133,7 +133,14 @@ function openAddFuel(e) {
       if (e) Object.assign(e, obj); else { session.current().fuel = session.current().fuel || []; session.current().fuel.push(obj); }
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
       if (odo > session.current().car.odometer) { session.current().car.odometer = odo; session.current().car.odoUpdatedAt = obj.date; }
-      await commit('fuel', editing ? 'Fill-up updated' : 'Fill-up added');
+      const cur = session.current(), vid = session.garage().activeId;
+      const ok = await commit('fuel', editing ? 'Fill-up updated' : 'Fill-up added');
+      if (ok) {
+        // l100 comes from fuelRows (full-to-full); partials/first fills have none and yield no row
+        const done = fuelRows().find(r => r.e.id === obj.id);
+        const row = done && insights.fuelContribution({ modelId: cur.car.modelId, engine: cur.car.engine, vehicleId: vid, entry: obj, l100: done.l100 });
+        if (row) contribute([row]);
+      }
     });
     card.appendChild(b);
     if (editing) {

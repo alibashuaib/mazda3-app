@@ -191,3 +191,13 @@ test('flushPendingDelete with nothing pending makes no call', async () => {
   assert.strictEqual(await ins.flushPendingDelete(), true);
   assert.deepStrictEqual(calls, []);
 });
+
+test('fuelContribution composes from a real full-to-full pair', () => {
+  const a = { id: 'a', date: '2026-07-01', odometer: 10000, litres: 40, cost: 90, full: true };
+  const b = { id: 'b', date: '2026-07-20', odometer: 10500, litres: 41, cost: 94, full: true };
+  const l100 = b.litres / (b.odometer - a.odometer) * 100;
+  const row = ins.fuelContribution({ modelId: 'mazda3bm', vehicleId: 'v', entry: b, l100 });
+  assert.strictEqual(row.l100, 8.2);
+  assert.strictEqual(row.odometer_band, 10000);
+  assert.strictEqual(ins.fuelContribution({ modelId: 'mazda3bm', vehicleId: 'v', entry: a, l100: null }), null);
+});
