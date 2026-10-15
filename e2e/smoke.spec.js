@@ -236,11 +236,12 @@ test('an online listener is registered after boot, over http', async ({ page }, 
 });
 
 test('the vendored client loads and does not break boot', async ({ page }, testInfo) => {
-  // vendor/supabase.js is an unconditional <script> tag, so the SDK global
-  // exists on both origins even though only http constructs a client from it.
+  // vendor/supabase.js is injected after first paint, and only off file:,
+  // where no client can be built anyway.
   const errors = await open(page, testInfo);
 
-  expect(await page.evaluate(() => typeof window.supabase)).toBe('object');
+  if (testInfo.project.name === 'http') await page.waitForFunction(() => typeof window.supabase === 'object');
+  else expect(await page.evaluate(() => typeof window.supabase)).toBe('undefined');
   expect(errors, `uncaught page errors: ${errors.join(' | ')}`).toEqual([]);
 });
 
