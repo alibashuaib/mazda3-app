@@ -1,12 +1,11 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-v114';
+const CACHE = 'garage-v115';
+/* Only the default car photo is precached. The others are ~600 KB each and a
+   user drives one or two of them; the fetch handler below caches whichever
+   one the dashboard actually shows, so it is still there offline. */
 const ASSETS = [
   './', './index.html', './styles.css',
-  './assets/mazda3-studio.webp', './assets/mazda2-dj.webp', './assets/mazda3-bp.webp',
-  './assets/mazda6-gj.webp', './assets/mazda-cx3-dk.webp', './assets/mazda-cx30-dm.webp',
-  './assets/mazda-cx5-ke.webp', './assets/mazda-cx5-kf.webp', './assets/mazda-cx5-gen3.webp',
-  './assets/mazda-cx9-tb.webp', './assets/mazda-cx9-tc.webp', './assets/mazda-cx50.webp',
-  './assets/mazda-cx60.webp', './assets/mazda-cx70.webp', './assets/mazda-cx80.webp', './assets/mazda-cx90.webp',
+  './assets/mazda3-studio.webp',
   './src/core/helpers.js', './src/ui/html.js', './src/ui/modal.js', './src/ui/photo.js',
   './src/ui/color.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js',
   './src/i18n/lang.js', './src/core/schedule.js', './src/data/storage.js', './src/data/normalize.js',

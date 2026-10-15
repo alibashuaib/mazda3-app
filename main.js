@@ -432,7 +432,7 @@ function openGarage() {
       const active = v.id === session.garage().activeId;
       const it = el('div', 'item');
       it.innerHTML = html`
-        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover">` : html`<span style="display:inline-flex;width:60%;height:60%;color:var(--text-3)">${raw(BRAND_MARK)}</span>`}</div>
+        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" decoding="async" style="width:100%;height:100%;object-fit:cover">` : html`<span style="display:inline-flex;width:60%;height:60%;color:var(--text-3)">${raw(BRAND_MARK)}</span>`}</div>
         <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
         <div class="item-side">${active ? html`<span class="pill ok">${t('Active')}</span>` : html`<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
       it.onclick = () => { if (active) { closeModal(); openSettings(); } else chooseVehicle(v.id); };
@@ -660,14 +660,34 @@ session.configure({
 });
 
 /* Gate on the protocol directly. account.available() also requires a client,
-   and this expression is what SUPPLIES the client — calling it here would
+   and connectBackend() is what SUPPLIES the client — calling it here would
    always see env.client === null and never build one. */
-const canSignIn = typeof supabase !== 'undefined' && location.protocol !== 'file:';
+const canSignIn = location.protocol !== 'file:';
 
-const supabaseClient = canSignIn ? supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY) : null;
+function connectBackend() {
+  const client = supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY);
+  account.configure({ client });
+  pricing.configure({ client });
+  remoteCatalog.configure({ client });
+  catalogAdmin.configure({ client });
+}
+
+/* vendor/supabase.js is ~137 KB that nothing on first paint needs, so it is
+   injected after the first render instead of being a <script> tag. A global
+   that already exists (the Node harness's stub) connects synchronously, so
+   tests see a configured client straight after boot as before. */
+function loadBackend() {
+  if (!canSignIn || account.available()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'vendor/supabase.js';
+    s.onload = () => { connectBackend(); resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
 
 account.configure({
-  client: supabaseClient,
   /* The re-render half of sign-out. session.clear() revokes object URLs, but a
      decoded <img> stays painted until something rebuilds the view — so
      account.js never calls clear() without calling this after it.
@@ -679,9 +699,9 @@ account.configure({
   choose: askWhichGarage
 });
 
-pricing.configure({ client: supabaseClient });
-remoteCatalog.configure({ client: supabaseClient, metaGet, metaSet });
-catalogAdmin.configure({ client: supabaseClient });
+// The cache needs no backend: offline and file:// still apply the last plan seen.
+remoteCatalog.configure({ metaGet, metaSet });
+if (canSignIn && typeof supabase !== 'undefined') connectBackend();
 
 /* Puts a newer shared dealer plan onto the car on screen. session.save()
    fires the afterSave hook, so a signed-in change is queued for sync too.
@@ -708,11 +728,15 @@ session.load()
        the "could not open your garage" error card — that would hide a
        working, already-rendered app behind an error message about a sync
        feature that failed, for a garage that opened just fine. */
-    account.start()
+    const backend = loadBackend();
+    backend
+      .then(() => { if (current === 'admin') go('admin'); })   // #admin painted before the client existed
+      .then(() => account.start())
       .then(() => catalogAdmin.isAdmin())
       .catch(err => console.error('account.start() failed:', err));
     // Same rule as account.start(): after first paint, and never fatal.
     remoteCatalog.load()
+      .then(() => backend.catch(() => {}))
       .then(() => remoteCatalog.refresh())
       .then(() => { if (syncDealerPlan() === 'changed') go(current); })   // a bare version stamp must not wipe a half-typed form
       .catch(err => console.error('catalogue refresh failed:', err));

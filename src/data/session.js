@@ -202,6 +202,9 @@
     current, garage, booted, photos,
     setVehicles, switchVehicle,
     objectUrl, revokeObjectUrls, refreshPhotoUrls,
-    prunePhotoBlobs        // deleteVehicle prunes without saving, so it needs this directly
+    prunePhotoBlobs,       // deleteVehicle prunes without saving, so it needs this directly
+    getQuickActiveId: dep.getQuickActiveId  // adopt() in account.js needs to read this
+                                            // to avoid overwriting a just-switched vehicle
+                                            // with a stale server activeId — see its comment
   };
 });

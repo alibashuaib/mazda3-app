@@ -354,7 +354,18 @@
        idempotent, so running it on an already-current row costs nothing and
        heals one written by an older build. */
     if (deps.normalizeData) pulled.vehicles.forEach(v => { deps.normalizeData(v.data); });
-    deps.session.setVehicles(pulled.vehicles, pulled.activeId);
+    /* pulled.activeId is whatever the server had as of the last successful
+       garage push. A local switchVehicle() sets the quick key synchronously
+       but its own garage push is queued async (see account.enqueueGarage());
+       if pull()/adopt() runs before that push lands, trusting pulled.activeId
+       here would revert the just-switched vehicle back to the old one on
+       every refresh until the queued push finally catches up — the same bug
+       storage.js's applyQuickActiveId() exists to prevent for the offline
+       path. Same fix here: the quick key wins whenever it still names a
+       vehicle the server actually sent us. */
+    const quick = deps.session.getQuickActiveId && deps.session.getQuickActiveId();
+    const pulledActiveId = (quick && pulled.vehicles.some(v => v.id === quick)) ? quick : pulled.activeId;
+    deps.session.setVehicles(pulled.vehicles, pulledActiveId);
     if (deps.session.refreshPhotoUrls) deps.session.refreshPhotoUrls();
     const activeId = deps.session.garage() ? deps.session.garage().activeId : null;
     const keep = pulled.vehicles.map(v => v.id);

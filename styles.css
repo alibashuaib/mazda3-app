@@ -1018,6 +1018,13 @@ html { scroll-behavior: smooth; }
 /* keep the printable A4 report left-to-right regardless of UI language */
 [dir="rtl"] .rpt-paper { direction: ltr; text-align: left; }
 
+/* Cards and tiles scroll, so on phones their backdrop blur is re-rendered
+   every frame. They sit over the already-soft .ambient glow, so dropping it
+   costs almost nothing visually. The fixed topbar/tab bar keep theirs. */
+@media (hover: none) {
+  .card, .tile { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
 /* Honor reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
