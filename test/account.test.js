@@ -521,6 +521,42 @@ test('adopt persists the activeId session settled on, not the raw pulled one', a
   assert.strictEqual(after.garage.activeId, 'srv1', 'disk must agree with memory');
 });
 
+/* Mirror of storage.js's "loadAll trusts the quick active id over a stale
+   stored activeId" test, one level up: a local switchVehicle() sets the
+   quick key synchronously, but the matching enqueueGarage() push is queued
+   async (see account.enqueueGarage()'s own comment). If pull()/adopt() runs
+   before that push lands — reload right after switching, or a delayed
+   outbox drain — pulled.activeId is still the server's pre-switch value.
+   adopt() must not let that stale value stomp the switch back to the old
+   vehicle, exactly the "vehicle switch reverting on refresh" bug this repo
+   already fixed once for the offline path. */
+test('adopt trusts the quick active id over a stale pulled activeId', async () => {
+  await freshStorage();
+  account.reset();
+  const storage2 = require('../src/data/storage.js');
+  account.configure({ client: fullClient({}), protocol: 'https:' });
+  session.clear();
+  session.setVehicles([
+    { id: 'v1', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } },
+    { id: 'v2', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }
+  ], 'v1');
+
+  session.switchVehicle('v2'); // local switch — the quick key now says v2
+
+  await account.adopt({
+    vehicles: [
+      { id: 'v1', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } },
+      { id: 'v2', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }
+    ],
+    activeId: 'v1' // stale: the server's last-known activeId, from before the switch
+  });
+
+  assert.strictEqual(session.garage().activeId, 'v2',
+    'the just-switched vehicle must win over the stale pulled activeId');
+  const after = await storage2.loadAll();
+  assert.strictEqual(after.garage.activeId, 'v2', 'disk must agree with memory');
+});
+
 /* Records the order of lifecycle calls, which is the whole point of these
    tests: clear() before wipe() before load() before rerender(). */
 function lifecycleSpy() {
