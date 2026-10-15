@@ -98,7 +98,9 @@
   function describeChange(c) {
     const b = c.before || {}, a = c.after || {};
     const name = a.service || b.service || (c.item_id == null ? 'Car details' : 'Item');
+    if (!c.after) return name + ': removed';
     const keys = LOGGED.filter(k => JSON.stringify(b[k]) !== JSON.stringify(a[k]));
+    if (!keys.length) return name + ': other fields';   // e.g. icon or sort only
     return name + ': ' + keys.map(k => `${k} ${JSON.stringify(b[k] ?? null)} → ${JSON.stringify(a[k] ?? null)}`).join(', ');
   }
 

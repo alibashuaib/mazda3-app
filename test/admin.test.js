@@ -84,3 +84,8 @@ test('itemPatch ignores jsonb key order and missing part fields', () => {
   assert.strictEqual(admin.itemPatch({ ...base, parts: [{ qty: 1, name: 'A', part_no: 'X' }] }, { ...f, parts: 'A | X' }), null);
   assert.strictEqual(admin.itemPatch({ ...base, parts: [{ name: 'B' }] }, { ...f, parts: 'B' }), null);
 });
+
+test('describeChange never renders an empty change line', () => {
+  assert.strictEqual(admin.describeChange({ item_id: 1, before: { service: 'Oil', sort: 0 }, after: { service: 'Oil', sort: 1 } }), 'Oil: other fields');
+  assert.strictEqual(admin.describeChange({ item_id: 1, before: { service: 'Oil', interval_km: 10000 }, after: null }), 'Oil: removed');
+});
