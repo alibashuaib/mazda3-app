@@ -274,7 +274,7 @@ create or replace view public.fuel_stats as
          (percentile_cont(0.75) within group (order by c.l100))::numeric(5,2) as p75_l100,
          count(*) as n
   from contributions c join contribution_links l on l.contribution_id = c.id
-  where c.kind = 'fuel'
+  where c.kind = 'fuel' and c.l100 is not null
   group by c.model_id, c.engine, c.odometer_band
   having count(distinct l.user_id) >= 5;
 
@@ -286,8 +286,13 @@ create or replace view public.brand_life as
          (percentile_cont(0.5) within group (order by c.price))::numeric(10,2) as median_price,
          count(*) as n
   from contributions c join contribution_links l on l.contribution_id = c.id
-  where c.kind = 'part' and c.km_since_prev is not null
+  where c.kind = 'part' and c.km_since_prev is not null and c.price is not null
   group by c.model_id, c.item_key, c.brand
   having count(distinct l.user_id) >= 5;
 
 grant select on public.fuel_stats, public.brand_life to authenticated;
+
+-- Supabase default privileges may auto-grant on new public objects; strip them.
+revoke all on public.contributions, public.contribution_links from anon, authenticated;
+revoke all on public.fuel_stats, public.brand_life from anon;
+revoke execute on function public.submit_contributions(jsonb), public.delete_my_contributions() from anon;
