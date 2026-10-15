@@ -323,3 +323,18 @@ test('normalizeData heals a missing catalogId on a known model', () => {
   delete s.car.catalogId;
   assert.ok(normalizeData(s).car.catalogId.startsWith('mazda3bm:'));
 });
+
+test('normalizeData re-keys catalogId after an engine change and clears planVersion', () => {
+  const s = buildProfile('cx5kf', 0, { odometer: 0 });
+  s.car.planVersion = '2026-10-15T10:00:00+00:00';
+  s.car.engine = '2.0L SkyActiv-G';
+  const out = normalizeData(s);
+  assert.strictEqual(out.car.catalogId, 'cx5kf:2.0l-skyactiv-g');
+  assert.strictEqual(out.car.planVersion, undefined);
+});
+
+test('normalizeData keeps planVersion when catalogId already matches', () => {
+  const s = buildProfile('cx5kf', 0, { odometer: 0 });
+  s.car.planVersion = '2026-10-15T10:00:00+00:00';
+  assert.strictEqual(normalizeData(s).car.planVersion, '2026-10-15T10:00:00+00:00');
+});

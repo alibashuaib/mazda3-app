@@ -65,8 +65,12 @@
       else if (model === 'CX-90') s.car.modelId = 'cx90';
       else s.car.modelId = '';
     }
-    if (!s.car.catalogId && s.car.engine && dep.CAR_MODELS.some(m => m.id === s.car.modelId))
-      s.car.catalogId = dep.catalogId(s.car.modelId, s.car.engine);
+    // Re-derived, not only healed: an engine edit must move the car to the
+    // new model's plan, which then counts as first sight (no planVersion).
+    if (s.car.engine && dep.CAR_MODELS.some(m => m.id === s.car.modelId)) {
+      const id = dep.catalogId(s.car.modelId, s.car.engine);
+      if (s.car.catalogId !== id) { s.car.catalogId = id; delete s.car.planVersion; }
+    }
     const activeModel = dep.CAR_MODELS.find(m => m.id === s.car.modelId);
     if (activeModel) {
       const allowedColors = Array.isArray(activeModel.colors) && activeModel.colors.length
