@@ -214,7 +214,7 @@ function openLogConfirm(services, opts) {
         const odo = +$('#lc_odo').value || session.current().car.odometer;
         const date = $('#lc_date').value || isoDate(today());
         const logged = [];
-        const shopIn = shopF.value();   // read before closeModal(): the DOM is gone afterwards
+        const shopIn = await shopF.resolve().catch(() => shopF.value());   // read before closeModal(): the DOM is gone afterwards
         let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
         services.forEach(svc => {
           if (doneState.get(svc.id) === false) { svc.deferred = true; svc.deferredAt = date; nSkip++; return; }
@@ -598,7 +598,7 @@ function openAddHistory(e, prefill) {
         date: $('#h_date').value || isoDate(today()), odometer: +$('#h_odo').value || 0,
         cost: +$('#h_cost').value || 0, note: $('#h_note').value.trim(), photo: hphoto
       };
-      const shopIn = shopF.value();   // read before commit() closes the modal
+      const shopIn = await shopF.resolve().catch(() => shopF.value());   // read before commit() closes the modal
       if (shopIn) obj.shop = shopIn; else if (e) delete e.shop;
       if (e) Object.assign(e, obj);
       else {

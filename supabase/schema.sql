@@ -258,6 +258,9 @@ create table if not exists public.shops (
 );
 create unique index if not exists shops_norm_city_key
   on public.shops (name_norm, lower(city));
+-- Space-insensitive search key ("Alsalam" finds "Al Salam"); mirrors squash() in shops.js.
+alter table public.shops add column if not exists name_key text generated always as (replace(name_norm, ' ', '')) stored;
+create index if not exists shops_name_key_idx on public.shops (name_key);
 alter table public.shops add column if not exists created_by uuid references auth.users on delete set null;
 
 -- No backfill of existing shops.name_norm rows: the shops table has never been deployed.
@@ -305,7 +308,7 @@ drop policy if exists insert_shops on public.shops;
 create policy insert_shops on public.shops for insert to authenticated with check (true);
 -- Column-level select: created_by stays private (clients name explicit columns).
 revoke select on public.shops from authenticated;
-grant select (id, name, name_norm, city, area, created_at) on public.shops to authenticated;
+grant select (id, name, name_norm, name_key, city, area, created_at) on public.shops to authenticated;
 grant insert on public.shops to authenticated;
 revoke all on public.shops from anon;
 
