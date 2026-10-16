@@ -230,3 +230,37 @@ test('contributions with a malformed month are skipped; partInsight coerces nume
   const out = ins.partInsight([{ brand: 'B', median_km: '55000', p25_km: '45000', p75_km: '60000', median_price: 1, n: 5 }], 1000, 52000);
   assert.strictEqual(out.prediction.fromKm, 46000);
 });
+
+function prefsClient(row, saved) {
+  return {
+    rpc: () => Promise.resolve({ data: 0, error: null }),
+    from: () => ({
+      select: () => ({ maybeSingle: () => Promise.resolve({ data: row, error: null }) }),
+      upsert: v => { saved.push(v); return Promise.resolve({ error: null }); }
+    })
+  };
+}
+
+test('syncPrefs: server opt-out wins over fresh local defaults and re-queues the delete', async () => {
+  const store = metaStore();
+  ins.configure(Object.assign(store, { client: prefsClient({ share: false, notice_seen: true }, []) }));
+  assert.strictEqual(await ins.syncPrefs(), true);
+  assert.strictEqual(await ins.shareEnabled(), false);
+  assert.strictEqual(await ins.noticeSeen(), true);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
+});
+
+test('syncPrefs: no server row pushes local prefs; setShare pushes the change', async () => {
+  const saved = [];
+  ins.configure(Object.assign(metaStore(), { client: prefsClient(null, saved) }));
+  await ins.syncPrefs();
+  assert.deepStrictEqual(saved.map(s => [s.share, s.notice_seen]), [[true, false]]);
+  await ins.setShare(false);
+  assert.strictEqual(saved[saved.length - 1].share, false);
+});
+
+test('syncPrefs without a client resolves false and changes nothing', async () => {
+  ins.configure(metaStore());
+  assert.strictEqual(await ins.syncPrefs(), false);
+  assert.strictEqual(await ins.shareEnabled(), true);
+});

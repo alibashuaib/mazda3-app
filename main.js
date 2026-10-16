@@ -600,8 +600,7 @@ session.load()
        feature that failed, for a garage that opened just fine. */
     loadBackend().then(() => account.start()).then(() => {
       if (!account.user()) return;
-      insights.flushPendingDelete();
-      return insights.noticeSeen().then(async seen => {
+      return insights.syncPrefs().then(() => { insights.flushPendingDelete(); return insights.noticeSeen(); }).then(async seen => {
         if (seen) return;
         await insights.markNoticeSeen();   /* before the toast, so a second tab/boot cannot repeat it */
         if (await insights.shareEnabled()) toast('Your anonymous car data now helps other owners. Turn it off in the menu.');

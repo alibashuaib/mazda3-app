@@ -328,6 +328,19 @@ create or replace view public.brand_life as
 
 grant select on public.fuel_stats, public.brand_life to authenticated;
 
+-- Per-user sharing preference, so opt-out survives sign-out and new devices.
+create table if not exists public.insights_prefs (
+  user_id     uuid primary key default auth.uid() references auth.users on delete cascade,
+  share       boolean not null default true,
+  notice_seen boolean not null default false,
+  updated_at  timestamptz not null default now()
+);
+alter table public.insights_prefs enable row level security;
+drop policy if exists own_insights_prefs on public.insights_prefs;
+create policy own_insights_prefs on public.insights_prefs for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+grant select, insert, update on public.insights_prefs to authenticated;
+
 -- Supabase default privileges may auto-grant on new public objects; strip them.
 revoke all on public.contributions, public.contribution_links from anon, authenticated;
 revoke all on public.fuel_stats, public.brand_life from anon;

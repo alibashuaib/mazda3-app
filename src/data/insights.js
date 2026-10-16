@@ -77,11 +77,29 @@
 
   const shareEnabled = () => env.metaGet().then(m => m.insightsShare !== false);
   const noticeSeen = () => env.metaGet().then(m => m.insightsNoticeSeen === true);
-  const markNoticeSeen = () => env.metaSet({ insightsNoticeSeen: true }).then(() => {});
+  const markNoticeSeen = () => env.metaSet({ insightsNoticeSeen: true }).then(pushPrefs).then(() => {});
+  /* Preference lives on the server too, so it survives sign-out (storage.wipe clears meta) and new devices.
+     Local meta stays the fast read path; the server row wins on sign-in. */
+  function pushPrefs() {
+    if (!env.client) return Promise.resolve(false);
+    return env.metaGet().then(m => env.client.from('insights_prefs')
+      .upsert({ share: m.insightsShare !== false, notice_seen: m.insightsNoticeSeen === true, updated_at: new Date().toISOString() }))
+      .then(res => !(res && res.error)).catch(() => false);
+  }
+  function syncPrefs() {
+    if (!env.client) return Promise.resolve(false);
+    return Promise.resolve().then(() => env.client.from('insights_prefs').select('share,notice_seen').maybeSingle()).then(res => {
+      if (!res || res.error) return false;
+      if (!res.data) return pushPrefs();
+      const patch = { insightsShare: res.data.share, insightsNoticeSeen: res.data.notice_seen };
+      if (!res.data.share) patch.insightsDeletePending = true;   // idempotent; clears any rows a lost delete left behind
+      return env.metaSet(patch).then(() => true);
+    }).catch(() => false);
+  }
   /* Opt-out records a pending delete first so a failed RPC is retried by flushPendingDelete. */
   function setShare(on) {
-    if (on) return env.metaSet({ insightsShare: true }).then(() => true);
-    return env.metaSet({ insightsShare: false, insightsDeletePending: true }).then(flushPendingDelete);
+    if (on) return env.metaSet({ insightsShare: true }).then(pushPrefs).then(() => true);
+    return env.metaSet({ insightsShare: false, insightsDeletePending: true }).then(pushPrefs).then(flushPendingDelete);
   }
   function flushPendingDelete() {
     return env.metaGet().then(m => {
@@ -109,5 +127,5 @@
   const getFuelStats = modelId => stats('fuel_stats', { modelId });
   const getBrandLife = (modelId, itemKey) => stats('brand_life', { modelId, itemKey });
 
-  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife };
+  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife };
 });
