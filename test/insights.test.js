@@ -264,3 +264,60 @@ test('syncPrefs without a client resolves false and changes nothing', async () =
   assert.strictEqual(await ins.syncPrefs(), false);
   assert.strictEqual(await ins.shareEnabled(), true);
 });
+
+test('partContributions adds shop_id only when a shop was resolved', () => {
+  const h = { id: 'h1', date: '2026-08-17', odometer: 52300, parts: [{ part: 'Oil Filter', brand: 'Bosch', price: 40 }] };
+  const without = ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: h, priorHistory: [] });
+  assert.strictEqual('shop_id' in without[0], false);
+  const withShop = ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: h, priorHistory: [], shopId: 'shop-1' });
+  assert.strictEqual(withShop[0].shop_id, 'shop-1');
+  assert.strictEqual(ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: h, priorHistory: [], shopId: '' })[0].shop_id, undefined);
+});
+
+/* ---- getBrandLife read cache ---- */
+function lifeClient(results) {
+  const q = results.slice(), log = [];
+  return { log, from: t => { log.push(t); const r = q.length ? q.shift() : { data: [], error: null };
+    const o = { select: () => o, eq: () => o, then: (a, b) => Promise.resolve(r).then(a, b) }; return o; } };
+}
+
+test('getBrandLife: cached per (model, item), in-flight shared, failures and empty-from-error not cached', async t => {
+  const rows = [{ n: 6 }];
+  const c = lifeClient([{ data: null, error: { message: 'x' } }, { data: rows, error: null }, { data: [{ n: 9 }], error: null }]);
+  ins.configure({ client: c });
+  assert.deepStrictEqual(await ins.getBrandLife('m', 'pads'), []);          // failure
+  const [a, b] = await Promise.all([ins.getBrandLife('m', 'pads'), ins.getBrandLife('m', 'pads')]);
+  assert.deepStrictEqual(a, rows); assert.deepStrictEqual(b, rows);
+  assert.strictEqual(c.log.length, 2, 'failure retried once, then one shared request');
+  assert.deepStrictEqual(await ins.getBrandLife('m', 'pads'), rows);
+  assert.strictEqual(c.log.length, 2, 'cached');
+  assert.deepStrictEqual(await ins.getBrandLife('m', 'oil'), [{ n: 9 }]);   // other key
+  assert.strictEqual(c.log.length, 3);
+});
+
+test('getBrandLife: TTL expiry and reset() both force a refetch', async t => {
+  let now = 1e12;
+  t.mock.method(Date, 'now', () => now);
+  const c = lifeClient([]);
+  ins.configure({ client: c });
+  await ins.getBrandLife('m', 'pads');
+  now += 5 * 60 * 1000 - 1;
+  await ins.getBrandLife('m', 'pads');
+  assert.strictEqual(c.log.length, 1);
+  now += 2;
+  await ins.getBrandLife('m', 'pads');
+  assert.strictEqual(c.log.length, 2);
+  ins.reset();
+  ins.configure({ client: c });
+  await ins.getBrandLife('m', 'pads');
+  assert.strictEqual(c.log.length, 3);
+});
+
+test('getBrandLife: clearCache() forces a refetch', async () => {
+  const c = lifeClient([]);
+  ins.configure({ client: c });
+  await ins.getBrandLife('m', 'pads');
+  ins.clearCache();
+  await ins.getBrandLife('m', 'pads');
+  assert.strictEqual(c.log.length, 2);
+});

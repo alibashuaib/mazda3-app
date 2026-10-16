@@ -550,6 +550,7 @@ function connectBackend() {
   account.configure({ client });
   pricing.configure({ client });
   insights.configure({ client, metaGet, metaSet });
+  shops.configure({ client });
   remoteCatalog.configure({ client });
   catalogAdmin.configure({ client });
 }
@@ -577,7 +578,7 @@ account.configure({
      accent is an inline style on <html>, which outlives the garage it
      was set for, so without this the previous car's accent colour would
      stay painted across a sign-out that leaves no vehicle behind. */
-  rerender: () => { applyAccent(); renderTopbar(); go(current); },
+  rerender: () => { shops.clearCache(); insights.clearCache(); applyAccent(); renderTopbar(); go(current); },
   choose: askWhichGarage,
   submitContributions: rows => insights.submit(rows),
   shareEnabled: () => insights.shareEnabled(),
