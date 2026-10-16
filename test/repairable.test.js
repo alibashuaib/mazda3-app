@@ -47,3 +47,25 @@ test('tip() returns the language asked for', () => {
   assert.strictEqual(repairable.tip('Windscreen', 'ar'), t.tipAr);
   assert.strictEqual(repairable.tip('Spark plugs', 'en'), null);
 });
+
+test('exclusions and tightened keywords (review fixes)', () => {
+  const nul = n => assert.strictEqual(repairable.tipFor(n), null, n);
+  const id = (n, i) => assert.strictEqual(repairable.tipFor(n).id, i, n);
+  nul('Windshield Washer Fluid (~2L)'); nul('Windscreen wiper blade'); id('Windscreen', 'windscreen');
+  nul('فلتر المكيف'); nul('Cabin air conditioning filter'); id('كمبروسر المكيف', 'ac'); id('غاز المكيف', 'ac');
+  nul('فرشاة المساحات'); nul('فرش الفرامل'); nul('فرشات الكربون'); id('تنجيد المقاعد', 'seat-upholstery'); id('فرش المقاعد', 'seat-upholstery');
+  nul('Bumper bracket'); nul('Bumper sensor'); nul('Front bumper clip'); id('Front bumper', 'dent'); id('Bumper repair', 'dent');
+  nul('برنج'); nul('أورنج');
+  assert.ok(!repairable.LIST.find(e => e.id === 'alloy').tipAr.includes('الخفيفة الخدش'));
+});
+
+test('no real catalogue part name triggers a tip', () => {
+  const cat = require('../src/data/catalog.js');
+  const allow = [];
+  for (const m of cat.CAR_MODELS) for (const [code] of m.engines) {
+    for (const p of cat.partsForModel(m.id, code)) {
+      if (allow.includes(p.name)) continue;
+      assert.strictEqual(repairable.tipFor(p.name), null, m.id + ' / ' + p.name);
+    }
+  }
+});

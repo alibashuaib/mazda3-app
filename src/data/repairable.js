@@ -17,22 +17,25 @@
       tipEn: 'Cloudy or yellowed headlights can often be restored by polishing, at a fraction of the cost of a new unit.',
       tipAr: 'يمكن في كثير من الأحيان إعادة تلميع المصابيح الأمامية المعتمة أو المصفرّة بتكلفة أقل بكثير من شراء مصباح جديد.' },
     { id: 'windscreen', keywords: ['windscreen', 'windshield', 'زجاج أمامي', 'الزجاج الأمامي'],
+      exclude: ['washer', 'wiper', 'fluid'],
       tipEn: 'Small chips can often be filled by a glass repair service before they spread; larger or edge cracks usually need replacement.',
       tipAr: 'يمكن في كثير من الأحيان إصلاح الشظايا الصغيرة قبل أن تتسع؛ أما الشروخ الكبيرة أو عند الحواف فغالبًا تحتاج إلى تبديل.' },
-    { id: 'dent', keywords: ['dent', 'door panel', 'bumper', 'صدمة', 'طعجة', 'ظهر الباب', 'صدام'],
+    { id: 'dent', keywords: ['dent', 'door panel', 'bumper cover', 'bumper repair', 'front bumper', 'rear bumper', 'صدمة', 'طعجة', 'ظهر الباب', 'صدام'],
+      exclude: ['bracket', 'sensor', 'bolt', 'clip'],
       tipEn: 'Shallow dents with intact paint can often be removed by paintless dent repair instead of replacing or repainting a panel.',
       tipAr: 'يمكن في كثير من الأحيان إزالة الطعجات السطحية التي لم يتضرر طلاؤها بدون إعادة صبغ أو تبديل القطعة.' },
-    { id: 'alloy', keywords: ['alloy', 'rim', 'wheel refinish', 'جنط', 'جنوط', 'رنج'],
+    { id: 'alloy', keywords: ['alloy', 'rim', 'wheel refinish', 'جنط', 'جنوط'],
       tipEn: 'Scuffed or lightly bent alloy wheels can often be refinished or straightened for less than the price of a new wheel.',
-      tipAr: 'يمكن في كثير من الأحيان إعادة تجديد أو تعديل الجنوط الخفيفة الخدش أو الانحناء بتكلفة أقل من جنط جديد.' },
+      tipAr: 'يمكن في كثير من الأحيان إعادة تجديد أو تعديل الجنوط ذات الخدوش أو الانحناء الخفيف بتكلفة أقل من جنط جديد.' },
     // Specific on purpose: a bare 'a/c' would also hit "Cabin (A/C) Filter".
-    { id: 'ac', keywords: ['ac compressor', 'a/c compressor', 'a/c gas', 'air conditioning', 'air condition', 'مكيف', 'تكييف', 'كمبروسر'],
+    { id: 'ac', keywords: ['ac compressor', 'a/c compressor', 'a/c gas', 'air conditioning', 'air condition', 'كمبروسر', 'كمبرسر', 'غاز المكيف', 'غاز التكييف', 'شحن المكيف'],
+      exclude: ['filter', 'فلتر'],
       tipEn: 'Weak cooling can sometimes be fixed by a leak check and gas recharge before a compressor is replaced.',
       tipAr: 'قد يُحلّ ضعف التبريد أحيانًا بفحص التسريب وإعادة تعبئة الغاز قبل تبديل الكمبروسر.' },
     { id: 'battery-terminal', keywords: ['battery terminal', 'battery clamp', 'قطب البطارية', 'أقطاب البطارية'],
       tipEn: 'Corroded battery terminals can often be cleaned or re-fitted instead of replacing the battery.',
       tipAr: 'يمكن في كثير من الأحيان تنظيف أقطاب البطارية المتآكلة أو إعادة تركيبها بدل تبديل البطارية.' },
-    { id: 'seat-upholstery', keywords: ['seat cover', 'upholstery', 'seat leather', 'تنجيد', 'جلد المقعد', 'فرش'],
+    { id: 'seat-upholstery', keywords: ['seat cover', 'upholstery', 'seat leather', 'تنجيد', 'جلد المقعد', 'فرش المقاعد'],
       tipEn: 'Worn seat leather or fabric panels can often be repaired or re-covered without replacing the whole seat.',
       tipAr: 'يمكن في كثير من الأحيان إصلاح جلد أو قماش المقعد المتآكل أو إعادة تغطيته دون تبديل المقعد كاملًا.' }
   ];
@@ -48,7 +51,7 @@
   function tipFor(name) {
     const n = String(name == null ? '' : name).toLowerCase().trim();
     if (!n) return null;
-    const e = LIST.find(x => x.keywords.some(k => hit(n, k)));
+    const e = LIST.find(x => x.keywords.some(k => hit(n, k)) && !(x.exclude || []).some(w => n.includes(w)));
     return e ? { id: e.id, tipEn: e.tipEn, tipAr: e.tipAr } : null;
   }
 
