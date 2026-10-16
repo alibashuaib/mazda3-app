@@ -255,3 +255,98 @@ test('Parts page shows the cheapest shop as text, never markup', async () => {
     assert.ok(slot.textContent.includes('90%'));
   } finally { app.cleanup(); }
 });
+
+/* ---- Task 4: Read bill in the "Log a past service" form ---- */
+const evilPart = '<img src=x onerror=alert(1)>';
+const BILL = { store: { name: 'Al Salam Auto', city: 'Jeddah', area: null }, date: '2026-10-10', odometer: 52300, total: 250,
+  items: [{ name: evilPart, brand: 'Bosch', part_no: 'B1', price: 100 }, { name: 'Oil filter', brand: 'Mann', part_no: '', price: 150 }] };
+
+async function billForm(fn, { ack = true, result } = {}) {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document, calls = [];
+    api.account.user = () => ({ id: 'u1' });
+    api.bills.available = () => true;
+    api.bills.readBill = img => { calls.push(img); return Promise.resolve(result || { ok: true, bill: BILL, billReadId: 'r1' }); };
+    const meta = { billNoticeAck: ack }, sets = [];
+    api.metaGet = () => Promise.resolve(meta);
+    api.metaSet = p => { sets.push(p); Object.assign(meta, p); return Promise.resolve(true); };
+    api.openAddHistory(null);
+    await fn({ app, api, d, calls, sets, meta });
+  } finally { app.cleanup(); }
+}
+const q = (d, s) => d.querySelector(s);
+const readBtn = d => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Read bill');
+const toastTexts = d => [...d.querySelectorAll('#toastHost .toast')].map(n => n.textContent);
+const rows = d => [...d.querySelectorAll('#modalCard .field-row')].filter(r => r.querySelector('button'));
+async function attachPhoto(app, d, url) {
+  const cb = [];
+  app.api.readImageResized = (f, fn, max) => { cb.push(max); fn(max === 1600 ? url + 'BIG' : url); };
+  const file = q(d, '#modalCard [data-file]');
+  file.onchange({ target: { files: [{}] } });
+  return cb;
+}
+const click = async b => { b.onclick(); await tick(); await tick(); };
+
+test('Read bill: hidden for edits and signed-out, disabled until a photo exists', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.bills.available = () => true;
+    api.openAddHistory(null); assert.strictEqual(readBtn(d), undefined, 'signed out');
+    api.account.user = () => ({ id: 'u' });
+    api.openAddHistory({ id: 'e1', name: 'x', date: '2026-01-01' }); assert.strictEqual(readBtn(d), undefined, 'editing');
+    api.openAddHistory(null);
+    assert.strictEqual(readBtn(d).disabled, true);
+    const sizes = await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    assert.strictEqual(readBtn(d).disabled, false);
+    assert.deepStrictEqual([...sizes], [undefined, 1600].map(x => x), 'hi-res copy requested after the normal one');
+  } finally { app.cleanup(); }
+});
+
+test('disclosure: first use asks, Cancel sends nothing, Continue reads and remembers', async () => {
+  await billForm(async ({ app, d, calls, sets }) => {
+    await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    await click(readBtn(d));
+    assert.strictEqual(calls.length, 0);
+    const btn = name => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === name);
+    await click(btn('Cancel'));
+    assert.strictEqual(calls.length, 0); assert.strictEqual(sets.length, 0);
+    await click(readBtn(d)); await click(btn('Continue')); await tick();
+    assert.strictEqual(calls.length, 1); assert.strictEqual(calls[0], 'data:image/jpeg;base64,AABIG', 'hi-res copy is what is sent');
+    assert.strictEqual(sets[0].billNoticeAck, true);
+    await click(readBtn(d));
+    assert.strictEqual(calls.length, 2, 'second use skips the notice');
+  }, { ack: false });
+});
+
+test('success fills fields, keeps untouched ones, renders parts as text, edits and removal change the rows', async () => {
+  await billForm(async ({ app, d, calls }) => {
+    await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    q(d, '#h_name').value = 'My service';
+    await click(readBtn(d)); await tick();
+    assert.strictEqual(q(d, '#h_name').value, 'My service', 'non-empty name kept');
+    assert.strictEqual(q(d, '#h_date').value, '2026-10-10'); assert.strictEqual(+q(d, '#h_odo').value, 52300); assert.strictEqual(+q(d, '#h_cost').value, 250);
+    const [shop, city] = [...d.querySelectorAll('#modalCard input')].filter(i => i.value === 'Al Salam Auto' || i.value === 'Jeddah');
+    assert.ok(shop && city);
+    assert.strictEqual(d.querySelector('#modalCard img[src="x"]'), null);
+    let rs = rows(d); assert.strictEqual(rs.length, 2);
+    assert.strictEqual(rs[0].querySelector('input').value, evilPart);
+    assert.strictEqual(rs[0].querySelector('img'), null);
+    const price = rs[1].querySelectorAll('input')[2]; price.value = '175'; price.oninput();
+    rs[0].querySelector('button').onclick();
+    rs = rows(d); assert.strictEqual(rs.length, 1);
+    assert.strictEqual(rs[0].querySelectorAll('input')[0].value, 'Oil filter'); assert.strictEqual(rs[0].querySelectorAll('input')[2].value, '175');
+    assert.ok(toastTexts(d).some(x => x.includes('Bill read')));
+  });
+});
+
+for (const [error, msg] of [['limit', 'Daily bill limit reached. Enter it by hand.'], ['unreadable', 'Could not read that bill. Enter it by hand.'], ['offline', 'You are offline.'], ['failed', 'Could not read the bill.']]) {
+  test(`error ${error} shows its toast and leaves the form unchanged`, () => billForm(async ({ app, d }) => {
+    await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    await click(readBtn(d)); await tick();
+    assert.ok(toastTexts(d).includes(msg), toastTexts(d).join('|'));
+    assert.strictEqual(+q(d, '#h_cost').value, 0); assert.strictEqual(rows(d).length, 0);
+    assert.strictEqual(readBtn(d).textContent, 'Read bill'); assert.strictEqual(readBtn(d).disabled, false);
+  }, { result: { ok: false, error } }));
+}

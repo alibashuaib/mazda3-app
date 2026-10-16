@@ -582,7 +582,63 @@ function openAddHistory(e, prefill) {
     let hphoto = e ? (e.photo || '') : '';
     shopF.nodes.forEach(n => card.appendChild(n));
     card.appendChild(field('Receipt / invoice', ''));
-    card.appendChild(photoPicker(hphoto, v => hphoto = v));
+    let hbig = '', billReadId = null, billParts = [], reading = false;
+    let readBtn = null;
+    card.appendChild(photoPicker(hphoto, v => { hphoto = v; if (readBtn && !reading) readBtn.disabled = !v; }, undefined, v => hbig = v));
+    if (!editing && account.user() && bills.available()) {
+      readBtn = el('button', 'btn block', html`${t('Read bill')}`);
+      readBtn.type = 'button'; readBtn.disabled = !hphoto;
+      const notice = el('div', 'field'); notice.hidden = true;     // inline confirm: no stacked modal
+      const partsBox = el('div', 'field'); partsBox.hidden = true;
+      const dl = el('datalist'); dl.id = 'bp_' + uid();
+      session.current().parts.forEach(x => { const o = el('option'); o.value = x.name; dl.appendChild(o); });
+      const ask = () => new Promise(resolve => {
+        const h = el('strong'); h.textContent = t('Read this bill?');
+        const msg = el('p'); msg.textContent = t('The photo is sent to our server and an AI service to read it. It is not stored.');
+        const go = el('button', 'btn primary', html`${t('Continue')}`), no = el('button', 'btn ghost', html`${t('Cancel')}`);
+        go.type = no.type = 'button';
+        const done = v => { notice.replaceChildren(); notice.hidden = true; resolve(v); };
+        go.onclick = () => { Promise.resolve(metaSet({ billNoticeAck: true })).catch(() => {}); done(true); };
+        no.onclick = () => done(false);
+        notice.replaceChildren(h, msg, go, no); notice.hidden = false;
+      });
+      const drawParts = () => {
+        partsBox.replaceChildren();
+        partsBox.hidden = !billParts.length;
+        if (!billParts.length) return;
+        const h = el('strong'); h.textContent = t('Parts on this bill');
+        partsBox.append(h, dl);
+        billParts.forEach(bp => {
+          const row = el('div', 'field-row');
+          const mk = (ph, val, set, type) => { const i = el('input'); if (type) i.type = type; i.placeholder = t(ph); i.value = val; i.oninput = () => set(i.value); return i; };
+          const nm = mk('Part name', bp.part, v => bp.part = v); nm.setAttribute('list', dl.id);
+          const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
+          rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };
+          row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', String(bp.price), v => bp.price = +v || 0, 'number'), rm);
+          partsBox.appendChild(row);
+        });
+      };
+      onAsyncClick(readBtn, async () => {
+        if (!hphoto) return;
+        const meta = await Promise.resolve(metaGet()).catch(() => ({}));
+        if (!(meta && meta.billNoticeAck === true) && !(await ask())) return;
+        reading = true; readBtn.textContent = t('Reading…');
+        const res = await bills.readBill(hbig || hphoto);
+        reading = false; readBtn.textContent = t('Read bill');
+        if (!res.ok) return toast({ limit: 'Daily bill limit reached. Enter it by hand.', unreadable: 'Could not read that bill. Enter it by hand.', offline: 'You are offline.' }[res.error] || 'Could not read the bill.', 'warn');
+        const pf = bills.toPrefill(res.bill);
+        if (pf.name && !$('#h_name').value.trim()) $('#h_name').value = pf.name;
+        if (pf.date) $('#h_date').value = pf.date;
+        if (pf.odometer != null) $('#h_odo').value = pf.odometer;
+        $('#h_cost').value = pf.cost;
+        if (pf.shop) shopF.set(pf.shop);
+        billReadId = res.billReadId;
+        billParts = pf.parts;
+        drawParts();
+        toast('Bill read — check the details');
+      });
+      card.append(readBtn, notice, partsBox);
+    }
     if (!editing) {
       const chk = el('div', 'field');
       chk.innerHTML = html`<label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);font-weight:500;cursor:pointer">

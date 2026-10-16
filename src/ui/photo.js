@@ -6,12 +6,11 @@
 'use strict';
 
 // downscale an uploaded image to keep localStorage small; returns a JPEG data URL
-function readImageResized(file, cb) {
+function readImageResized(file, cb, max = 900) {
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const max = 900;
       let { width: w, height: h } = img;
       if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
       const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
@@ -25,7 +24,8 @@ function readImageResized(file, cb) {
 }
 
 /* reusable receipt/photo attachment field (resizes, tap thumbnail to enlarge) */
-function photoPicker(current, onChange, label) {
+/* onBig (optional) also receives a 1600px copy, for bill reading; kept by the caller in memory only. */
+function photoPicker(current, onChange, label, onBig) {
   let photo = current || '';
   const wrap = el('div', 'photo-picker');
   wrap.style.marginBottom = '14px';
@@ -39,8 +39,9 @@ function photoPicker(current, onChange, label) {
   const prev = wrap.querySelector('[data-prev]'), pick = wrap.querySelector('[data-pick]'), rm = wrap.querySelector('[data-rm]'), file = wrap.querySelector('[data-file]');
   pick.onclick = () => file.click();
   prev.onclick = () => { if (photo) openImage(photo); };
-  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = html`<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); }); };
-  rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); };
+  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = html`<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); });
+    if (onBig) readImageResized(f, onBig, 1600); };
+  rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); if (onBig) onBig(''); };
   return wrap;
 }
 function openImage(url) {

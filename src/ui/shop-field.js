@@ -56,6 +56,7 @@ function shopField(initial) {
   return {
     nodes: [nameF, list, row, prompt, cl],
     value,
+    set(s) { nameIn.value = s.name || ''; cityIn.value = s.city || ''; areaIn.value = s.area || ''; },
     /* Asks "Did you mean" once per form when the typed shop is close to an existing one. */
     async resolve() {
       const v = value();
