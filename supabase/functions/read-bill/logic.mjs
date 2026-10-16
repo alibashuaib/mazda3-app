@@ -15,7 +15,7 @@ export function westernDigits(s) {
   return String(s ?? '')
     .replace(/[٠-٩]/g, d => AR.indexOf(d))
     .replace(/[۰-۹]/g, d => FA.indexOf(d))
-    .replace(/٫/g, '.').replace(/٬/g, '');
+    .replace(/[٫،]/g, '.').replace(/٬/g, '');
 }
 
 const str = (x, n = 80) => (typeof x === 'string' ? x.replace(/\s+/g, ' ').trim().slice(0, n) : '');
@@ -25,7 +25,8 @@ function num(x) {
   if (typeof x === 'number') return Number.isFinite(x) ? x : null;
   if (typeof x !== 'string') return null;
   let s = westernDigits(x).replace(/[^\d.,-]/g, '');
-  if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(',', '.'); else s = s.replace(/,/g, '');
+  if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');   // European 1.250,00
+  else if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(',', '.'); else s = s.replace(/,/g, '');
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : null;
 }
@@ -40,6 +41,12 @@ export function validateImage(dataUrl) {
   const data = dataUrl.slice(m[0].length);
   if (!data.length || !/^[A-Za-z0-9+/]+=*$/.test(data)) return null;
   if (data.length * 3 / 4 > MAX_IMAGE_BYTES) return null;
+  let head;
+  try { head = atob(data.slice(0, 16)); } catch { return null; }
+  const ok = m[1] === 'image/jpeg' ? head.startsWith('\xFF\xD8\xFF')
+    : m[1] === 'image/png' ? head.startsWith('\x89PNG')
+    : head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP';
+  if (!ok) return null;
   return { mediaType: m[1], data };
 }
 

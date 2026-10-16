@@ -12,6 +12,7 @@ test('westernDigits converts Arabic-Indic and Persian digits and separators', as
   assert.strictEqual(westernDigits('٣٥٠٫٥٠'), '350.50');
   assert.strictEqual(westernDigits('۱۲۳٬۴۵۶'), '123456');
   assert.strictEqual(westernDigits('SAR 12'), 'SAR 12');
+  assert.strictEqual(westernDigits('12،5'), '12.5');
 });
 
 test('parseBill reads JSON wrapped in prose or fences and whitelists fields', async () => {
@@ -50,6 +51,16 @@ test('parseBill returns null for junk and clamps bad values', async () => {
   assert.strictEqual(parseBill(JSON.stringify({ date: '2030-01-01', store: { name: 'Future' } }), NOW).date, null);
 });
 
+test('num handles European and Arabic-comma amounts', async () => {
+  const { parseBill } = await load();
+  const t = v => parseBill(JSON.stringify({ total: v }), NOW).total;
+  assert.strictEqual(t('1.250,00'), 1250);
+  assert.strictEqual(t('1,250'), 1250);
+  assert.strictEqual(t('12,5'), 12.5);
+  assert.strictEqual(t('1.250'), 1.25);
+  assert.strictEqual(t('12،5'), 12.5);
+});
+
 test('parseBill caps items and string lengths; a bill with only a total is kept', async () => {
   const { parseBill, MAX_ITEMS } = await load();
   const items = Array.from({ length: 40 }, (_, i) => ({ name: 'P'.repeat(200) + i, price: 5 }));
@@ -72,7 +83,12 @@ test('fingerprint needs store, date and total; storeKey matches shops.name_key s
 
 test('validateImage accepts small jpeg/png/webp data URLs only', async () => {
   const { validateImage, MAX_IMAGE_BYTES } = await load();
-  assert.deepStrictEqual(validateImage('data:image/jpeg;base64,QUJD'), { mediaType: 'image/jpeg', data: 'QUJD' });
+  assert.deepStrictEqual(validateImage('data:image/jpeg;base64,/9j/AAAA'), { mediaType: 'image/jpeg', data: '/9j/AAAA' });
+  assert.strictEqual(validateImage('data:image/jpeg;base64,QUJD'), null); // magic bytes mismatch
+  assert.ok(validateImage('data:image/png;base64,iVBORw0KGgo='));
+  assert.strictEqual(validateImage('data:image/png;base64,/9j/AAAA'), null);
+  assert.ok(validateImage('data:image/webp;base64,' + Buffer.from('RIFF\0\0\0\0WEBPxx').toString('base64')));
+  assert.strictEqual(validateImage('data:image/webp;base64,/9j/AAAA'), null);
   assert.strictEqual(validateImage('data:image/gif;base64,QUJD'), null);
   assert.strictEqual(validateImage('data:text/html;base64,QUJD'), null);
   assert.strictEqual(validateImage('QUJD'), null);
@@ -87,8 +103,10 @@ test('read-bill/index.ts static checks (source text, not executed)', () => {
   const src = require('fs').readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'read-bill', 'index.ts'), 'utf8');
   assert.ok(src.includes("from './logic.mjs'"));
   assert.ok(src.includes('auth.getUser(jwt)'));
-  assert.ok(src.indexOf('>= DAILY_CAP') > 0 && src.indexOf('>= DAILY_CAP') < src.indexOf('api.anthropic.com'), 'cap checked before model call');
+  assert.ok(src.indexOf('> DAILY_CAP') > 0 && src.indexOf('> DAILY_CAP') < src.indexOf('api.anthropic.com'), 'cap checked before model call');
   assert.ok(!src.includes('console.log'));
+  assert.ok(src.indexOf('.insert(') < src.indexOf('> DAILY_CAP'), 'attempt inserted before cap check');
+  assert.ok(src.includes("max_tokens: 2048") && src.includes("'unavailable'") && src.includes("content-length"));
   const allowed = new Set(['user_id', 'store_key', 'city', 'fingerprint', 'id', 'created_at']);
   const used = [...src.matchAll(/\.(?:insert|update)\(\{([^}]*)\}/g)]
     .flatMap(m => [...(',' + m[1]).matchAll(/,\s*(\w+)\s*:/g)].map(k => k[1]));
