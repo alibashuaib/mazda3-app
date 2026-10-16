@@ -265,6 +265,7 @@ create policy read_shops on public.shops for select to authenticated using (true
 drop policy if exists insert_shops on public.shops;
 create policy insert_shops on public.shops for insert to authenticated with check (true);
 grant select, insert on public.shops to authenticated;
+revoke all on public.shops from anon;
 
 create table if not exists public.shop_feedback (
   shop_id     uuid        not null references public.shops on delete cascade,
@@ -279,7 +280,11 @@ alter table public.shop_feedback enable row level security;
 drop policy if exists own_shop_feedback on public.shop_feedback;
 create policy own_shop_feedback on public.shop_feedback for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
-grant select, insert, update, delete on public.shop_feedback to authenticated;
+-- Column-level grants: bill_backed (doubles vote weight) is never client-writable.
+revoke all on public.shop_feedback from anon, authenticated;
+grant select, delete on public.shop_feedback to authenticated;
+grant insert (shop_id, vote, reasons) on public.shop_feedback to authenticated;
+grant update (vote, reasons) on public.shop_feedback to authenticated;
 
 alter table public.contributions
   add column if not exists shop_id uuid references public.shops on delete set null;

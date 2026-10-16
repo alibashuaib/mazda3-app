@@ -19,6 +19,14 @@ test('shop_feedback: one vote per user per shop, own rows only, tag whitelist', 
   assert.match(sql, /create policy own_shop_feedback on public\.shop_feedback for all/);
 });
 
+test('shop_feedback: bill_backed is not client-writable (column grants)', () => {
+  assert.match(sql, /revoke all on public\.shop_feedback from anon, authenticated;/);
+  assert.match(sql, /grant insert \(shop_id, vote, reasons\) on public\.shop_feedback to authenticated;/);
+  assert.match(sql, /grant update \(vote, reasons\) on public\.shop_feedback to authenticated;/);
+  assert.doesNotMatch(sql, /grant [^;]*bill_backed[^;]*to authenticated/);
+  assert.match(sql, /revoke all on public\.shops from anon;/);
+});
+
 test('trust and store-price views apply the 5-distinct-user floor', () => {
   const trust = sql.match(/create or replace view public\.shop_trust[\s\S]*?;\n/)[0];
   assert.match(trust, /having count\(\*\) >= 5/);

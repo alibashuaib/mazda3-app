@@ -60,10 +60,10 @@
     }).then(res => unwrap(res) || []).catch(() => []);
   }
 
-  /* bill_backed stays false until bill reading exists and the server can verify it. */
+  /* bill_backed is not client-writable (column grants); it stays false until a server can verify bills. */
   function vote(shopId, up, reasons) {
     if (!env.client || !shopId) return Promise.resolve(false);
-    const row = { shop_id: shopId, vote: up ? 1 : -1, reasons: [...new Set(Array.isArray(reasons) ? reasons : [])].filter(r => REASONS.includes(r)), bill_backed: false };
+    const row = { shop_id: shopId, vote: up ? 1 : -1, reasons: [...new Set(Array.isArray(reasons) ? reasons : [])].filter(r => REASONS.includes(r)) };
     return Promise.resolve().then(() => env.client.from('shop_feedback').upsert(row, { onConflict: 'shop_id,user_id' }))
       .then(res => !(res && res.error)).catch(() => false);
   }

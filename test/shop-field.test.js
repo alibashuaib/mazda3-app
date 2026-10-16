@@ -116,6 +116,22 @@ test('afterPurchase: sharing on creates the shop and prompts; no shop means no p
   assert.strictEqual(s.create + s.prompt, 0);
 });
 
+test('afterPurchase: no feedback prompt over an already-open modal', async () => {
+  const app = await bootApp();
+  try {
+    let prompts = 0;
+    app.api.insights.shareEnabled = () => Promise.resolve(true);
+    app.api.shops.findOrCreate = () => Promise.resolve({ id: 's1', name: 'A', city: 'B' });
+    app.api.openShopFeedback = () => { prompts++; };
+    app.document.querySelector('#modalHost').hidden = false;
+    await app.api.afterPurchase([], { name: 'A', city: 'B', area: '' }, app.api.session.current(), 'v1');
+    assert.strictEqual(prompts, 0);
+    app.document.querySelector('#modalHost').hidden = true;
+    await app.api.afterPurchase([], { name: 'A', city: 'B', area: '' }, app.api.session.current(), 'v1');
+    assert.strictEqual(prompts, 1);
+  } finally { app.cleanup(); }
+});
+
 test('Parts page shows the cheapest shop as text, never markup', async () => {
   const app = await bootApp();
   try {

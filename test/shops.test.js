@@ -82,7 +82,7 @@ test('vote upserts one row, drops unknown reasons, is never bill-backed yet', as
   shops.configure({ client: queueClient([{ error: null }], log) });
   assert.strictEqual(await shops.vote('s1', false, ['price', 'bogus']), true);
   const up = log.find(l => l[0] === 'upsert');
-  assert.deepStrictEqual(up[1], { shop_id: 's1', vote: -1, reasons: ['price'], bill_backed: false });
+  assert.deepStrictEqual(up[1], { shop_id: 's1', vote: -1, reasons: ['price'] });
   assert.deepStrictEqual(up[2], { onConflict: 'shop_id,user_id' });
   assert.strictEqual(await shops.vote('', true, []), false);
 });

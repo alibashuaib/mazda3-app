@@ -69,6 +69,30 @@ do $$ begin
 end $$;
 reset role;
 
+-- (d2) bill_backed is not client-writable; normal vote and vote change still work
+select public.tmp_as_user(3);
+set local role authenticated;
+do $$ begin
+  begin
+    insert into public.shop_feedback (shop_id, vote, bill_backed)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', 1, true);
+    raise exception 'FAIL: client inserted bill_backed';
+  exception when insufficient_privilege then null; end;
+  insert into public.shop_feedback (shop_id, vote, reasons)
+    values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{honest}')
+    on conflict (shop_id, user_id) do update set vote = excluded.vote, reasons = excluded.reasons;
+  insert into public.shop_feedback (shop_id, vote, reasons)
+    values ('aaaaaaaa-0000-0000-0000-000000000001', -1, '{}')
+    on conflict (shop_id, user_id) do update set vote = excluded.vote, reasons = excluded.reasons;
+  if (select vote from public.shop_feedback) <> -1 then raise exception 'FAIL: vote change did not apply'; end if;
+  begin
+    update public.shop_feedback set bill_backed = true;
+    raise exception 'FAIL: client updated bill_backed';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+delete from public.shop_feedback where user_id = '00000000-0000-0000-0000-000000000003';
+
 -- (e) shop_trust: nothing at 4 voters, a row at 5, bill-backed down-vote weighs 2
 -- Users 1..4 vote on shop 2 (user 1 already voted on shop 1 only).
 insert into public.shop_feedback (shop_id, user_id, vote, reasons, bill_backed)

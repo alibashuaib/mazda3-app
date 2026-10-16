@@ -125,7 +125,7 @@ async function afterPurchase(logged, shopIn, cur, vid) {
     if (!(await insights.shareEnabled())) return;
     const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
     contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
-    if (shop && shop.id) openShopFeedback(shop);
+    if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop);  // never stack on an open modal
   } catch (e) { /* shop features optional; save already succeeded */ }
 }
 
