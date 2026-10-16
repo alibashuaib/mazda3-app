@@ -244,6 +244,80 @@ alter table public.contributions enable row level security;
 alter table public.contribution_links enable row level security;
 -- No policies on purpose: RLS defaults to deny for every role except the owner.
 
+-- Shops: a shared, insert-only list (like price_items). No update/delete policy,
+-- so existing shops cannot be vandalised. name_norm is normalised by the client
+-- (lowercase, punctuation to space, collapsed whitespace); a different
+-- normalisation only risks a duplicate shop, never a wrong merge.
+create table if not exists public.shops (
+  id         uuid        primary key default gen_random_uuid(),
+  name       text        not null check (length(name) between 2 and 80),
+  name_norm  text        not null check (length(name_norm) between 2 and 80),
+  city       text        not null check (length(city) between 2 and 40),
+  area       text        check (length(area) <= 40),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists shops_norm_city_key
+  on public.shops (name_norm, lower(city));
+
+alter table public.shops enable row level security;
+drop policy if exists read_shops on public.shops;
+create policy read_shops on public.shops for select to authenticated using (true);
+drop policy if exists insert_shops on public.shops;
+create policy insert_shops on public.shops for insert to authenticated with check (true);
+grant select, insert on public.shops to authenticated;
+
+create table if not exists public.shop_feedback (
+  shop_id     uuid        not null references public.shops on delete cascade,
+  user_id     uuid        not null default auth.uid() references auth.users on delete cascade,
+  vote        smallint    not null check (vote in (-1, 1)),
+  reasons     text[]      not null default '{}' check (reasons <@ array['price','quality','honest','fast']),
+  bill_backed boolean     not null default false,
+  created_at  timestamptz not null default now(),
+  primary key (shop_id, user_id)
+);
+alter table public.shop_feedback enable row level security;
+drop policy if exists own_shop_feedback on public.shop_feedback;
+create policy own_shop_feedback on public.shop_feedback for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+grant select, insert, update, delete on public.shop_feedback to authenticated;
+
+alter table public.contributions
+  add column if not exists shop_id uuid references public.shops on delete set null;
+
+-- Owner-run (not security_invoker): shop_feedback is own-rows-only under RLS, so
+-- the aggregate must bypass it. Safe because the view only emits shops with >= 5
+-- voters and exposes counts, never user ids. One row per user per shop, so
+-- count(*) is the number of distinct voters. bill_backed votes weigh 2.
+create or replace view public.shop_trust as
+  select f.shop_id,
+         count(*) filter (where f.vote = 1)  as up,
+         count(*) filter (where f.vote = -1) as down,
+         count(*)                            as voters,
+         (sum(case when f.vote = 1 then (case when f.bill_backed then 2 else 1 end) else 0 end)::numeric
+           / sum(case when f.bill_backed then 2 else 1 end))::numeric(4,3) as score_share,
+         (select coalesce(array_agg(x.r order by x.cnt desc), '{}')
+            from (select r, count(*) as cnt
+                    from shop_feedback f2, unnest(f2.reasons) as r
+                   where f2.shop_id = f.shop_id and f2.vote = 1
+                   group by r order by cnt desc limit 2) x) as top_reasons
+  from shop_feedback f
+  group by f.shop_id
+  having count(*) >= 5;
+
+create or replace view public.store_prices as
+  select c.model_id, c.item_key, c.shop_id, s.name as shop_name, s.city, s.area,
+         (percentile_cont(0.5) within group (order by c.price))::numeric(10,2) as median_price,
+         count(*) as n
+  from contributions c
+  join contribution_links l on l.contribution_id = c.id
+  join shops s on s.id = c.shop_id
+  where c.kind = 'part' and c.price is not null
+  group by c.model_id, c.item_key, c.shop_id, s.name, s.city, s.area
+  having count(distinct l.user_id) >= 5;
+
+grant select on public.shop_trust, public.store_prices to authenticated;
+revoke all on public.shop_trust, public.store_prices from anon;
+
 create or replace function public.submit_contributions(rows jsonb) returns int
 language plpgsql security definer set search_path = public as $$
 declare r jsonb; cid uuid; n int := 0;
@@ -261,11 +335,11 @@ begin
       where user_id = auth.uid() and source_key = r->>'source_key';
     if cid is null then
       insert into contributions (kind, model_id, engine, odometer_band, month, l100,
-                                 price_per_l, item_key, brand, part_no, price, km_since_prev)
+                                 price_per_l, item_key, brand, part_no, price, km_since_prev, shop_id)
       values (r->>'kind', r->>'model_id', r->>'engine', (r->>'odometer_band')::int,
               r->>'month', (r->>'l100')::numeric, (r->>'price_per_l')::numeric,
               r->>'item_key', r->>'brand', r->>'part_no', (r->>'price')::numeric,
-              (r->>'km_since_prev')::int)
+              (r->>'km_since_prev')::int, (r->>'shop_id')::uuid)
       returning id into cid;
       insert into contribution_links (user_id, source_key, contribution_id)
         values (auth.uid(), r->>'source_key', cid);
@@ -274,7 +348,8 @@ begin
         engine = r->>'engine', odometer_band = (r->>'odometer_band')::int, month = r->>'month',
         l100 = (r->>'l100')::numeric, price_per_l = (r->>'price_per_l')::numeric,
         brand = r->>'brand', part_no = r->>'part_no', price = (r->>'price')::numeric,
-        km_since_prev = (r->>'km_since_prev')::int
+        km_since_prev = (r->>'km_since_prev')::int,
+        shop_id = (r->>'shop_id')::uuid
       where id = cid;
     end if;
     n := n + 1;
@@ -289,6 +364,7 @@ language plpgsql security definer set search_path = public as $$
 declare n int;
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
+  delete from shop_feedback where user_id = auth.uid();
   with gone as (
     delete from contributions where id in
       (select contribution_id from contribution_links where user_id = auth.uid())
