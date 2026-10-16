@@ -201,3 +201,24 @@ test('fuelContribution composes from a real full-to-full pair', () => {
   assert.strictEqual(row.odometer_band, 10000);
   assert.strictEqual(ins.fuelContribution({ modelId: 'mazda3bm', vehicleId: 'v', entry: a, l100: null }), null);
 });
+
+test('fuelInsight picks the user\'s band, else the nearest, and null with no data', () => {
+  const rows = [{ odometer_band: 50000, median_l100: 8.4, p25_l100: 7.9, p75_l100: 9.1 },
+                { odometer_band: 100000, median_l100: 9.0, p25_l100: 8.2, p75_l100: 9.8 }];
+  assert.strictEqual(ins.fuelInsight(rows, 52300, 7.8).typical, 8.4);
+  assert.strictEqual(ins.fuelInsight(rows, 52300, 7.8).diff, -0.6);
+  assert.strictEqual(ins.fuelInsight(rows, 90000, null).typical, 9.0);
+  assert.strictEqual(ins.fuelInsight(rows, 90000, null).diff, null);
+  assert.strictEqual(ins.fuelInsight([], 52300, 7.8), null);
+});
+
+test('partInsight chooses the longest-lasting brand and predicts the next change', () => {
+  const rows = [
+    { brand: 'Bosch', median_km: 55000, p25_km: 45000, p75_km: 60000, median_price: 180, n: 8 },
+    { brand: 'Cheap', median_km: 30000, p25_km: 25000, p75_km: 35000, median_price: 90, n: 9 }];
+  const out = ins.partInsight(rows, 15000, 52000);
+  assert.strictEqual(out.best.brand, 'Bosch');
+  assert.strictEqual(out.prediction.status, 'early');
+  assert.strictEqual(ins.partInsight(rows, null, 52000).prediction, null);
+  assert.strictEqual(ins.partInsight([], 15000, 52000), null);
+});

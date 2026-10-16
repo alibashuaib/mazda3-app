@@ -79,6 +79,22 @@ function renderFuel() {
     v.appendChild(card);
   }
 
+  const box = el('div', 'card');
+  box.hidden = true;
+  box.style.padding = '16px';
+  v.appendChild(box);
+  try {
+    const cur = session.current();
+    insights.getFuelStats(cur.car.modelId).then(rows => {
+      const info = insights.fuelInsight(rows, cur.car.odometer, last);
+      if (!info) return;
+      box.innerHTML = html`<h3>${t('Other owners of your model')}</h3>
+        <p>${t('Typical')}: ${info.typical.toFixed(1)} L/100km (${info.low.toFixed(1)}–${info.high.toFixed(1)})</p>
+        ${info.mine != null ? html`<p>${t('Yours')}: ${info.mine.toFixed(1)} L/100km</p>` : ''}`;
+      box.hidden = false;
+    }).catch(() => {});
+  } catch (e) { /* insight is optional */ }
+
   v.appendChild(sectionTitle('Fill-up log', '', null));
   const list = el('div', 'list');
   if (!rows.length) list.appendChild(emptyState('⛽', 'No fill-ups logged yet.\nTap "Add fill-up" after your next refuel.'));

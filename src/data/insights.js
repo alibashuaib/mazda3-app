@@ -48,6 +48,24 @@
     return { fromKm, toKm, usedKm: nowKm - lastKm, status: nowKm < fromKm ? 'early' : nowKm <= toKm ? 'inRange' : 'overdue' };
   }
 
+  function fuelInsight(stats, odometer, mine) {
+    if (!stats || !stats.length) return null;
+    const b = band(odometer);
+    const row = stats.slice().sort((x, y) => Math.abs(x.odometer_band - b) - Math.abs(y.odometer_band - b))[0];
+    const typical = Number(row.median_l100);
+    return { typical, low: Number(row.p25_l100), high: Number(row.p75_l100), mine: mine == null ? null : mine,
+             diff: mine == null ? null : round2(mine - typical) };
+  }
+
+  function partInsight(rows, lastKm, nowKm) {
+    if (!rows || !rows.length) return null;
+    const best = rows.slice().sort((a, b) => (b.median_km - a.median_km) || (a.median_price - b.median_price))[0];
+    return {
+      best: { brand: best.brand, medianKm: best.median_km, medianPrice: best.median_price, n: best.n },
+      prediction: lastKm == null ? null : predictNext(best, lastKm, nowKm)
+    };
+  }
+
   /* ---- Network + consent. Every call resolves; failures never block local saves. ---- */
   let env = { client: null, metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) };
   const DEFAULT_ENV = env;
@@ -89,5 +107,5 @@
   const getFuelStats = modelId => stats('fuel_stats', { modelId });
   const getBrandLife = (modelId, itemKey) => stats('brand_life', { modelId, itemKey });
 
-  return { band, monthOf, fuelContribution, partContributions, predictNext, configure, reset, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife };
+  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife };
 });

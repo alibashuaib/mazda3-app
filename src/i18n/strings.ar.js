@@ -398,7 +398,13 @@ const AR = {
   'Keep this device’s garage': 'الاحتفاظ ببيانات هذا الجهاز',
   'Use my account’s garage': 'استخدام بيانات حسابي',
   'You have data here and in your account': 'لديك بيانات هنا وفي حسابك',
-  'Choose which one to keep. The other is replaced.': 'اختر أيهما تريد الاحتفاظ به. سيتم استبدال الآخر.'
+  'Choose which one to keep. The other is replaced.': 'اختر أيهما تريد الاحتفاظ به. سيتم استبدال الآخر.',
+  'Other owners of your model': 'ملاك آخرون لنفس طرازك',
+  'Typical': 'المعتاد',
+  'Yours': 'سيارتك',
+  'Longest-lasting brand': 'العلامة الأطول عمراً',
+  'Typical replacement': 'الاستبدال المعتاد',
+  'km since the last one': 'كم منذ آخر مرة'
 };
 
   return { AR };
