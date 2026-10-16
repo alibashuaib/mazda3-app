@@ -14,8 +14,7 @@
 
   /* Record lists that may carry a photo, shared with applyPhotoIds. */
   const PHOTO_LISTS = ['history', 'spending'];
-  /* Every record list a vehicle's data can hold, shared with normalizeRecords
-     and importFaults so the three stay in sync by construction. */
+  /* Every record list a vehicle's data can hold, shared with normalizeRecords.  */
   const RECORD_LISTS = ['history', 'spending', 'fuel', 'docs', 'parts', 'services'];
 
   /* Fields that may carry an image, as [containerGetter, key] pairs. */
@@ -181,80 +180,6 @@
     const keep = [];
     (vehicles || []).forEach(v => photoIdsIn(v && v.data).forEach(id => { if (keep.indexOf(id) < 0) keep.push(id); }));
     return (storedIds || []).filter(id => keep.indexOf(id) < 0);
-  }
-
-  const EXPORT_FORMAT = 'garage-export';
-
-  /* A photos map is expected to be id -> data: URL, ready to embed in JSON.
-     A caller that forgot to convert IDB's Blobs first would otherwise have
-     each one serialise as {} — a backup that silently contains no images
-     rather than an error. Drop anything that is not a data: URL and warn,
-     rather than write a corrupt entry. */
-  function buildExport(garage, photosById, nowIso) {
-    const photos = {};
-    Object.keys(photosById || {}).forEach(id => {
-      const v = photosById[id];
-      if (isDataUrl(v)) photos[id] = v;
-      else console.warn('[storage] dropping non-data-URL photo from export', id);
-    });
-    return { format: EXPORT_FORMAT, version: 1, exportedAt: nowIso, garage, photos };
-  }
-
-  /* Validates hard enough that the caller can replace the live garage without
-     checking anything itself. An import that parses but has no usable vehicle
-     would otherwise throw halfway through the restore, after the in-memory
-     garage has already been overwritten. */
-  function parseImport(text) {
-    let obj;
-    try { obj = JSON.parse(text); }
-    catch (e) { return { ok: false, error: 'That file is not valid JSON.' }; }
-    if (!obj || obj.format !== EXPORT_FORMAT) return { ok: false, error: 'That is not a Garage backup file.' };
-    if (obj.version !== 1) return { ok: false, error: 'That backup file was made by a version of Garage this app does not support.' };
-    if (!obj.garage || !Array.isArray(obj.garage.vehicles)) return { ok: false, error: 'That backup file is incomplete.' };
-    if (!obj.garage.vehicles.length) return { ok: false, error: 'That backup file has no vehicles in it.' };
-    const faults = importFaults(obj.garage.vehicles);
-    if (faults.length) return { ok: false, error: 'That backup file is damaged.', faults };
-    if (obj.photos && (typeof obj.photos !== 'object' || Array.isArray(obj.photos))) {
-      return { ok: false, error: 'That backup file is damaged.', faults: ['photos is not an object'] };
-    }
-    /* Structure (the photos dict itself) must be sound to get here; individual
-       CONTENT is repaired, same philosophy as importFaults — a bad value in
-       one slot must not sink an otherwise-restorable backup. */
-    const photos = {};
-    Object.keys(obj.photos || {}).forEach(id => {
-      const v = obj.photos[id];
-      if (isDataUrl(v)) photos[id] = v;
-      else console.warn('[storage] dropping unreadable photo from import', id);
-    });
-    return { ok: true, garage: obj.garage, photos };
-  }
-
-  /* Structural faults that make a backup unrestorable, as a list of readable
-     reasons (surfaced to the console; the user sees the one-line error).
-
-     The line is deliberate: STRUCTURE must be sound, CONTENT is repaired.
-     A vehicle with no id, or a `history` that is a string rather than a list,
-     is damage — there is no sane restore. A record missing its date or cost is
-     not: normalizeRecords fills those, and rejecting them would refuse a
-     backup exported after an earlier repair, which legitimately carries empty
-     dates. Rejecting those would make the repair path a one-way trip.
-     RECORD_LISTS is shared with normalizeRecords — see the top of the module. */
-  function importFaults(vehicles) {
-    const faults = [];
-    vehicles.forEach((v, i) => {
-      const where = `vehicle ${i + 1}`;
-      if (!v || typeof v !== 'object' || Array.isArray(v)) { faults.push(`${where} is not an object`); return; }
-      if (!v.id || typeof v.id !== 'string') faults.push(`${where} has no id`);
-      if (!v.data || typeof v.data !== 'object' || Array.isArray(v.data)) { faults.push(`${where} has no data`); return; }
-      if ('car' in v.data && (typeof v.data.car !== 'object' || Array.isArray(v.data.car))) faults.push(`${where}: car is not an object`);
-      RECORD_LISTS.forEach(k => {
-        if (!(k in v.data)) return;                       // absent is fine — normalizeRecords creates it
-        if (!Array.isArray(v.data[k])) { faults.push(`${where}: ${k} is not a list`); return; }
-        const bad = v.data[k].filter(e => !e || typeof e !== 'object' || Array.isArray(e)).length;
-        if (bad) faults.push(`${where}: ${k} has ${bad === 1 ? '1 entry that is not a record' : bad + ' entries that are not records'}`);
-      });
-    });
-    return faults;
   }
 
   /* data: URL -> Blob. Returns null for anything unreadable — not a data:
@@ -800,8 +725,8 @@
   function backendKind() { return backend ? backend.kind : null; }
 
   return {
-    shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds, buildExport, parseImport,
-    photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults,
+    shouldTryIndexedDb, splitPhotos, inlinePhotos, collectInlinePhotos, applyPhotoIds,
+    photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords,
     parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind,
     outboxAdd, outboxAll, outboxRemove, metaGet, metaSet, getPhotoBlob, putPhotoBlob,

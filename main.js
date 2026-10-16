@@ -157,130 +157,11 @@ function kickSync() {
   if (typeof navigator === 'undefined' || navigator.onLine !== false) account.drain();
 }
 
-/* A backup the user controls, before any server exists. Photos are inlined
-   as base64 so a single file is the whole garage. */
-async function exportGarage() {
-  // session.photos() hands back the live cache; read it once so every id and
-  // blob below comes from the same snapshot instead of whatever the session
-  // happens to hold at the moment each individual lookup runs.
-  try {
-    const live = session.photos();
-    const photos = {};
-    await Promise.all(Object.keys(live).map(async id => { photos[id] = await blobToDataUrl(live[id]); }));
-    const payload = buildExport(session.garage(), photos, new Date().toISOString());
-    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `garage-backup-${isoDate(today())}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    toast('Backup downloaded');
-  } catch (err) {
-    // blobToDataUrl() reads each photo Blob with blob.arrayBuffer(), which can
-    // reject; left unhandled this was a silent unhandled-rejection with no
-    // feedback to the user at all.
-    console.error(err);
-    toast('Could not create a backup. Please try again.', 'warn');
-  }
-}
-
-/* Import **replaces** the garage. It must ask first — this is destructive. */
-function importGarage(file) {
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const parsed = parseImport(reader.result);
-    if (!parsed.ok) {
-      // The toast has room for one line; the specifics go where they can be read.
-      if (parsed.faults) console.warn('Backup rejected:', parsed.faults.join('; '));
-      return toast(parsed.error, 'warn');
-    }
-    if (!confirm(t('Importing replaces everything currently in your garage. Continue?'))) return;
-    // The garage and the photo cache must change together: normalize every
-    // vehicle first (still touching only `parsed`, not session state), THEN
-    // swap the photo cache, THEN call session.setVehicles(). A throw during
-    // normalizing now lands before anything session-owned has been touched,
-    // so the OLD garage is never left paired with the IMPORTED photo cache.
-    // parseImport validates the shape; this catches everything else.
-    try {
-      // Kept as full records, not just ids: the loop below that tombstones
-      // dropped vehicles needs each one's photoIds, and by then setVehicles()
-      // has already replaced session.garage() with the imported data.
-      const priorVehicles = session.garage().vehicles;
-      const priorIds = priorVehicles.map(v => v.id);
-      // The backup's .photo fields are stale blob: URLs from the exporting session.
-      // Restore real data: URLs from the backup's own photos dict, or splitPhotos
-      // will treat them as already-stored and persist nothing.
-      parsed.garage.vehicles.forEach(v => {
-        // A backup from the localStorage backend carries its images inline; one from
-        // IndexedDB carries them in `photos` with stale blob: URLs in the records.
-        // Merge both so neither origin loses data. collectInlinePhotos ignores blob: URLs.
-        const merged = Object.assign(collectInlinePhotos(v.data), parsed.photos);
-        v.data = inlinePhotos(v.data, merged);
-        normalizeData(v.data);
-      });
-      // Build the replacement cache in a scratch object first, touching nothing
-      // session-owned. Only once every dataUrlToBlob() call below has returned —
-      // so a throw partway through decoding a malformed entry lands before
-      // anything session-owned has been touched — do we clear the live cache and
-      // fill it from the scratch one. The old ordering (empty the live cache,
-      // then refill it in place) left the OLD garage paired with an EMPTIED
-      // cache if the refill loop ever threw partway through; this can't.
-      const newPhotos = {};
-      Object.keys(parsed.photos).forEach(id => {
-        const blob = dataUrlToBlob(parsed.photos[id]);
-        if (blob) newPhotos[id] = blob;
-      });
-      // session.photos() hands back the live cache, not a settable property —
-      // swap its contents for the scratch object's, all in one go now that
-      // every entry in it is known good.
-      const cache = session.photos();
-      Object.keys(cache).forEach(id => { delete cache[id]; });
-      Object.assign(cache, newPhotos);
-      // setVehicles picks the backup's activeId, or vehicles[0] if it is missing.
-      session.setVehicles(parsed.garage.vehicles, parsed.garage.activeId);
-      let ok = true;
-      for (const v of session.garage().vehicles) {
-        const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
-        if (!res.ok) ok = false;
-        // Same reason as openAddVehicle: a direct saveVehicle() never reaches
-        // session.save()'s afterSave hook, so an imported vehicle would be
-        // deleted as stale by the next boot's adopt() — and its photos, left
-        // unenqueued, would upload nowhere, leaving other devices to pull a
-        // vehicle whose photoId references 404. kickSync() is sequenced after
-        // both enqueues settle, not fired synchronously — see the matching
-        // comment in openAddVehicle for why.
-        else {
-          Promise.all([account.enqueueVehicle(v.id, res.data)].concat(res.photoIds.map(pid => account.enqueuePhoto(pid)))).then(kickSync);
-        }
-      }
-      // The imported activeId, same reason: only enqueueGarage() gets it to the
-      // server, and only once — not per vehicle — since it does not change
-      // inside the loop above.
-      account.enqueueGarage(session.garage().activeId).then(kickSync);
-      // The user confirmed a replace, not a merge — drop vehicles the backup does not contain.
-      const keptIds = session.garage().vehicles.map(v => v.id);
-      for (const id of priorIds) {
-        if (keptIds.indexOf(id) < 0) {
-          const doomed = priorVehicles.find(v => v.id === id);
-          const photoIds = doomed ? photoIdsIn(doomed.data) : [];
-          await removeVehicle(id, session.garage().activeId);
-          account.enqueueTombstone(id, photoIds).then(kickSync);
-        }
-      }
-      // The save loop minted fresh photo ids, so re-read from storage to bring
-      // memory back in sync with what was actually persisted. session.load()
-      // is exactly that read plus the hydrate the boot path uses.
-      await session.load();
-      closeModal();
-      applyAccent(); renderTopbar(); go('dashboard');
-      toast(ok ? 'Garage restored' : 'Restored, but some data could not be saved', ok ? undefined : 'warn');
-    } catch (err) {
-      console.error(err);
-      toast('That backup could not be restored. Please reload the page.', 'warn');
-    }
-  };
-  reader.onerror = () => toast('Could not read that file.', 'warn');
-  reader.readAsText(file);
+/* Fire-and-forget: queue anonymous insight rows when the user opted in.
+   Must never reject or delay a local save. */
+function contribute(rows) {
+  if (!rows || !rows.length) return;
+  insights.shareEnabled().then(on => on && account.enqueueContribution(rows)).then(kickSync).catch(() => {});
 }
 
 /* What is dragging the score down — a bare number is not actionable. */
@@ -668,6 +549,7 @@ function connectBackend() {
   const client = supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY);
   account.configure({ client });
   pricing.configure({ client });
+  insights.configure({ client, metaGet, metaSet });
   remoteCatalog.configure({ client });
   catalogAdmin.configure({ client });
 }
@@ -696,7 +578,10 @@ account.configure({
      was set for, so without this the previous car's accent colour would
      stay painted across a sign-out that leaves no vehicle behind. */
   rerender: () => { applyAccent(); renderTopbar(); go(current); },
-  choose: askWhichGarage
+  choose: askWhichGarage,
+  submitContributions: rows => insights.submit(rows),
+  shareEnabled: () => insights.shareEnabled(),
+  flushPendingDelete: () => insights.flushPendingDelete()
 });
 
 // The cache needs no backend: offline and file:// still apply the last plan seen.
@@ -732,6 +617,14 @@ session.load()
     backend
       .then(() => { if (current === 'admin') go('admin'); })   // #admin painted before the client existed
       .then(() => account.start())
+      .then(() => {
+        if (!account.user()) return;
+        return insights.syncPrefs().then(() => { insights.flushPendingDelete(); return insights.noticeSeen(); }).then(async seen => {
+          if (seen) return;
+          await insights.markNoticeSeen();   /* before the toast, so a second tab/boot cannot repeat it */
+          if (await insights.shareEnabled()) toast('Your anonymous car data now helps other owners. Turn it off in the menu.');
+        });
+      })
       .then(() => catalogAdmin.isAdmin())
       .catch(err => console.error('account.start() failed:', err));
     // Same rule as account.start(): after first paint, and never fatal.
@@ -748,7 +641,7 @@ session.load()
   });
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { account.sync(); });
+  window.addEventListener('online', () => { account.sync(); if (account.user()) insights.flushPendingDelete(); });
   window.__hasOnlineSyncListener = true;   /* Test seam only. e2e presence check only. */
 }
 

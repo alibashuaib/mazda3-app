@@ -407,31 +407,27 @@ function buildAccountMenu(menu) {
   };
   menu.appendChild(dark);
 
+  /* Signed-out users have nothing shared, so no control for them. */
+  if (account.user()) {
+    const share = menuItem('Share anonymous data', 'menuitemcheckbox', null, '🤝');
+    share.setAttribute('aria-checked', 'true');
+    insights.shareEnabled().then(on => share.setAttribute('aria-checked', String(on)));
+    share.onclick = async () => {
+      const on = share.getAttribute('aria-checked') !== 'true';
+      share.setAttribute('aria-checked', String(on));
+      const ok = await insights.setShare(on);
+      toast(on ? 'Sharing anonymous data'
+        : ok ? 'Stopped sharing and removed your shared data'
+          : 'Stopped sharing. Your shared data will be removed when you are back online.');
+    };
+    menu.appendChild(share);
+  }
+
   const nextLanguage = lang === 'ar' ? t('English') : 'العربية';
   menu.appendChild(menuItem(nextLanguage, 'menuitem', () => {
     closeAccountMenu(false);
     applyLang(lang === 'ar' ? 'en' : 'ar');
   }, '🌐', true));
-
-  menu.appendChild(menuItem('Export backup', 'menuitem', () => {
-    closeAccountMenu(false);
-    exportGarage();
-  }, '📤'));
-
-  menu.appendChild(menuItem('Import backup', 'menuitem', () => {
-    closeAccountMenu(false);
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.hidden = true;
-    input.onchange = ev => {
-      const file = ev.target.files && ev.target.files[0];
-      if (file) importGarage(file);
-      input.remove();
-    };
-    document.body.appendChild(input);
-    input.click();
-  }, '📥'));
 
   /* No "Settings"/"Car profile" entry here on purpose: the topbar's own car
      button (#openProfile) already opens this same dialog, and having it in

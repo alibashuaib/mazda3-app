@@ -1,9 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { shouldTryIndexedDb, splitPhotos, inlinePhotos, buildExport, parseImport } = require('../src/data/storage.js');
+const { shouldTryIndexedDb, splitPhotos, inlinePhotos } = require('../src/data/storage.js');
 const { parseLegacyV1, migrationPlan, applyPhotoIds } = require('../src/data/storage.js');
-const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords, importFaults } = require('../src/data/storage.js');
+const { photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords } = require('../src/data/storage.js');
 const { dataUrlToBlob, blobToDataUrl } = require('../src/data/storage.js');
 const { collectInlinePhotos } = require('../src/data/storage.js');
 const { openStorage } = require('../src/data/storage.js');
@@ -103,107 +103,7 @@ test('inlinePhotos leaves a missing photo empty rather than throwing', () => {
    record missing its date can — and a backup exported after an earlier repair
    legitimately carries empty dates, so rejecting those would make the repair
    path a one-way trip. */
-const wrapExport = garage => JSON.stringify(buildExport(garage, {}, '2026-08-16T00:00:00Z'));
 const oneVehicle = data => ({ vehicles: [{ id: 'v1', data }], activeId: 'v1' });
-
-test('buildExport drops photo values that are not data: URLs and warns', () => {
-  const origWarn = console.warn;
-  const warnings = [];
-  console.warn = (...args) => warnings.push(args.join(' '));
-  try {
-    const photosById = { p1: DATA_URL, p2: 'blob:http://x/y', p3: {}, p4: null };
-    const out = buildExport({ vehicles: [] }, photosById, '2026-08-16T00:00:00Z');
-    assert.deepStrictEqual(out.photos, { p1: DATA_URL }, 'a Blob map must not serialise as garbage in the backup');
-    assert.strictEqual(warnings.length, 3, 'one warning per dropped entry');
-  } finally { console.warn = origWarn; }
-});
-
-test('parseImport rejects structurally damaged vehicles', () => {
-  const cases = [
-    ['record list is a string', { car: {}, history: 'nope' }],
-    ['record list holds a null', { car: {}, spending: [null] }],
-    ['record list holds a string', { car: {}, fuel: ['junk'] }],
-    ['record list holds a number', { car: {}, docs: [42] }],
-    ['record list holds an array', { car: {}, parts: [[]] }],
-    ['car is not an object', { car: 'a car' }],
-    ['car is an array', { car: [] }]
-  ];
-  for (const [label, data] of cases) {
-    const out = parseImport(wrapExport(oneVehicle(data)));
-    assert.strictEqual(out.ok, false, `${label} should be rejected`);
-    assert.ok(out.faults && out.faults.length, `${label} should say why`);
-  }
-});
-
-test('parseImport rejects a damaged vehicle wrapper', () => {
-  assert.strictEqual(parseImport(wrapExport({ vehicles: [null], activeId: null })).ok, false);
-  assert.strictEqual(parseImport(wrapExport({ vehicles: [{ data: { car: {} } }] })).ok, false);          // no id
-  assert.strictEqual(parseImport(wrapExport({ vehicles: [{ id: 7, data: { car: {} } }] })).ok, false);   // id not a string
-  assert.strictEqual(parseImport(wrapExport({ vehicles: [{ id: 'v', data: [] }] })).ok, false);          // data is an array
-});
-
-test('parseImport rejects a damaged photos dictionary', () => {
-  const text = JSON.stringify(Object.assign(
-    JSON.parse(wrapExport(oneVehicle({ car: {} }))), { photos: ['not', 'a', 'dict'] }));
-  assert.strictEqual(parseImport(text).ok, false);
-});
-
-test('parseImport rejects a backup with the wrong version', () => {
-  const text = JSON.stringify(Object.assign(
-    JSON.parse(wrapExport(oneVehicle({ car: {} }))), { version: 2 }));
-  const out = parseImport(text);
-  assert.strictEqual(out.ok, false);
-  assert.ok(/version/i.test(out.error));
-
-  const noVersion = JSON.parse(wrapExport(oneVehicle({ car: {} })));
-  delete noVersion.version;
-  assert.strictEqual(parseImport(JSON.stringify(noVersion)).ok, false);
-});
-
-test('parseImport repairs bad photo values instead of rejecting the whole backup', () => {
-  const base = JSON.parse(wrapExport(oneVehicle({ car: {} })));
-  base.photos = { p1: DATA_URL, p2: 'not-a-data-url', p3: 42, p4: null };
-  const origWarn = console.warn;
-  const warnings = [];
-  console.warn = (...args) => warnings.push(args.join(' '));
-  try {
-    const out = parseImport(JSON.stringify(base));
-    assert.strictEqual(out.ok, true, 'content is repaired, structure is still sound');
-    assert.deepStrictEqual(out.photos, { p1: DATA_URL });
-    assert.strictEqual(warnings.length, 3);
-  } finally { console.warn = origWarn; }
-});
-
-test('parseImport still accepts a sparse but sound backup', () => {
-  // absent lists, and records missing the fields normalizeRecords repairs
-  assert.strictEqual(parseImport(wrapExport(oneVehicle({ car: {} }))).ok, true);
-  assert.strictEqual(parseImport(wrapExport(oneVehicle({}))).ok, true);
-  const sparse = { car: { nickname: 'X' }, history: [{ id: 'h1' }], spending: [{ id: 's1', date: '' }], parts: [{ name: 'Filter' }] };
-  const out = parseImport(wrapExport(oneVehicle(sparse)));
-  assert.strictEqual(out.ok, true, 'repairable content must not be rejected');
-});
-
-test('parseImport reports every fault it found, not just the first', () => {
-  const garage = { vehicles: [
-    { id: 'v1', data: { car: {}, history: 'nope', spending: [null] } },
-    { data: { car: {} } }
-  ], activeId: 'v1' };
-  const out = parseImport(wrapExport(garage));
-  assert.strictEqual(out.ok, false);
-  assert.ok(out.faults.length >= 3, `expected several faults, got ${JSON.stringify(out.faults)}`);
-  assert.ok(out.faults.some(f => f.includes('vehicle 2')), 'faults should name which vehicle');
-});
-
-test('importFaults returns nothing for a healthy garage', () => {
-  assert.deepStrictEqual(importFaults([{ id: 'v1', data: { car: {}, history: [{ id: 'h' }], parts: [] } }]), []);
-});
-
-test('importFaults counts bad entries in readable English', () => {
-  const one = importFaults([{ id: 'v1', data: { history: [null] } }]);
-  assert.deepStrictEqual(one, ['vehicle 1: history has 1 entry that is not a record']);
-  const many = importFaults([{ id: 'v1', data: { history: [null, 'x', 3] } }]);
-  assert.deepStrictEqual(many, ['vehicle 1: history has 3 entries that are not records']);
-});
 
 /* Regression for the boot crashes found by sweeping every route against
    malformed payloads. Each of these fields is read with a string or array
@@ -364,36 +264,9 @@ test('applyPhotoIds tolerates missing arrays and null records', () => {
   assert.doesNotThrow(() => applyPhotoIds(null, { car: {} }));
 });
 
-test('buildExport is self-describing and parseImport round-trips it', () => {
-  const garage = { vehicles: [{ id: 'v', data: { car: {} } }], activeId: 'v' };
-  const text = JSON.stringify(buildExport(garage, { p1: DATA_URL }, '2026-08-11T00:00:00Z'));
-  const out = parseImport(text);
-  assert.strictEqual(out.ok, true);
-  assert.deepStrictEqual(out.garage, garage);
-  assert.strictEqual(out.photos.p1, DATA_URL);
-});
-
-test('parseImport rejects junk and foreign files without throwing', () => {
-  assert.strictEqual(parseImport('not json').ok, false);
-  assert.strictEqual(parseImport('{"hello":1}').ok, false);
-  assert.strictEqual(parseImport(JSON.stringify({ format: 'something-else' })).ok, false);
-  assert.strictEqual(typeof parseImport('not json').error, 'string');
-});
-
 /* The restore path replaces the live garage before it touches storage, so a
    backup that parses but cannot be restored must be rejected here, not throw
    halfway through. */
-test('parseImport rejects a backup with no usable vehicle', () => {
-  const wrap = garage => JSON.stringify(buildExport(garage, {}, '2026-08-16T00:00:00Z'));
-  assert.strictEqual(parseImport(wrap({ vehicles: [], activeId: null })).ok, false);
-  assert.strictEqual(parseImport(wrap({ vehicles: [{ id: 'v' }], activeId: 'v' })).ok, false);        // no data
-  assert.strictEqual(parseImport(wrap({ vehicles: [{ data: { car: {} } }] })).ok, false);             // no id
-  assert.strictEqual(parseImport(wrap({ vehicles: [null] })).ok, false);
-  assert.strictEqual(parseImport(wrap({ vehicles: [{ id: 'v', data: 'nope' }] })).ok, false);
-  assert.strictEqual(parseImport(wrap({ vehicles: [{ id: 'v', data: { car: {} } }], activeId: 'v' })).ok, true);
-  assert.strictEqual(typeof parseImport(wrap({ vehicles: [] })).error, 'string');
-});
-
 /* Regression: Phase 2 dropped the v1 read entirely, so a user who had not
    opened the app since the single-car days booted into a blank seeded car and
    the first save wrote that seed over their garage slot. */

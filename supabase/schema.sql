@@ -182,6 +182,170 @@ grant select, insert on public.price_items to authenticated;
 grant select, insert, update, delete on public.price_observations to authenticated;
 grant select on public.price_item_averages to authenticated;
 
+-- Community insights. See docs/superpowers/specs/2026-10-16-community-insights-design.md.
+-- Neither table below grants anything to `authenticated`: users reach them only
+-- through the two RPCs (write) and the aggregate views (read).
+create table if not exists public.contributions (
+  id             uuid        primary key default gen_random_uuid(),
+  kind           text        not null check (kind in ('fuel', 'part')),
+  model_id       text        not null,
+  engine         text,
+  odometer_band  int         not null check (odometer_band >= 0),
+  month          text        not null check (month ~ '^\d{4}-\d{2}$'),
+  l100           numeric     check (l100 between 1 and 40),
+  price_per_l    numeric     check (price_per_l > 0),
+  item_key       text,
+  brand          text,
+  part_no        text,
+  price          numeric     check (price > 0),
+  km_since_prev  int         check (km_since_prev > 0),
+  created_at     timestamptz not null default now()
+);
+
+create table if not exists public.contribution_links (
+  user_id         uuid not null references auth.users on delete cascade,
+  source_key      text not null,
+  contribution_id uuid not null references public.contributions on delete cascade,
+  primary key (user_id, source_key)
+);
+create index if not exists contribution_links_cid_idx on public.contribution_links (contribution_id);
+
+-- Hardening CHECKs. NOT VALID: enforced for new writes, never fails on pre-existing rows.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'contributions_len_chk') then
+    alter table public.contributions add constraint contributions_len_chk check (
+      length(brand) <= 80 and length(part_no) <= 80 and length(engine) <= 80
+      and length(model_id) <= 80 and length(item_key) <= 80) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'contributions_band_chk') then
+    alter table public.contributions add constraint contributions_band_chk check (odometer_band % 5000 = 0) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'contributions_month_chk') then
+    alter table public.contributions add constraint contributions_month_chk
+      check (month ~ '^\d{4}-(0[1-9]|1[0-2])$') not valid;
+  end if;
+end $$;
+
+-- Account deletion must erase contributions too: the links cascade from auth.users
+-- but the rows they point at do not, so delete them first (links still exist here).
+create or replace function public.erase_user_contributions() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from contributions where id in
+    (select contribution_id from contribution_links where user_id = old.id);
+  return old;
+end $$;
+revoke all on function public.erase_user_contributions() from public;
+drop trigger if exists erase_user_contributions on auth.users;
+create trigger erase_user_contributions before delete on auth.users
+  for each row execute function public.erase_user_contributions();
+
+alter table public.contributions enable row level security;
+alter table public.contribution_links enable row level security;
+-- No policies on purpose: RLS defaults to deny for every role except the owner.
+
+create or replace function public.submit_contributions(rows jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare r jsonb; cid uuid; n int := 0;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  if jsonb_typeof(rows) <> 'array' or jsonb_array_length(rows) > 50 then
+    raise exception 'bad rows';
+  end if;
+  for r in select * from jsonb_array_elements(rows) loop
+    -- Invalid rows are skipped individually; one bad row must not sink the batch.
+    continue when jsonb_typeof(r) <> 'object' or r->>'kind' is null or r->>'kind' not in ('fuel', 'part')
+      or r->>'source_key' is null or coalesce(r->>'month', '') !~ '^\d{4}-(0[1-9]|1[0-2])$';
+    begin
+    select contribution_id into cid from contribution_links
+      where user_id = auth.uid() and source_key = r->>'source_key';
+    if cid is null then
+      insert into contributions (kind, model_id, engine, odometer_band, month, l100,
+                                 price_per_l, item_key, brand, part_no, price, km_since_prev)
+      values (r->>'kind', r->>'model_id', r->>'engine', (r->>'odometer_band')::int,
+              r->>'month', (r->>'l100')::numeric, (r->>'price_per_l')::numeric,
+              r->>'item_key', r->>'brand', r->>'part_no', (r->>'price')::numeric,
+              (r->>'km_since_prev')::int)
+      returning id into cid;
+      insert into contribution_links (user_id, source_key, contribution_id)
+        values (auth.uid(), r->>'source_key', cid);
+    else
+      update contributions set
+        engine = r->>'engine', odometer_band = (r->>'odometer_band')::int, month = r->>'month',
+        l100 = (r->>'l100')::numeric, price_per_l = (r->>'price_per_l')::numeric,
+        brand = r->>'brand', part_no = r->>'part_no', price = (r->>'price')::numeric,
+        km_since_prev = (r->>'km_since_prev')::int
+      where id = cid;
+    end if;
+    n := n + 1;
+    exception when others then null;  -- bad cast / CHECK violation: skip this row
+    end;
+  end loop;
+  return n;
+end $$;
+
+create or replace function public.delete_my_contributions() returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  with gone as (
+    delete from contributions where id in
+      (select contribution_id from contribution_links where user_id = auth.uid())
+    returning 1)
+  select count(*) into n from gone;
+  return n;
+end $$;
+
+revoke all on function public.submit_contributions(jsonb), public.delete_my_contributions() from public;
+grant execute on function public.submit_contributions(jsonb), public.delete_my_contributions() to authenticated;
+
+-- Owner-run views (NOT security_invoker): they must count distinct users in
+-- contribution_links, which no signed-in user can read. The HAVING clause is
+-- the 5-contributor privacy floor.
+create or replace view public.fuel_stats as
+  select c.model_id, c.engine, c.odometer_band,
+         (percentile_cont(0.5)  within group (order by c.l100))::numeric(5,2) as median_l100,
+         (percentile_cont(0.25) within group (order by c.l100))::numeric(5,2) as p25_l100,
+         (percentile_cont(0.75) within group (order by c.l100))::numeric(5,2) as p75_l100,
+         count(*) as n
+  from contributions c join contribution_links l on l.contribution_id = c.id
+  where c.kind = 'fuel' and c.l100 is not null
+  group by c.model_id, c.engine, c.odometer_band
+  having count(distinct l.user_id) >= 5;
+
+create or replace view public.brand_life as
+  select c.model_id, c.item_key, c.brand,
+         percentile_cont(0.5)  within group (order by c.km_since_prev) as median_km,
+         percentile_cont(0.25) within group (order by c.km_since_prev) as p25_km,
+         percentile_cont(0.75) within group (order by c.km_since_prev) as p75_km,
+         (percentile_cont(0.5) within group (order by c.price))::numeric(10,2) as median_price,
+         count(*) as n
+  from contributions c join contribution_links l on l.contribution_id = c.id
+  where c.kind = 'part' and c.km_since_prev is not null and c.price is not null
+  group by c.model_id, c.item_key, c.brand
+  having count(distinct l.user_id) >= 5;
+
+grant select on public.fuel_stats, public.brand_life to authenticated;
+
+-- Per-user sharing preference, so opt-out survives sign-out and new devices.
+create table if not exists public.insights_prefs (
+  user_id     uuid primary key default auth.uid() references auth.users on delete cascade,
+  share       boolean not null default true,
+  notice_seen boolean not null default false,
+  updated_at  timestamptz not null default now()
+);
+alter table public.insights_prefs enable row level security;
+drop policy if exists own_insights_prefs on public.insights_prefs;
+create policy own_insights_prefs on public.insights_prefs for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+grant select, insert, update on public.insights_prefs to authenticated;
+
+-- Supabase default privileges may auto-grant on new public objects; strip them.
+revoke all on public.contributions, public.contribution_links from anon, authenticated;
+revoke all on public.fuel_stats, public.brand_life from anon;
+revoke execute on function public.submit_contributions(jsonb), public.delete_my_contributions() from anon;
+
 -- ============================================================
 -- Phase 5a: shared catalogue, roles, dealer plans.
 -- Spec: docs/superpowers/specs/2026-10-15-community-plans-design.md

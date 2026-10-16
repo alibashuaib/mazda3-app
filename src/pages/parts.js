@@ -78,6 +78,22 @@ function renderParts() {
        exact label (openReportPrice below seeds it that way). Parts with no
        submissions yet simply render no badge — there's no placeholder text
        for "no data", only for the modal's own empty state. */
+    if (insights.available()) items.forEach(p => {
+      try {
+        const cur = session.current();
+        const key = p.name.toLowerCase().trim();
+        const lastH = (cur.history || []).filter(h => (h.parts || []).some(q => String(q.part || '').toLowerCase().trim() === key))
+          .sort((a, b) => b.odometer - a.odometer)[0];
+        insights.getBrandLife(cur.car.modelId, key).then(rows => {
+          const info = insights.partInsight(rows, lastH ? lastH.odometer : null, cur.car.odometer);
+          const slot = info && document.getElementById(`life_${p.id}`);
+          if (!slot) return;
+          const pr = info.prediction;
+          slot.textContent = `${t('Longest-lasting brand')}: ${info.best.brand} (~${info.best.medianKm} km, SAR ${info.best.medianPrice})` +
+            (pr ? ` · ${t('Typical replacement')}: ${pr.fromKm}–${pr.toKm} km — ${pr.usedKm} ${t('km since the last one')}` : '');
+        }).catch(() => {});
+      } catch (e) { /* insight is optional */ }
+    });
     if (pricing.available()) {
       items.forEach(p => {
         pricing.findExactItem(p.name).then(match => {
@@ -129,6 +145,7 @@ function partCard(p) {
         <div style="font-weight:750;font-size:14px">${t('from')} ${sar(cheapest)} <span class="muted" style="font-size:11px">SAR</span></div>
         <div class="muted" style="font-size:11px">${p.options.length} ${t('options')}</div>
         <div class="muted" id="avg_${p.id}" style="font-size:11px;margin-top:2px"></div>
+        <div class="muted" id="life_${p.id}" style="font-size:11px;margin-top:2px"></div>
       </div>
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>

@@ -165,6 +165,41 @@ test('enqueueVehicle is a no-op when signed out', async () => {
   assert.strictEqual(await account.outboxSize(), 0);
 });
 
+test('a contribution entry drains through submitContributions and is removed on success', async () => {
+  await freshStorage();
+  const sent = [];
+  signInAs(fullClient({ rows: [] }), { submitContributions: rows => { sent.push(rows); return Promise.resolve(true); } });
+  await account.enqueueContribution([{ source_key: 'k' }]);
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 0);
+  assert.deepStrictEqual(sent, [[{ source_key: 'k' }]]);
+  assert.strictEqual(await account.outboxSize(), 0);
+});
+
+test('a failed contribution submit stays queued', async () => {
+  await freshStorage();
+  signInAs(fullClient({ rows: [] }), { submitContributions: () => Promise.resolve(false) });
+  await account.enqueueContribution([{ source_key: 'k' }]);
+
+  const remaining = await account.drain();
+
+  assert.strictEqual(remaining, 1);
+  assert.strictEqual(await account.outboxSize(), 1);
+});
+
+test('enqueueContribution is a no-op when signed out', async () => {
+  await freshStorage();
+  account.reset();
+  account.configure({ client: fullClient({ rows: [] }), protocol: 'https:' });
+
+  const ok = await account.enqueueContribution([{ source_key: 'k' }]);
+
+  assert.strictEqual(ok, false);
+  assert.strictEqual(await account.outboxSize(), 0);
+});
+
 test('enqueueGarage adds a garage entry to the outbox', async () => {
   await freshStorage();
   signInAs(fullClient({ rows: [] }));
@@ -1363,4 +1398,13 @@ test('a photo already present locally is dropped from pendingPhotoDownloads with
 
   assert.strictEqual(downloads, 0);
   assert.deepStrictEqual(meta.pendingPhotoDownloads, []);
+});
+
+test('a queued contribution is dropped, not uploaded, when sharing was turned off', async () => {
+  await freshStorage();
+  const sent = [];
+  signInAs(fullClient({ rows: [] }), { shareEnabled: () => Promise.resolve(false), submitContributions: rows => { sent.push(rows); return Promise.resolve(true); } });
+  await account.enqueueContribution([{ source_key: 'k' }]);
+  assert.strictEqual(await account.drain(), 0);
+  assert.deepStrictEqual(sent, []);
 });

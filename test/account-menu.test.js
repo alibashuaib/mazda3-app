@@ -73,8 +73,6 @@ test('the remaining corner controls are reachable', () => withBoot(async ({ docu
   assert.ok(byLabel(document, /Switch vehicle/), 'the vehicle switcher was lost in the move');
   assert.ok(byLabel(document, /Dark mode/), 'the theme toggle was lost in the move');
   assert.ok(byLabel(document, /العربية/), 'the language switch was not added');
-  assert.ok(byLabel(document, /Export backup/), 'backup export was not added');
-  assert.ok(byLabel(document, /Import backup/), 'backup import was not added');
 }));
 
 test('language switches directly from the menu', () => withBoot(async ({ document, api, evalInApp }) => {
@@ -192,4 +190,16 @@ test('the menu is translated, trigger included', () => withBoot(async ({ documen
     if (/English/.test(b.textContent)) continue;
     assert.match(b.textContent, /[؀-ۿ]/, `untranslated menu item: ${JSON.stringify(b.textContent)}`);
   }
+}));
+
+test('Share anonymous data checkbox shows only when signed in', () => withBoot(async ({ document: d, api }) => {
+  trigger(d).click();
+  assert.ok(!byLabel(d, /Share anonymous data/), 'signed-out users must not see a sharing control');
+  trigger(d).click();
+  api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+  trigger(d).click();
+  const item = byLabel(d, /Share anonymous data/);
+  assert.ok(item, 'sharing toggle was not added');
+  assert.strictEqual(item.getAttribute('role'), 'menuitemcheckbox');
+  assert.ok(['true', 'false'].includes(item.getAttribute('aria-checked')));
 }));
