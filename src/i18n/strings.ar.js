@@ -404,7 +404,27 @@ const AR = {
   'Yours': 'سيارتك',
   'Longest-lasting brand': 'العلامة الأطول عمراً',
   'Typical replacement': 'الاستبدال المعتاد',
-  'km since the last one': 'كم منذ آخر مرة'
+  'km since the last one': 'كم منذ آخر مرة',
+  'Admin': 'الإدارة',
+  'Review and correct the shared car catalogue.': 'راجع دليل السيارات المشترك وصحّحه.',
+  'Loading…': 'جارٍ التحميل…',
+  'Admin needs an internet connection.': 'تحتاج الإدارة إلى اتصال بالإنترنت.',
+  'This account is not an admin.': 'هذا الحساب ليس حساب مدير.',
+  'Could not load the catalogue.': 'تعذّر تحميل الدليل.',
+  'Email': 'البريد الإلكتروني',
+  'Password': 'كلمة المرور',
+  'Sign in': 'تسجيل الدخول',
+  'Sign-in failed. Check your email and password.': 'فشل تسجيل الدخول. تحقّق من البريد وكلمة المرور.',
+  'Needs review': 'بحاجة لمراجعة',
+  'All cars': 'كل السيارات',
+  'Warranty (years)': 'الضمان (سنوات)',
+  'Warranty (km)': 'الضمان (كم)',
+  'Parts (name | part number | qty, one per line)': 'القطع (الاسم | رقم القطعة | الكمية، سطر لكل قطعة)',
+  'Save and approve': 'حفظ واعتماد',
+  'Save changes': 'حفظ التغييرات',
+  'Catalogue saved': 'تم حفظ الدليل',
+  'Could not save. Check your connection.': 'تعذّر الحفظ. تحقّق من الاتصال.',
+  'Recent changes': 'آخر التغييرات'
 };
 
   return { AR };

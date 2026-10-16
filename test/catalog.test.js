@@ -283,3 +283,12 @@ test('NORMAL_SCHED entries are [km, months] pairs', () => {
     assert.strictEqual(typeof pair[1], 'number');
   });
 });
+
+test('catalogId joins the model id and a slug of the engine name', () => {
+  assert.strictEqual(cat.catalogId('cx5kf', '2.5L SkyActiv-G'), 'cx5kf:2.5l-skyactiv-g');
+});
+
+test('catalogId is unique across every model and engine', () => {
+  const ids = cat.CAR_MODELS.flatMap(m => m.engines.map(e => cat.catalogId(m.id, e[0])));
+  assert.strictEqual(new Set(ids).size, ids.length);
+});

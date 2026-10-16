@@ -1035,3 +1035,5 @@ html { scroll-behavior: smooth; }
     scroll-behavior: auto !important;
   }
 }
+
+.admin-item + .admin-item { border-top: 1px solid var(--stroke); margin-top: 14px; padding-top: 14px; }

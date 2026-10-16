@@ -345,3 +345,160 @@ grant select, insert, update on public.insights_prefs to authenticated;
 revoke all on public.contributions, public.contribution_links from anon, authenticated;
 revoke all on public.fuel_stats, public.brand_life from anon;
 revoke execute on function public.submit_contributions(jsonb), public.delete_my_contributions() from anon;
+
+-- ============================================================
+-- Phase 5a: shared catalogue, roles, dealer plans.
+-- Spec: docs/superpowers/specs/2026-10-15-community-plans-design.md
+-- After this file, apply supabase/seed-catalogue.sql. Make yourself admin
+-- once, by hand:  update public.profiles set role = 'admin' where user_id = '<your uuid>';
+-- ============================================================
+
+create table if not exists public.profiles (
+  user_id uuid primary key references auth.users on delete cascade,
+  role text not null default 'user' check (role in ('user', 'admin')),
+  share_community boolean not null default true
+);
+
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (user_id) values (new.id) on conflict do nothing;
+  return new;
+end $$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Accounts that existed before this section.
+insert into public.profiles (user_id) select id from auth.users on conflict do nothing;
+
+-- security definer so policies can call it without granting profiles reads.
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where user_id = auth.uid() and role = 'admin')
+$$;
+
+alter table public.profiles enable row level security;
+drop policy if exists read_own_profile on public.profiles;
+create policy read_own_profile on public.profiles for select using (user_id = auth.uid());
+drop policy if exists update_own_sharing on public.profiles;
+create policy update_own_sharing on public.profiles for update
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Column privileges: a user may flip share_community, never role.
+revoke update on public.profiles from authenticated;
+grant select on public.profiles to authenticated;
+grant update (share_community) on public.profiles to authenticated;
+
+create table if not exists public.car_models (
+  id text primary key,                      -- catalog.js catalogId(): '<modelId>:<engine-slug>'
+  make text not null default 'Mazda',
+  model text not null,
+  generation text not null,
+  engine text not null,
+  oil_capacity_l numeric,
+  paints jsonb not null default '[]',
+  warranty_years int,
+  warranty_km int,
+  status text not null default 'draft' check (status in ('draft', 'approved')),
+  sources jsonb not null default '[]',
+  plan_updated_at timestamptz not null default now()
+);
+
+create table if not exists public.dealer_plan_items (
+  id bigint generated always as identity primary key,
+  car_model_id text not null references public.car_models on delete cascade,
+  service text not null,
+  icon text not null default '🔧',
+  category text not null default 'Engine',
+  interval_km int,
+  interval_months int,
+  note text not null default '',
+  parts jsonb not null default '[]',        -- [{ name, part_no, qty }]
+  source_url text,
+  sort int not null default 0,
+  unique (car_model_id, service)
+);
+
+create table if not exists public.dealer_plan_changes (
+  id bigint generated always as identity primary key,
+  car_model_id text not null references public.car_models on delete cascade,
+  item_id bigint,                           -- null: a change to the car itself
+  before jsonb,
+  after jsonb,
+  changed_by uuid default auth.uid(),
+  changed_at timestamptz not null default now()
+);
+
+-- Item edits: log updates/deletes (inserts are the seed or a draft, not
+-- corrections) and bump the car's plan version so devices re-apply it.
+create or replace function public.on_dealer_plan_item_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare cm text;
+begin
+  if tg_op = 'DELETE' then cm := old.car_model_id; else cm := new.car_model_id; end if;
+  -- Cascade from a car delete: the parent is gone, so logging would break the FK.
+  if tg_op = 'DELETE' and not exists (select 1 from public.car_models where id = cm) then
+    return old;
+  end if;
+  if tg_op = 'UPDATE' then
+    insert into public.dealer_plan_changes (car_model_id, item_id, before, after)
+    values (cm, new.id, to_jsonb(old), to_jsonb(new));
+  elsif tg_op = 'DELETE' then
+    insert into public.dealer_plan_changes (car_model_id, item_id, before, after)
+    values (cm, old.id, to_jsonb(old), null);
+  end if;
+  update public.car_models set plan_updated_at = now() where id = cm;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end $$;
+
+drop trigger if exists dealer_plan_item_change on public.dealer_plan_items;
+create trigger dealer_plan_item_change after insert or update or delete on public.dealer_plan_items
+  for each row execute function public.on_dealer_plan_item_change();
+
+-- Car edits (warranty, status). plan_updated_at is excluded from the
+-- comparison, or every item edit above would also log a car change.
+create or replace function public.on_car_model_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (to_jsonb(old) - 'plan_updated_at') is distinct from (to_jsonb(new) - 'plan_updated_at') then
+    insert into public.dealer_plan_changes (car_model_id, item_id, before, after)
+    values (new.id, null, to_jsonb(old), to_jsonb(new));
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists car_model_change on public.car_models;
+create trigger car_model_change after update on public.car_models
+  for each row execute function public.on_car_model_change();
+
+-- Approved plans are public information: anon may read them too, because
+-- the sign-in UI is hidden and most users are anonymous.
+alter table public.car_models enable row level security;
+drop policy if exists read_car_models on public.car_models;
+create policy read_car_models on public.car_models for select to anon, authenticated
+  using (status = 'approved' or public.is_admin());
+drop policy if exists admin_write_car_models on public.car_models;
+create policy admin_write_car_models on public.car_models for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+alter table public.dealer_plan_items enable row level security;
+drop policy if exists read_dealer_plan_items on public.dealer_plan_items;
+create policy read_dealer_plan_items on public.dealer_plan_items for select to anon, authenticated
+  using (exists (select 1 from public.car_models m
+                 where m.id = car_model_id and (m.status = 'approved' or public.is_admin())));
+drop policy if exists admin_write_dealer_plan_items on public.dealer_plan_items;
+create policy admin_write_dealer_plan_items on public.dealer_plan_items for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+-- Explicit grants (see the vehicles/garage note above); RLS still enforces admin-only writes.
+grant select on public.car_models, public.dealer_plan_items to anon, authenticated;
+grant insert, update, delete on public.car_models, public.dealer_plan_items to authenticated;
+grant select on public.dealer_plan_changes to authenticated;
+
+alter table public.dealer_plan_changes enable row level security;
+drop policy if exists admin_read_dealer_plan_changes on public.dealer_plan_changes;
+create policy admin_read_dealer_plan_changes on public.dealer_plan_changes for select to authenticated
+  using (public.is_admin());
+revoke all on public.dealer_plan_changes from anon;
