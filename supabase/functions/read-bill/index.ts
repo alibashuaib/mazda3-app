@@ -21,7 +21,9 @@ Deno.serve(async (req) => {
   const userClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
     global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
   });
-  const { data: u } = await userClient.auth.getUser();
+  // Pass the JWT explicitly: with no stored session, getUser() alone can fail with AuthSessionMissing.
+  const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const { data: u } = await userClient.auth.getUser(jwt);
   if (!u?.user) return json(401, { error: 'auth' });
   const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 

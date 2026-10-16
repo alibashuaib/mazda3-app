@@ -86,7 +86,7 @@ test('validateImage accepts small jpeg/png/webp data URLs only', async () => {
 test('read-bill/index.ts static checks (source text, not executed)', () => {
   const src = require('fs').readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'read-bill', 'index.ts'), 'utf8');
   assert.ok(src.includes("from './logic.mjs'"));
-  assert.ok(src.includes('auth.getUser()'));
+  assert.ok(src.includes('auth.getUser(jwt)'));
   assert.ok(src.indexOf('>= DAILY_CAP') > 0 && src.indexOf('>= DAILY_CAP') < src.indexOf('api.anthropic.com'), 'cap checked before model call');
   assert.ok(!src.includes('console.log'));
   const allowed = new Set(['user_id', 'store_key', 'city', 'fingerprint', 'id', 'created_at']);
