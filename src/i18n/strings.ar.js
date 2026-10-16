@@ -440,7 +440,9 @@ const AR = {
   'Could not read that bill. Enter it by hand.': 'تعذّرت قراءة الفاتورة. أدخلها يدويًا.',
   'You are offline.': 'أنت غير متصل.', 'Could not read the bill.': 'تعذّرت قراءة الفاتورة.',
   'Bill read — check the details': 'تمت قراءة الفاتورة — راجع التفاصيل', 'Parts on this bill': 'القطع في هذه الفاتورة',
-  'Brand': 'الماركة', 'Price': 'السعر'
+  'Brand': 'الماركة', 'Price': 'السعر',
+  'Parts on this entry': 'القطع في هذا السجل', 'Add part': 'إضافة قطعة', 'Replaced': 'تم التبديل', 'Repaired': 'تم الإصلاح', 'Inspected': 'تم الفحص',
+  'Result: not stated': 'النتيجة: غير محددة', 'Looked fine': 'سليمة', 'Needs attention': 'تحتاج إلى انتباه', 'General guidance': 'إرشاد عام'
 };
 
   return { AR };

@@ -511,3 +511,97 @@ test('save: a new shop with no bill and no parts votes with a null bill id exact
     assert.strictEqual(out.contributed.length, 0);
   } finally { app.cleanup(); }
 });
+
+/* ---- Task 4 (repair-vs-replace): parts on the entry, action per row ---- */
+const addBtn = d => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === '+ Add part');
+const selOf = (r, i) => r.querySelectorAll('select')[i];
+const setSel = (s, v) => { s.value = v; s.onchange(); };
+const typeRow = (r, v) => { const i = r.querySelector('input'); i.value = v; i.oninput(); };
+
+test('parts box is always there for new entries (no bill), capped at 15; absent when editing', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null);
+    assert.ok(addBtn(d), 'add button without a bill');
+    for (let i = 0; i < 16; i++) addBtn(d).onclick();
+    assert.strictEqual(rows(d).length, 15);
+    api.openAddHistory({ id: 'e1', name: 'x', date: '2026-01-01' });
+    assert.strictEqual(addBtn(d), undefined);
+  } finally { app.cleanup(); }
+});
+
+test('action select: three options, default replaced; finding only while inspected', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null); addBtn(d).onclick();
+    let r = rows(d)[0];
+    assert.deepStrictEqual([...selOf(r, 0).options].map(o => o.value), ['replaced', 'repaired', 'inspected']);
+    assert.strictEqual(selOf(r, 0).value, 'replaced'); assert.strictEqual(r.querySelectorAll('select').length, 1);
+    setSel(selOf(r, 0), 'inspected'); r = rows(d)[0];
+    assert.strictEqual(r.querySelectorAll('select').length, 2);
+    assert.deepStrictEqual([...selOf(r, 1).options].map(o => o.value), ['', 'ok', 'attention']);
+    setSel(selOf(r, 1), 'attention');
+    setSel(selOf(r, 0), 'repaired'); r = rows(d)[0];
+    assert.strictEqual(r.querySelectorAll('select').length, 1);
+    setSel(selOf(r, 0), 'inspected'); assert.strictEqual(selOf(rows(d)[0], 1).value, '', 'finding cleared');
+  } finally { app.cleanup(); }
+});
+
+test('guidance line follows the typed name as text without redrawing', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null); addBtn(d).onclick();
+    const r = rows(d)[0], tip = () => r.nextElementSibling;
+    assert.strictEqual(tip().textContent, '');
+    typeRow(r, 'Headlight');
+    assert.ok(tip().textContent.includes('General guidance'));
+    assert.strictEqual(rows(d)[0], r, 'row not redrawn');
+    typeRow(r, 'Oil'); assert.strictEqual(tip().textContent, '');
+    typeRow(r, evilPart); assert.strictEqual(tip().textContent, ''); assert.strictEqual(q(d, '#modalCard img'), null);
+  } finally { app.cleanup(); }
+});
+
+async function manualSave(rowsSpec, { share = true } = {}) {
+  let out, h;
+  await billForm(async ({ api, d }) => {
+    q(d, '#h_name').value = 'Svc';
+    rowsSpec.forEach(s => {
+      addBtn(d).click ? addBtn(d).click() : addBtn(d).onclick();
+      const r = rows(d).slice(-1)[0], ins = r.querySelectorAll('input');
+      typeRow(r, s.name); if (s.price != null) { ins[2].value = String(s.price); ins[2].oninput(); }
+      if (s.action) setSel(selOf(rows(d).slice(-1)[0], 0), s.action);
+      if (s.finding) setSel(selOf(rows(d).slice(-1)[0], 1), s.finding);
+    });
+    out = await saveWith(api, d, { share }); h = lastHist(api);
+  });
+  return { out, h };
+}
+
+test('save: repaired keeps action, inspected without price keeps finding, replaced stores no action, unpriced replaced dropped', async () => {
+  const { h, out } = await manualSave([
+    { name: 'Mirror', price: 80, action: 'repaired' }, { name: 'Pads', action: 'inspected', finding: 'attention' },
+    { name: 'Bulb', price: 9 }, { name: 'Wiper' }]);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(h.parts)), [
+    { part: 'Mirror', brand: '', partNo: '', price: 80, action: 'repaired' },
+    { part: 'Pads', brand: '', partNo: '', action: 'inspected', finding: 'attention' },
+    { part: 'Bulb', brand: '', partNo: '', price: 9 }]);
+  assert.deepStrictEqual(out.contributed.map(r => [r.item_key, r.action, r.finding]).sort(),
+    [['bulb', 'replaced', undefined], ['mirror', 'repaired', undefined], ['pads', 'inspected', 'attention']]);
+});
+
+test('save: sharing off still stores the parts, contributes nothing', async () => {
+  const { h, out } = await manualSave([{ name: 'Mirror', price: 80, action: 'repaired' }], { share: false });
+  assert.strictEqual(h.parts.length, 1); assert.strictEqual(out.contributed.length, 0);
+});
+
+test('photo change drops only bill-read rows; manual rows survive', () => billForm(async ({ app, d }) => {
+  addBtn(d).onclick(); typeRow(rows(d)[0], 'Manual');
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(rows(d).length, 3);
+  await attachPhoto(app, d, 'data:image/jpeg;base64,BB');
+  assert.strictEqual(rows(d).length, 1); assert.strictEqual(rows(d)[0].querySelector('input').value, 'Manual');
+}));
