@@ -321,3 +321,81 @@ test('getBrandLife: clearCache() forces a refetch', async () => {
   await ins.getBrandLife('m', 'pads');
   assert.strictEqual(c.log.length, 2);
 });
+
+/* ---- repair vs replace ---- */
+const H = (id, odometer, parts) => ({ id, date: '2026-01-10', odometer, parts });
+const PC = (entry, priorHistory) => ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: entry, priorHistory });
+
+test('legacy parts without action contribute replaced, exactly as before', () => {
+  const [r] = PC(H('h1', 52300, [{ part: 'Oil Filter', brand: 'Bosch', price: 40 }]), []);
+  assert.strictEqual(r.action, 'replaced');
+  assert.strictEqual('finding' in r, false);
+  assert.strictEqual('km_since_repair' in r, false);
+});
+
+test('life counts last replacement; repairs and inspections never reset it', () => {
+  const prior = [
+    H('a', 40000, [{ part: 'Bumper', price: 500 }]),
+    H('b', 60000, [{ part: 'Bumper', price: 120, action: 'repaired' }]),
+    H('c', 70000, [{ part: 'Bumper', action: 'inspected' }])];
+  const rep = PC(prior[1], [prior[0]]);
+  assert.strictEqual(rep[0].km_since_prev, 20000);
+  assert.strictEqual('km_since_repair' in rep[0], false);
+  const [r] = PC(H('d', 90000, [{ part: 'Bumper', price: 520 }]), prior);
+  assert.strictEqual(r.km_since_prev, 50000);
+  assert.strictEqual(r.km_since_repair, 30000);
+});
+
+test('a repair older than the last replacement gives no km_since_repair', () => {
+  const prior = [
+    H('a', 20000, [{ part: 'Bumper', price: 100, action: 'repaired' }]),
+    H('b', 40000, [{ part: 'Bumper', price: 500 }])];
+  const [r] = PC(H('d', 90000, [{ part: 'Bumper', price: 520 }]), prior);
+  assert.strictEqual(r.km_since_prev, 50000);
+  assert.strictEqual('km_since_repair' in r, false);
+});
+
+test('inspections may carry no price and a finding; bad actions fall back to replaced', () => {
+  const rows = PC(H('h1', 50000, [
+    { part: 'Brake Pads', action: 'inspected', finding: 'attention' },
+    { part: 'Wipers', action: 'destroyed', price: 30 },
+    { part: 'Mirror', action: 'repaired' },
+    { part: 'Bulb', action: 'replaced', finding: 'ok', price: 9 }]), []);
+  const by = k => rows.find(r => r.item_key === k);
+  assert.deepStrictEqual([by('brake pads').action, by('brake pads').finding, by('brake pads').price], ['inspected', 'attention', null]);
+  assert.strictEqual(by('wipers').action, 'replaced');
+  assert.strictEqual(by('mirror'), undefined);
+  assert.strictEqual('finding' in by('bulb'), false);
+  const [nf] = PC(H('h2', 50000, [{ part: 'Belt', action: 'inspected' }]), []);
+  assert.strictEqual('finding' in nf, false);
+});
+
+test('repairInsight needs enough repair/replace samples and reports shares', () => {
+  const row = { n_replaced: 6, n_repaired: 4, n_inspected: 3, median_price_replaced: '540.00', median_price_repaired: '120.00', median_km_after_repair: 30000, attention_share: '0.667' };
+  assert.deepStrictEqual(ins.repairInsight([row]), { share: 40, nRepaired: 4, nReplaced: 6, priceRepaired: 120, priceReplaced: 540, kmAfterRepair: 30000, attention: 67, nInspected: 3 });
+  assert.strictEqual(ins.repairInsight([{ ...row, n_replaced: 2, n_repaired: 1 }]).share, null);
+  assert.strictEqual(ins.repairInsight([]), null);
+  assert.strictEqual(ins.repairInsight([{ ...row, n_inspected: 0, attention_share: null }]).attention, null);
+});
+
+test('getRepairStats returns rows, [] on error, and is cached until clearCache', async () => {
+  let calls = 0;
+  const client = { from: () => { calls++; return { select: () => ({ eq: () => ({ eq: () => Promise.resolve({ data: [{ n_repaired: 1 }], error: null }) }) }) }; } };
+  ins.configure({ client });
+  assert.strictEqual((await ins.getRepairStats('m', 'k')).length, 1);
+  await ins.getRepairStats('m', 'k');
+  assert.strictEqual(calls, 1);
+  ins.clearCache();
+  await ins.getRepairStats('m', 'k');
+  assert.strictEqual(calls, 2);
+  ins.configure({ client: { from: () => { throw new Error('boom'); } } });
+  ins.clearCache();
+  assert.deepStrictEqual(await ins.getRepairStats('m', 'k'), []);
+});
+
+test('getRepairStats and getBrandLife caches do not collide on same (model, item)', async () => {
+  const mk = tag => ({ from: t => { const o = { select: () => o, eq: () => o, then: (a, b) => Promise.resolve({ data: [{ t }], error: null }).then(a, b) }; return o; } });
+  ins.configure({ client: mk() });
+  assert.deepStrictEqual(await ins.getBrandLife('m', 'k'), [{ t: 'brand_life' }]);
+  assert.deepStrictEqual(await ins.getRepairStats('m', 'k'), [{ t: 'repair_stats' }]);
+});
