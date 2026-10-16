@@ -5,28 +5,35 @@
 'use strict';
 
 function openShopFeedback(shop) {
-  openModal('Would you buy from shop again?', '', card => {
+  openModal('Would you buy from this shop again?', '', card => {
     card.appendChild(el('p', 'sub', html`${shop.name} · ${shop.city}`));
-    const picked = new Set();
+    let up = null;                       // null until a thumb is chosen
+    const reasons = new Set();
+    const toggle = (btn, on) => { btn.classList.toggle('primary', on); btn.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    const thumbs = el('div', 'field-row');
+    const yes = el('button', 'btn', '👍'), no = el('button', 'btn', '👎');
+    [yes, no].forEach(b => { b.type = 'button'; b.setAttribute('aria-pressed', 'false'); });
+    const send = el('button', 'btn primary block', html`${t('Send')}`);
+    send.disabled = true;
+    const pick = v => { up = v; toggle(yes, v); toggle(no, !v); send.disabled = false; };
+    yes.onclick = () => pick(true);
+    no.onclick = () => pick(false);
+    thumbs.append(yes, no);
     const chips = el('div', 'field-row');
     [['price', 'Good price'], ['quality', 'Quality work'], ['honest', 'Honest'], ['fast', 'Fast']].forEach(([k, label]) => {
       const c = el('button', 'btn ghost', html`${t(label)}`);
-      c.type = 'button';
-      c.onclick = () => { picked.has(k) ? picked.delete(k) : picked.add(k); c.classList.toggle('primary', picked.has(k)); };
+      c.type = 'button'; c.setAttribute('aria-pressed', 'false');
+      c.onclick = () => { const on = !reasons.has(k); on ? reasons.add(k) : reasons.delete(k); toggle(c, on); };
       chips.appendChild(c);
     });
-    card.appendChild(chips);
-    const send = v => async () => {
-      const reasons = [...picked];
+    onAsyncClick(send, async () => {
+      if (up === null) return;
+      const ok = await shops.vote(shop.id, up, [...reasons]).catch(() => false);   // vote() resolves false on failure
       closeModal();
-      const ok = await shops.vote(shop.id, v, reasons).catch(() => false);   // vote() resolves false on failure
-      if (ok) toast('Thanks feedback'); else toast('Could not send feedback', 'warn');
-    };
-    const row = el('div', 'field-row');
-    const up = el('button', 'btn primary', '👍'); up.onclick = send(true);
-    const down = el('button', 'btn', '👎'); down.onclick = send(false);
-    const skip = el('button', 'btn ghost', html`${t('Not now')}`); skip.onclick = closeModal;
-    row.append(up, down);
-    card.append(row, skip);
+      if (ok) toast('Thanks for the feedback'); else toast('Could not send feedback', 'warn');
+    });
+    const skip = el('button', 'btn ghost block', html`${t('Not now')}`);
+    skip.onclick = closeModal;
+    card.append(thumbs, chips, send, skip);
   });
 }

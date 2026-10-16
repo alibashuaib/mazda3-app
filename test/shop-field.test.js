@@ -55,3 +55,63 @@ test('suggestions are real option elements carrying the exact name', () => withF
   assert.strictEqual(opts[0].value, evil);
   assert.strictEqual(opts[0].children.length, 0, 'no markup was parsed out of the name');
 }));
+
+/* ---- feedback modal + afterPurchase ---- */
+const btn = (app, label) => [...app.document.querySelectorAll('#modalCard button')].find(b => b.textContent.includes(label));
+
+test('feedback: Send is disabled until a thumb is chosen, then sends thumb and reasons', async () => {
+  const app = await bootApp();
+  try {
+    const calls = [];
+    app.api.shops.vote = (...a) => { calls.push(a); return Promise.resolve(true); };
+    app.api.openShopFeedback({ id: 's1', name: 'Al Amal', city: 'Jeddah' });
+    const send = btn(app, 'Send');
+    assert.strictEqual(send.disabled, true);
+    btn(app, 'Fast').onclick(); btn(app, 'Honest').onclick(); btn(app, 'Fast').onclick(); // Fast toggled off again
+    assert.strictEqual(send.disabled, true, 'reasons alone do not enable Send');
+    btn(app, '👎').onclick();
+    assert.strictEqual(btn(app, '👎').getAttribute('aria-pressed'), 'true');
+    assert.strictEqual(btn(app, '👍').getAttribute('aria-pressed'), 'false');
+    assert.strictEqual(send.disabled, false);
+    await send.onclick();
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(JSON.stringify(calls[0]), JSON.stringify(['s1', false, ['honest']]));
+    assert.strictEqual(app.document.querySelector('#modalHost').hidden, true);
+  } finally { app.cleanup(); }
+});
+
+test('feedback: Not now sends nothing and closes', async () => {
+  const app = await bootApp();
+  try {
+    let n = 0;
+    app.api.shops.vote = () => { n++; return Promise.resolve(true); };
+    app.api.openShopFeedback({ id: 's1', name: 'A', city: 'B' });
+    btn(app, 'Not now').onclick();
+    assert.strictEqual(n, 0);
+    assert.strictEqual(app.document.querySelector('#modalHost').hidden, true);
+  } finally { app.cleanup(); }
+});
+
+async function purchase(share, shopIn) {
+  const app = await bootApp();
+  const seen = { create: 0, prompt: 0 };
+  app.api.insights.shareEnabled = () => Promise.resolve(share);
+  app.api.shops.findOrCreate = () => { seen.create++; return Promise.resolve({ id: 's1', name: 'A', city: 'B' }); };
+  app.api.openShopFeedback = () => { seen.prompt++; };
+  const cur = app.api.session.current();
+  await app.api.afterPurchase([], shopIn, cur, 'v1');
+  app.cleanup();
+  return seen;
+}
+
+test('afterPurchase: sharing off creates no shop and shows no prompt', async () => {
+  const s = await purchase(false, { name: 'A', city: 'B', area: '' });
+  assert.strictEqual(s.create + s.prompt, 0);
+});
+
+test('afterPurchase: sharing on creates the shop and prompts; no shop means no prompt', async () => {
+  let s = await purchase(true, { name: 'A', city: 'B', area: '' });
+  assert.strictEqual(s.create + '/' + s.prompt, '1/1');
+  s = await purchase(true, null);
+  assert.strictEqual(s.create + s.prompt, 0);
+});

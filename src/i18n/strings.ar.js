@@ -426,9 +426,9 @@ const AR = {
   'Could not save. Check your connection.': 'تعذّر الحفظ. تحقّق من الاتصال.',
   'Recent changes': 'آخر التغييرات',
   'Shop (optional)': 'المتجر (اختياري)', 'City': 'المدينة', 'Area': 'الحي',
-  'Would you buy from shop again?': 'هل ستشتري من هذا المتجر مرة أخرى؟',
+  'Would you buy from this shop again?': 'هل ستشتري من هذا المتجر مرة أخرى؟',
   'Good price': 'سعر جيد', 'Quality work': 'جودة العمل', 'Honest': 'أمين', 'Fast': 'سريع',
-  'Send': 'إرسال', 'Not now': 'ليس الآن', 'Thanks feedback': 'شكرًا على رأيك',
+  'Send': 'إرسال', 'Not now': 'ليس الآن', 'Thanks for the feedback': 'شكرًا على رأيك',
   'Could not send feedback': 'تعذّر إرسال الرأي'
 };
 

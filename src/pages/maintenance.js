@@ -120,9 +120,10 @@ function buildPlan(v) {
 /* Resolve the shop, share part prices tagged with it, then ask for feedback.
    Fire-and-forget: the save already succeeded, so shop features are optional. */
 async function afterPurchase(logged, shopIn, cur, vid) {
-  let shop = null;
   try {
-    if (shopIn) shop = await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area);
+    // Sharing off: nothing leaves the device (no shop row, no prices, no vote).
+    if (!(await insights.shareEnabled())) return;
+    const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
     contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
     if (shop && shop.id) openShopFeedback(shop);
   } catch (e) { /* shop features optional; save already succeeded */ }

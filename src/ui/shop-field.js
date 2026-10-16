@@ -15,14 +15,15 @@ function shopField(initial) {
   const cl = el('datalist'); cl.id = cid;
   shops.CITIES.forEach(c => { const o = el('option'); o.value = c; cl.appendChild(o); });
   let seq = 0, found = [];
+  const fillFrom = hit => { if (!hit) return; if (!cityIn.value.trim()) cityIn.value = hit.city; if (!areaIn.value.trim()) areaIn.value = hit.area || ''; };
   nameIn.addEventListener('input', () => {
+    fillFrom(found.find(s => s.name === nameIn.value));   // a suggestion was just picked
     const mine = ++seq;
     shops.search(nameIn.value, cityIn.value.trim()).then(rows => {
       if (mine !== seq) return;                       // a newer keystroke owns the list
       found = rows || [];
       dl.replaceChildren(...found.map(s => { const o = el('option'); o.value = s.name; o.label = s.area || s.city; return o; }));
-      const hit = found.find(s => s.name === nameIn.value);
-      if (hit) { if (!cityIn.value.trim()) cityIn.value = hit.city; if (!areaIn.value.trim()) areaIn.value = hit.area || ''; }
+      fillFrom(found.find(s => s.name === nameIn.value));
     }).catch(() => {});
   });
   const row = el('div', 'field-row');
