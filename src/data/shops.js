@@ -20,20 +20,24 @@
   const reset = () => { env = { client: null }; };
   const available = () => !!env.client;
 
-  const norm = s => String(s == null ? '' : s).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const norm = s => String(s == null ? '' : s).toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   const like = s => String(s).replace(/[%_\\]/g, ch => '\\' + ch);   // ilike wildcards mean nothing to a user
   const unwrap = res => (res && !res.error && res.data) || null;
+
+  // One place decides the stored key, so find and create can never disagree.
+  const keyOf = name => norm(name).slice(0, 80);
+  const cityOf = city => String(city).trim().slice(0, 40);
 
   function findExact(name, city) {
     if (!env.client) return Promise.resolve(null);
     return Promise.resolve().then(() => env.client.from('shops').select('id,name,city,area')
-      .eq('name_norm', norm(name)).ilike('city', like(String(city).trim())).maybeSingle())
+      .eq('name_norm', keyOf(name)).ilike('city', like(cityOf(city))).maybeSingle())
       .then(unwrap).catch(() => null);
   }
   function create(name, city, area) {
     if (!env.client) return Promise.resolve(null);
     return Promise.resolve().then(() => env.client.from('shops')
-      .insert({ name: String(name).trim().slice(0, 80), name_norm: norm(name).slice(0, 80), city: String(city).trim().slice(0, 40), area: String(area || '').trim().slice(0, 40) || null })
+      .insert({ name: String(name).trim().slice(0, 80), name_norm: keyOf(name), city: cityOf(city), area: String(area || '').trim().slice(0, 40) || null })
       .select('id,name,city,area').single())
       .then(res => {
         // A concurrent submitter won the race for this exact shop: use theirs.
@@ -59,7 +63,7 @@
   /* bill_backed stays false until bill reading exists and the server can verify it. */
   function vote(shopId, up, reasons) {
     if (!env.client || !shopId) return Promise.resolve(false);
-    const row = { shop_id: shopId, vote: up ? 1 : -1, reasons: (reasons || []).filter(r => REASONS.includes(r)), bill_backed: false };
+    const row = { shop_id: shopId, vote: up ? 1 : -1, reasons: [...new Set(Array.isArray(reasons) ? reasons : [])].filter(r => REASONS.includes(r)), bill_backed: false };
     return Promise.resolve().then(() => env.client.from('shop_feedback').upsert(row, { onConflict: 'shop_id,user_id' }))
       .then(res => !(res && res.error)).catch(() => false);
   }

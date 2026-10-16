@@ -122,3 +122,26 @@ test('storeAdvice prefers the user\'s city, cheapest first, with trust threshold
   assert.strictEqual(c.pct, 79);
   assert.strictEqual(shops.storeAdvice([], trust, 'Jeddah'), null);
 });
+
+test('findExact queries the same sliced key and city that create stores', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([{ data: row, error: null }], log) });
+  const long = 'a'.repeat(100), city = 'c'.repeat(50);
+  await shops.findExact(long, city);
+  assert.deepStrictEqual(log.find(l => l[0] === 'eq'), ['eq', 'name_norm', 'a'.repeat(80)]);
+  assert.deepStrictEqual(log.find(l => l[0] === 'ilike'), ['ilike', 'city', 'c'.repeat(40)]);
+});
+
+test('norm keeps Arabic diacritics inside the word', () => {
+  assert.strictEqual(shops.norm('مَرْكَز'), 'مَرْكَز');
+});
+
+test('vote tolerates non-array reasons and de-duplicates', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([{ error: null }, { error: null }], log) });
+  assert.strictEqual(await shops.vote('s1', true, 'price'), true);
+  assert.strictEqual(await shops.vote('s1', true, ['price', 'price', 'fast']), true);
+  const ups = log.filter(l => l[0] === 'upsert');
+  assert.deepStrictEqual(ups[0][1].reasons, []);
+  assert.deepStrictEqual(ups[1][1].reasons, ['price', 'fast']);
+});
