@@ -575,7 +575,9 @@ account.configure({
      stay painted across a sign-out that leaves no vehicle behind. */
   rerender: () => { applyAccent(); renderTopbar(); go(current); },
   choose: askWhichGarage,
-  submitContributions: rows => insights.submit(rows)
+  submitContributions: rows => insights.submit(rows),
+  shareEnabled: () => insights.shareEnabled(),
+  flushPendingDelete: () => insights.flushPendingDelete()
 });
 
 if (canSignIn && typeof supabase !== 'undefined') connectBackend();
@@ -613,7 +615,7 @@ session.load()
   });
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { account.sync(); });
+  window.addEventListener('online', () => { account.sync(); if (account.user()) insights.flushPendingDelete(); });
   window.__hasOnlineSyncListener = true;   /* Test seam only. e2e presence check only. */
 }
 

@@ -14,12 +14,13 @@
   const band = odo => Math.floor((Number(odo) || 0) / BAND_KM) * BAND_KM;
   const monthOf = iso => String(iso || '').slice(0, 7);
   const round2 = n => Math.round(n * 100) / 100;
+  const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
   const key = s => String(s || '').trim().toLowerCase();
 
   /* One closed full-to-full interval -> one anonymous row. Null when the
      economy figure is missing or implausible: bad data must not reach the pool. */
   function fuelContribution({ modelId, engine, vehicleId, entry, l100 }) {
-    if (!(entry && entry.litres > 0 && Number.isFinite(entry.odometer) && entry.odometer >= 0) || !(l100 >= 1 && l100 <= 40)) return null;
+    if (!(entry && entry.litres > 0 && Number.isFinite(entry.odometer) && entry.odometer >= 0) || !(l100 >= 1 && l100 <= 40) || !MONTH_RE.test(monthOf(entry.date))) return null;
     return {
       source_key: `fuel:${vehicleId}:${entry.id}`, kind: 'fuel', model_id: modelId, engine: engine || null,
       odometer_band: band(entry.odometer), month: monthOf(entry.date),
@@ -29,6 +30,7 @@
 
   function partContributions({ modelId, vehicleId, historyEntry, priorHistory }) {
     const earlier = (priorHistory || []).filter(h => h.id !== historyEntry.id && h.odometer < historyEntry.odometer);
+    if (!MONTH_RE.test(monthOf(historyEntry.date))) return [];
     return (historyEntry.parts || []).filter(p => p.part && p.price > 0).map(p => {
       const prev = earlier.filter(h => (h.parts || []).some(q => key(q.part) === key(p.part)))
         .sort((a, b) => b.odometer - a.odometer)[0];
@@ -61,8 +63,8 @@
     if (!rows || !rows.length) return null;
     const best = rows.slice().sort((a, b) => (b.median_km - a.median_km) || (a.median_price - b.median_price))[0];
     return {
-      best: { brand: best.brand, medianKm: best.median_km, medianPrice: best.median_price, n: best.n },
-      prediction: lastKm == null ? null : predictNext(best, lastKm, nowKm)
+      best: { brand: best.brand, medianKm: Number(best.median_km), medianPrice: best.median_price, n: best.n },
+      prediction: lastKm == null ? null : predictNext({ p25_km: Number(best.p25_km), p75_km: Number(best.p75_km) }, lastKm, nowKm)
     };
   }
 

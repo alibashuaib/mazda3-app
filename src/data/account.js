@@ -46,6 +46,8 @@
        assume it does something. */
     choose: () => Promise.resolve('server'),
     submitContributions: null,
+    shareEnabled: null,         // () => Promise<bool>; null = no consent gate (tests)
+    flushPendingDelete: null,   // () => Promise; best-effort, run before sign-out wipe
     protocol: null            // null means "read location.protocol"
   };
   let env = Object.assign({}, DEFAULTS);
@@ -274,7 +276,9 @@
       }).catch(() => {});
     }
     if (entry.kind === 'contribution') {
-      return Promise.resolve(env.submitContributions ? env.submitContributions(entry.rows) : true)
+      /* Consent is checked at drain time: an opt-out after enqueue must not upload. */
+      return Promise.resolve(env.shareEnabled ? env.shareEnabled() : true).then(on =>
+        on ? (env.submitContributions ? env.submitContributions(entry.rows) : true) : true)
         .then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
     }
     if (entry.kind === 'photo-delete') {
@@ -611,7 +615,12 @@
        a remote sign-out that failed is exactly the case where the stored token
        may still be on disk, and stranding local state there is the bug. */
     let remoteFailed = false;
-    return Promise.resolve()
+    /* Flush a pending opt-out delete while still authed; wipe() would drop the flag.
+       Capped at 3s and never throws: sign-out must not wait on the network. */
+    const flush = env.flushPendingDelete
+      ? Promise.race([Promise.resolve().then(env.flushPendingDelete), new Promise(r => setTimeout(r, 3000))]).catch(() => {})
+      : Promise.resolve();
+    return flush
       .then(() => env.client && env.client.auth.signOut())
       .then(res => { remoteFailed = !!(res && res.error); })
       .catch(() => { remoteFailed = true; })  // a failed remote sign-out must not strand local state

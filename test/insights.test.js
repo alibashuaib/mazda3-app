@@ -222,3 +222,11 @@ test('partInsight chooses the longest-lasting brand and predicts the next change
   assert.strictEqual(ins.partInsight(rows, null, 52000).prediction, null);
   assert.strictEqual(ins.partInsight([], 15000, 52000), null);
 });
+
+test('contributions with a malformed month are skipped; partInsight coerces numeric strings', () => {
+  const entry = { id: 'e', litres: 40, odometer: 1000, cost: 80, date: '2026-13-01' };
+  assert.strictEqual(ins.fuelContribution({ modelId: 'm', vehicleId: 'v', entry, l100: 8 }), null);
+  assert.deepStrictEqual(ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: { id: 'h', odometer: 1, date: 'bad', parts: [{ part: 'x', price: 5 }] }, priorHistory: [] }), []);
+  const out = ins.partInsight([{ brand: 'B', median_km: '55000', p25_km: '45000', p75_km: '60000', median_price: 1, n: 5 }], 1000, 52000);
+  assert.strictEqual(out.prediction.fromKm, 46000);
+});

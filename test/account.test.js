@@ -1363,3 +1363,12 @@ test('a photo already present locally is dropped from pendingPhotoDownloads with
   assert.strictEqual(downloads, 0);
   assert.deepStrictEqual(meta.pendingPhotoDownloads, []);
 });
+
+test('a queued contribution is dropped, not uploaded, when sharing was turned off', async () => {
+  await freshStorage();
+  const sent = [];
+  signInAs(fullClient({ rows: [] }), { shareEnabled: () => Promise.resolve(false), submitContributions: rows => { sent.push(rows); return Promise.resolve(true); } });
+  await account.enqueueContribution([{ source_key: 'k' }]);
+  assert.strictEqual(await account.drain(), 0);
+  assert.deepStrictEqual(sent, []);
+});

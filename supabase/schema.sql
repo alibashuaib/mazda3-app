@@ -210,6 +210,36 @@ create table if not exists public.contribution_links (
 );
 create index if not exists contribution_links_cid_idx on public.contribution_links (contribution_id);
 
+-- Hardening CHECKs. NOT VALID: enforced for new writes, never fails on pre-existing rows.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'contributions_len_chk') then
+    alter table public.contributions add constraint contributions_len_chk check (
+      length(brand) <= 80 and length(part_no) <= 80 and length(engine) <= 80
+      and length(model_id) <= 80 and length(item_key) <= 80) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'contributions_band_chk') then
+    alter table public.contributions add constraint contributions_band_chk check (odometer_band % 5000 = 0) not valid;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'contributions_month_chk') then
+    alter table public.contributions add constraint contributions_month_chk
+      check (month ~ '^\d{4}-(0[1-9]|1[0-2])$') not valid;
+  end if;
+end $$;
+
+-- Account deletion must erase contributions too: the links cascade from auth.users
+-- but the rows they point at do not, so delete them first (links still exist here).
+create or replace function public.erase_user_contributions() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from contributions where id in
+    (select contribution_id from contribution_links where user_id = old.id);
+  return old;
+end $$;
+revoke all on function public.erase_user_contributions() from public;
+drop trigger if exists erase_user_contributions on auth.users;
+create trigger erase_user_contributions before delete on auth.users
+  for each row execute function public.erase_user_contributions();
+
 alter table public.contributions enable row level security;
 alter table public.contribution_links enable row level security;
 -- No policies on purpose: RLS defaults to deny for every role except the owner.
@@ -223,6 +253,10 @@ begin
     raise exception 'bad rows';
   end if;
   for r in select * from jsonb_array_elements(rows) loop
+    -- Invalid rows are skipped individually; one bad row must not sink the batch.
+    continue when jsonb_typeof(r) <> 'object' or r->>'kind' is null or r->>'kind' not in ('fuel', 'part')
+      or r->>'source_key' is null or coalesce(r->>'month', '') !~ '^\d{4}-(0[1-9]|1[0-2])$';
+    begin
     select contribution_id into cid from contribution_links
       where user_id = auth.uid() and source_key = r->>'source_key';
     if cid is null then
@@ -244,6 +278,8 @@ begin
       where id = cid;
     end if;
     n := n + 1;
+    exception when others then null;  -- bad cast / CHECK violation: skip this row
+    end;
   end loop;
   return n;
 end $$;
