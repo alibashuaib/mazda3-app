@@ -115,3 +115,20 @@ test('afterPurchase: sharing on creates the shop and prompts; no shop means no p
   s = await purchase(true, null);
   assert.strictEqual(s.create + s.prompt, 0);
 });
+
+test('Parts page shows the cheapest shop as text, never markup', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, evil = '<img src=x onerror=alert(1)>';
+    api.insights.available = () => true;
+    api.insights.getBrandLife = () => Promise.resolve([]);
+    api.shops.getStorePrices = () => Promise.resolve([{ shop_id: 's1', shop_name: evil, city: 'Jeddah', area: '', median_price: 40, n: 3 }]);
+    api.shops.getTrust = () => Promise.resolve([{ shop_id: 's1', score_share: 0.9 }]);
+    api.go('parts');
+    await tick(); await tick(); await tick();
+    const slot = app.window.document.querySelector('[id^="shop_"]');
+    assert.ok(slot.textContent.includes(evil) && slot.textContent.includes('SAR 40'));
+    assert.strictEqual(slot.children.length, 0);
+    assert.ok(slot.textContent.includes('90%'));
+  } finally { app.cleanup(); }
+});
