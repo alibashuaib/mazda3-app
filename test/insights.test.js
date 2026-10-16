@@ -264,3 +264,12 @@ test('syncPrefs without a client resolves false and changes nothing', async () =
   assert.strictEqual(await ins.syncPrefs(), false);
   assert.strictEqual(await ins.shareEnabled(), true);
 });
+
+test('partContributions adds shop_id only when a shop was resolved', () => {
+  const h = { id: 'h1', date: '2026-08-17', odometer: 52300, parts: [{ part: 'Oil Filter', brand: 'Bosch', price: 40 }] };
+  const without = ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: h, priorHistory: [] });
+  assert.strictEqual('shop_id' in without[0], false);
+  const withShop = ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: h, priorHistory: [], shopId: 'shop-1' });
+  assert.strictEqual(withShop[0].shop_id, 'shop-1');
+  assert.strictEqual(ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: h, priorHistory: [], shopId: '' })[0].shop_id, undefined);
+});

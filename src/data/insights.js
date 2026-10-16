@@ -28,7 +28,7 @@
     };
   }
 
-  function partContributions({ modelId, vehicleId, historyEntry, priorHistory }) {
+  function partContributions({ modelId, vehicleId, historyEntry, priorHistory, shopId }) {
     const earlier = (priorHistory || []).filter(h => h.id !== historyEntry.id && h.odometer < historyEntry.odometer);
     if (!MONTH_RE.test(monthOf(historyEntry.date))) return [];
     return (historyEntry.parts || []).filter(p => p.part && p.price > 0).map(p => {
@@ -38,7 +38,8 @@
         source_key: `part:${vehicleId}:${historyEntry.id}:${key(p.part)}`, kind: 'part',
         model_id: modelId,
         odometer_band: band(historyEntry.odometer), month: monthOf(historyEntry.date),
-        item_key: key(p.part), brand: p.brand || null, part_no: p.partNo || null, price: round2(p.price)
+        item_key: key(p.part), brand: p.brand || null, part_no: p.partNo || null, price: round2(p.price),
+        ...(shopId ? { shop_id: shopId } : {})
       };
       if (prev) row.km_since_prev = historyEntry.odometer - prev.odometer;
       return row;
