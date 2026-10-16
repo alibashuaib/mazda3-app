@@ -350,3 +350,85 @@ for (const [error, msg] of [['limit', 'Daily bill limit reached. Enter it by han
     assert.strictEqual(readBtn(d).textContent, 'Read bill'); assert.strictEqual(readBtn(d).disabled, false);
   }, { result: { ok: false, error } }));
 }
+
+/* ---- Task 4 fix round 1 ---- */
+const deferredResize = app => {
+  const q2 = [];
+  app.api.readImageResized = (f, fn, max) => q2.push({ max: max || 900, fn });
+  return q2;
+};
+const pickFile = d => q(d, '#modalCard [data-file]').onchange({ target: { files: [{}] } });
+const finish = (q2, i, url) => q2[i].fn(url);
+const deferRead = api => { let res; const p = new Promise(r => res = r); api.bills.readBill = () => p; return res; };
+
+test('stale read: closing the form and opening a new one leaves the new form untouched', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  const resolve = deferRead(api);
+  readBtn(d).onclick(); await tick();
+  api.closeModal(); api.openAddHistory(null);
+  q(d, '#h_cost').value = '77';
+  resolve({ ok: true, bill: BILL, billReadId: 'r1' }); await tick(); await tick();
+  assert.strictEqual(+q(d, '#h_cost').value, 77); assert.strictEqual(q(d, '#h_date').value !== '2026-10-10', true);
+  assert.strictEqual(q(d, '#h_name').value, ''); assert.strictEqual(rows(d).length, 0);
+  assert.strictEqual(toastTexts(d).length, 0);
+}));
+
+test('photo swap: the old hi-res copy is never sent, late decodes are ignored', () => billForm(async ({ app, api, d, calls }) => {
+  const q2 = deferredResize(app);
+  pickFile(d); finish(q2, 0, 'A'); finish(q2, 1, 'ABIG');
+  pickFile(d); finish(q2, 2, 'B');                      // B's 900px arrived, B's 1600px not yet
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(calls[0], 'B', 'falls back to the current 900px photo');
+  finish(q2, 3, 'BBIG');                                  // late hi-res of B is current, accepted
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(calls[1], 'BBIG');
+  pickFile(d); finish(q2, 5, 'CBIG'); finish(q2, 4, 'C'); // C's 1600 finished first; then a newer pick supersedes late A-style results
+  pickFile(d); finish(q2, 6, 'D');
+  q2[5].fn('STALE'); await click(readBtn(d)); await tick();
+  assert.strictEqual(calls[2], 'D');
+}));
+
+test('photo replace and remove clear billParts and the in-flight read is ignored', () => billForm(async ({ app, api, d }) => {
+  const q2 = deferredResize(app);
+  pickFile(d); finish(q2, 0, 'A'); finish(q2, 1, 'ABIG');
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(rows(d).length, 2);
+  pickFile(d); finish(q2, 2, 'B');
+  assert.strictEqual(rows(d).length, 0, 'replace clears parts');
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(rows(d).length, 2);
+  q(d, '#modalCard [data-rm]').onclick();
+  assert.strictEqual(rows(d).length, 0, 'remove clears parts'); assert.strictEqual(readBtn(d).disabled, true);
+  // in flight while the photo changes
+  pickFile(d); finish(q2, 4, 'C'); finish(q2, 5, 'CBIG');
+  q(d, '#h_cost').value = '5';
+  const resolve = deferRead(api);
+  readBtn(d).onclick(); await tick();
+  pickFile(d); finish(q2, 6, 'D');
+  resolve({ ok: true, bill: BILL, billReadId: 'r9' }); await tick(); await tick();
+  assert.strictEqual(+q(d, '#h_cost').value, 5); assert.strictEqual(rows(d).length, 0);
+}));
+
+test('a bill with no total and no items leaves the entered cost alone', () => billForm(async ({ app, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  q(d, '#h_cost').value = '77';
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(+q(d, '#h_cost').value, 77);
+}, { result: { ok: true, bill: { store: null, date: '2026-10-10', odometer: null, total: null, items: [] }, billReadId: 'r2' } }));
+
+test('part rows: price is clamped at 0 with min, text inputs capped at 80', () => billForm(async ({ app, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const ins = rows(d)[0].querySelectorAll('input');
+  assert.strictEqual(+ins[0].maxLength, 80); assert.strictEqual(+ins[1].maxLength, 80); assert.strictEqual(String(ins[2].min), '0');
+}));
+
+test('shopField.set clears suggestions and re-arms the did-you-mean check', () => withField(null, async (app, f) => {
+  app.api.shops.search = () => Promise.resolve([{ name: 'X', city: 'Jeddah' }]);
+  const [name] = inputs(f);
+  typeName(app, name, 'x'); await settle();
+  assert.strictEqual(sugg(f).length, 1);
+  f.set({ name: 'Bill Shop', city: 'Taif', area: '' });
+  assert.strictEqual(sugg(f).length, 0); assert.strictEqual(f.nodes[1].hidden, true);
+  assert.strictEqual(name.value, 'Bill Shop');
+}));

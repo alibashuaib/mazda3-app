@@ -15,7 +15,7 @@ function readImageResized(file, cb, max = 900) {
       if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
       const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
       cv.getContext('2d').drawImage(img, 0, 0, w, h);
-      cb(cv.toDataURL('image/jpeg', 0.82));
+      cb(cv.toDataURL('image/jpeg', max > 900 ? 0.8 : 0.82));
     };
     img.onerror = () => toast('Could not read that image', 'warn');
     img.src = reader.result;
@@ -39,9 +39,10 @@ function photoPicker(current, onChange, label, onBig) {
   const prev = wrap.querySelector('[data-prev]'), pick = wrap.querySelector('[data-pick]'), rm = wrap.querySelector('[data-rm]'), file = wrap.querySelector('[data-file]');
   pick.onclick = () => file.click();
   prev.onclick = () => { if (photo) openImage(photo); };
-  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; readImageResized(f, url => { photo = url; prev.innerHTML = html`<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); });
-    if (onBig) readImageResized(f, onBig, 1600); };
-  rm.onclick = () => { photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); if (onBig) onBig(''); };
+  let seq = 0;   // a newer pick or a remove makes older in-flight decodes (900 or 1600) no-ops
+  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; const mine = ++seq; readImageResized(f, url => { if (mine !== seq) return; photo = url; prev.innerHTML = html`<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); });
+    if (onBig) readImageResized(f, url => { if (mine === seq) onBig(url); }, 1600); };
+  rm.onclick = () => { seq++; photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); if (onBig) onBig(''); };
   return wrap;
 }
 function openImage(url) {

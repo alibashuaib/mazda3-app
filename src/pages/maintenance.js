@@ -582,9 +582,13 @@ function openAddHistory(e, prefill) {
     let hphoto = e ? (e.photo || '') : '';
     shopF.nodes.forEach(n => card.appendChild(n));
     card.appendChild(field('Receipt / invoice', ''));
-    let hbig = '', billReadId = null, billParts = [], reading = false;
-    let readBtn = null;
-    card.appendChild(photoPicker(hphoto, v => { hphoto = v; if (readBtn && !reading) readBtn.disabled = !v; }, undefined, v => hbig = v));
+    let hbig = '', billReadId = null, billParts = [], reading = false, photoTok = 0;
+    let readBtn = null, drawParts = () => {};
+    // any photo change invalidates what was read from the old one
+    card.appendChild(photoPicker(hphoto, v => {
+      hphoto = v; hbig = ''; billReadId = null; billParts = []; photoTok++; drawParts();
+      if (readBtn) readBtn.disabled = !v;
+    }, undefined, v => hbig = v));
     if (!editing && account.user() && bills.available()) {
       readBtn = el('button', 'btn block', html`${t('Read bill')}`);
       readBtn.type = 'button'; readBtn.disabled = !hphoto;
@@ -598,11 +602,11 @@ function openAddHistory(e, prefill) {
         const go = el('button', 'btn primary', html`${t('Continue')}`), no = el('button', 'btn ghost', html`${t('Cancel')}`);
         go.type = no.type = 'button';
         const done = v => { notice.replaceChildren(); notice.hidden = true; resolve(v); };
-        go.onclick = () => { Promise.resolve(metaSet({ billNoticeAck: true })).catch(() => {}); done(true); };
+        go.onclick = async () => { try { await metaSet({ billNoticeAck: true }); } catch (e) { /* still proceed; asked again next time */ } done(true); };
         no.onclick = () => done(false);
         notice.replaceChildren(h, msg, go, no); notice.hidden = false;
       });
-      const drawParts = () => {
+      drawParts = () => {
         partsBox.replaceChildren();
         partsBox.hidden = !billParts.length;
         if (!billParts.length) return;
@@ -610,27 +614,31 @@ function openAddHistory(e, prefill) {
         partsBox.append(h, dl);
         billParts.forEach(bp => {
           const row = el('div', 'field-row');
-          const mk = (ph, val, set, type) => { const i = el('input'); if (type) i.type = type; i.placeholder = t(ph); i.value = val; i.oninput = () => set(i.value); return i; };
+          const mk = (ph, val, set, type) => { const i = el('input'); if (type) i.type = type; i.placeholder = t(ph); i.value = val; if (!type) i.maxLength = 80; else i.min = 0; i.oninput = () => set(i.value); return i; };
           const nm = mk('Part name', bp.part, v => bp.part = v); nm.setAttribute('list', dl.id);
           const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
           rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };
-          row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', String(bp.price), v => bp.price = +v || 0, 'number'), rm);
+          row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', String(bp.price), v => bp.price = Math.max(0, +v || 0), 'number'), rm);
           partsBox.appendChild(row);
         });
       };
       onAsyncClick(readBtn, async () => {
         if (!hphoto) return;
+        const tok = photoTok;   // before any await: a photo change during the notice also voids this read
         const meta = await Promise.resolve(metaGet()).catch(() => ({}));
         if (!(meta && meta.billNoticeAck === true) && !(await ask())) return;
+        if (tok !== photoTok) return;
+        const inName = $('#h_name'), inDate = $('#h_date'), inOdo = $('#h_odo'), inCost = $('#h_cost');
         reading = true; readBtn.textContent = t('Reading…');
         const res = await bills.readBill(hbig || hphoto);
         reading = false; readBtn.textContent = t('Read bill');
+        if (tok !== photoTok || !document.contains(inName)) return;   // photo changed or form closed meanwhile: drop silently
         if (!res.ok) return toast({ limit: 'Daily bill limit reached. Enter it by hand.', unreadable: 'Could not read that bill. Enter it by hand.', offline: 'You are offline.' }[res.error] || 'Could not read the bill.', 'warn');
         const pf = bills.toPrefill(res.bill);
-        if (pf.name && !$('#h_name').value.trim()) $('#h_name').value = pf.name;
-        if (pf.date) $('#h_date').value = pf.date;
-        if (pf.odometer != null) $('#h_odo').value = pf.odometer;
-        $('#h_cost').value = pf.cost;
+        if (pf.name && !inName.value.trim()) inName.value = pf.name;
+        if (pf.date) inDate.value = pf.date;
+        if (pf.odometer != null) inOdo.value = pf.odometer;
+        if (pf.cost > 0) inCost.value = pf.cost;
         if (pf.shop) shopF.set(pf.shop);
         billReadId = res.billReadId;
         billParts = pf.parts;
