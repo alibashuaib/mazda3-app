@@ -147,6 +147,22 @@ test('resolve(): offline (no client) returns the typed value without prompting',
   assert.strictEqual(prompt(f).hidden, true);
 }));
 
+test('resolve(): "new shop" returns the value at click time; list stays hidden while prompting', () => withField(null, async (app, f) => {
+  app.api.shops.similar = () => Promise.resolve([hit]);
+  app.api.shops.search = () => Promise.resolve([hit]);
+  const [name, city] = inputs(f);
+  name.value = 'Alsalam Auto'; city.value = 'Jeddah';
+  const p = f.resolve();
+  await tick();
+  city.value = 'Taif';
+  typeName(app, name, 'Alsalam Autos');
+  await settle();
+  assert.strictEqual(f.nodes[1].hidden, true, 'suggestions not shown over the prompt');
+  [...prompt(f).querySelectorAll('button')][1].onclick();
+  const v = await p;
+  assert.strictEqual(v.city, 'Taif'); assert.strictEqual(v.name, 'Alsalam Autos');
+}));
+
 /* ---- feedback modal + afterPurchase ---- */
 const btn = (app, label) => [...app.document.querySelectorAll('#modalCard button')].find(b => b.textContent.includes(label));
 

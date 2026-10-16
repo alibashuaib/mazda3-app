@@ -100,7 +100,9 @@
   function similar(name, city) {
     const c = String(city || '').trim();
     if (!env.client || squash(name).length < 2 || !c) return Promise.resolve([]);
-    return Promise.resolve().then(() => env.client.from('shops').select('id,name,city,area').ilike('city', like(c)).limit(200))
+    // A hung request must not hang the save: give up (no prompt) after env.timeoutMs.
+    const gaveUp = new Promise(r => setTimeout(() => r(null), env.timeoutMs || 3000));
+    return Promise.race([Promise.resolve().then(() => env.client.from('shops').select('id,name,city,area').ilike('city', like(c)).limit(200)), gaveUp])
       .then(res => (unwrap(res) || [])
         .filter(r => norm(r.name) !== norm(name))
         .map(r => ({ r, s: similarity(name, r.name) }))

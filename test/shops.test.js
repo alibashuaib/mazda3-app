@@ -291,3 +291,8 @@ test('similar flags near-duplicates, not exact or unrelated, never rejects', asy
   shops.reset();
   assert.deepStrictEqual(await shops.similar('Alsalam', 'Jeddah'), []);
 });
+
+test('similar gives up on a hung request instead of hanging the save', async () => {
+  shops.configure({ client: { from: () => ({ select: () => ({ ilike: () => ({ limit: () => new Promise(() => {}) }) }) }) }, timeoutMs: 20 });
+  assert.deepStrictEqual(await shops.similar('Alsalam Auto', 'Jeddah'), []);
+});

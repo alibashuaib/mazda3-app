@@ -18,7 +18,7 @@ function shopField(initial) {
   const list = el('div'); list.hidden = true;       // visible suggestions (names always via textContent)
   const prompt = el('div'); prompt.hidden = true;   // "Did you mean" box
   const same = (a, b) => shops.norm(a) === shops.norm(b);
-  let seq = 0, timer = 0, picked = null, asked = false;
+  let seq = 0, timer = 0, picked = null, asked = false, prompting = false;
 
   const choice = (hit, sub, onTap) => {
     const b = el('button', 'btn ghost block'); b.type = 'button';
@@ -26,6 +26,7 @@ function shopField(initial) {
     b.appendChild(n);
     if (sub) { const d = el('small'); d.textContent = ' · ' + sub; b.appendChild(d); }
     b.onclick = onTap;
+    b.setAttribute('aria-label', hit.name + (sub ? ', ' + sub : ''));
     return b;
   };
   const sub = s => [s.area, s.city].filter(Boolean).join(', ');
@@ -39,7 +40,7 @@ function shopField(initial) {
     clearTimeout(timer);                              // debounce: only the last keystroke in the window searches
     timer = setTimeout(() => {
       shops.search(nameIn.value, cityIn.value.trim()).then(rows => {
-        if (mine !== seq) return;                     // a newer keystroke owns the list
+        if (mine !== seq || prompting) return;                     // a newer keystroke owns the list
         rows = rows || [];
         list.replaceChildren(...rows.map(s => choice(s, sub(s), () => pick(s))));
         list.hidden = !rows.length;
@@ -62,13 +63,13 @@ function shopField(initial) {
       if (asked || (picked && same(picked.name, v.name) && same(picked.city, v.city))) return v;
       const hits = await shops.similar(v.name, v.city);
       if (!hits.length) return v;
-      asked = true;
-      list.hidden = true;
+      asked = true; prompting = true;
+      list.replaceChildren(); list.hidden = true;
       return new Promise(resolve => {
-        const done = r => { prompt.replaceChildren(); prompt.hidden = true; resolve(r); };
+        const done = r => { prompting = false; prompt.replaceChildren(); prompt.hidden = true; resolve(r); };
         const q = el('div'); q.textContent = t('Did you mean:');
         const no = el('button', 'btn ghost block'); no.type = 'button'; no.textContent = t('No, it is a new shop');
-        no.onclick = () => done(v);
+        no.onclick = () => done(value());   // read at click time: the user may have edited while the prompt was up
         prompt.replaceChildren(q, ...hits.map(h => choice(h, h.area || h.city, () => { pick(h); done({ name: h.name, city: h.city || '', area: h.area || '' }); })), no);
         prompt.hidden = false;
       });
