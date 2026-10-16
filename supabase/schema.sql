@@ -284,7 +284,8 @@ create policy own_shop_feedback on public.shop_feedback for all
 revoke all on public.shop_feedback from anon, authenticated;
 grant select, delete on public.shop_feedback to authenticated;
 grant insert (shop_id, vote, reasons) on public.shop_feedback to authenticated;
-grant update (vote, reasons) on public.shop_feedback to authenticated;
+-- shop_id is needed too: PostgREST upsert emits DO UPDATE SET shop_id = EXCLUDED.shop_id, ...
+grant update (shop_id, vote, reasons) on public.shop_feedback to authenticated;
 
 alter table public.contributions
   add column if not exists shop_id uuid references public.shops on delete set null;

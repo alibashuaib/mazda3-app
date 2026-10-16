@@ -85,6 +85,21 @@ do $$ begin
     values ('aaaaaaaa-0000-0000-0000-000000000001', -1, '{}')
     on conflict (shop_id, user_id) do update set vote = excluded.vote, reasons = excluded.reasons;
   if (select vote from public.shop_feedback) <> -1 then raise exception 'FAIL: vote change did not apply'; end if;
+  -- exact statement PostgREST generates for upsert(..., {onConflict:'shop_id,user_id'})
+  insert into public.shop_feedback (shop_id, vote, reasons)
+    values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{price}')
+    on conflict (shop_id, user_id) do update set shop_id = excluded.shop_id, vote = excluded.vote, reasons = excluded.reasons;
+  insert into public.shop_feedback (shop_id, vote, reasons)
+    values ('aaaaaaaa-0000-0000-0000-000000000001', -1, '{}')
+    on conflict (shop_id, user_id) do update set shop_id = excluded.shop_id, vote = excluded.vote, reasons = excluded.reasons;
+  if (select count(*) from public.shop_feedback) <> 1 or (select vote from public.shop_feedback) <> -1 then
+    raise exception 'FAIL: PostgREST-style upsert did not leave one row with the new vote'; end if;
+  begin
+    insert into public.shop_feedback (shop_id, vote, reasons, bill_backed)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{}', true)
+      on conflict (shop_id, user_id) do update set shop_id = excluded.shop_id, vote = excluded.vote, reasons = excluded.reasons, bill_backed = excluded.bill_backed;
+    raise exception 'FAIL: PostgREST-style upsert with bill_backed accepted';
+  exception when insufficient_privilege then null; end;
   begin
     update public.shop_feedback set bill_backed = true;
     raise exception 'FAIL: client updated bill_backed';
