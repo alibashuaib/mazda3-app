@@ -31,6 +31,8 @@ test('City defaults to the latest history entry shop city', async () => {
   } finally { app.cleanup(); }
 });
 
+const sugg = f => [...f.nodes[1].querySelectorAll('button')];
+
 test('a stale search response never overwrites newer suggestions', () => withField(null, async (app, f) => {
   const pending = [];
   app.api.shops.search = () => new Promise(res => pending.push(res));
@@ -44,8 +46,7 @@ test('a stale search response never overwrites newer suggestions', () => withFie
   await tick();
   pending[0]([{ name: 'Old', city: 'Jeddah' }]);
   await tick();
-  const dl = f.nodes.find(n => n.tagName === 'DATALIST');
-  assert.strictEqual([...dl.children].map(o => o.value).join('|'), 'New');
+  assert.deepStrictEqual(sugg(f).map(b => b.firstChild.textContent), ['New']);
 }));
 
 test('search is debounced: a burst of keystrokes sends one request for the last value', () => withField(null, async (app, f) => {
@@ -59,16 +60,91 @@ test('search is debounced: a burst of keystrokes sends one request for the last 
   assert.deepStrictEqual([...calls], ['sal']);
 }));
 
-test('suggestions are real option elements carrying the exact name', () => withField(null, async (app, f) => {
-  const evil = '<b>"&Shop';
-  app.api.shops.search = () => Promise.resolve([{ name: evil, city: 'Jeddah', area: 'Balad' }]);
-  typeName(app, inputs(f)[0], 'sh');
+test('suggestions render names as text, tapping one fills shop, city and area', () => withField(null, async (app, f) => {
+  const evil = '<img src=x onerror=alert(1)>';
+  app.api.shops.search = () => Promise.resolve([{ name: evil, city: 'Taif', area: 'Shubra' }]);
+  const [name, city, area] = inputs(f);
+  city.value = 'Jeddah'; area.value = 'Old';
+  typeName(app, name, 'im');
   await settle();
-  const opts = [...f.nodes.find(n => n.tagName === 'DATALIST').children];
-  assert.strictEqual(opts.length, 1);
-  assert.strictEqual(opts[0].tagName, 'OPTION');
-  assert.strictEqual(opts[0].value, evil);
-  assert.strictEqual(opts[0].children.length, 0, 'no markup was parsed out of the name');
+  const bs = sugg(f);
+  assert.strictEqual(bs.length, 1);
+  assert.strictEqual(bs[0].querySelector('img'), null, 'no markup parsed out of the name');
+  assert.ok(bs[0].textContent.includes(evil) && bs[0].textContent.includes('Shubra, Taif'));
+  assert.strictEqual(f.nodes[1].hidden, false);
+  bs[0].onclick();
+  assert.strictEqual(name.value, evil); assert.strictEqual(city.value, 'Taif'); assert.strictEqual(area.value, 'Shubra');
+  assert.strictEqual(f.nodes[1].hidden, true);
+  assert.strictEqual(sugg(f).length, 0);
+}));
+
+test('empty search result hides the list', () => withField(null, async (app, f) => {
+  app.api.shops.search = () => Promise.resolve([]);
+  typeName(app, inputs(f)[0], 'zz');
+  await settle();
+  assert.strictEqual(f.nodes[1].hidden, true);
+}));
+
+const prompt = f => f.nodes[3];
+const hit = { id: 'h', name: 'Al Salam Auto', city: 'Jeddah', area: 'Safa' };
+
+test('resolve(): blank -> null; no hits -> typed value without prompting', () => withField(null, async (app, f) => {
+  app.api.shops.similar = () => Promise.resolve([]);
+  assert.strictEqual(await f.resolve(), null);
+  const [name, city] = inputs(f);
+  name.value = 'Toyota Service'; city.value = 'Jeddah';
+  assert.strictEqual((await f.resolve()).name, 'Toyota Service');
+  assert.strictEqual(prompt(f).hidden, true);
+}));
+
+test('resolve(): prompts, picking a hit returns it; asks only once', () => withField(null, async (app, f) => {
+  let calls = 0;
+  app.api.shops.similar = () => { calls++; return Promise.resolve([hit]); };
+  const [name, city] = inputs(f);
+  name.value = 'Alsalam Auto'; city.value = 'Jeddah';
+  const p = f.resolve();
+  await tick();
+  assert.strictEqual(prompt(f).hidden, false);
+  assert.ok(prompt(f).textContent.includes('Did you mean:'));
+  const bs = [...prompt(f).querySelectorAll('button')];
+  assert.strictEqual(bs.length, 2);
+  assert.ok(bs[0].textContent.includes('Al Salam Auto') && bs[0].textContent.includes('Safa'));
+  bs[0].onclick();
+  const v = await p;
+  assert.strictEqual(v.name, 'Al Salam Auto'); assert.strictEqual(v.area, 'Safa');
+  assert.strictEqual(prompt(f).hidden, true);
+  name.value = 'Alsalam Autoo';
+  await f.resolve();
+  assert.strictEqual(calls, 1, 'no repeat prompt after answering');
+}));
+
+test('resolve(): "new shop" keeps what was typed; a tapped suggestion skips the prompt', () => withField(null, async (app, f) => {
+  app.api.shops.similar = () => Promise.resolve([hit]);
+  const [name, city] = inputs(f);
+  name.value = 'Alsalam Auto'; city.value = 'Jeddah';
+  const p = f.resolve();
+  await tick();
+  [...prompt(f).querySelectorAll('button')][1].onclick();
+  assert.strictEqual((await p).name, 'Alsalam Auto');
+}));
+
+test('resolve(): a tapped suggestion is returned as is, no similar() call', () => withField(null, async (app, f) => {
+  let calls = 0;
+  app.api.shops.similar = () => { calls++; return Promise.resolve([hit]); };
+  app.api.shops.search = () => Promise.resolve([hit]);
+  typeName(app, inputs(f)[0], 'al');
+  await settle();
+  sugg(f)[0].onclick();
+  assert.strictEqual((await f.resolve()).name, 'Al Salam Auto');
+  assert.strictEqual(calls, 0);
+}));
+
+test('resolve(): offline (no client) returns the typed value without prompting', () => withField(null, async (app, f) => {
+  app.api.shops.reset();
+  const [name, city] = inputs(f);
+  name.value = 'Alsalam Auto'; city.value = 'Jeddah';
+  assert.strictEqual((await f.resolve()).name, 'Alsalam Auto');
+  assert.strictEqual(prompt(f).hidden, true);
 }));
 
 /* ---- feedback modal + afterPurchase ---- */

@@ -231,4 +231,24 @@ do $$ declare i int; begin
   end if;
 end $$;
 
+-- (l) name_key = replace(name_norm,' ',''), filterable by authenticated, created_by still private
+do $$ begin
+  if exists (select 1 from public.shops where name_key is distinct from replace(name_norm, ' ', '')) then
+    raise exception 'FAIL: name_key out of sync with name_norm';
+  end if;
+  if (select name_key from public.shops where id = 'aaaaaaaa-0000-0000-0000-000000000001') <> 'alamalparts' then
+    raise exception 'FAIL: name_key wrong for Al Amal Parts';
+  end if;
+end $$;
+select public.tmp_as_user(1);
+set local role authenticated;
+do $$ begin
+  if (select count(*) from public.shops where name_key ilike '%alamal%' and city = 'Riyadh') <> 1 then raise exception 'FAIL: authenticated cannot filter on name_key'; end if;
+  begin
+    perform created_by from public.shops;
+    raise exception 'FAIL: authenticated can read created_by';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 rollback;

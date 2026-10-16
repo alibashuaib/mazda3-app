@@ -431,7 +431,7 @@ const AR = {
   'Shop (optional)': 'المتجر (اختياري)', 'City': 'المدينة', 'Area': 'الحي',
   'Would you buy from this shop again?': 'هل ستشتري من هذا المتجر مرة أخرى؟',
   'Good price': 'سعر جيد', 'Quality work': 'جودة العمل', 'Honest': 'أمين', 'Fast': 'سريع',
-  'Send': 'إرسال', 'Not now': 'ليس الآن', 'Thanks for the feedback': 'شكرًا على رأيك',
+  'Send': 'إرسال', 'Did you mean:': 'هل تقصد:', 'No, it is a new shop': 'لا، هذا متجر جديد', 'Not now': 'ليس الآن', 'Thanks for the feedback': 'شكرًا على رأيك',
   'Could not send feedback': 'تعذّر إرسال الرأي'
 };
 

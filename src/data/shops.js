@@ -68,14 +68,44 @@
     return findExact(name, city).then(s => s || create(name, city, area));
   }
 
+  const squash = s => norm(s).replace(/ /g, '');   // mirrors the generated shops.name_key column
+
+  // City-first; if that finds nothing (or no city typed) the same query runs across all cities.
   function search(query, city) {
-    const q = norm(query);
+    const q = squash(query), c = String(city || '').trim();
     if (!env.client || q.length < 2) return Promise.resolve([]);
-    return Promise.resolve().then(() => {
-      let req = env.client.from('shops').select('id,name,city,area').ilike('name_norm', `%${like(q)}%`);
-      if (String(city || '').trim()) req = req.ilike('city', like(String(city).trim()));
+    const run = withCity => Promise.resolve().then(() => {
+      let req = env.client.from('shops').select('id,name,city,area').ilike('name_key', `%${like(q)}%`);
+      if (withCity) req = req.ilike('city', like(c));
       return req.limit(8);
-    }).then(res => unwrap(res) || []).catch(() => []);
+    }).then(res => unwrap(res) || []);
+    return (c ? run(true) : Promise.resolve([])).then(rows => rows.length ? rows : run(false)).catch(() => []);
+  }
+
+  // Normalised Levenshtein ratio of the spaceless keys: 1 = identical, 0 = nothing shared.
+  function similarity(a, b) {
+    a = squash(a); b = squash(b);
+    const m = Math.max(a.length, b.length);
+    if (!m) return 0;
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return 1 - prev[b.length] / m;
+  }
+
+  // ponytail: client-side scan of <=200 shops per city; move to a pg_trgm query if a city outgrows that.
+  function similar(name, city) {
+    const c = String(city || '').trim();
+    if (!env.client || squash(name).length < 2 || !c) return Promise.resolve([]);
+    return Promise.resolve().then(() => env.client.from('shops').select('id,name,city,area').ilike('city', like(c)).limit(200))
+      .then(res => (unwrap(res) || [])
+        .filter(r => norm(r.name) !== norm(name))
+        .map(r => ({ r, s: similarity(name, r.name) }))
+        .filter(x => x.s >= 0.75).sort((a, b) => b.s - a.s).slice(0, 3).map(x => x.r))
+      .catch(() => []);
   }
 
   /* bill_backed is not client-writable (column grants); it stays false until a server can verify bills. */
@@ -124,5 +154,5 @@
     };
   }
 
-  return { CITIES, REASONS, configure, reset, clearCache, available, norm, findExact, create, findOrCreate, search, vote, getTrust, getStorePrices, lastCity, storeAdvice };
+  return { CITIES, REASONS, configure, reset, clearCache, available, norm, findExact, create, findOrCreate, search, similarity, similar, vote, getTrust, getStorePrices, lastCity, storeAdvice };
 });

@@ -8,36 +8,70 @@ const SEARCH_DEBOUNCE_MS = 250;
 
 function shopField(initial) {
   initial = initial || {};
-  const lid = 'shl_' + uid(), cid = 'scl_' + uid();
-  const nameF = field('Shop (optional)', html`<input value="${initial.name || ''}" list="${lid}" autocomplete="off" maxlength="80">`);
+  const cid = 'scl_' + uid();
+  const nameF = field('Shop (optional)', html`<input value="${initial.name || ''}" autocomplete="off" maxlength="80">`);
   const cityF = field('City', html`<input value="${initial.city || shops.lastCity(session.current().history) || ''}" list="${cid}" maxlength="40">`);
   const areaF = field('Area', html`<input value="${initial.area || ''}" maxlength="40">`);
   const nameIn = nameF.querySelector('input'), cityIn = cityF.querySelector('input'), areaIn = areaF.querySelector('input');
-  const dl = el('datalist'); dl.id = lid;
   const cl = el('datalist'); cl.id = cid;
   shops.CITIES.forEach(c => { const o = el('option'); o.value = c; cl.appendChild(o); });
-  let seq = 0, found = [], timer = 0;
-  const fillFrom = hit => { if (!hit) return; if (!cityIn.value.trim()) cityIn.value = hit.city; if (!areaIn.value.trim()) areaIn.value = hit.area || ''; };
+  const list = el('div'); list.hidden = true;       // visible suggestions (names always via textContent)
+  const prompt = el('div'); prompt.hidden = true;   // "Did you mean" box
+  const same = (a, b) => shops.norm(a) === shops.norm(b);
+  let seq = 0, timer = 0, picked = null, asked = false;
+
+  const choice = (hit, sub, onTap) => {
+    const b = el('button', 'btn ghost block'); b.type = 'button';
+    const n = el('span'); n.textContent = hit.name;
+    b.appendChild(n);
+    if (sub) { const d = el('small'); d.textContent = ' · ' + sub; b.appendChild(d); }
+    b.onclick = onTap;
+    return b;
+  };
+  const sub = s => [s.area, s.city].filter(Boolean).join(', ');
+  const pick = s => {
+    nameIn.value = s.name; cityIn.value = s.city || ''; areaIn.value = s.area || '';
+    picked = { name: s.name, city: s.city || '', area: s.area || '' };
+    seq++; clearTimeout(timer); list.replaceChildren(); list.hidden = true;
+  };
   nameIn.addEventListener('input', () => {
-    fillFrom(found.find(s => s.name === nameIn.value));   // a suggestion was just picked
     const mine = ++seq;
     clearTimeout(timer);                              // debounce: only the last keystroke in the window searches
     timer = setTimeout(() => {
       shops.search(nameIn.value, cityIn.value.trim()).then(rows => {
         if (mine !== seq) return;                     // a newer keystroke owns the list
-        found = rows || [];
-        dl.replaceChildren(...found.map(s => { const o = el('option'); o.value = s.name; o.label = s.area || s.city; return o; }));
-        fillFrom(found.find(s => s.name === nameIn.value));
+        rows = rows || [];
+        list.replaceChildren(...rows.map(s => choice(s, sub(s), () => pick(s))));
+        list.hidden = !rows.length;
       }).catch(() => {});
     }, SEARCH_DEBOUNCE_MS);
   });
   const row = el('div', 'field-row');
   row.append(cityF, areaF);
+  const value = () => {
+    const name = nameIn.value.trim();
+    return name ? { name, city: cityIn.value.trim(), area: areaIn.value.trim() } : null;
+  };
   return {
-    nodes: [nameF, row, dl, cl],
-    value() {
-      const name = nameIn.value.trim();
-      return name ? { name, city: cityIn.value.trim(), area: areaIn.value.trim() } : null;
+    nodes: [nameF, list, row, prompt, cl],
+    value,
+    /* Asks "Did you mean" once per form when the typed shop is close to an existing one. */
+    async resolve() {
+      const v = value();
+      if (!v) return null;
+      if (asked || (picked && same(picked.name, v.name) && same(picked.city, v.city))) return v;
+      const hits = await shops.similar(v.name, v.city);
+      if (!hits.length) return v;
+      asked = true;
+      list.hidden = true;
+      return new Promise(resolve => {
+        const done = r => { prompt.replaceChildren(); prompt.hidden = true; resolve(r); };
+        const q = el('div'); q.textContent = t('Did you mean:');
+        const no = el('button', 'btn ghost block'); no.type = 'button'; no.textContent = t('No, it is a new shop');
+        no.onclick = () => done(v);
+        prompt.replaceChildren(q, ...hits.map(h => choice(h, h.area || h.city, () => { pick(h); done({ name: h.name, city: h.city || '', area: h.area || '' }); })), no);
+        prompt.hidden = false;
+      });
     }
   };
 }

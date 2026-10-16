@@ -9,10 +9,15 @@ test('shops table: insert-only shared list with case-insensitive uniqueness', ()
   assert.match(sql, /create table if not exists public\.shops/);
   assert.match(sql, /create unique index if not exists shops_norm_city_key\s+on public\.shops \(name_norm, lower\(city\)\)/);
   assert.match(sql, /grant insert on public\.shops to authenticated;/);
-  assert.match(sql, /grant select \(id, name, name_norm, city, area, created_at\) on public\.shops to authenticated;/);
+  assert.match(sql, /grant select \(id, name, name_norm, name_key, city, area, created_at\) on public\.shops to authenticated;/);
   assert.doesNotMatch(sql, /grant [^;]*created_by[^;]*to authenticated/);
   assert.match(sql, /create trigger shops_before_insert before insert on public\.shops/);
   assert.doesNotMatch(sql, /create policy [a-z_]+ on public\.shops for (update|delete)/);
+});
+
+test('shops.name_key: generated spaceless key, indexed', () => {
+  assert.match(sql, /add column if not exists name_key text generated always as \(replace\(name_norm, ' ', ''\)\) stored;/);
+  assert.match(sql, /create index if not exists shops_name_key_idx on public\.shops \(name_key\);/);
 });
 
 test('shop_feedback: one vote per user per shop, own rows only, tag whitelist', () => {
