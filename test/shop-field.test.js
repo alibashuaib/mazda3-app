@@ -182,7 +182,7 @@ test('feedback: Send is disabled until a thumb is chosen, then sends thumb and r
     assert.strictEqual(send.disabled, false);
     await send.onclick();
     assert.strictEqual(calls.length, 1);
-    assert.strictEqual(JSON.stringify(calls[0]), JSON.stringify(['s1', false, ['honest']]));
+    assert.strictEqual(JSON.stringify(calls[0]), JSON.stringify(['s1', false, ['honest'], null]));
     assert.strictEqual(app.document.querySelector('#modalHost').hidden, true);
   } finally { app.cleanup(); }
 });
@@ -432,3 +432,82 @@ test('shopField.set clears suggestions and re-arms the did-you-mean check', () =
   assert.strictEqual(sugg(f).length, 0); assert.strictEqual(f.nodes[1].hidden, true);
   assert.strictEqual(name.value, 'Bill Shop');
 }));
+
+/* ---- Task 5: save path stores bill parts, contributes them, votes through the RPC ---- */
+const saveBtn = d => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Add to history');
+async function saveWith(api, d, { share = true } = {}) {
+  const contributed = [], votes = [], rpcs = [];
+  api.insights.shareEnabled = () => Promise.resolve(share);
+  api.shops.findOrCreate = () => Promise.resolve({ id: 's1', name: 'Al Salam Auto', city: 'Jeddah' });
+  api.contribute = rows => { contributed.push(...rows); };
+  api.shops.vote = (...a) => { votes.push(a); return Promise.resolve(true); };
+  api.openShopFeedback = (shop, id) => { api.shops.vote(shop.id, true, [], id); };
+  api.shops.configure({ client: { rpc: (...a) => { rpcs.push(a); return Promise.resolve({ error: null }); }, from: () => { rpcs.push('from'); throw new Error('no table write'); } } });
+  await saveBtn(d).onclick(); await tick(); await tick(); await tick();
+  return { contributed, votes, rpcs };
+}
+const lastHist = api => api.session.current().history.slice(-1)[0];
+
+test('save: edited and removed bill parts are what is stored; entry photo is the 900px copy; contribution and vote carry them', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const [r0, r1] = rows(d);
+  const price = r1.querySelectorAll('input')[2]; price.value = '175'; price.oninput();
+  r0.querySelector('button').onclick();
+  const hist = api.session.current().history, push = hist.push.bind(hist); let pushed;
+  hist.push = o => { pushed = JSON.parse(JSON.stringify(o)); return push(o); };   // the entry as built, before persistence rewrites photos
+  const out = await saveWith(api, d);
+  const h = lastHist(api);
+  assert.strictEqual(pushed.photo, 'data:image/jpeg;base64,AA', 'never the 1600px copy');
+  assert.strictEqual(JSON.stringify(h.parts), JSON.stringify([{ part: 'Oil filter', brand: 'Mann', partNo: '', price: 175 }]));
+  assert.ok(h.shop && h.shop.name === 'Al Salam Auto');
+  assert.strictEqual(out.contributed.length, 1);
+  assert.strictEqual(out.contributed[0].shop_id, 's1'); assert.strictEqual(out.contributed[0].brand, 'Mann'); assert.strictEqual(out.contributed[0].price, 175);
+  assert.deepStrictEqual(out.votes, [['s1', true, [], 'r1']]);
+}));
+
+test('save: empty-name and zero-price rows skipped, NaN coerced, capped at 15', () => billForm(async ({ app, api, d }) => {
+  const items = [{ name: '', brand: 'x', part_no: '', price: 10 }, { name: 'Zero', brand: '', part_no: '', price: 5 }];
+  for (let i = 0; i < 20; i++) items.push({ name: 'P' + i, brand: '', part_no: '', price: 1 + i });
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, items }, billReadId: 'r3' });
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  q(d, '#h_name').value = 'Svc';
+  const rs = rows(d);
+  const zero = rs.find(r => r.querySelector('input').value === 'Zero').querySelectorAll('input')[2]; zero.value = '0'; zero.oninput();
+  await saveWith(api, d);
+  const parts = lastHist(api).parts;
+  assert.ok(parts.length <= 15 && parts.every(p => p.part && Number.isFinite(p.price) && p.price > 0));
+  assert.ok(!parts.some(p => p.part === 'Zero'));
+}));
+
+test('save: replacing or clearing the photo saves no stale bill parts and passes a null bill id', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  await attachPhoto(app, d, 'data:image/jpeg;base64,BB');   // replace
+  q(d, '#h_name').value = 'Manual';
+  const out = await saveWith(api, d);
+  assert.strictEqual(lastHist(api).parts, undefined);
+  assert.strictEqual(out.contributed.length, 0);
+  assert.ok(out.votes.length === 0 || out.votes[0][3] === null);
+}));
+
+test('save: sharing off sends nothing (no contribution, no rpc, no vote)', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const out = await saveWith(api, d, { share: false });
+  assert.strictEqual(lastHist(api).parts.length, 2, 'still saved locally');
+  assert.deepStrictEqual([out.contributed.length, out.votes.length, out.rpcs.filter(Array.isArray).length], [0, 0, 0]);
+}));
+
+test('save: a new shop with no bill and no parts votes with a null bill id exactly as before', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null);
+    q(d, '#h_name').value = 'Plain';
+    const out = await saveWith(api, d);
+    assert.strictEqual(lastHist(api).parts, undefined);
+    assert.strictEqual(out.contributed.length, 0);
+  } finally { app.cleanup(); }
+});

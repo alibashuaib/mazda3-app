@@ -15,7 +15,10 @@ function chain(result, log) {
 }
 function queueClient(results, log) {
   const q = results.slice();
-  return { from: table => { log.push(['from', table]); return chain(q.length ? q.shift() : { data: null, error: null }, log); } };
+  return {
+    from: table => { log.push(['from', table]); return chain(q.length ? q.shift() : { data: null, error: null }, log); },
+    rpc: (name, args) => { log.push(['rpc', name, args]); return Promise.resolve(q.length ? q.shift() : { data: null, error: null }); }
+  };
 }
 const row = { id: 's1', name: 'Al-Salam Auto', city: 'Jeddah', area: 'Safa' };
 
@@ -77,14 +80,22 @@ test('search needs two characters and a client', async () => {
   assert.deepStrictEqual(await shops.search('Salam', 'Jeddah'), [row]);
 });
 
-test('vote upserts one row, drops unknown reasons, is never bill-backed yet', async () => {
+test('vote calls the vote_shop RPC with four params, drops unknown reasons, null bill id', async () => {
   const log = [];
-  shops.configure({ client: queueClient([{ error: null }], log) });
-  assert.strictEqual(await shops.vote('s1', false, ['price', 'bogus']), true);
-  const up = log.find(l => l[0] === 'upsert');
-  assert.deepStrictEqual(up[1], { shop_id: 's1', vote: -1, reasons: ['price'] });
-  assert.deepStrictEqual(up[2], { onConflict: 'shop_id,user_id' });
+  shops.configure({ client: queueClient([{ data: false, error: null }, { data: true, error: null }], log) });
+  assert.strictEqual(await shops.vote('s1', false, ['price', 'bogus']), true);   // data:false (not backed) is still stored
+  assert.deepStrictEqual(log.find(l => l[0] === 'rpc').slice(1), ['vote_shop', { p_shop_id: 's1', p_vote: -1, p_reasons: ['price'], p_bill_read_id: null }]);
+  assert.strictEqual(await shops.vote('s1', true, [], 'r1'), true);
+  assert.deepStrictEqual(log.filter(l => l[0] === 'rpc')[1][2], { p_shop_id: 's1', p_vote: 1, p_reasons: [], p_bill_read_id: 'r1' });
+  assert.ok(!log.some(l => l[0] === 'from'), 'no table write');
   assert.strictEqual(await shops.vote('', true, []), false);
+});
+
+test('vote resolves false on an rpc error or throw', async () => {
+  shops.configure({ client: queueClient([{ error: { message: 'x' } }], []) });
+  assert.strictEqual(await shops.vote('s1', true, []), false);
+  shops.configure({ client: { rpc: () => { throw new Error('boom'); } } });
+  assert.strictEqual(await shops.vote('s1', true, []), false);
 });
 
 test('getTrust with no ids makes no request', async () => {
@@ -141,9 +152,9 @@ test('vote tolerates non-array reasons and de-duplicates', async () => {
   shops.configure({ client: queueClient([{ error: null }, { error: null }], log) });
   assert.strictEqual(await shops.vote('s1', true, 'price'), true);
   assert.strictEqual(await shops.vote('s1', true, ['price', 'price', 'fast']), true);
-  const ups = log.filter(l => l[0] === 'upsert');
-  assert.deepStrictEqual(ups[0][1].reasons, []);
-  assert.deepStrictEqual(ups[1][1].reasons, ['price', 'fast']);
+  const ups = log.filter(l => l[0] === 'rpc');
+  assert.deepStrictEqual(ups[0][2].p_reasons, []);
+  assert.deepStrictEqual(ups[1][2].p_reasons, ['price', 'fast']);
 });
 
 test('keyOf parity: shared fixture (also checked against SQL public.shop_norm)', async () => {

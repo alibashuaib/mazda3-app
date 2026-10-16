@@ -119,13 +119,13 @@ function buildPlan(v) {
    estimate (est. cost − default parts) is preserved. */
 /* Resolve the shop, share part prices tagged with it, then ask for feedback.
    Fire-and-forget: the save already succeeded, so shop features are optional. */
-async function afterPurchase(logged, shopIn, cur, vid) {
+async function afterPurchase(logged, shopIn, cur, vid, billReadId) {
   try {
     // Sharing off: nothing leaves the device (no shop row, no prices, no vote).
     if (!(await insights.shareEnabled())) return;
     const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
     contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
-    if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop);  // never stack on an open modal
+    if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop, billReadId || null);  // never stack on an open modal
   } catch (e) { /* shop features optional; save already succeeded */ }
 }
 
@@ -664,6 +664,9 @@ function openAddHistory(e, prefill) {
       };
       const shopIn = await shopF.resolve().catch(() => shopF.value());   // read before commit() closes the modal
       if (shopIn) obj.shop = shopIn; else if (e) delete e.shop;
+      const bp = e ? [] : billParts.map(x => ({ part: String(x.part || '').trim(), brand: String(x.brand || '').trim(), partNo: String(x.partNo || '').trim(), price: Number(x.price) }))
+        .filter(x => x.part && Number.isFinite(x.price) && x.price > 0).slice(0, 15);
+      if (bp.length) obj.parts = bp;
       if (e) Object.assign(e, obj);
       else {
         session.current().history.push(obj);
@@ -675,7 +678,7 @@ function openAddHistory(e, prefill) {
         }
       }
       const ok = await commit('maintenance', editing ? 'Record updated' : 'Service logged ✓');
-      if (ok && !editing && shopIn) afterPurchase([], shopIn, session.current(), session.garage().activeId);
+      if (ok && !editing && (shopIn || bp.length)) afterPurchase([obj], shopIn, session.current(), session.garage().activeId, billReadId);
     });
     card.appendChild(b);
     if (editing) {

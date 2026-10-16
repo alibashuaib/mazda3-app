@@ -110,11 +110,11 @@
       .catch(() => []);
   }
 
-  /* bill_backed is not client-writable (column grants); it stays false until a server can verify bills. */
-  function vote(shopId, up, reasons) {
+  /* The vote_shop RPC decides bill_backed on the server; its boolean means "backed", not "stored", so it is ignored: no error = stored. */
+  function vote(shopId, up, reasons, billReadId) {
     if (!env.client || !shopId) return Promise.resolve(false);
-    const row = { shop_id: shopId, vote: up ? 1 : -1, reasons: [...new Set(Array.isArray(reasons) ? reasons : [])].filter(r => REASONS.includes(r)) };
-    return Promise.resolve().then(() => env.client.from('shop_feedback').upsert(row, { onConflict: 'shop_id,user_id' }))
+    const args = { p_shop_id: shopId, p_vote: up ? 1 : -1, p_reasons: [...new Set(Array.isArray(reasons) ? reasons : [])].filter(r => REASONS.includes(r)), p_bill_read_id: billReadId || null };
+    return Promise.resolve().then(() => env.client.rpc('vote_shop', args))
       .then(res => { const ok = !(res && res.error); if (ok) clearCache(); return ok; }).catch(() => false);   // a vote changes trust
   }
 

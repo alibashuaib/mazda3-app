@@ -127,6 +127,11 @@ test('normalizeRecords fills the fields the render paths call methods on', () =>
   ['history', 'spending', 'fuel', 'docs', 'services'].forEach(k => assert.ok(s[k][0].id, `${k} entry should get an id`));
 });
 
+test('normalizeRecords keeps history parts entries intact', () => {
+  const parts = [{ part: 'Oil filter', brand: 'Mann', partNo: 'W1', price: 35.5 }];
+  assert.deepStrictEqual(normalizeRecords({ history: [{ id: 'h1', parts }] }, ids).history[0].parts, parts);
+});
+
 test('normalizeRecords keeps a history entry shop object', () => {
   const shop = { name: 'Al Amal', city: 'Jeddah', area: 'Balad' };
   assert.deepStrictEqual(normalizeRecords({ history: [{ id: 'h1', shop }] }, ids).history[0].shop, shop);

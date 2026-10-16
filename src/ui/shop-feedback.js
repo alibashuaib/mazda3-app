@@ -4,7 +4,7 @@
    ============================================================ */
 'use strict';
 
-function openShopFeedback(shop) {
+function openShopFeedback(shop, billReadId) {
   openModal('Would you buy from this shop again?', '', card => {
     card.appendChild(el('p', 'sub', html`${shop.name} · ${shop.city}`));
     let up = null;                       // null until a thumb is chosen
@@ -28,7 +28,7 @@ function openShopFeedback(shop) {
     });
     onAsyncClick(send, async () => {
       if (up === null) return;
-      const ok = await shops.vote(shop.id, up, [...reasons]).catch(() => false);   // vote() resolves false on failure
+      const ok = await shops.vote(shop.id, up, [...reasons], billReadId || null).catch(() => false);   // vote() resolves false on failure
       closeModal();
       if (ok) toast('Thanks for the feedback'); else toast('Could not send feedback', 'warn');
     });
