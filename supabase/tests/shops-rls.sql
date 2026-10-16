@@ -4,10 +4,10 @@
 -- silently means pass. Ends in ROLLBACK, so nothing it does persists.
 begin;
 
-insert into auth.users (id) values
-  ('00000000-0000-0000-0000-000000000001'), ('00000000-0000-0000-0000-000000000002'),
-  ('00000000-0000-0000-0000-000000000003'), ('00000000-0000-0000-0000-000000000004'),
-  ('00000000-0000-0000-0000-000000000005'), ('00000000-0000-0000-0000-000000000006');
+-- Users must be qualified (>= 7 days old, confirmed email) to count in aggregates.
+insert into auth.users (id, created_at, email_confirmed_at)
+select ('00000000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid, now() - interval '30 days', now() - interval '30 days'
+  from generate_series(1, 6) g;
 
 create or replace function public.tmp_as_user(n int) returns void language sql as $$
   select set_config('request.jwt.claim.sub', format('00000000-0000-0000-0000-%s', lpad(n::text, 12, '0')), true),

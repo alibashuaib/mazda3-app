@@ -577,3 +577,4 @@ Report pass/fail per item. Fix anything found before release. Record the result 
 - A shop id is resolved at save time, not stored on the history entry; editing an entry later does not re-contribute with a shop.
 - No shop merge/report tool; duplicate spellings stay separate (spec Risks).
 - Self-voting and vote-brigading are limited only by the 5-voter floor and one vote per account (spec Risks).
+- Fake accounts are mitigated, not eliminated: only qualified users (7+ days old, confirmed email or phone) count toward aggregates and the 5-voter floor.

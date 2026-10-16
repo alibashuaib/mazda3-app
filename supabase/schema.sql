@@ -326,9 +326,18 @@ grant update (shop_id, vote, reasons) on public.shop_feedback to authenticated;
 alter table public.contributions
   add column if not exists shop_id uuid references public.shops on delete set null;
 
+-- Anti-fake-account rule: only "qualified" users count in aggregates (account
+-- >= 7 days old with a confirmed email or phone). The ONLY place the age and
+-- confirmation rule lives. Owner-run views read it; clients have no access.
+create or replace view public.qualified_users as
+  select u.id from auth.users u
+  where u.created_at <= now() - interval '7 days'
+    and (u.email_confirmed_at is not null or u.phone_confirmed_at is not null);
+revoke all on public.qualified_users from public, anon, authenticated;
+
 -- Owner-run (not security_invoker): shop_feedback is own-rows-only under RLS, so
 -- the aggregate must bypass it. Safe because the view only emits shops with >= 5
--- voters and exposes counts, never user ids. One row per user per shop, so
+-- qualified voters and exposes counts, never user ids. One row per user per shop, so
 -- count(*) is the number of distinct voters. bill_backed votes weigh 2.
 create or replace view public.shop_trust as
   select f.shop_id,
@@ -339,10 +348,10 @@ create or replace view public.shop_trust as
            / sum(case when f.bill_backed then 2 else 1 end))::numeric(4,3) as score_share,
          (select coalesce(array_agg(x.r order by x.cnt desc), '{}')
             from (select r, count(*) as cnt
-                    from shop_feedback f2, unnest(f2.reasons) as r
+                    from shop_feedback f2 join qualified_users q2 on q2.id = f2.user_id, unnest(f2.reasons) as r
                    where f2.shop_id = f.shop_id and f2.vote = 1
                    group by r order by cnt desc limit 2) x) as top_reasons
-  from shop_feedback f
+  from shop_feedback f join qualified_users q on q.id = f.user_id
   group by f.shop_id
   having count(*) >= 5;
 
@@ -352,6 +361,7 @@ create or replace view public.store_prices as
          count(*) as n
   from contributions c
   join contribution_links l on l.contribution_id = c.id
+  join qualified_users q on q.id = l.user_id
   join shops s on s.id = c.shop_id
   where c.kind = 'part' and c.price is not null
   group by c.model_id, c.item_key, c.shop_id, s.name, s.city, s.area
@@ -428,6 +438,7 @@ create or replace view public.fuel_stats as
          (percentile_cont(0.75) within group (order by c.l100))::numeric(5,2) as p75_l100,
          count(*) as n
   from contributions c join contribution_links l on l.contribution_id = c.id
+  join qualified_users q on q.id = l.user_id
   where c.kind = 'fuel' and c.l100 is not null
   group by c.model_id, c.engine, c.odometer_band
   having count(distinct l.user_id) >= 5;
@@ -440,6 +451,7 @@ create or replace view public.brand_life as
          (percentile_cont(0.5) within group (order by c.price))::numeric(10,2) as median_price,
          count(*) as n
   from contributions c join contribution_links l on l.contribution_id = c.id
+  join qualified_users q on q.id = l.user_id
   where c.kind = 'part' and c.km_since_prev is not null and c.price is not null
   group by c.model_id, c.item_key, c.brand
   having count(distinct l.user_id) >= 5;
