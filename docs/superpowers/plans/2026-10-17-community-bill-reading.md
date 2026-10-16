@@ -17,7 +17,7 @@
 - The photo is never stored server-side. `bill_reads` holds no image, no text, no customer name/phone/plate: only `id, user_id, store_key, city, fingerprint, created_at, used_at`.
 - The model's output is untrusted: only the whitelisted fields below survive, with the clamps below. Customer name, phone, plate, card/payment details are never requested and never returned.
 - Disclosure before first use: a one-time confirm ("The photo is sent to our server and an AI service to read it. It is not stored.") stored as meta flag `billNoticeAck`. Cancel = nothing is sent.
-- `bill_backed` is set only by `vote_shop` on the server: caller owns the bill read, it is unused, ≤ 7 days old, has a fingerprint (store + date + total present), and `similarity(bill store_key, shop name_key) >= 0.5`. One bill read backs one vote. A given bill (same fingerprint) can only ever be registered once across all accounts; later reads of it still prefill but are not usable for backing.
+- `bill_backed` is set only by `vote_shop` on the server: caller owns the bill read, it is unused, ≤ 7 days old, has a fingerprint (store + date + total present; stored as a SHA-256 hash of store|date|total in whole SAR, invoice number not used), and `similarity(bill store_key, shop name_key) >= 0.5`. One bill read backs one vote. A given bill (same fingerprint) can only ever be registered once across all accounts; later reads of it still prefill but are not usable for backing.
 - Arabic and English bills; Arabic-Indic and Persian digits are normalised.
 - Limits: image ≤ 1,500,000 bytes decoded, `image/jpeg|png|webp` data URL; ≤ 15 items; strings ≤ 80 chars (part no ≤ 40, city/area ≤ 40); price 0 < p < 100,000; total 0 < t < 1,000,000; odometer 0–2,000,000; date year 2000..current+1 and not later than tomorrow.
 - Local saves never wait on any of this: reading is an explicit user action with a spinner; every client failure returns `{ ok:false, error }` and the form still works manually.
@@ -93,7 +93,7 @@ test('opt-out also erases the caller\'s bill reads', () => {
 ```sql
 -- Bill reads: proof that a user photographed a real bill. Written only by the
 -- read-bill Edge Function (service role). Holds NO image and NO bill text.
--- fingerprint = store|date|total[|invoice], unique, so one bill registers once
+-- fingerprint = SHA-256 of store|date|total (whole SAR), unique, so one bill registers once
 -- across all accounts; duplicates get a row with null fingerprint/store_key
 -- (counts toward the daily cap, can never back a vote).
 create extension if not exists pg_trgm with schema extensions;
@@ -166,7 +166,7 @@ git commit -m "feat(bills): bill_reads table and server-decided bill-backed vote
 
 **Interfaces:**
 - Produces `logic.mjs` exports: `MAX_IMAGE_BYTES`, `DAILY_CAP`, `MAX_ITEMS`, `westernDigits(s)`, `storeKey(name)`, `validateImage(dataUrl) -> {mediaType, data}|null`, `parseBill(text, now?) -> {store:{name,city,area}|null, date, odometer, total, invoice_no, items:[{name,brand,part_no,price}]}|null`, `fingerprint(bill) -> string|null`, `SYSTEM_PROMPT`.
-- HTTP contract of `read-bill` (POST JSON `{ image: "data:image/jpeg;base64,..." }`, `Authorization: Bearer <user jwt>`): `200 {bill, billReadId|null}` (bill = `parseBill` result without `invoice_no`); `401` unauthenticated; `413` bad/oversized image; `422` unreadable; `429` daily cap; `502` model/upstream failure; `503` function not configured (no API key).
+- HTTP contract of `read-bill` (POST JSON `{ image: "data:image/jpeg;base64,..." }`, `Authorization: Bearer <user jwt>`): `200 {bill, billReadId|null}` (bill = `parseBill` result without `invoice_no`); `401` unauthenticated; `413` bad/oversized image; `422` unreadable; `429` daily cap; `502` model/upstream failure; `503` function not configured (no API key) or caps unavailable (also global daily cap `BILL_GLOBAL_DAILY_CAP`, default 500); `403` account has no confirmed email or phone. Model call uses `temperature: 0`.
 
 - [ ] **Step 1: Write failing tests** `test/read-bill-logic.test.js`
 
@@ -237,7 +237,7 @@ test('fingerprint needs store, date and total; storeKey matches shops.name_key s
   assert.strictEqual(storeKey('Al-Salam  Auto!'), 'alsalamauto');
   assert.strictEqual(storeKey('مركز السلام'), 'مركزالسلام');
   const full = parseBill(JSON.stringify({ store: { name: 'Al Salam' }, date: '2026-10-10', total: 50, invoice_no: '9' }), NOW);
-  assert.strictEqual(fingerprint(full), 'alsalam|2026-10-10|50|9');
+  assert.strictEqual(fingerprint(full), 'alsalam|2026-10-10|50');
   assert.strictEqual(fingerprint({ ...full, total: null }), null);
   assert.strictEqual(fingerprint({ ...full, date: null }), null);
   assert.strictEqual(fingerprint({ ...full, store: null }), null);
@@ -343,7 +343,7 @@ export function parseBill(text, now = new Date()) {
 /* One bill = one fingerprint. Null when the bill is too sparse to prove anything. */
 export function fingerprint(bill) {
   if (!bill || !bill.store || !bill.date || bill.total == null) return null;
-  return [storeKey(bill.store.name), bill.date, bill.total, bill.invoice_no || ''].join('|').replace(/\|$/, '');
+  return [storeKey(bill.store.name), bill.date, Math.round(bill.total)].join('|');   // + sha256Hex() in index.ts
 }
 ```
 

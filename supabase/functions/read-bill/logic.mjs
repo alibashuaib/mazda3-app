@@ -84,8 +84,15 @@ export function parseBill(text, now = new Date()) {
   return bill.items.length || bill.total != null || bill.store ? bill : null;
 }
 
-/* One bill = one fingerprint. Null when the bill is too sparse to prove anything. */
+/* One bill = one fingerprint. Null when the bill is too sparse to prove anything.
+   invoice_no is left out and the total is rounded to whole SAR: both vary between OCR reads of one bill. */
 export function fingerprint(bill) {
   if (!bill || !bill.store || !bill.date || bill.total == null) return null;
-  return [storeKey(bill.store.name), bill.date, bill.total, bill.invoice_no || ''].join('|').replace(/\|$/, '');
+  return [storeKey(bill.store.name), bill.date, Math.round(bill.total)].join('|');
+}
+
+/* Hex SHA-256, so bill_reads never holds the readable fingerprint. Works in Deno and Node 20+. */
+export async function sha256Hex(s) {
+  const d = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
 }

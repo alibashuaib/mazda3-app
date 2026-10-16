@@ -2,7 +2,7 @@
 // Secrets: ANTHROPIC_API_KEY (required), BILL_MODEL (optional, default below).
 // Deploy: supabase functions deploy read-bill; supabase secrets set ANTHROPIC_API_KEY=...
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { DAILY_CAP, SYSTEM_PROMPT, fingerprint, parseBill, storeKey, validateImage } from './logic.mjs';
+import { DAILY_CAP, SYSTEM_PROMPT, fingerprint, parseBill, sha256Hex, storeKey, validateImage } from './logic.mjs';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +30,8 @@ Deno.serve(async (req) => {
     const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
     const { data: u } = await userClient.auth.getUser(jwt);
     if (!u?.user) return json(401, { error: 'auth' });
+    // Throwaway sign-ups would otherwise multiply the per-user cap: require a confirmed email or phone.
+    if (!u.user.email_confirmed_at && !u.user.phone_confirmed_at) return json(403, { error: 'unconfirmed' });
     const admin = createClient(url, serviceKey);
 
     if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY) return json(413, { error: 'image' });
@@ -45,6 +47,14 @@ Deno.serve(async (req) => {
     const { count, error: cntErr } = await admin.from('bill_reads').select('id', { count: 'exact', head: true })
       .eq('user_id', u.user.id).gte('created_at', since);
     if (cntErr || count == null) return json(503, { error: 'unavailable' });
+    // Global kill switch on spend: all users, last 24h (includes this attempt). Fail closed.
+    const globalCap = Number(Deno.env.get('BILL_GLOBAL_DAILY_CAP') ?? 500) || 500;
+    const { count: all, error: allErr } = await admin.from('bill_reads').select('id', { count: 'exact', head: true })
+      .gte('created_at', since);
+    if (allErr || all == null || all > globalCap) {
+      await admin.from('bill_reads').delete().eq('id', row.id);
+      return json(503, { error: 'unavailable' });
+    }
     if (count > DAILY_CAP) {
       await admin.from('bill_reads').delete().eq('id', row.id);
       return json(429, { error: 'limit' });
@@ -58,6 +68,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           model: Deno.env.get('BILL_MODEL') ?? 'claude-haiku-5-5',
           max_tokens: 2048,
+          temperature: 0,
           system: SYSTEM_PROMPT,
           messages: [{ role: 'user', content: [
             { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } },
@@ -77,7 +88,7 @@ Deno.serve(async (req) => {
     let billReadId: string | null = null;
     if (fp) {
       const { error } = await admin.from('bill_reads')
-        .update({ store_key: storeKey(bill.store!.name), city: bill.store!.city, fingerprint: fp }).eq('id', row.id);
+        .update({ store_key: storeKey(bill.store!.name), city: bill.store!.city, fingerprint: await sha256Hex(fp) }).eq('id', row.id);
       if (!error) billReadId = row.id;           // 23505 on the unique fingerprint => not usable
     }
     const { invoice_no: _omit, ...clean } = bill;

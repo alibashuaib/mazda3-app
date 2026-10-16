@@ -75,7 +75,9 @@ test('fingerprint needs store, date and total; storeKey matches shops.name_key s
   assert.strictEqual(storeKey('Al-Salam  Auto!'), 'alsalamauto');
   assert.strictEqual(storeKey('مركز السلام'), 'مركزالسلام');
   const full = parseBill(JSON.stringify({ store: { name: 'Al Salam' }, date: '2026-10-10', total: 50, invoice_no: '9' }), NOW);
-  assert.strictEqual(fingerprint(full), 'alsalam|2026-10-10|50|9');
+  assert.strictEqual(fingerprint(full), 'alsalam|2026-10-10|50');
+  assert.strictEqual(fingerprint({ ...full, invoice_no: 'other' }), 'alsalam|2026-10-10|50');
+  assert.strictEqual(fingerprint({ ...full, total: 50.4 }), 'alsalam|2026-10-10|50');
   assert.strictEqual(fingerprint({ ...full, total: null }), null);
   assert.strictEqual(fingerprint({ ...full, date: null }), null);
   assert.strictEqual(fingerprint({ ...full, store: null }), null);
@@ -98,6 +100,11 @@ test('validateImage accepts small jpeg/png/webp data URLs only', async () => {
   assert.strictEqual(validateImage(big), null);
 });
 
+test('sha256Hex matches the known vector', async () => {
+  const { sha256Hex } = await load();
+  assert.strictEqual(await sha256Hex('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+});
+
 /* index.ts needs Deno and is NOT executed here; these are static checks on its source only. */
 test('read-bill/index.ts static checks (source text, not executed)', () => {
   const src = require('fs').readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'read-bill', 'index.ts'), 'utf8');
@@ -112,4 +119,8 @@ test('read-bill/index.ts static checks (source text, not executed)', () => {
     .flatMap(m => [...(',' + m[1]).matchAll(/,\s*(\w+)\s*:/g)].map(k => k[1]));
   assert.ok(used.length >= 4);
   for (const k of used) assert.ok(allowed.has(k), 'unexpected bill_reads column ' + k);
+  assert.ok(src.includes('email_confirmed_at') && src.includes('phone_confirmed_at') && src.includes("'unconfirmed'"));
+  assert.ok(src.indexOf("'unconfirmed'") < src.indexOf('.insert('), 'confirmation checked before any write');
+  assert.ok(src.includes('BILL_GLOBAL_DAILY_CAP') && src.indexOf('BILL_GLOBAL_DAILY_CAP') < src.indexOf('api.anthropic.com'));
+  assert.ok(src.includes('sha256Hex(fp)') && src.includes('temperature: 0'));
 });

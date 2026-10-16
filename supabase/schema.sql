@@ -483,7 +483,7 @@ grant select, insert, update on public.insights_prefs to authenticated;
 
 -- Bill reads: proof that a user photographed a real bill. Written only by the
 -- read-bill Edge Function (service role). Holds NO image and NO bill text.
--- fingerprint = store|date|total[|invoice], unique, so one bill registers once
+-- fingerprint = SHA-256 of store|date|total (whole SAR); no bill text stored. Unique, so one bill registers once
 -- across all accounts; duplicates get a row with null fingerprint/store_key
 -- (counts toward the daily cap, can never back a vote).
 create extension if not exists pg_trgm with schema extensions;

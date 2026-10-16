@@ -27,6 +27,8 @@ test('readBill maps server statuses and never rejects', async () => {
   assert.strictEqual((await bills.readBill('x')).error, 'failed');
   bills.configure({ client: client(err(503)) });
   assert.strictEqual((await bills.readBill('x')).error, 'failed');
+  bills.configure({ client: client(err(403)) });
+  assert.strictEqual((await bills.readBill('x')).error, 'failed');
   bills.configure({ client: client(err(413)) });
   assert.strictEqual((await bills.readBill('x')).error, 'failed');
   bills.configure({ client: client({ data: {}, error: null }) });
