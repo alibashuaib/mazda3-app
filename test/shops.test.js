@@ -145,3 +145,93 @@ test('vote tolerates non-array reasons and de-duplicates', async () => {
   assert.deepStrictEqual(ups[0][1].reasons, []);
   assert.deepStrictEqual(ups[1][1].reasons, ['price', 'fast']);
 });
+
+test('keyOf parity: shared fixture (also checked against SQL public.shop_norm)', async () => {
+  const fixture = require('./fixtures/shop-norm.json');
+  for (const [input, expected] of fixture) {
+    const log = [];
+    shops.configure({ client: queueClient([{ data: null, error: null }], log) });
+    await shops.findExact(input, 'Jeddah');
+    assert.strictEqual(log.find(l => l[0] === 'eq' && l[1] === 'name_norm')[2], expected, JSON.stringify(input));
+  }
+});
+
+/* ---- read cache ---- */
+const rowsOf = n => ({ data: [{ shop_id: 'a', n }], error: null });
+const fromCount = log => log.filter(l => l[0] === 'from').length;
+
+test('getStorePrices: second call is served from cache, keyed by model and item', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([rowsOf(1), rowsOf(2)], log) });
+  const a = await shops.getStorePrices('m3', 'oil');
+  assert.deepStrictEqual(await shops.getStorePrices('m3', 'oil'), a);
+  assert.strictEqual(fromCount(log), 1);
+  await shops.getStorePrices('m3', 'brake');
+  assert.strictEqual(fromCount(log), 2);
+});
+
+test('concurrent identical reads share one request', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([rowsOf(1)], log) });
+  const [a, b] = await Promise.all([shops.getStorePrices('m3', 'oil'), shops.getStorePrices('m3', 'oil')]);
+  assert.deepStrictEqual(a, b);
+  assert.strictEqual(fromCount(log), 1);
+});
+
+test('getTrust caches by sorted id list and does not mutate the input', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([rowsOf(1)], log) });
+  const ids = ['b', 'a'];
+  await shops.getTrust(ids);
+  await shops.getTrust(['a', 'b']);
+  assert.strictEqual(fromCount(log), 1);
+  assert.deepStrictEqual(ids, ['b', 'a']);
+});
+
+test('failures are never cached', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([{ data: null, error: { message: 'boom' } }, rowsOf(2)], log) });
+  assert.deepStrictEqual(await shops.getStorePrices('m3', 'oil'), []);
+  assert.strictEqual((await shops.getStorePrices('m3', 'oil')).length, 1);
+  assert.strictEqual(fromCount(log), 2);
+});
+
+test('a successful empty response is cached', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([{ data: [], error: null }], log) });
+  await shops.getStorePrices('m3', 'oil');
+  await shops.getStorePrices('m3', 'oil');
+  assert.strictEqual(fromCount(log), 1);
+});
+
+test('cache entries expire after 5 minutes', async t => {
+  const log = [];
+  let now = 1e12;
+  t.mock.method(Date, 'now', () => now);
+  shops.configure({ client: queueClient([rowsOf(1), rowsOf(2)], log) });
+  await shops.getStorePrices('m3', 'oil');
+  now += 5 * 60 * 1000 - 1;
+  await shops.getStorePrices('m3', 'oil');
+  assert.strictEqual(fromCount(log), 1);
+  now += 2;
+  await shops.getStorePrices('m3', 'oil');
+  assert.strictEqual(fromCount(log), 2);
+});
+
+test('reset() clears the cache', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([rowsOf(1)], log) });
+  await shops.getStorePrices('m3', 'oil');
+  shops.reset();
+  shops.configure({ client: queueClient([rowsOf(2)], log) });
+  assert.strictEqual((await shops.getStorePrices('m3', 'oil'))[0].n, 2);
+  assert.strictEqual(fromCount(log), 2);
+});
+
+test('a successful vote invalidates cached trust', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([rowsOf(1), { data: null, error: null }, rowsOf(2)], log) });
+  await shops.getTrust(['a']);
+  assert.strictEqual(await shops.vote('a', true, []), true);
+  assert.strictEqual((await shops.getTrust(['a']))[0].n, 2);
+});

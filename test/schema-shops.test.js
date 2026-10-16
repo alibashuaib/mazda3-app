@@ -8,7 +8,10 @@ const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'schema.sql')
 test('shops table: insert-only shared list with case-insensitive uniqueness', () => {
   assert.match(sql, /create table if not exists public\.shops/);
   assert.match(sql, /create unique index if not exists shops_norm_city_key\s+on public\.shops \(name_norm, lower\(city\)\)/);
-  assert.match(sql, /grant select, insert on public\.shops to authenticated/);
+  assert.match(sql, /grant insert on public\.shops to authenticated;/);
+  assert.match(sql, /grant select \(id, name, name_norm, city, area, created_at\) on public\.shops to authenticated;/);
+  assert.doesNotMatch(sql, /grant [^;]*created_by[^;]*to authenticated/);
+  assert.match(sql, /create trigger shops_before_insert before insert on public\.shops/);
   assert.doesNotMatch(sql, /create policy [a-z_]+ on public\.shops for (update|delete)/);
 });
 

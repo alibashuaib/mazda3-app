@@ -72,8 +72,25 @@
   /* ---- Network + consent. Every call resolves; failures never block local saves. ---- */
   let env = { client: null, metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) };
   const DEFAULT_ENV = env;
-  function configure(next) { env = Object.assign({}, env, next || {}); }
-  function reset() { env = DEFAULT_ENV; }
+  /* brand_life read cache: 5 min TTL, shared in-flight request, successes only.
+     `epoch` stops a request in flight during reset()/configure() from repopulating. */
+  const TTL_MS = 5 * 60 * 1000;
+  const cache = new Map();
+  let epoch = 0;
+  const clearCache = () => { cache.clear(); epoch++; };
+  function memo(key, load) {                       // load() -> Promise<{ ok, v }>
+    const hit = cache.get(key);
+    if (hit && (hit.p || hit.exp > Date.now())) return hit.p || Promise.resolve(hit.v);
+    const gen = epoch;
+    const p = load().then(r => {
+      if (gen === epoch) { if (r.ok) cache.set(key, { v: r.v, exp: Date.now() + TTL_MS }); else cache.delete(key); }
+      return r.v;
+    });
+    cache.set(key, { p });
+    return p;
+  }
+  function configure(next) { clearCache(); env = Object.assign({}, env, next || {}); }
+  function reset() { clearCache(); env = DEFAULT_ENV; }
   function available() { return !!env.client; }
 
   const shareEnabled = () => env.metaGet().then(m => m.insightsShare !== false);
@@ -126,7 +143,11 @@
     }).then(res => (res && !res.error && res.data) || []).catch(() => []);
   }
   const getFuelStats = modelId => stats('fuel_stats', { modelId });
-  const getBrandLife = (modelId, itemKey) => stats('brand_life', { modelId, itemKey });
+  const getBrandLife = (modelId, itemKey) => {
+    if (!env.client) return Promise.resolve([]);
+    return memo(JSON.stringify([modelId, itemKey]), () => Promise.resolve().then(() => env.client.from('brand_life').select('*').eq('model_id', modelId).eq('item_key', itemKey))
+      .then(res => { const ok = !!(res && !res.error && res.data); return { ok, v: ok ? res.data : [] }; }).catch(() => ({ ok: false, v: [] })));
+  };
 
   return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife };
 });

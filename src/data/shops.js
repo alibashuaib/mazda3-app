@@ -16,8 +16,26 @@
   const TRUSTED_SHARE = 0.8;   // the view already hides shops under 5 voters
 
   let env = { client: null };
-  const configure = next => { env = Object.assign({}, env, next || {}); };
-  const reset = () => { env = { client: null }; };
+  /* Read cache: 5 min TTL, concurrent identical calls share one request, only
+     successful responses are stored. `epoch` stops a request that was in flight
+     during reset()/configure() from repopulating the cleared cache. */
+  const TTL_MS = 5 * 60 * 1000;
+  const cache = new Map();
+  let epoch = 0;
+  const clearCache = () => { cache.clear(); epoch++; };
+  function memo(key, load) {                       // load() -> Promise<{ ok, v }>
+    const hit = cache.get(key);
+    if (hit && (hit.p || hit.exp > Date.now())) return hit.p || Promise.resolve(hit.v);
+    const gen = epoch;
+    const p = load().then(r => {
+      if (gen === epoch) { if (r.ok) cache.set(key, { v: r.v, exp: Date.now() + TTL_MS }); else cache.delete(key); }
+      return r.v;
+    });
+    cache.set(key, { p });
+    return p;
+  }
+  const configure = next => { clearCache(); env = Object.assign({}, env, next || {}); };
+  const reset = () => { clearCache(); env = { client: null }; };
   const available = () => !!env.client;
 
   const norm = s => String(s == null ? '' : s).toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -65,18 +83,21 @@
     if (!env.client || !shopId) return Promise.resolve(false);
     const row = { shop_id: shopId, vote: up ? 1 : -1, reasons: [...new Set(Array.isArray(reasons) ? reasons : [])].filter(r => REASONS.includes(r)) };
     return Promise.resolve().then(() => env.client.from('shop_feedback').upsert(row, { onConflict: 'shop_id,user_id' }))
-      .then(res => !(res && res.error)).catch(() => false);
+      .then(res => { const ok = !(res && res.error); if (ok) clearCache(); return ok; }).catch(() => false);   // a vote changes trust
   }
+
+  // memo() wants { ok, v }: a failed query yields [] but is never cached.
+  const readRows = query => Promise.resolve().then(query)
+    .then(res => { const rows = unwrap(res); return { ok: !!rows, v: rows || [] }; }).catch(() => ({ ok: false, v: [] }));
 
   function getTrust(shopIds) {
     if (!env.client || !shopIds || !shopIds.length) return Promise.resolve([]);
-    return Promise.resolve().then(() => env.client.from('shop_trust').select('*').in('shop_id', shopIds))
-      .then(res => unwrap(res) || []).catch(() => []);
+    const ids = [...shopIds];
+    return memo('trust:' + [...ids].sort().join(','), () => readRows(() => env.client.from('shop_trust').select('*').in('shop_id', ids)));
   }
   function getStorePrices(modelId, itemKey) {
     if (!env.client) return Promise.resolve([]);
-    return Promise.resolve().then(() => env.client.from('store_prices').select('*').eq('model_id', modelId).eq('item_key', itemKey))
-      .then(res => unwrap(res) || []).catch(() => []);
+    return memo('prices:' + JSON.stringify([modelId, itemKey]), () => readRows(() => env.client.from('store_prices').select('*').eq('model_id', modelId).eq('item_key', itemKey)));
   }
 
   function lastCity(history) {

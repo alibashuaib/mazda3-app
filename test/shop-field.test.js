@@ -11,6 +11,7 @@ async function withField(initial, fn) {
 const inputs = f => f.nodes.flatMap(n => [...n.querySelectorAll('input')]);
 const typeName = (app, input, v) => { input.value = v; input.dispatchEvent(new app.window.Event('input')); };
 const tick = () => new Promise(r => setImmediate(r));
+const settle = () => new Promise(r => setTimeout(r, 320));   // past the 250ms search debounce
 
 test('value() is null for a blank name, a trimmed triple otherwise', () => withField(null, (app, f) => {
   const [name, city, area] = inputs(f);
@@ -35,7 +36,10 @@ test('a stale search response never overwrites newer suggestions', () => withFie
   app.api.shops.search = () => new Promise(res => pending.push(res));
   const [name] = inputs(f);
   typeName(app, name, 'al');
+  await settle();
   typeName(app, name, 'ala');
+  await settle();
+  assert.strictEqual(pending.length, 2);
   pending[1]([{ name: 'New', city: 'Jeddah' }]);
   await tick();
   pending[0]([{ name: 'Old', city: 'Jeddah' }]);
@@ -44,11 +48,22 @@ test('a stale search response never overwrites newer suggestions', () => withFie
   assert.strictEqual([...dl.children].map(o => o.value).join('|'), 'New');
 }));
 
+test('search is debounced: a burst of keystrokes sends one request for the last value', () => withField(null, async (app, f) => {
+  const calls = [];
+  app.api.shops.search = q => { calls.push(q); return Promise.resolve([]); };
+  const [name] = inputs(f);
+  ['s', 'sa', 'sal'].forEach(v => typeName(app, name, v));
+  await tick();
+  assert.strictEqual(calls.length, 0, 'nothing sent before the debounce window ends');
+  await settle();
+  assert.deepStrictEqual([...calls], ['sal']);
+}));
+
 test('suggestions are real option elements carrying the exact name', () => withField(null, async (app, f) => {
   const evil = '<b>"&Shop';
   app.api.shops.search = () => Promise.resolve([{ name: evil, city: 'Jeddah', area: 'Balad' }]);
   typeName(app, inputs(f)[0], 'sh');
-  await tick();
+  await settle();
   const opts = [...f.nodes.find(n => n.tagName === 'DATALIST').children];
   assert.strictEqual(opts.length, 1);
   assert.strictEqual(opts[0].tagName, 'OPTION');

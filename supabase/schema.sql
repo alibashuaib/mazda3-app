@@ -245,9 +245,9 @@ alter table public.contribution_links enable row level security;
 -- No policies on purpose: RLS defaults to deny for every role except the owner.
 
 -- Shops: a shared, insert-only list (like price_items). No update/delete policy,
--- so existing shops cannot be vandalised. name_norm is normalised by the client
--- (lowercase, punctuation to space, collapsed whitespace); a different
--- normalisation only risks a duplicate shop, never a wrong merge.
+-- so existing shops cannot be vandalised. name_norm is recomputed from name by
+-- the BEFORE INSERT trigger below (client value is overwritten), so nobody can
+-- squat another shop's key under a different display name.
 create table if not exists public.shops (
   id         uuid        primary key default gen_random_uuid(),
   name       text        not null check (length(name) between 2 and 80),
@@ -258,13 +258,49 @@ create table if not exists public.shops (
 );
 create unique index if not exists shops_norm_city_key
   on public.shops (name_norm, lower(city));
+alter table public.shops add column if not exists created_by uuid references auth.users on delete set null;
+
+-- Mirrors shops.norm() in src/data/shops.js (parity fixture: test/fixtures/shop-norm.json,
+-- checked by supabase/tests/shop-norm.sql): lowercase, anything that is not a
+-- letter/mark/number/space becomes a space, whitespace collapsed, trimmed, first 80 chars.
+-- Postgres has no \p{M}, so the common combining-mark ranges (Latin, Hebrew, Arabic
+-- tashkeel) are listed explicitly; rarer marks in other scripts become spaces.
+create or replace function public.shop_norm(s text) returns text
+language sql immutable set search_path = public as $$
+  select left(btrim(regexp_replace(regexp_replace(lower(coalesce(s, '')),
+    '[^[:alnum:][:space:]\u0300-\u036f\u0483-\u0489\u0591-\u05bd\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06dc\u06df-\u06e4\u06e7\u06e8\u06ea-\u06ed]', ' ', 'g'),
+    '[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g')), 80) $$;
+
+-- Owner-run so it can read created_by (not selectable by clients). Max 10 shop
+-- inserts per user per rolling 24h.
+create or replace function public.shops_before_insert() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'sign in to add a shop'; end if;
+  new.created_by := auth.uid();
+  new.created_at := now();
+  new.name_norm := public.shop_norm(new.name);
+  perform pg_advisory_xact_lock(hashtext('shops:' || new.created_by::text));
+  if (select count(*) from public.shops
+        where created_by = new.created_by and created_at > now() - interval '24 hours') >= 10 then
+    raise exception 'shop limit reached (10 per 24 hours)' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+revoke all on function public.shops_before_insert() from public;
+drop trigger if exists shops_before_insert on public.shops;
+create trigger shops_before_insert before insert on public.shops
+  for each row execute function public.shops_before_insert();
 
 alter table public.shops enable row level security;
 drop policy if exists read_shops on public.shops;
 create policy read_shops on public.shops for select to authenticated using (true);
 drop policy if exists insert_shops on public.shops;
 create policy insert_shops on public.shops for insert to authenticated with check (true);
-grant select, insert on public.shops to authenticated;
+-- Column-level select: created_by stays private (clients name explicit columns).
+revoke select on public.shops from authenticated;
+grant select (id, name, name_norm, city, area, created_at) on public.shops to authenticated;
+grant insert on public.shops to authenticated;
 revoke all on public.shops from anon;
 
 create table if not exists public.shop_feedback (

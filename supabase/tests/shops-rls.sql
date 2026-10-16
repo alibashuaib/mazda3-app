@@ -35,7 +35,7 @@ end $$;
 -- (b) duplicate (name_norm, lower(city)) fails 23505
 do $$ begin
   begin
-    insert into public.shops (name, name_norm, city) values ('AL AMAL', 'al amal parts', 'RIYADH');
+    insert into public.shops (name, name_norm, city) values ('AL-AMAL parts!', 'al amal parts', 'RIYADH');
     raise exception 'FAIL: duplicate shop accepted';
   exception when unique_violation then null; end;
 end $$;
@@ -180,5 +180,43 @@ do $$ begin
   exception when insufficient_privilege then null; end;
 end $$;
 reset role;
+
+reset role;
+-- (i) name_norm is recomputed server-side: a squatting client value is ignored,
+--     and a client-normalised duplicate still hits 23505
+select public.tmp_as_user(2);
+set local role authenticated;
+do $$ begin
+  insert into public.shops (name, name_norm, city) values ('Totally Different', 'al amal parts', 'Qassim');
+  if (select name_norm from public.shops where city = 'Qassim') <> 'totally different' then
+    raise exception 'FAIL: client-supplied name_norm was kept';
+  end if;
+  begin
+    insert into public.shops (name, name_norm, city) values ('AL-AMAL  parts!', 'whatever', 'riyadh');
+    raise exception 'FAIL: server-normalised duplicate accepted';
+  exception when unique_violation then null; end;
+  begin
+    perform created_by from public.shops;
+    raise exception 'FAIL: created_by is readable by authenticated';
+  exception when insufficient_privilege then null; end;
+end $$;
+
+-- (j) 10 inserts per user per 24h; 11th rejected; another user unaffected
+select public.tmp_as_user(3);
+do $$ declare i int; begin
+  for i in 1..10 loop
+    insert into public.shops (name, name_norm, city) values ('Cap Shop ' || i, 'x', 'Jeddah');
+  end loop;
+  begin
+    insert into public.shops (name, name_norm, city) values ('Cap Shop 11', 'x', 'Jeddah');
+    raise exception 'FAIL: 11th insert accepted';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL:%' then raise; end if;
+  end;
+end $$;
+select public.tmp_as_user(4);
+do $$ begin
+  insert into public.shops (name, name_norm, city) values ('Cap Shop other user', 'x', 'Jeddah');
+end $$;
 
 rollback;
