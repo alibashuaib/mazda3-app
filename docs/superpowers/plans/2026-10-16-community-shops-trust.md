@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Shops are a shared database: name + city + area, created by users, insert-only (no update/delete policy), unique on `(name_norm, lower(city))`; races resolve on unique violation like `pricing.js`.
+- Shops are a shared database: name + city + area, created by users, insert-only (no update/delete policy), `name_norm` set server-side by trigger (client value ignored), hidden `created_by`, 10 inserts per user per 24h, unique on `(name_norm, lower(city))`; races resolve on unique violation like `pricing.js`.
 - Trust feedback is thumbs up/down (+1/-1) with optional reason tags from `price, quality, honest, fast`; one vote per user per shop (upsert on `(shop_id,user_id)`).
 - Weighted score: bill-backed vote = 2, unbacked = 1. Shown only at **>= 5 distinct voters**; "Trusted" when score share **>= 80%**.
 - Store prices view also requires **>= 5 distinct contributors** (counted via `contribution_links`). Client shows the user's own city first.
@@ -90,9 +90,9 @@ test('views are not readable by anon; contributions carry shop_id; opt-out erase
 
 ```sql
 -- Shops: a shared, insert-only list (like price_items). No update/delete policy,
--- so existing shops cannot be vandalised. name_norm is normalised by the client
--- (lowercase, punctuation to space, collapsed whitespace); a different
--- normalisation only risks a duplicate shop, never a wrong merge.
+-- so existing shops cannot be vandalised. name_norm is set by a BEFORE INSERT
+-- trigger from name (client value ignored); shops carry a hidden created_by and
+-- each user may insert at most 10 shops per 24 hours.
 create table if not exists public.shops (
   id         uuid        primary key default gen_random_uuid(),
   name       text        not null check (length(name) between 2 and 80),

@@ -312,3 +312,12 @@ test('getBrandLife: TTL expiry and reset() both force a refetch', async t => {
   await ins.getBrandLife('m', 'pads');
   assert.strictEqual(c.log.length, 3);
 });
+
+test('getBrandLife: clearCache() forces a refetch', async () => {
+  const c = lifeClient([]);
+  ins.configure({ client: c });
+  await ins.getBrandLife('m', 'pads');
+  ins.clearCache();
+  await ins.getBrandLife('m', 'pads');
+  assert.strictEqual(c.log.length, 2);
+});

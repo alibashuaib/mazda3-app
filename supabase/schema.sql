@@ -260,6 +260,10 @@ create unique index if not exists shops_norm_city_key
   on public.shops (name_norm, lower(city));
 alter table public.shops add column if not exists created_by uuid references auth.users on delete set null;
 
+-- No backfill of existing shops.name_norm rows: the shops table has never been deployed.
+-- shop_norm assumes a UTF-8 database with a Unicode-aware locale (Supabase default
+-- en_US.UTF-8); under the C locale lower()/[:alnum:] stop handling non-ASCII. Parity
+-- with JS is verified by supabase/tests/shop-norm.sql, which fails loudly on such a database.
 -- Mirrors shops.norm() in src/data/shops.js (parity fixture: test/fixtures/shop-norm.json,
 -- checked by supabase/tests/shop-norm.sql): lowercase, anything that is not a
 -- letter/mark/number/space becomes a space, whitespace collapsed, trimmed, first 80 chars.
@@ -276,10 +280,12 @@ language sql immutable set search_path = public as $$
 create or replace function public.shops_before_insert() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if auth.uid() is null then raise exception 'sign in to add a shop'; end if;
+  new.name_norm := public.shop_norm(new.name);
+  -- Trusted non-JWT inserts (service_role, SQL editor, seeds): key is still
+  -- normalised, but there is no user to attribute or cap.
+  if auth.uid() is null then return new; end if;
   new.created_by := auth.uid();
   new.created_at := now();
-  new.name_norm := public.shop_norm(new.name);
   perform pg_advisory_xact_lock(hashtext('shops:' || new.created_by::text));
   if (select count(*) from public.shops
         where created_by = new.created_by and created_at > now() - interval '24 hours') >= 10 then

@@ -219,4 +219,16 @@ do $$ begin
   insert into public.shops (name, name_norm, city) values ('Cap Shop other user', 'x', 'Jeddah');
 end $$;
 
+reset role;
+-- (k) trusted non-JWT insert (owner role, no sub): allowed, key normalised, no created_by, no cap
+select set_config('request.jwt.claim.sub', '', true);
+do $$ declare i int; begin
+  for i in 1..12 loop
+    insert into public.shops (name, name_norm, city) values ('Seed Shop-' || i, 'ignored', 'Dammam');
+  end loop;
+  if (select count(*) from public.shops where city = 'Dammam' and name_norm = 'seed shop ' || substr(name, 11) and created_by is null) <> 12 then
+    raise exception 'FAIL: non-JWT insert not normalised / attributed';
+  end if;
+end $$;
+
 rollback;

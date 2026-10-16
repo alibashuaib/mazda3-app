@@ -53,7 +53,9 @@ collapse whitespace, strip punctuation) is used only for shop matching.
 ### Shops
 
 `shops` (shared, read by all signed-in users, insert-only like `price_items`):
-`id`, `name`, `name_norm`, `city`, `area`, `created_at`. Unique on
+`id`, `name`, `name_norm`, `city`, `area`, `created_at`, plus a hidden `created_by`.
+`name_norm` is set by a server trigger from `name` (the client value is ignored);
+each user may add at most 10 shops per 24 hours. Unique on
 `(name_norm, city)`; find-or-create in the client resolves races on the unique
 violation, as `pricing.js` does. No update/delete policy, so no vandalism of
 existing shops.
@@ -160,6 +162,6 @@ model/part/store combinations stay hidden. Arabic strings added for all new text
   (existing canonical list) and `store_norm`, not eliminated.
 - Bill-reading accuracy on handwritten or low-quality bills; the confirm step is the guard.
 - Fake accounts: the qualified-user rule (7 days + confirmed contact) makes mass sign-ups slower and costlier but does not stop patient or real-contact sybils; mitigated, not eliminated.
-- Gaming: a shop (or rivals) voting itself up or others down. Mitigated only by the 5-voter floor, bill-backed weighting and one vote per user; real moderation (report/flag, new-account weighting) is not in this version.
+- Gaming: a shop (or rivals) voting itself up or others down. Mitigated only by the 5-voter floor, bill-backed weighting and one vote per user; only qualified users (7 days old, confirmed email or phone) count toward aggregates; real moderation (report/flag) is not in this version.
 - The curated repairable list is general guidance and can be wrong for a specific car; wording must not read as a diagnosis, and the owner must approve it.
 - Duplicate shops with spelling variants slip past exact matching; a merge tool is not in this version.

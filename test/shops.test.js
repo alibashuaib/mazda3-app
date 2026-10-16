@@ -235,3 +235,11 @@ test('a successful vote invalidates cached trust', async () => {
   assert.strictEqual(await shops.vote('a', true, []), true);
   assert.strictEqual((await shops.getTrust(['a']))[0].n, 2);
 });
+
+test('clearCache() forces the next read to refetch (sign-out / opt-out)', async () => {
+  const log = [];
+  shops.configure({ client: queueClient([rowsOf(1), rowsOf(2)], log) });
+  await shops.getStorePrices('m3', 'oil');
+  shops.clearCache();
+  assert.strictEqual((await shops.getStorePrices('m3', 'oil'))[0].n, 2);
+});

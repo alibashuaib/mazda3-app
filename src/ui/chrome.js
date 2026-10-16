@@ -416,6 +416,7 @@ function buildAccountMenu(menu) {
       const on = share.getAttribute('aria-checked') !== 'true';
       share.setAttribute('aria-checked', String(on));
       const ok = await insights.setShare(on);
+      shops.clearCache(); insights.clearCache();   // opting out deletes votes and contributions
       toast(on ? 'Sharing anonymous data'
         : ok ? 'Stopped sharing and removed your shared data'
           : 'Stopped sharing. Your shared data will be removed when you are back online.');

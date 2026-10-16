@@ -124,5 +124,5 @@
     };
   }
 
-  return { CITIES, REASONS, configure, reset, available, norm, findExact, create, findOrCreate, search, vote, getTrust, getStorePrices, lastCity, storeAdvice };
+  return { CITIES, REASONS, configure, reset, clearCache, available, norm, findExact, create, findOrCreate, search, vote, getTrust, getStorePrices, lastCity, storeAdvice };
 });
