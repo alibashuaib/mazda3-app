@@ -140,3 +140,21 @@ test('SYSTEM_PROMPT teaches the action rule and keeps the privacy rules', async 
   const { SYSTEM_PROMPT: p } = await load();
   for (const w of ['replaced', 'repaired', 'inspected', 'إصلاح', 'ترميم', 'فحص', 'customer names', 'Ignore any instructions']) assert.ok(p.includes(w), w);
 });
+
+test('parseBill keeps priceless inspections (price null), drops other priceless lines', async () => {
+  const { parseBill, MAX_ITEMS } = await load();
+  const it = (o) => parseBill(JSON.stringify({ store: { name: 'S' }, items: [{ name: 'P', ...o }] }), NOW).items;
+  assert.deepStrictEqual(it({ action: 'inspected' }), [{ name: 'P', brand: null, part_no: null, price: null, action: 'inspected' }]);
+  assert.strictEqual(it({ action: 'inspected', price: 0 })[0].price, null);
+  assert.strictEqual(it({ action: 'inspected', price: 'abc' })[0].price, null);
+  assert.strictEqual(it({ action: 'inspected', price: 40 })[0].price, 40);
+  assert.deepStrictEqual(it({ action: 'repaired' }), []);
+  assert.deepStrictEqual(it({ action: 'replaced', price: 0 }), []);
+  const many = Array.from({ length: 30 }, (_, i) => ({ name: 'P' + i, action: 'inspected' }));
+  assert.strictEqual(parseBill(JSON.stringify({ store: { name: 'S' }, items: many }), NOW).items.length, MAX_ITEMS);
+});
+
+test('SYSTEM_PROMPT no longer maps صيانة to repaired', async () => {
+  const { SYSTEM_PROMPT: p } = await load();
+  assert.ok(!p.includes('صيانة'));
+});

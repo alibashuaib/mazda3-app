@@ -617,3 +617,16 @@ test('bill reader: a repaired item prefills the row select and saves action repa
   const parts = JSON.parse(JSON.stringify(lastHist(api).parts));
   assert.strictEqual(parts.find(p => p.part === 'Headlight').action, 'repaired');
 }));
+
+test('bill reader: priceless inspected row has an empty price input, saves without price, contributes null', () => billForm(async ({ app, api, d }) => {
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, items: [{ name: 'Brake check', brand: null, part_no: null, price: null, action: 'inspected' }] }, billReadId: 'r8' });
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const r = rows(d)[0], price = r.querySelectorAll('input')[2];
+  assert.strictEqual(price.value, ''); assert.strictEqual(selOf(r, 0).value, 'inspected');
+  q(d, '#h_name').value = 'Svc';
+  const out = await saveWith(api, d);
+  const part = JSON.parse(JSON.stringify(lastHist(api).parts))[0];
+  assert.strictEqual(part.action, 'inspected'); assert.ok(!('price' in part));
+  assert.strictEqual(out.contributed.length, 1); assert.strictEqual(out.contributed[0].price, null);
+}));

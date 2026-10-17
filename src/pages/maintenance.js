@@ -605,7 +605,7 @@ function openAddHistory(e, prefill) {
         const act = mkSel(ACTS, bp.action, v => { bp.action = v; if (v !== 'inspected') bp.finding = ''; drawParts(); });
         const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
         rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };
-        row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', String(bp.price), v => bp.price = Math.max(0, +v || 0), 'number'), act);
+        row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', bp.price > 0 ? String(bp.price) : '', v => bp.price = Math.max(0, +v || 0), 'number'), act);
         if (bp.action === 'inspected') row.appendChild(mkSel(FINDS, bp.finding || '', v => bp.finding = v));
         row.appendChild(rm);
         showTip();

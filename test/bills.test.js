@@ -51,3 +51,10 @@ test('toPrefill carries action through, defaulting to replaced', () => {
   const p = bills.toPrefill({ items: [{ name: 'A', price: 1, action: 'repaired' }, { name: 'B', price: 2, action: null }, { name: 'C', price: 3 }] });
   assert.deepStrictEqual(p.parts.map(x => x.action), ['repaired', 'replaced', 'replaced']);
 });
+
+test('toPrefill tolerates null prices', () => {
+  const p = bills.toPrefill({ total: null, items: [{ name: 'Check', price: null, action: 'inspected' }, { name: 'B', price: 5 }] });
+  assert.strictEqual(p.parts[0].price, null);
+  assert.strictEqual(p.cost, 5);
+  assert.strictEqual(bills.toPrefill({ items: [{ name: 'Check', price: null, action: 'inspected' }] }).cost, 0);
+});
