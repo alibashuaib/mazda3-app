@@ -36,6 +36,24 @@ function partCrit(name) { return CRIT_HIGH.has(name) ? 'high' : CRIT_LOW.has(nam
 const critLevel = name => partCrit(name) === 'high' ? 'danger' : partCrit(name) === 'med' ? 'warn' : 'ok';
 const critLabel = name => partCrit(name) === 'high' ? t('mandatory') : partCrit(name) === 'low' ? t('optional') : t('recommended');
 
+/* Repair hint text for a part name: the community line once repair_stats clears
+   the floor (never a share when it is null), else the curated tip; the
+   inspection finding rate is community data and shows separately. */
+function repairHint(name, info, language) {
+  const out = [];
+  if (insights.repairMode(info) === 'community') {
+    let s = `🌍 ${info.share}% ${t('of owners repaired this instead of replacing it')}`;
+    if (info.priceRepaired != null && info.priceReplaced != null) s += ` · ${t('median SAR')} ${info.priceRepaired} ${t('repaired vs')} ${info.priceReplaced} ${t('replaced')}`;
+    if (info.kmAfterRepair) s += ` · ${t('a repaired one lasts about')} ${info.kmAfterRepair} km ${t('before replacement')}`;
+    out.push(s);
+  } else {
+    const g = repairable.tip(name, language);
+    if (g) out.push(`${t('General guidance')}: ${g}`);
+  }
+  if (info && info.attention != null && info.nInspected >= 3) out.push(`🌍 ${t('Inspections found a problem')} ${info.attention}% ${t('of the time')}`);
+  return out.join(' · ');
+}
+
 /* ============================================================
    PAGE 3 — PARTS
    ============================================================ */
@@ -91,6 +109,11 @@ function renderParts() {
           const pr = info.prediction;
           slot.textContent = `${t('Longest-lasting brand')}: ${info.best.brand} (~${info.best.medianKm} km, SAR ${info.best.medianPrice})` +
             (pr ? ` · ${t('Typical replacement')}: ${pr.fromKm}–${pr.toKm} km — ${pr.usedKm} ${t('km since the last one')}` : '');
+        }).catch(() => {});
+        insights.getRepairStats(cur.car.modelId, key).then(rows => {
+          const slot = document.getElementById(`repair_${p.id}`);
+          if (!slot) return;
+          slot.textContent = repairHint(p.name, insights.repairInsight(rows), lang);
         }).catch(() => {});
         shops.getStorePrices(cur.car.modelId, key).then(prices => {
           if (!prices.length) return;
@@ -157,6 +180,7 @@ function partCard(p) {
         <div class="muted" id="avg_${p.id}" style="font-size:11px;margin-top:2px"></div>
         <div class="muted" id="life_${p.id}" style="font-size:11px;margin-top:2px"></div>
         <div class="muted" id="shop_${p.id}" style="font-size:11px;margin-top:2px"></div>
+        <div class="muted" id="repair_${p.id}" style="font-size:11px;margin-top:2px"></div>
       </div>
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>

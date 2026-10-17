@@ -166,3 +166,14 @@ model/part/store combinations stay hidden. Arabic strings added for all new text
 - Bill-backed votes: `bill_reads` (written only by the `read-bill` function) lets one read back one vote. The backing read must be the caller's own, unused, at most 7 days old, with a fingerprint (SHA-256 of store|date|total in whole SAR; no bill text stored) that is unique across all accounts, and the bill's store name must match the voted shop (trigram similarity >= 0.5 on the name key). Only confirmed-email or phone accounts can read bills (403 otherwise), reads are capped per user (10/24h) and globally (500/24h by default), and the app discloses that the photo is sent to a vision model. Honest caveat: a bill is NOT a verified purchase; any real receipt from that shop (even someone else's, if photographed first) can back a vote. This raises the cost of fake votes, it does not prove them.
 - The curated repairable list is general guidance and can be wrong for a specific car; wording must not read as a diagnosis, and the owner must approve it.
 - Duplicate shops with spelling variants slip past exact matching; a merge tool is not in this version.
+
+## 9. Repair vs replace vs inspect (as built)
+
+- Third action **`inspected`** (owner request) with optional `finding` (`ok` | `attention`). `km_since_repair` is kept on repaired rows only.
+- `repair_stats` columns: `model_id`, `item_key`, `n_replaced`, `n_repaired`, `n_inspected`, `median_price_replaced`, `median_price_repaired`, `median_km_after_repair`, `attention_share`. Same 5-distinct-qualified-user floor. `n_*` count rows, not distinct owners.
+- **Life counts replacements only:** `brand_life` and `store_prices` ignore repaired and inspected rows.
+- Action is chosen **per part** in an always-visible "Parts on this entry" list on the form (one visit often mixes actions), not one selector per record.
+- Bill reader suggests `repaired` / `inspected` from line wording; the user can change it before saving. `read-bill` must be redeployed for this.
+- Old history entries cannot be re-labelled after saving (editing never re-contributes).
+- Curated tips are general guidance, not diagnosis, and are not expert-verified.
+- **Owner wording approval (blocks release): GIVEN 2026-10-18** for every `tipEn`/`tipAr` in `src/data/repairable.js`.

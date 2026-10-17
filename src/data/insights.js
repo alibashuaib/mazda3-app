@@ -28,23 +28,49 @@
     };
   }
 
+  const ACTIONS = ['replaced', 'repaired', 'inspected'];
+  const actionOf = p => ACTIONS.includes(p.action) ? p.action : 'replaced';
+
   function partContributions({ modelId, vehicleId, historyEntry, priorHistory, shopId }) {
     const earlier = (priorHistory || []).filter(h => h.id !== historyEntry.id && h.odometer < historyEntry.odometer);
     if (!MONTH_RE.test(monthOf(historyEntry.date))) return [];
-    return (historyEntry.parts || []).filter(p => p.part && p.price > 0).map(p => {
-      const prev = earlier.filter(h => (h.parts || []).some(q => key(q.part) === key(p.part)))
-        .sort((a, b) => b.odometer - a.odometer)[0];
+    const sameAs = (h, k, act) => (h.parts || []).some(q => key(q.part) === k && actionOf(q) === act);
+    const latest = (k, act, minKm) => earlier.filter(h => h.odometer > minKm && sameAs(h, k, act)).sort((x, y) => y.odometer - x.odometer)[0];
+    return (historyEntry.parts || []).filter(p => p.part && (p.price > 0 || actionOf(p) === 'inspected')).map(p => {
+      const action = actionOf(p), k = key(p.part);
+      const prev = latest(k, 'replaced', -Infinity);
       const row = {
-        source_key: `part:${vehicleId}:${historyEntry.id}:${key(p.part)}`, kind: 'part',
+        source_key: `part:${vehicleId}:${historyEntry.id}:${k}`, kind: 'part',
         model_id: modelId,
         odometer_band: band(historyEntry.odometer), month: monthOf(historyEntry.date),
-        item_key: key(p.part), brand: p.brand || null, part_no: p.partNo || null, price: round2(p.price),
+        item_key: k, brand: p.brand || null, part_no: p.partNo || null, price: p.price > 0 ? round2(p.price) : null,
+        action,
+        ...(action === 'inspected' && (p.finding === 'ok' || p.finding === 'attention') ? { finding: p.finding } : {}),
         ...(shopId ? { shop_id: shopId } : {})
       };
       if (prev) row.km_since_prev = historyEntry.odometer - prev.odometer;
+      if (action === 'replaced') {
+        const rep = latest(k, 'repaired', prev ? prev.odometer : -Infinity);
+        if (rep) row.km_since_repair = historyEntry.odometer - rep.odometer;
+      }
       return row;
     });
   }
+
+  function repairInsight(rows) {
+    const r = rows && rows[0]; if (!r) return null;
+    const a = Number(r.n_repaired), b = Number(r.n_replaced), i = Number(r.n_inspected);
+    const num = v => v == null ? null : Number(v);
+    return {
+      share: a + b >= 5 ? Math.round(100 * a / (a + b)) : null, nRepaired: a, nReplaced: b,
+      priceRepaired: num(r.median_price_repaired), priceReplaced: num(r.median_price_replaced),
+      kmAfterRepair: r.median_km_after_repair == null ? null : Math.round(Number(r.median_km_after_repair)),
+      attention: i > 0 && r.attention_share != null ? Math.round(100 * Number(r.attention_share)) : null, nInspected: i
+    };
+  }
+
+  // inspections never count toward the floor: share is null below 5 repaired+replaced samples
+  const repairMode = info => info && info.share != null ? 'community' : 'none';
 
   function predictNext(life, lastKm, nowKm) {
     const fromKm = lastKm + life.p25_km, toKm = lastKm + life.p75_km;
@@ -143,11 +169,13 @@
     }).then(res => (res && !res.error && res.data) || []).catch(() => []);
   }
   const getFuelStats = modelId => stats('fuel_stats', { modelId });
-  const getBrandLife = (modelId, itemKey) => {
+  const itemStats = table => (modelId, itemKey) => {
     if (!env.client) return Promise.resolve([]);
-    return memo(JSON.stringify([modelId, itemKey]), () => Promise.resolve().then(() => env.client.from('brand_life').select('*').eq('model_id', modelId).eq('item_key', itemKey))
+    return memo(JSON.stringify([table, modelId, itemKey]), () => Promise.resolve().then(() => env.client.from(table).select('*').eq('model_id', modelId).eq('item_key', itemKey))
       .then(res => { const ok = !!(res && !res.error && res.data); return { ok, v: ok ? res.data : [] }; }).catch(() => ({ ok: false, v: [] })));
   };
+  const getBrandLife = itemStats('brand_life');
+  const getRepairStats = itemStats('repair_stats');
 
-  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife };
+  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife, getRepairStats, repairInsight, repairMode };
 });

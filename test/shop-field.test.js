@@ -511,3 +511,195 @@ test('save: a new shop with no bill and no parts votes with a null bill id exact
     assert.strictEqual(out.contributed.length, 0);
   } finally { app.cleanup(); }
 });
+
+/* ---- Task 4 (repair-vs-replace): parts on the entry, action per row ---- */
+const addBtn = d => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === '+ Add part');
+const selOf = (r, i) => r.querySelectorAll('select')[i];
+const setSel = (s, v) => { s.value = v; s.onchange(); };
+const typeRow = (r, v) => { const i = r.querySelector('input'); i.value = v; i.oninput(); };
+
+test('parts box is always there for new entries (no bill), capped at 15; absent when editing', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null);
+    assert.ok(addBtn(d), 'add button without a bill');
+    for (let i = 0; i < 16; i++) addBtn(d).onclick();
+    assert.strictEqual(rows(d).length, 15);
+    api.openAddHistory({ id: 'e1', name: 'x', date: '2026-01-01' });
+    assert.strictEqual(addBtn(d), undefined);
+  } finally { app.cleanup(); }
+});
+
+test('action select: three options, default replaced; finding only while inspected', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null); addBtn(d).onclick();
+    let r = rows(d)[0];
+    assert.deepStrictEqual([...selOf(r, 0).options].map(o => o.value), ['replaced', 'repaired', 'inspected']);
+    assert.strictEqual(selOf(r, 0).value, 'replaced'); assert.strictEqual(r.querySelectorAll('select').length, 1);
+    setSel(selOf(r, 0), 'inspected'); r = rows(d)[0];
+    assert.strictEqual(r.querySelectorAll('select').length, 2);
+    assert.deepStrictEqual([...selOf(r, 1).options].map(o => o.value), ['', 'ok', 'attention']);
+    setSel(selOf(r, 1), 'attention');
+    setSel(selOf(r, 0), 'repaired'); r = rows(d)[0];
+    assert.strictEqual(r.querySelectorAll('select').length, 1);
+    setSel(selOf(r, 0), 'inspected'); assert.strictEqual(selOf(rows(d)[0], 1).value, '', 'finding cleared');
+  } finally { app.cleanup(); }
+});
+
+test('guidance line follows the typed name as text without redrawing', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null); addBtn(d).onclick();
+    const r = rows(d)[0], tip = () => r.nextElementSibling;
+    assert.strictEqual(tip().textContent, '');
+    typeRow(r, 'Headlight');
+    assert.ok(tip().textContent.includes('General guidance'));
+    assert.strictEqual(rows(d)[0], r, 'row not redrawn');
+    typeRow(r, 'Oil'); assert.strictEqual(tip().textContent, '');
+    typeRow(r, evilPart); assert.strictEqual(tip().textContent, ''); assert.strictEqual(q(d, '#modalCard img'), null);
+  } finally { app.cleanup(); }
+});
+
+async function manualSave(rowsSpec, { share = true } = {}) {
+  let out, h;
+  await billForm(async ({ api, d }) => {
+    q(d, '#h_name').value = 'Svc';
+    rowsSpec.forEach(s => {
+      addBtn(d).click ? addBtn(d).click() : addBtn(d).onclick();
+      const r = rows(d).slice(-1)[0], ins = r.querySelectorAll('input');
+      typeRow(r, s.name); if (s.price != null) { ins[2].value = String(s.price); ins[2].oninput(); }
+      if (s.action) setSel(selOf(rows(d).slice(-1)[0], 0), s.action);
+      if (s.finding) setSel(selOf(rows(d).slice(-1)[0], 1), s.finding);
+    });
+    out = await saveWith(api, d, { share }); h = lastHist(api);
+  });
+  return { out, h };
+}
+
+test('save: repaired keeps action, inspected without price keeps finding, replaced stores no action, unpriced replaced dropped', async () => {
+  const { h, out } = await manualSave([
+    { name: 'Mirror', price: 80, action: 'repaired' }, { name: 'Pads', action: 'inspected', finding: 'attention' },
+    { name: 'Bulb', price: 9 }, { name: 'Wiper' }]);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(h.parts)), [
+    { part: 'Mirror', brand: '', partNo: '', price: 80, action: 'repaired' },
+    { part: 'Pads', brand: '', partNo: '', action: 'inspected', finding: 'attention' },
+    { part: 'Bulb', brand: '', partNo: '', price: 9 }]);
+  assert.deepStrictEqual(out.contributed.map(r => [r.item_key, r.action, r.finding]).sort(),
+    [['bulb', 'replaced', undefined], ['mirror', 'repaired', undefined], ['pads', 'inspected', 'attention']]);
+});
+
+test('save: sharing off still stores the parts, contributes nothing', async () => {
+  const { h, out } = await manualSave([{ name: 'Mirror', price: 80, action: 'repaired' }], { share: false });
+  assert.strictEqual(h.parts.length, 1); assert.strictEqual(out.contributed.length, 0);
+});
+
+test('photo change drops only bill-read rows; manual rows survive', () => billForm(async ({ app, d }) => {
+  addBtn(d).onclick(); typeRow(rows(d)[0], 'Manual');
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(rows(d).length, 3);
+  await attachPhoto(app, d, 'data:image/jpeg;base64,BB');
+  assert.strictEqual(rows(d).length, 1); assert.strictEqual(rows(d)[0].querySelector('input').value, 'Manual');
+}));
+
+test('bill reader: a repaired item prefills the row select and saves action repaired', () => billForm(async ({ app, api, d }) => {
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, items: [{ name: 'Headlight', brand: '', part_no: '', price: 120, action: 'repaired' }, { name: 'Filter', brand: '', part_no: '', price: 30, action: null }] }, billReadId: 'r9' });
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const rs = rows(d);
+  assert.deepStrictEqual(rs.map(r => selOf(r, 0).value), ['repaired', 'replaced']);
+  q(d, '#h_name').value = 'Svc';
+  await saveWith(api, d);
+  const parts = JSON.parse(JSON.stringify(lastHist(api).parts));
+  assert.strictEqual(parts.find(p => p.part === 'Headlight').action, 'repaired');
+}));
+
+test('bill reader: priceless inspected row has an empty price input, saves without price, contributes null', () => billForm(async ({ app, api, d }) => {
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, items: [{ name: 'Brake check', brand: null, part_no: null, price: null, action: 'inspected' }] }, billReadId: 'r8' });
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const r = rows(d)[0], price = r.querySelectorAll('input')[2];
+  assert.strictEqual(price.value, ''); assert.strictEqual(selOf(r, 0).value, 'inspected');
+  q(d, '#h_name').value = 'Svc';
+  const out = await saveWith(api, d);
+  const part = JSON.parse(JSON.stringify(lastHist(api).parts))[0];
+  assert.strictEqual(part.action, 'inspected'); assert.ok(!('price' in part));
+  assert.strictEqual(out.contributed.length, 1); assert.strictEqual(out.contributed[0].price, null);
+}));
+
+/* ---- Task 6 (repair-vs-replace): repair hint, community numbers, timeline labels ---- */
+const stat = (rep, repl, extra) => [Object.assign({ n_repaired: rep, n_replaced: repl, n_inspected: 0, median_price_repaired: 120, median_price_replaced: 540, median_km_after_repair: null, attention_share: null }, extra)];
+async function partsPage(partName, rowsFor, fn) {
+  const app = await bootApp();
+  try {
+    const { api } = app;
+    api.insights.available = () => true;
+    api.insights.getBrandLife = () => Promise.resolve([]);
+    api.insights.getRepairStats = () => Promise.resolve(rowsFor);
+    api.shops.getStorePrices = () => Promise.resolve([]);
+    api.session.current().parts.push({ id: 'zz', name: partName, icon: '🔩', cat: 'General', options: [{ tag: 'OEM', brand: 'X', price: 1, store: 's', note: '' }], fitment: { shareable: true, modelIds: [] } });
+    api.go('parts');
+    await tick(); await tick(); await tick();
+    await fn(app, app.window.document.getElementById('repair_zz'));
+  } finally { app.cleanup(); }
+}
+
+test('Parts page: community repair numbers once enough samples', () => partsPage('Headlight', stat(4, 6), (app, slot) => {
+  assert.ok(slot.textContent.includes('40%') && slot.textContent.includes('120') && slot.textContent.includes('540'), slot.textContent);
+  assert.ok(!slot.textContent.includes('General guidance'));
+}));
+test('Parts page: too few samples falls back to the curated tip', () => partsPage('Headlight', stat(1, 2), (app, slot) => {
+  assert.ok(slot.textContent.startsWith('General guidance'), slot.textContent);
+  assert.ok(!slot.textContent.includes('%'));
+}));
+test('Parts page: no stats and unrelated part shows nothing', () => partsPage('Oil Filter', [], (app, slot) => assert.strictEqual(slot.textContent, '')));
+test('Parts page: markup in a part name stays text', () => partsPage('<b>Headlight</b>', stat(4, 6), (app, slot) => {
+  assert.strictEqual(slot.children.length, 0);
+}));
+test('Parts page: inspections alone never print a share', () => partsPage('Oil Filter', stat(0, 0, { n_inspected: 5, attention_share: 0.4 }), (app, slot) => {
+  assert.ok(slot.textContent.includes('40%') && slot.textContent.includes('problem'));
+  assert.ok(!slot.textContent.includes('repaired this'));
+}));
+
+test('form hint: community line beats the tip; a stale response is ignored', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document, pending = [];
+    api.insights.available = () => true;
+    api.insights.getRepairStats = (m, k) => new Promise(res => pending.push({ k, res }));
+    api.openAddHistory(null); addBtn(d).onclick();
+    const r = rows(d)[0], tip = () => r.nextElementSibling, nm = r.querySelector('input');
+    const change = v => { nm.value = v; nm.oninput(); nm.dispatchEvent(new app.window.Event('change')); };
+    change('Headlight'); change('Headlight lamp');
+    assert.strictEqual(pending.length, 2, 'one call per change, none per keystroke');
+    pending[1].res(stat(4, 6)); await tick();
+    assert.ok(tip().textContent.includes('40%'));
+    pending[0].res(stat(0, 10)); await tick();
+    assert.ok(tip().textContent.includes('40%'), 'stale response ignored');
+    nm.value = 'Headlight'; nm.oninput();
+    assert.ok(tip().textContent.startsWith('General guidance'), 'stats do not follow a different name');
+  } finally { app.cleanup(); }
+});
+
+test('timeline: repaired/inspected parts get labels as text; replaced and legacy show none', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document, evil = '<i>x</i>';
+    api.session.current().history.push(
+      { id: 'a', name: 'Fix', date: '2026-01-01', odometer: 1, parts: [{ part: evil, price: 5, action: 'repaired' }, { part: 'Brakes', action: 'inspected', finding: 'attention' }, { part: 'Pad', price: 3 }, { part: 'Oil', price: 3, action: 'replaced' }] },
+      { id: 'b', name: 'Old', date: '2026-02-01', odometer: 2, parts: [{ part: 'Pad', price: 3 }] });
+    api.go('maintenance');
+    const btns = [...d.querySelectorAll('.seg button')].find(b => /History/.test(b.textContent));
+    if (btns) btns.onclick();
+    const cards = [...d.querySelectorAll('.tl-card')];
+    const a = cards.find(c => c.textContent.includes('Fix')), b = cards.find(c => c.textContent.includes('Old'));
+    assert.ok(a.textContent.includes('Repaired') && a.textContent.includes('Inspected · Needs attention'), a.textContent);
+    assert.ok(a.textContent.includes(evil) && !a.querySelector('i'));
+    assert.ok(!a.textContent.includes('Pad') && !a.textContent.includes('Oil'));
+    assert.ok(!b.textContent.includes('Pad') && !b.querySelector('.tl-note'));
+  } finally { app.cleanup(); }
+});

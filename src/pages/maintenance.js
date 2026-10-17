@@ -494,6 +494,16 @@ function buildHistory(v) {
         <div class="tl-sub">${fmtDate(d, { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km</div>
         ${e.note ? html`<div class="tl-note">${e.note}</div>` : ''}
       </div>`;
+    const acted = (e.parts || []).filter(x => x && (x.action === 'repaired' || x.action === 'inspected'));
+    if (acted.length) {
+      const box = el('div', 'tl-note');
+      acted.forEach(x => {
+        const line = el('div');
+        line.textContent = `${x.part || ''} — ${t(x.action === 'repaired' ? 'Repaired' : 'Inspected')}` + (x.finding === 'attention' ? ` · ${t('Needs attention')}` : '');
+        box.appendChild(line);
+      });
+      item.querySelector('.tl-card').appendChild(box);
+    }
     item.querySelector('.tl-card').onclick = () => openAddHistory(e);
     tl.appendChild(item);
   });
@@ -584,18 +594,59 @@ function openAddHistory(e, prefill) {
     card.appendChild(field('Receipt / invoice', ''));
     let hbig = '', billReadId = null, billParts = [], reading = false, photoTok = 0;
     let readBtn = null, drawParts = () => {};
-    // any photo change invalidates what was read from the old one
+    const partsBox = el('div', 'field'); partsBox.hidden = editing;
+    const dl = el('datalist'); dl.id = 'bp_' + uid();
+    session.current().parts.forEach(x => { const o = el('option'); o.value = x.name; dl.appendChild(o); });
+    const blankPart = () => ({ part: '', brand: '', partNo: '', price: 0, action: 'replaced', finding: '' });
+    const ACTS = [['replaced', 'Replaced'], ['repaired', 'Repaired'], ['inspected', 'Inspected']];
+    const FINDS = [['', 'Result: not stated'], ['ok', 'Looked fine'], ['attention', 'Needs attention']];
+    const mkSel = (opts, val, set) => { const sl = el('select'); opts.forEach(([v, l]) => { const o = el('option'); o.value = v; o.textContent = t(l); sl.appendChild(o); }); sl.value = val; sl.onchange = () => set(sl.value); return sl; };
+    drawParts = () => {
+      partsBox.replaceChildren();
+      if (editing) return;
+      const h = el('strong'); h.textContent = t('Parts on this entry');
+      partsBox.append(h, dl);
+      billParts.forEach(bp => {
+        const row = el('div', 'field-row');
+        const mk = (ph, val, set, type) => { const i = el('input'); if (type) i.type = type; i.placeholder = t(ph); i.value = val; if (!type) i.maxLength = 80; else i.min = 0; i.oninput = () => set(i.value); return i; };
+        const tipEl = el('div', 'muted'); tipEl.style.fontSize = '12px';
+        const keyOf = v => String(v || '').toLowerCase().trim();
+        const showTip = () => {
+          const rs = bp.rs && bp.rs.key === keyOf(bp.part) ? bp.rs.info : null;   // stats belong to the name they were fetched for
+          const g = repairHint(bp.part, rs, lang); tipEl.textContent = g; tipEl.hidden = !g;
+        };
+        const nm = mk('Part name', bp.part, v => { bp.part = v; showTip(); }); nm.setAttribute('list', dl.id);
+        nm.addEventListener('change', () => {   // not per keystroke
+          const key = keyOf(bp.part), seq = bp.seq = (bp.seq || 0) + 1;
+          if (!key || !insights.available()) return;
+          insights.getRepairStats(session.current().car.modelId, key).then(rows => {
+            if (seq !== bp.seq || !tipEl.isConnected) return;
+            bp.rs = { key, info: insights.repairInsight(rows) }; showTip();
+          }).catch(() => {});
+        });
+        const act = mkSel(ACTS, bp.action, v => { bp.action = v; if (v !== 'inspected') bp.finding = ''; drawParts(); });
+        const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
+        rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };
+        row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', bp.price > 0 ? String(bp.price) : '', v => bp.price = Math.max(0, +v || 0), 'number'), act);
+        if (bp.action === 'inspected') row.appendChild(mkSel(FINDS, bp.finding || '', v => bp.finding = v));
+        row.appendChild(rm);
+        showTip();
+        partsBox.append(row, tipEl);
+      });
+      const add = el('button', 'btn ghost block'); add.type = 'button'; add.textContent = '+ ' + t('Add part');
+      add.onclick = () => { if (billParts.length >= 15) return; billParts.push(blankPart()); drawParts(); };
+      partsBox.appendChild(add);
+    };
+    drawParts();
+    // any photo change invalidates what was read from the old one (manual rows survive)
     card.appendChild(photoPicker(hphoto, v => {
-      hphoto = v; hbig = ''; billReadId = null; billParts = []; photoTok++; drawParts();
+      hphoto = v; hbig = ''; billReadId = null; billParts = billParts.filter(x => !x.fromBill); photoTok++; drawParts();
       if (readBtn) readBtn.disabled = !v;
     }, undefined, v => hbig = v));
     if (!editing && account.user() && bills.available()) {
       readBtn = el('button', 'btn block', html`${t('Read bill')}`);
       readBtn.type = 'button'; readBtn.disabled = !hphoto;
       const notice = el('div', 'field'); notice.hidden = true;     // inline confirm: no stacked modal
-      const partsBox = el('div', 'field'); partsBox.hidden = true;
-      const dl = el('datalist'); dl.id = 'bp_' + uid();
-      session.current().parts.forEach(x => { const o = el('option'); o.value = x.name; dl.appendChild(o); });
       const ask = () => new Promise(resolve => {
         const h = el('strong'); h.textContent = t('Read this bill?');
         const msg = el('p'); msg.textContent = t('The photo is sent to our server and an AI service to read it. It is not stored.');
@@ -606,22 +657,6 @@ function openAddHistory(e, prefill) {
         no.onclick = () => done(false);
         notice.replaceChildren(h, msg, go, no); notice.hidden = false;
       });
-      drawParts = () => {
-        partsBox.replaceChildren();
-        partsBox.hidden = !billParts.length;
-        if (!billParts.length) return;
-        const h = el('strong'); h.textContent = t('Parts on this bill');
-        partsBox.append(h, dl);
-        billParts.forEach(bp => {
-          const row = el('div', 'field-row');
-          const mk = (ph, val, set, type) => { const i = el('input'); if (type) i.type = type; i.placeholder = t(ph); i.value = val; if (!type) i.maxLength = 80; else i.min = 0; i.oninput = () => set(i.value); return i; };
-          const nm = mk('Part name', bp.part, v => bp.part = v); nm.setAttribute('list', dl.id);
-          const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
-          rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };
-          row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', String(bp.price), v => bp.price = Math.max(0, +v || 0), 'number'), rm);
-          partsBox.appendChild(row);
-        });
-      };
       onAsyncClick(readBtn, async () => {
         if (!hphoto) return;
         const tok = photoTok;   // before any await: a photo change during the notice also voids this read
@@ -641,12 +676,13 @@ function openAddHistory(e, prefill) {
         if (pf.cost > 0) inCost.value = pf.cost;
         if (pf.shop) shopF.set(pf.shop);
         billReadId = res.billReadId;
-        billParts = pf.parts;
+        billParts = billParts.filter(x => !x.fromBill).concat(pf.parts.map(x => ({ ...x, action: x.action || 'replaced', finding: '', fromBill: true }))).slice(0, 15);
         drawParts();
         toast('Bill read — check the details');
       });
-      card.append(readBtn, notice, partsBox);
+      card.append(readBtn, notice);
     }
+    if (!editing) card.appendChild(partsBox);
     if (!editing) {
       const chk = el('div', 'field');
       chk.innerHTML = html`<label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);font-weight:500;cursor:pointer">
@@ -664,8 +700,14 @@ function openAddHistory(e, prefill) {
       };
       const shopIn = await shopF.resolve().catch(() => shopF.value());   // read before commit() closes the modal
       if (shopIn) obj.shop = shopIn; else if (e) delete e.shop;
-      const bp = e ? [] : billParts.map(x => ({ part: String(x.part || '').trim(), brand: String(x.brand || '').trim(), partNo: String(x.partNo || '').trim(), price: Number(x.price) }))
-        .filter(x => x.part && Number.isFinite(x.price) && x.price > 0).slice(0, 15);
+      const bp = e ? [] : billParts.map(x => {
+        const action = x.action === 'repaired' || x.action === 'inspected' ? x.action : 'replaced';
+        const r = { part: String(x.part || '').trim(), brand: String(x.brand || '').trim(), partNo: String(x.partNo || '').trim(), price: Number(x.price) };
+        if (action !== 'replaced') r.action = action;
+        if (action === 'inspected' && (x.finding === 'ok' || x.finding === 'attention')) r.finding = x.finding;
+        return r;
+      }).filter(x => x.part && Number.isFinite(x.price) && (x.price > 0 || x.action === 'inspected')).slice(0, 15);
+      bp.forEach(x => { if (!(x.price > 0)) delete x.price; });
       if (bp.length) obj.parts = bp;
       if (e) Object.assign(e, obj);
       else {

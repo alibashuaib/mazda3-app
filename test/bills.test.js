@@ -40,9 +40,21 @@ test('toPrefill maps a bill to form values without inventing anything', () => {
   assert.deepStrictEqual(bills.toPrefill(bill), {
     name: 'Oil Filter', date: '2026-10-10', odometer: 52300, cost: 250,
     shop: { name: 'Al Salam Auto', city: 'Jeddah', area: '' },
-    parts: [{ part: 'Oil Filter', brand: 'Bosch', partNo: '0986', price: 40 }, { part: 'Labour', brand: '', partNo: '', price: 60 }]
+    parts: [{ part: 'Oil Filter', brand: 'Bosch', partNo: '0986', price: 40, action: 'replaced' }, { part: 'Labour', brand: '', partNo: '', price: 60, action: 'replaced' }]
   });
   const sparse = bills.toPrefill({ store: null, date: null, odometer: null, total: null, items: [{ name: 'X', brand: null, part_no: null, price: 12.5 }] });
-  assert.deepStrictEqual(sparse, { name: 'X', date: '', odometer: null, cost: 12.5, shop: null, parts: [{ part: 'X', brand: '', partNo: '', price: 12.5 }] });
+  assert.deepStrictEqual(sparse, { name: 'X', date: '', odometer: null, cost: 12.5, shop: null, parts: [{ part: 'X', brand: '', partNo: '', price: 12.5, action: 'replaced' }] });
   assert.deepStrictEqual(bills.toPrefill({ total: 99, items: [] }).parts, []);
+});
+
+test('toPrefill carries action through, defaulting to replaced', () => {
+  const p = bills.toPrefill({ items: [{ name: 'A', price: 1, action: 'repaired' }, { name: 'B', price: 2, action: null }, { name: 'C', price: 3 }] });
+  assert.deepStrictEqual(p.parts.map(x => x.action), ['repaired', 'replaced', 'replaced']);
+});
+
+test('toPrefill tolerates null prices', () => {
+  const p = bills.toPrefill({ total: null, items: [{ name: 'Check', price: null, action: 'inspected' }, { name: 'B', price: 5 }] });
+  assert.strictEqual(p.parts[0].price, null);
+  assert.strictEqual(p.cost, 5);
+  assert.strictEqual(bills.toPrefill({ items: [{ name: 'Check', price: null, action: 'inspected' }] }).cost, 0);
 });

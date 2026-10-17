@@ -226,6 +226,25 @@ do $$ begin
   end if;
 end $$;
 
+-- Repair vs replace: what was done to the part. Legacy rows default to 'replaced'.
+alter table public.contributions add column if not exists action text not null default 'replaced';
+alter table public.contributions add column if not exists finding text;
+alter table public.contributions add column if not exists km_since_repair int;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'contributions_action_chk') then
+    alter table public.contributions add constraint contributions_action_chk
+      check (action in ('replaced', 'repaired', 'inspected'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'contributions_finding_chk') then
+    alter table public.contributions add constraint contributions_finding_chk
+      check (finding is null or (action = 'inspected' and finding in ('ok', 'attention')));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'contributions_kmrepair_chk') then
+    alter table public.contributions add constraint contributions_kmrepair_chk
+      check (km_since_repair is null or km_since_repair > 0);
+  end if;
+end $$;
+
 -- Account deletion must erase contributions too: the links cascade from auth.users
 -- but the rows they point at do not, so delete them first (links still exist here).
 create or replace function public.erase_user_contributions() returns trigger
@@ -372,7 +391,7 @@ create or replace view public.store_prices as
   join contribution_links l on l.contribution_id = c.id
   join qualified_users q on q.id = l.user_id
   join shops s on s.id = c.shop_id
-  where c.kind = 'part' and c.price is not null
+  where c.kind = 'part' and c.price is not null and c.action = 'replaced'
   group by c.model_id, c.item_key, c.shop_id, s.name, s.city, s.area
   having count(distinct l.user_id) >= 5;
 
@@ -396,11 +415,13 @@ begin
       where user_id = auth.uid() and source_key = r->>'source_key';
     if cid is null then
       insert into contributions (kind, model_id, engine, odometer_band, month, l100,
-                                 price_per_l, item_key, brand, part_no, price, km_since_prev, shop_id)
+                                 price_per_l, item_key, brand, part_no, price, km_since_prev, shop_id,
+                                 action, finding, km_since_repair)
       values (r->>'kind', r->>'model_id', r->>'engine', (r->>'odometer_band')::int,
               r->>'month', (r->>'l100')::numeric, (r->>'price_per_l')::numeric,
               r->>'item_key', r->>'brand', r->>'part_no', (r->>'price')::numeric,
-              (r->>'km_since_prev')::int, (r->>'shop_id')::uuid)
+              (r->>'km_since_prev')::int, (r->>'shop_id')::uuid,
+              coalesce(r->>'action', 'replaced'), r->>'finding', (r->>'km_since_repair')::int)
       returning id into cid;
       insert into contribution_links (user_id, source_key, contribution_id)
         values (auth.uid(), r->>'source_key', cid);
@@ -410,7 +431,9 @@ begin
         l100 = (r->>'l100')::numeric, price_per_l = (r->>'price_per_l')::numeric,
         brand = r->>'brand', part_no = r->>'part_no', price = (r->>'price')::numeric,
         km_since_prev = (r->>'km_since_prev')::int,
-        shop_id = (r->>'shop_id')::uuid
+        shop_id = (r->>'shop_id')::uuid,
+        action = coalesce(r->>'action', 'replaced'), finding = r->>'finding',
+        km_since_repair = (r->>'km_since_repair')::int
       where id = cid;
     end if;
     n := n + 1;
@@ -463,10 +486,33 @@ create or replace view public.brand_life as
   from contributions c join contribution_links l on l.contribution_id = c.id
   join qualified_users q on q.id = l.user_id
   where c.kind = 'part' and c.km_since_prev is not null and c.price is not null
+    and c.action = 'replaced'
   group by c.model_id, c.item_key, c.brand
   having count(distinct l.user_id) >= 5;
 
+-- Owner-run like the views above; >= 5 distinct qualified users per model+item; no user ids.
+create or replace view public.repair_stats as
+  select c.model_id, c.item_key,
+         count(*) filter (where c.action = 'replaced')  as n_replaced,
+         count(*) filter (where c.action = 'repaired')  as n_repaired,
+         count(*) filter (where c.action = 'inspected') as n_inspected,
+         (percentile_cont(0.5) within group (order by c.price)
+            filter (where c.action = 'replaced' and c.price > 0))::numeric(10,2) as median_price_replaced,
+         (percentile_cont(0.5) within group (order by c.price)
+            filter (where c.action = 'repaired' and c.price > 0))::numeric(10,2) as median_price_repaired,
+         percentile_cont(0.5) within group (order by c.km_since_repair)
+            filter (where c.km_since_repair is not null) as median_km_after_repair,
+         (count(*) filter (where c.action = 'inspected' and c.finding = 'attention'))::numeric
+           / nullif(count(*) filter (where c.action = 'inspected' and c.finding is not null), 0) as attention_share
+  from contributions c
+  join contribution_links l on l.contribution_id = c.id
+  join qualified_users q on q.id = l.user_id
+  where c.kind = 'part' and c.item_key is not null
+  group by c.model_id, c.item_key
+  having count(distinct l.user_id) >= 5;
+
 grant select on public.fuel_stats, public.brand_life to authenticated;
+grant select on public.repair_stats to authenticated;
 
 -- Per-user sharing preference, so opt-out survives sign-out and new devices.
 create table if not exists public.insights_prefs (
@@ -536,6 +582,7 @@ grant execute on function public.vote_shop(uuid, smallint, text[], uuid) to auth
 -- Supabase default privileges may auto-grant on new public objects; strip them.
 revoke all on public.contributions, public.contribution_links from anon, authenticated;
 revoke all on public.fuel_stats, public.brand_life from anon;
+revoke all on public.repair_stats from anon;
 revoke execute on function public.submit_contributions(jsonb), public.delete_my_contributions() from anon;
 
 -- ============================================================
