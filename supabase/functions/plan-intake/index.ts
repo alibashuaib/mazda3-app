@@ -27,9 +27,10 @@ async function fetchSource1(url: string) {
 async function readBody(r: Response) {
   if (!r.ok) return null;
   const type = r.headers.get('content-type') ?? '';
+  if (Number(r.headers.get('content-length') ?? 0) > MAX_PDF) return null;   // refuse before reading a huge body
   const buf = new Uint8Array(await r.arrayBuffer());
+  if (buf.length > MAX_PDF) return null;
   if (/pdf/i.test(type)) {
-    if (buf.length > MAX_PDF) return null;
     let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
     return { kind: 'pdf' as const, body: btoa(bin) };
   }
