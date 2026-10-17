@@ -659,6 +659,25 @@ test('Parts page: too few samples falls back to the curated tip', () => partsPag
 test('Parts page: no stats and unrelated part shows nothing', () => partsPage('Oil Filter', [], (app, slot) => assert.strictEqual(slot.textContent, '')));
 test('Parts page: markup in a part name stays text', () => partsPage('<b>Headlight</b>', stat(4, 6), (app, slot) => {
   assert.strictEqual(slot.children.length, 0);
+  assert.ok(slot.textContent.includes('40%'), 'hint still rendered: ' + slot.textContent);
+  assert.ok(!slot.textContent.includes('<'));
+}));
+test('bill reader: a priceless inspection leaves a typed cost alone', () => billForm(async ({ app, api, d }) => {
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, total: null, items: [{ name: 'Brake check', brand: null, part_no: null, price: null, action: 'inspected' }] }, billReadId: 'r7' });
+  q(d, '#h_cost').value = '77';
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(+q(d, '#h_cost').value, 77);
+}));
+test('bill reader: prefilled part names get a community lookup without a change event', () => billForm(async ({ app, api, d }) => {
+  const asked = [];
+  api.insights.available = () => true;
+  api.insights.getRepairStats = (m, k) => { asked.push(k); return Promise.resolve(stat(4, 6)); };
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, items: [{ name: 'Headlight', brand: '', part_no: '', price: 120, action: 'repaired' }] }, billReadId: 'r6' });
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  assert.deepStrictEqual(asked, ['headlight']);
+  assert.ok(rows(d)[0].nextElementSibling.textContent.includes('40%'));
 }));
 test('Parts page: inspections alone never print a share', () => partsPage('Oil Filter', stat(0, 0, { n_inspected: 5, attention_share: 0.4 }), (app, slot) => {
   assert.ok(slot.textContent.includes('40%') && slot.textContent.includes('problem'));

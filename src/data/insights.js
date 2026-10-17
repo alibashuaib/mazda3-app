@@ -60,7 +60,7 @@
   function repairInsight(rows) {
     const r = rows && rows[0]; if (!r) return null;
     const a = Number(r.n_repaired), b = Number(r.n_replaced), i = Number(r.n_inspected);
-    const num = v => v == null ? null : Number(v);
+    const num = v => v == null ? null : Math.round(Number(v));
     return {
       share: a + b >= 5 ? Math.round(100 * a / (a + b)) : null, nRepaired: a, nReplaced: b,
       priceRepaired: num(r.median_price_repaired), priceReplaced: num(r.median_price_replaced),

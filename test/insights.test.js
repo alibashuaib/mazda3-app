@@ -407,3 +407,8 @@ test('repairMode: community only when a share exists (inspections never count)',
   assert.strictEqual(ins.repairMode(null), 'none');
   assert.strictEqual(ins.repairMode(rows(0, 0, 5)), 'none');
 });
+
+test('repairInsight rounds median prices to whole SAR', () => {
+  const info = ins.repairInsight([{ n_repaired: 4, n_replaced: 6, n_inspected: 0, median_price_repaired: '333.33', median_price_replaced: '540.5', median_km_after_repair: null, attention_share: null }]);
+  assert.strictEqual(info.priceRepaired, 333); assert.strictEqual(info.priceReplaced, 541);
+});
