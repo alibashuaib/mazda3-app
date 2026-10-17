@@ -182,7 +182,7 @@ test('feedback: Send is disabled until a thumb is chosen, then sends thumb and r
     assert.strictEqual(send.disabled, false);
     await send.onclick();
     assert.strictEqual(calls.length, 1);
-    assert.strictEqual(JSON.stringify(calls[0]), JSON.stringify(['s1', false, ['honest']]));
+    assert.strictEqual(JSON.stringify(calls[0]), JSON.stringify(['s1', false, ['honest'], null]));
     assert.strictEqual(app.document.querySelector('#modalHost').hidden, true);
   } finally { app.cleanup(); }
 });
@@ -253,5 +253,261 @@ test('Parts page shows the cheapest shop as text, never markup', async () => {
     assert.ok(slot.textContent.includes(evil) && slot.textContent.includes('SAR 40'));
     assert.strictEqual(slot.children.length, 0);
     assert.ok(slot.textContent.includes('90%'));
+  } finally { app.cleanup(); }
+});
+
+/* ---- Task 4: Read bill in the "Log a past service" form ---- */
+const evilPart = '<img src=x onerror=alert(1)>';
+const BILL = { store: { name: 'Al Salam Auto', city: 'Jeddah', area: null }, date: '2026-10-10', odometer: 52300, total: 250,
+  items: [{ name: evilPart, brand: 'Bosch', part_no: 'B1', price: 100 }, { name: 'Oil filter', brand: 'Mann', part_no: '', price: 150 }] };
+
+async function billForm(fn, { ack = true, result } = {}) {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document, calls = [];
+    api.account.user = () => ({ id: 'u1' });
+    api.bills.available = () => true;
+    api.bills.readBill = img => { calls.push(img); return Promise.resolve(result || { ok: true, bill: BILL, billReadId: 'r1' }); };
+    const meta = { billNoticeAck: ack }, sets = [];
+    api.metaGet = () => Promise.resolve(meta);
+    api.metaSet = p => { sets.push(p); Object.assign(meta, p); return Promise.resolve(true); };
+    api.openAddHistory(null);
+    await fn({ app, api, d, calls, sets, meta });
+  } finally { app.cleanup(); }
+}
+const q = (d, s) => d.querySelector(s);
+const readBtn = d => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Read bill');
+const toastTexts = d => [...d.querySelectorAll('#toastHost .toast')].map(n => n.textContent);
+const rows = d => [...d.querySelectorAll('#modalCard .field-row')].filter(r => r.querySelector('button'));
+async function attachPhoto(app, d, url) {
+  const cb = [];
+  app.api.readImageResized = (f, fn, max) => { cb.push(max); fn(max === 1600 ? url + 'BIG' : url); };
+  const file = q(d, '#modalCard [data-file]');
+  file.onchange({ target: { files: [{}] } });
+  return cb;
+}
+const click = async b => { b.onclick(); await tick(); await tick(); };
+
+test('Read bill: hidden for edits and signed-out, disabled until a photo exists', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.bills.available = () => true;
+    api.openAddHistory(null); assert.strictEqual(readBtn(d), undefined, 'signed out');
+    api.account.user = () => ({ id: 'u' });
+    api.openAddHistory({ id: 'e1', name: 'x', date: '2026-01-01' }); assert.strictEqual(readBtn(d), undefined, 'editing');
+    api.openAddHistory(null);
+    assert.strictEqual(readBtn(d).disabled, true);
+    const sizes = await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    assert.strictEqual(readBtn(d).disabled, false);
+    assert.deepStrictEqual([...sizes], [undefined, 1600].map(x => x), 'hi-res copy requested after the normal one');
+  } finally { app.cleanup(); }
+});
+
+test('disclosure: first use asks, Cancel sends nothing, Continue reads and remembers', async () => {
+  await billForm(async ({ app, d, calls, sets }) => {
+    await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    await click(readBtn(d));
+    assert.strictEqual(calls.length, 0);
+    const btn = name => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === name);
+    await click(btn('Cancel'));
+    assert.strictEqual(calls.length, 0); assert.strictEqual(sets.length, 0);
+    await click(readBtn(d)); await click(btn('Continue')); await tick();
+    assert.strictEqual(calls.length, 1); assert.strictEqual(calls[0], 'data:image/jpeg;base64,AABIG', 'hi-res copy is what is sent');
+    assert.strictEqual(sets[0].billNoticeAck, true);
+    await click(readBtn(d));
+    assert.strictEqual(calls.length, 2, 'second use skips the notice');
+  }, { ack: false });
+});
+
+test('success fills fields, keeps untouched ones, renders parts as text, edits and removal change the rows', async () => {
+  await billForm(async ({ app, d, calls }) => {
+    await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    q(d, '#h_name').value = 'My service';
+    await click(readBtn(d)); await tick();
+    assert.strictEqual(q(d, '#h_name').value, 'My service', 'non-empty name kept');
+    assert.strictEqual(q(d, '#h_date').value, '2026-10-10'); assert.strictEqual(+q(d, '#h_odo').value, 52300); assert.strictEqual(+q(d, '#h_cost').value, 250);
+    const [shop, city] = [...d.querySelectorAll('#modalCard input')].filter(i => i.value === 'Al Salam Auto' || i.value === 'Jeddah');
+    assert.ok(shop && city);
+    assert.strictEqual(d.querySelector('#modalCard img[src="x"]'), null);
+    let rs = rows(d); assert.strictEqual(rs.length, 2);
+    assert.strictEqual(rs[0].querySelector('input').value, evilPart);
+    assert.strictEqual(rs[0].querySelector('img'), null);
+    const price = rs[1].querySelectorAll('input')[2]; price.value = '175'; price.oninput();
+    rs[0].querySelector('button').onclick();
+    rs = rows(d); assert.strictEqual(rs.length, 1);
+    assert.strictEqual(rs[0].querySelectorAll('input')[0].value, 'Oil filter'); assert.strictEqual(rs[0].querySelectorAll('input')[2].value, '175');
+    assert.ok(toastTexts(d).some(x => x.includes('Bill read')));
+  });
+});
+
+for (const [error, msg] of [['limit', 'Daily bill limit reached. Enter it by hand.'], ['unreadable', 'Could not read that bill. Enter it by hand.'], ['offline', 'You are offline.'], ['failed', 'Could not read the bill.']]) {
+  test(`error ${error} shows its toast and leaves the form unchanged`, () => billForm(async ({ app, d }) => {
+    await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+    await click(readBtn(d)); await tick();
+    assert.ok(toastTexts(d).includes(msg), toastTexts(d).join('|'));
+    assert.strictEqual(+q(d, '#h_cost').value, 0); assert.strictEqual(rows(d).length, 0);
+    assert.strictEqual(readBtn(d).textContent, 'Read bill'); assert.strictEqual(readBtn(d).disabled, false);
+  }, { result: { ok: false, error } }));
+}
+
+/* ---- Task 4 fix round 1 ---- */
+const deferredResize = app => {
+  const q2 = [];
+  app.api.readImageResized = (f, fn, max) => q2.push({ max: max || 900, fn });
+  return q2;
+};
+const pickFile = d => q(d, '#modalCard [data-file]').onchange({ target: { files: [{}] } });
+const finish = (q2, i, url) => q2[i].fn(url);
+const deferRead = api => { let res; const p = new Promise(r => res = r); api.bills.readBill = () => p; return res; };
+
+test('stale read: closing the form and opening a new one leaves the new form untouched', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  const resolve = deferRead(api);
+  readBtn(d).onclick(); await tick();
+  api.closeModal(); api.openAddHistory(null);
+  q(d, '#h_cost').value = '77';
+  resolve({ ok: true, bill: BILL, billReadId: 'r1' }); await tick(); await tick();
+  assert.strictEqual(+q(d, '#h_cost').value, 77); assert.strictEqual(q(d, '#h_date').value !== '2026-10-10', true);
+  assert.strictEqual(q(d, '#h_name').value, ''); assert.strictEqual(rows(d).length, 0);
+  assert.strictEqual(toastTexts(d).length, 0);
+}));
+
+test('photo swap: the old hi-res copy is never sent, late decodes are ignored', () => billForm(async ({ app, api, d, calls }) => {
+  const q2 = deferredResize(app);
+  pickFile(d); finish(q2, 0, 'A'); finish(q2, 1, 'ABIG');
+  pickFile(d); finish(q2, 2, 'B');                      // B's 900px arrived, B's 1600px not yet
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(calls[0], 'B', 'falls back to the current 900px photo');
+  finish(q2, 3, 'BBIG');                                  // late hi-res of B is current, accepted
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(calls[1], 'BBIG');
+  pickFile(d); finish(q2, 5, 'CBIG'); finish(q2, 4, 'C'); // C's 1600 finished first; then a newer pick supersedes late A-style results
+  pickFile(d); finish(q2, 6, 'D');
+  q2[5].fn('STALE'); await click(readBtn(d)); await tick();
+  assert.strictEqual(calls[2], 'D');
+}));
+
+test('photo replace and remove clear billParts and the in-flight read is ignored', () => billForm(async ({ app, api, d }) => {
+  const q2 = deferredResize(app);
+  pickFile(d); finish(q2, 0, 'A'); finish(q2, 1, 'ABIG');
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(rows(d).length, 2);
+  pickFile(d); finish(q2, 2, 'B');
+  assert.strictEqual(rows(d).length, 0, 'replace clears parts');
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(rows(d).length, 2);
+  q(d, '#modalCard [data-rm]').onclick();
+  assert.strictEqual(rows(d).length, 0, 'remove clears parts'); assert.strictEqual(readBtn(d).disabled, true);
+  // in flight while the photo changes
+  pickFile(d); finish(q2, 4, 'C'); finish(q2, 5, 'CBIG');
+  q(d, '#h_cost').value = '5';
+  const resolve = deferRead(api);
+  readBtn(d).onclick(); await tick();
+  pickFile(d); finish(q2, 6, 'D');
+  resolve({ ok: true, bill: BILL, billReadId: 'r9' }); await tick(); await tick();
+  assert.strictEqual(+q(d, '#h_cost').value, 5); assert.strictEqual(rows(d).length, 0);
+}));
+
+test('a bill with no total and no items leaves the entered cost alone', () => billForm(async ({ app, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  q(d, '#h_cost').value = '77';
+  await click(readBtn(d)); await tick();
+  assert.strictEqual(+q(d, '#h_cost').value, 77);
+}, { result: { ok: true, bill: { store: null, date: '2026-10-10', odometer: null, total: null, items: [] }, billReadId: 'r2' } }));
+
+test('part rows: price is clamped at 0 with min, text inputs capped at 80', () => billForm(async ({ app, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const ins = rows(d)[0].querySelectorAll('input');
+  assert.strictEqual(+ins[0].maxLength, 80); assert.strictEqual(+ins[1].maxLength, 80); assert.strictEqual(String(ins[2].min), '0');
+}));
+
+test('shopField.set clears suggestions and re-arms the did-you-mean check', () => withField(null, async (app, f) => {
+  app.api.shops.search = () => Promise.resolve([{ name: 'X', city: 'Jeddah' }]);
+  const [name] = inputs(f);
+  typeName(app, name, 'x'); await settle();
+  assert.strictEqual(sugg(f).length, 1);
+  f.set({ name: 'Bill Shop', city: 'Taif', area: '' });
+  assert.strictEqual(sugg(f).length, 0); assert.strictEqual(f.nodes[1].hidden, true);
+  assert.strictEqual(name.value, 'Bill Shop');
+}));
+
+/* ---- Task 5: save path stores bill parts, contributes them, votes through the RPC ---- */
+const saveBtn = d => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Add to history');
+async function saveWith(api, d, { share = true } = {}) {
+  const contributed = [], votes = [], rpcs = [];
+  api.insights.shareEnabled = () => Promise.resolve(share);
+  api.shops.findOrCreate = () => Promise.resolve({ id: 's1', name: 'Al Salam Auto', city: 'Jeddah' });
+  api.contribute = rows => { contributed.push(...rows); };
+  api.shops.vote = (...a) => { votes.push(a); return Promise.resolve(true); };
+  api.openShopFeedback = (shop, id) => { api.shops.vote(shop.id, true, [], id); };
+  api.shops.configure({ client: { rpc: (...a) => { rpcs.push(a); return Promise.resolve({ error: null }); }, from: () => { rpcs.push('from'); throw new Error('no table write'); } } });
+  await saveBtn(d).onclick(); await tick(); await tick(); await tick();
+  return { contributed, votes, rpcs };
+}
+const lastHist = api => api.session.current().history.slice(-1)[0];
+
+test('save: edited and removed bill parts are what is stored; entry photo is the 900px copy; contribution and vote carry them', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const [r0, r1] = rows(d);
+  const price = r1.querySelectorAll('input')[2]; price.value = '175'; price.oninput();
+  r0.querySelector('button').onclick();
+  const hist = api.session.current().history, push = hist.push.bind(hist); let pushed;
+  hist.push = o => { pushed = JSON.parse(JSON.stringify(o)); return push(o); };   // the entry as built, before persistence rewrites photos
+  const out = await saveWith(api, d);
+  const h = lastHist(api);
+  assert.strictEqual(pushed.photo, 'data:image/jpeg;base64,AA', 'never the 1600px copy');
+  assert.strictEqual(JSON.stringify(h.parts), JSON.stringify([{ part: 'Oil filter', brand: 'Mann', partNo: '', price: 175 }]));
+  assert.ok(h.shop && h.shop.name === 'Al Salam Auto');
+  assert.strictEqual(out.contributed.length, 1);
+  assert.strictEqual(out.contributed[0].shop_id, 's1'); assert.strictEqual(out.contributed[0].brand, 'Mann'); assert.strictEqual(out.contributed[0].price, 175);
+  assert.deepStrictEqual(out.votes, [['s1', true, [], 'r1']]);
+}));
+
+test('save: empty-name and zero-price rows skipped, NaN coerced, capped at 15', () => billForm(async ({ app, api, d }) => {
+  const items = [{ name: '', brand: 'x', part_no: '', price: 10 }, { name: 'Zero', brand: '', part_no: '', price: 5 }];
+  for (let i = 0; i < 20; i++) items.push({ name: 'P' + i, brand: '', part_no: '', price: 1 + i });
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, items }, billReadId: 'r3' });
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  q(d, '#h_name').value = 'Svc';
+  const rs = rows(d);
+  const zero = rs.find(r => r.querySelector('input').value === 'Zero').querySelectorAll('input')[2]; zero.value = '0'; zero.oninput();
+  await saveWith(api, d);
+  const parts = lastHist(api).parts;
+  assert.ok(parts.length <= 15 && parts.every(p => p.part && Number.isFinite(p.price) && p.price > 0));
+  assert.ok(!parts.some(p => p.part === 'Zero'));
+}));
+
+test('save: replacing or clearing the photo saves no stale bill parts and passes a null bill id', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  await attachPhoto(app, d, 'data:image/jpeg;base64,BB');   // replace
+  q(d, '#h_name').value = 'Manual';
+  const out = await saveWith(api, d);
+  assert.strictEqual(lastHist(api).parts, undefined);
+  assert.strictEqual(out.contributed.length, 0);
+  assert.ok(out.votes.length === 0 || out.votes[0][3] === null);
+}));
+
+test('save: sharing off sends nothing (no contribution, no rpc, no vote)', () => billForm(async ({ app, api, d }) => {
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const out = await saveWith(api, d, { share: false });
+  assert.strictEqual(lastHist(api).parts.length, 2, 'still saved locally');
+  assert.deepStrictEqual([out.contributed.length, out.votes.length, out.rpcs.filter(Array.isArray).length], [0, 0, 0]);
+}));
+
+test('save: a new shop with no bill and no parts votes with a null bill id exactly as before', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, d = app.window.document;
+    api.openAddHistory(null);
+    q(d, '#h_name').value = 'Plain';
+    const out = await saveWith(api, d);
+    assert.strictEqual(lastHist(api).parts, undefined);
+    assert.strictEqual(out.contributed.length, 0);
   } finally { app.cleanup(); }
 });

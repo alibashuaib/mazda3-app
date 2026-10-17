@@ -426,6 +426,7 @@ declare n int;
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
   delete from shop_feedback where user_id = auth.uid();
+  delete from bill_reads where user_id = auth.uid();
   with gone as (
     delete from contributions where id in
       (select contribution_id from contribution_links where user_id = auth.uid())
@@ -479,6 +480,58 @@ drop policy if exists own_insights_prefs on public.insights_prefs;
 create policy own_insights_prefs on public.insights_prefs for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 grant select, insert, update on public.insights_prefs to authenticated;
+
+-- Bill reads: proof that a user photographed a real bill. Written only by the
+-- read-bill Edge Function (service role). Holds NO image and NO bill text.
+-- fingerprint = SHA-256 of store|date|total (whole SAR); no bill text stored. Unique, so one bill registers once
+-- across all accounts; duplicates get a row with null fingerprint/store_key
+-- (counts toward the daily cap, can never back a vote).
+create extension if not exists pg_trgm with schema extensions;
+
+create table if not exists public.bill_reads (
+  id          uuid        primary key default gen_random_uuid(),
+  user_id     uuid        not null references auth.users on delete cascade,
+  store_key   text,
+  city        text,
+  fingerprint text,
+  created_at  timestamptz not null default now(),
+  used_at     timestamptz
+);
+create unique index if not exists bill_reads_fingerprint_key
+  on public.bill_reads (fingerprint) where fingerprint is not null;
+create index if not exists bill_reads_user_day_idx on public.bill_reads (user_id, created_at);
+alter table public.bill_reads enable row level security;
+revoke all on public.bill_reads from anon, authenticated;
+
+-- Vote on a shop. bill_backed is true only when the caller's own, unused,
+-- <= 7 day old bill read names a shop similar to the one voted on.
+create or replace function public.vote_shop(p_shop_id uuid, p_vote smallint, p_reasons text[],
+                                            p_bill_read_id uuid default null)
+returns boolean language plpgsql security definer set search_path = public, extensions as $$
+declare s shops%rowtype; b bill_reads%rowtype; backed boolean := false;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  select * into s from shops where id = p_shop_id;
+  if not found then return false; end if;
+  if p_bill_read_id is not null then
+    select * into b from bill_reads
+      where id = p_bill_read_id and user_id = auth.uid() and used_at is null
+        and created_at > now() - interval '7 days' and store_key is not null and fingerprint is not null
+      for update;
+    if found and similarity(b.store_key, s.name_key) >= 0.5 then
+      backed := true;
+      update bill_reads set used_at = now() where id = b.id;
+    end if;
+  end if;
+  insert into shop_feedback (shop_id, user_id, vote, reasons, bill_backed)
+    values (p_shop_id, auth.uid(), p_vote, coalesce(p_reasons, '{}'), backed)
+  on conflict (shop_id, user_id) do update
+    set vote = excluded.vote, reasons = excluded.reasons,
+        bill_backed = shop_feedback.bill_backed or excluded.bill_backed;
+  return backed;
+end $$;
+revoke all on function public.vote_shop(uuid, smallint, text[], uuid) from public, anon;
+grant execute on function public.vote_shop(uuid, smallint, text[], uuid) to authenticated;
 
 -- Supabase default privileges may auto-grant on new public objects; strip them.
 revoke all on public.contributions, public.contribution_links from anon, authenticated;

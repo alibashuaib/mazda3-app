@@ -53,7 +53,9 @@ test('all four aggregates count only qualified users (one shared definition)', (
   const def = sql.match(/create or replace view public\.qualified_users as[\s\S]*?;\n/)[0];
   assert.match(def, /interval '7 days'/);
   assert.match(def, /email_confirmed_at is not null or u\.phone_confirmed_at is not null/);
-  assert.strictEqual((sql.match(/interval '7 days'/g) || []).length, 1, 'age rule defined once');
+  // vote_shop's 7-day bill freshness window is a different rule from the account-age rule
+  const noVote = sql.replace(/create or replace function public\.vote_shop[\s\S]*?\$\$;/, '');
+  assert.strictEqual((noVote.match(/interval '7 days'/g) || []).length, 1, 'age rule defined once');
   assert.match(sql, /revoke all on public\.qualified_users from public, anon, authenticated;/);
   for (const v of ['shop_trust', 'store_prices', 'fuel_stats', 'brand_life']) {
     assert.match(sql.match(new RegExp('create or replace view public\\.' + v + '[\\s\\S]*?;\\n'))[0], /join qualified_users q/, v);

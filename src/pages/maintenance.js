@@ -119,13 +119,13 @@ function buildPlan(v) {
    estimate (est. cost − default parts) is preserved. */
 /* Resolve the shop, share part prices tagged with it, then ask for feedback.
    Fire-and-forget: the save already succeeded, so shop features are optional. */
-async function afterPurchase(logged, shopIn, cur, vid) {
+async function afterPurchase(logged, shopIn, cur, vid, billReadId) {
   try {
     // Sharing off: nothing leaves the device (no shop row, no prices, no vote).
     if (!(await insights.shareEnabled())) return;
     const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
     contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
-    if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop);  // never stack on an open modal
+    if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop, billReadId || null);  // never stack on an open modal
   } catch (e) { /* shop features optional; save already succeeded */ }
 }
 
@@ -582,7 +582,71 @@ function openAddHistory(e, prefill) {
     let hphoto = e ? (e.photo || '') : '';
     shopF.nodes.forEach(n => card.appendChild(n));
     card.appendChild(field('Receipt / invoice', ''));
-    card.appendChild(photoPicker(hphoto, v => hphoto = v));
+    let hbig = '', billReadId = null, billParts = [], reading = false, photoTok = 0;
+    let readBtn = null, drawParts = () => {};
+    // any photo change invalidates what was read from the old one
+    card.appendChild(photoPicker(hphoto, v => {
+      hphoto = v; hbig = ''; billReadId = null; billParts = []; photoTok++; drawParts();
+      if (readBtn) readBtn.disabled = !v;
+    }, undefined, v => hbig = v));
+    if (!editing && account.user() && bills.available()) {
+      readBtn = el('button', 'btn block', html`${t('Read bill')}`);
+      readBtn.type = 'button'; readBtn.disabled = !hphoto;
+      const notice = el('div', 'field'); notice.hidden = true;     // inline confirm: no stacked modal
+      const partsBox = el('div', 'field'); partsBox.hidden = true;
+      const dl = el('datalist'); dl.id = 'bp_' + uid();
+      session.current().parts.forEach(x => { const o = el('option'); o.value = x.name; dl.appendChild(o); });
+      const ask = () => new Promise(resolve => {
+        const h = el('strong'); h.textContent = t('Read this bill?');
+        const msg = el('p'); msg.textContent = t('The photo is sent to our server and an AI service to read it. It is not stored.');
+        const go = el('button', 'btn primary', html`${t('Continue')}`), no = el('button', 'btn ghost', html`${t('Cancel')}`);
+        go.type = no.type = 'button';
+        const done = v => { notice.replaceChildren(); notice.hidden = true; resolve(v); };
+        go.onclick = async () => { try { await metaSet({ billNoticeAck: true }); } catch (e) { /* still proceed; asked again next time */ } done(true); };
+        no.onclick = () => done(false);
+        notice.replaceChildren(h, msg, go, no); notice.hidden = false;
+      });
+      drawParts = () => {
+        partsBox.replaceChildren();
+        partsBox.hidden = !billParts.length;
+        if (!billParts.length) return;
+        const h = el('strong'); h.textContent = t('Parts on this bill');
+        partsBox.append(h, dl);
+        billParts.forEach(bp => {
+          const row = el('div', 'field-row');
+          const mk = (ph, val, set, type) => { const i = el('input'); if (type) i.type = type; i.placeholder = t(ph); i.value = val; if (!type) i.maxLength = 80; else i.min = 0; i.oninput = () => set(i.value); return i; };
+          const nm = mk('Part name', bp.part, v => bp.part = v); nm.setAttribute('list', dl.id);
+          const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
+          rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };
+          row.append(nm, mk('Brand', bp.brand, v => bp.brand = v), mk('Price', String(bp.price), v => bp.price = Math.max(0, +v || 0), 'number'), rm);
+          partsBox.appendChild(row);
+        });
+      };
+      onAsyncClick(readBtn, async () => {
+        if (!hphoto) return;
+        const tok = photoTok;   // before any await: a photo change during the notice also voids this read
+        const meta = await Promise.resolve(metaGet()).catch(() => ({}));
+        if (!(meta && meta.billNoticeAck === true) && !(await ask())) return;
+        if (tok !== photoTok) return;
+        const inName = $('#h_name'), inDate = $('#h_date'), inOdo = $('#h_odo'), inCost = $('#h_cost');
+        reading = true; readBtn.textContent = t('Reading…');
+        const res = await bills.readBill(hbig || hphoto);
+        reading = false; readBtn.textContent = t('Read bill');
+        if (tok !== photoTok || !document.contains(inName)) return;   // photo changed or form closed meanwhile: drop silently
+        if (!res.ok) return toast({ limit: 'Daily bill limit reached. Enter it by hand.', unreadable: 'Could not read that bill. Enter it by hand.', offline: 'You are offline.' }[res.error] || 'Could not read the bill.', 'warn');
+        const pf = bills.toPrefill(res.bill);
+        if (pf.name && !inName.value.trim()) inName.value = pf.name;
+        if (pf.date) inDate.value = pf.date;
+        if (pf.odometer != null) inOdo.value = pf.odometer;
+        if (pf.cost > 0) inCost.value = pf.cost;
+        if (pf.shop) shopF.set(pf.shop);
+        billReadId = res.billReadId;
+        billParts = pf.parts;
+        drawParts();
+        toast('Bill read — check the details');
+      });
+      card.append(readBtn, notice, partsBox);
+    }
     if (!editing) {
       const chk = el('div', 'field');
       chk.innerHTML = html`<label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--text);font-weight:500;cursor:pointer">
@@ -600,6 +664,9 @@ function openAddHistory(e, prefill) {
       };
       const shopIn = await shopF.resolve().catch(() => shopF.value());   // read before commit() closes the modal
       if (shopIn) obj.shop = shopIn; else if (e) delete e.shop;
+      const bp = e ? [] : billParts.map(x => ({ part: String(x.part || '').trim(), brand: String(x.brand || '').trim(), partNo: String(x.partNo || '').trim(), price: Number(x.price) }))
+        .filter(x => x.part && Number.isFinite(x.price) && x.price > 0).slice(0, 15);
+      if (bp.length) obj.parts = bp;
       if (e) Object.assign(e, obj);
       else {
         session.current().history.push(obj);
@@ -611,7 +678,7 @@ function openAddHistory(e, prefill) {
         }
       }
       const ok = await commit('maintenance', editing ? 'Record updated' : 'Service logged ✓');
-      if (ok && !editing && shopIn) afterPurchase([], shopIn, session.current(), session.garage().activeId);
+      if (ok && !editing && (shopIn || bp.length)) afterPurchase([obj], shopIn, session.current(), session.garage().activeId, billReadId);
     });
     card.appendChild(b);
     if (editing) {

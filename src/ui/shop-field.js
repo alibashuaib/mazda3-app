@@ -56,6 +56,10 @@ function shopField(initial) {
   return {
     nodes: [nameF, list, row, prompt, cl],
     value,
+    set(s) {
+      nameIn.value = s.name || ''; cityIn.value = s.city || ''; areaIn.value = s.area || '';
+      picked = null; asked = false; seq++; clearTimeout(timer); list.replaceChildren(); list.hidden = true;   // a bill-supplied shop still gets the did-you-mean check
+    },
     /* Asks "Did you mean" once per form when the typed shop is close to an existing one. */
     async resolve() {
       const v = value();

@@ -81,6 +81,7 @@ const SCRIPTS = [
   'src/data/pricing.js',
   'src/data/insights.js',
   'src/data/shops.js',
+  'src/data/bills.js',
   'src/data/remote-catalog.js',
   'src/data/admin.js',
   'src/core/async-click.js',

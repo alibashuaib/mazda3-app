@@ -432,7 +432,15 @@ const AR = {
   'Would you buy from this shop again?': 'هل ستشتري من هذا المتجر مرة أخرى؟',
   'Good price': 'سعر جيد', 'Quality work': 'جودة العمل', 'Honest': 'أمين', 'Fast': 'سريع',
   'Send': 'إرسال', 'Did you mean:': 'هل تقصد:', 'No, it is a new shop': 'لا، هذا متجر جديد', 'Not now': 'ليس الآن', 'Thanks for the feedback': 'شكرًا على رأيك',
-  'Could not send feedback': 'تعذّر إرسال الرأي'
+  'Could not send feedback': 'تعذّر إرسال الرأي',
+  'Read bill': 'قراءة الفاتورة', 'Reading…': 'جارٍ القراءة…', 'Read this bill?': 'قراءة هذه الفاتورة؟',
+  'The photo is sent to our server and an AI service to read it. It is not stored.': 'تُرسل الصورة إلى خادمنا وخدمة ذكاء اصطناعي لقراءتها. لا يتم تخزينها.',
+  'Continue': 'متابعة', 'Cancel': 'إلغاء',
+  'Daily bill limit reached. Enter it by hand.': 'تم بلوغ حد الفواتير اليومي. أدخلها يدويًا.',
+  'Could not read that bill. Enter it by hand.': 'تعذّرت قراءة الفاتورة. أدخلها يدويًا.',
+  'You are offline.': 'أنت غير متصل.', 'Could not read the bill.': 'تعذّرت قراءة الفاتورة.',
+  'Bill read — check the details': 'تمت قراءة الفاتورة — راجع التفاصيل', 'Parts on this bill': 'القطع في هذه الفاتورة',
+  'Brand': 'الماركة', 'Price': 'السعر'
 };
 
   return { AR };

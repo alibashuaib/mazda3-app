@@ -551,6 +551,7 @@ function connectBackend() {
   pricing.configure({ client });
   insights.configure({ client, metaGet, metaSet });
   shops.configure({ client });
+  bills.configure({ client });
   remoteCatalog.configure({ client });
   catalogAdmin.configure({ client });
 }
