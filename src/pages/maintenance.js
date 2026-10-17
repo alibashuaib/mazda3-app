@@ -494,6 +494,16 @@ function buildHistory(v) {
         <div class="tl-sub">${fmtDate(d, { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km</div>
         ${e.note ? html`<div class="tl-note">${e.note}</div>` : ''}
       </div>`;
+    const acted = (e.parts || []).filter(x => x && (x.action === 'repaired' || x.action === 'inspected'));
+    if (acted.length) {
+      const box = el('div', 'tl-note');
+      acted.forEach(x => {
+        const line = el('div');
+        line.textContent = `${x.part} — ${t(x.action === 'repaired' ? 'Repaired' : 'Inspected')}` + (x.finding === 'attention' ? ` · ${t('Needs attention')}` : '');
+        box.appendChild(line);
+      });
+      item.querySelector('.tl-card').appendChild(box);
+    }
     item.querySelector('.tl-card').onclick = () => openAddHistory(e);
     tl.appendChild(item);
   });
@@ -600,8 +610,20 @@ function openAddHistory(e, prefill) {
         const row = el('div', 'field-row');
         const mk = (ph, val, set, type) => { const i = el('input'); if (type) i.type = type; i.placeholder = t(ph); i.value = val; if (!type) i.maxLength = 80; else i.min = 0; i.oninput = () => set(i.value); return i; };
         const tipEl = el('div', 'muted'); tipEl.style.fontSize = '12px';
-        const showTip = () => { const g = repairable.tip(bp.part, lang); tipEl.textContent = g ? t('General guidance') + ': ' + g : ''; tipEl.hidden = !g; };
+        const keyOf = v => String(v || '').toLowerCase().trim();
+        const showTip = () => {
+          const rs = bp.rs && bp.rs.key === keyOf(bp.part) ? bp.rs.info : null;   // stats belong to the name they were fetched for
+          const g = repairHint(bp.part, rs, lang); tipEl.textContent = g; tipEl.hidden = !g;
+        };
         const nm = mk('Part name', bp.part, v => { bp.part = v; showTip(); }); nm.setAttribute('list', dl.id);
+        nm.addEventListener('change', () => {   // not per keystroke
+          const key = keyOf(bp.part), seq = bp.seq = (bp.seq || 0) + 1;
+          if (!key || !insights.available()) return;
+          insights.getRepairStats(session.current().car.modelId, key).then(rows => {
+            if (seq !== bp.seq || !tipEl.isConnected) return;
+            bp.rs = { key, info: insights.repairInsight(rows) }; showTip();
+          }).catch(() => {});
+        });
         const act = mkSel(ACTS, bp.action, v => { bp.action = v; if (v !== 'inspected') bp.finding = ''; drawParts(); });
         const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
         rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };

@@ -399,3 +399,11 @@ test('getRepairStats and getBrandLife caches do not collide on same (model, item
   assert.deepStrictEqual(await ins.getBrandLife('m', 'k'), [{ t: 'brand_life' }]);
   assert.deepStrictEqual(await ins.getRepairStats('m', 'k'), [{ t: 'repair_stats' }]);
 });
+
+test('repairMode: community only when a share exists (inspections never count)', () => {
+  const rows = (rep, repl, insp) => ins.repairInsight([{ n_repaired: rep, n_replaced: repl, n_inspected: insp, median_price_repaired: 1, median_price_replaced: 2, median_km_after_repair: null, attention_share: 0.5 }]);
+  assert.strictEqual(ins.repairMode(rows(2, 3, 0)), 'community');
+  assert.strictEqual(ins.repairMode(rows(2, 2, 0)), 'none');
+  assert.strictEqual(ins.repairMode(null), 'none');
+  assert.strictEqual(ins.repairMode(rows(0, 0, 5)), 'none');
+});

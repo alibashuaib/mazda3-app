@@ -69,6 +69,9 @@
     };
   }
 
+  // inspections never count toward the floor: share is null below 5 repaired+replaced samples
+  const repairMode = info => info && info.share != null ? 'community' : 'none';
+
   function predictNext(life, lastKm, nowKm) {
     const fromKm = lastKm + life.p25_km, toKm = lastKm + life.p75_km;
     return { fromKm, toKm, usedKm: nowKm - lastKm, status: nowKm < fromKm ? 'early' : nowKm <= toKm ? 'inRange' : 'overdue' };
@@ -174,5 +177,5 @@
   const getBrandLife = itemStats('brand_life');
   const getRepairStats = itemStats('repair_stats');
 
-  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife, getRepairStats, repairInsight };
+  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife, getRepairStats, repairInsight, repairMode };
 });
