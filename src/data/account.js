@@ -30,8 +30,8 @@
 
   /* Public by design. RLS is the boundary; secrecy is not. Replace both
      before the first deploy — see supabase/schema.sql. */
-  const SUPABASE_URL = 'https://REPLACE_ME.supabase.co';
-  const SUPABASE_ANON_KEY = 'REPLACE_ME';
+  const SUPABASE_URL = 'https://gkofviorehcavxfvtorn.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdrb2Z2aW9yZWhjYXZ4ZnZ0b3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjg0NDksImV4cCI6MjEwNzg0NDQ0OX0.tMOJtEk_sB9eF_ujBtVj5eb7ZFQ8S5f6FiMzsQ8CsX0';
 
   let _user = null;
   let _watching = false;      // one auth subscription per configured client, never two
