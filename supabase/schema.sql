@@ -244,6 +244,138 @@ alter table public.contributions enable row level security;
 alter table public.contribution_links enable row level security;
 -- No policies on purpose: RLS defaults to deny for every role except the owner.
 
+-- Shops: a shared, insert-only list (like price_items). No update/delete policy,
+-- so existing shops cannot be vandalised. name_norm is recomputed from name by
+-- the BEFORE INSERT trigger below (client value is overwritten), so nobody can
+-- squat another shop's key under a different display name.
+create table if not exists public.shops (
+  id         uuid        primary key default gen_random_uuid(),
+  name       text        not null check (length(name) between 2 and 80),
+  name_norm  text        not null check (length(name_norm) between 2 and 80),
+  city       text        not null check (length(city) between 2 and 40),
+  area       text        check (length(area) <= 40),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists shops_norm_city_key
+  on public.shops (name_norm, lower(city));
+alter table public.shops add column if not exists created_by uuid references auth.users on delete set null;
+
+-- No backfill of existing shops.name_norm rows: the shops table has never been deployed.
+-- shop_norm assumes a UTF-8 database with a Unicode-aware locale (Supabase default
+-- en_US.UTF-8); under the C locale lower()/[:alnum:] stop handling non-ASCII. Parity
+-- with JS is verified by supabase/tests/shop-norm.sql, which fails loudly on such a database.
+-- Mirrors shops.norm() in src/data/shops.js (parity fixture: test/fixtures/shop-norm.json,
+-- checked by supabase/tests/shop-norm.sql): lowercase, anything that is not a
+-- letter/mark/number/space becomes a space, whitespace collapsed, trimmed, first 80 chars.
+-- Postgres has no \p{M}, so the common combining-mark ranges (Latin, Hebrew, Arabic
+-- tashkeel) are listed explicitly; rarer marks in other scripts become spaces.
+create or replace function public.shop_norm(s text) returns text
+language sql immutable set search_path = public as $$
+  select left(btrim(regexp_replace(regexp_replace(lower(coalesce(s, '')),
+    '[^[:alnum:][:space:]\u0300-\u036f\u0483-\u0489\u0591-\u05bd\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06dc\u06df-\u06e4\u06e7\u06e8\u06ea-\u06ed]', ' ', 'g'),
+    '[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g')), 80) $$;
+
+-- Owner-run so it can read created_by (not selectable by clients). Max 10 shop
+-- inserts per user per rolling 24h.
+create or replace function public.shops_before_insert() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.name_norm := public.shop_norm(new.name);
+  -- Trusted non-JWT inserts (service_role, SQL editor, seeds): key is still
+  -- normalised, but there is no user to attribute or cap.
+  if auth.uid() is null then return new; end if;
+  new.created_by := auth.uid();
+  new.created_at := now();
+  perform pg_advisory_xact_lock(hashtext('shops:' || new.created_by::text));
+  if (select count(*) from public.shops
+        where created_by = new.created_by and created_at > now() - interval '24 hours') >= 10 then
+    raise exception 'shop limit reached (10 per 24 hours)' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+revoke all on function public.shops_before_insert() from public;
+drop trigger if exists shops_before_insert on public.shops;
+create trigger shops_before_insert before insert on public.shops
+  for each row execute function public.shops_before_insert();
+
+alter table public.shops enable row level security;
+drop policy if exists read_shops on public.shops;
+create policy read_shops on public.shops for select to authenticated using (true);
+drop policy if exists insert_shops on public.shops;
+create policy insert_shops on public.shops for insert to authenticated with check (true);
+-- Column-level select: created_by stays private (clients name explicit columns).
+revoke select on public.shops from authenticated;
+grant select (id, name, name_norm, city, area, created_at) on public.shops to authenticated;
+grant insert on public.shops to authenticated;
+revoke all on public.shops from anon;
+
+create table if not exists public.shop_feedback (
+  shop_id     uuid        not null references public.shops on delete cascade,
+  user_id     uuid        not null default auth.uid() references auth.users on delete cascade,
+  vote        smallint    not null check (vote in (-1, 1)),
+  reasons     text[]      not null default '{}' check (reasons <@ array['price','quality','honest','fast']),
+  bill_backed boolean     not null default false,
+  created_at  timestamptz not null default now(),
+  primary key (shop_id, user_id)
+);
+alter table public.shop_feedback enable row level security;
+drop policy if exists own_shop_feedback on public.shop_feedback;
+create policy own_shop_feedback on public.shop_feedback for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Column-level grants: bill_backed (doubles vote weight) is never client-writable.
+revoke all on public.shop_feedback from anon, authenticated;
+grant select, delete on public.shop_feedback to authenticated;
+grant insert (shop_id, vote, reasons) on public.shop_feedback to authenticated;
+-- shop_id is needed too: PostgREST upsert emits DO UPDATE SET shop_id = EXCLUDED.shop_id, ...
+grant update (shop_id, vote, reasons) on public.shop_feedback to authenticated;
+
+alter table public.contributions
+  add column if not exists shop_id uuid references public.shops on delete set null;
+
+-- Anti-fake-account rule: only "qualified" users count in aggregates (account
+-- >= 7 days old with a confirmed email or phone). The ONLY place the age and
+-- confirmation rule lives. Owner-run views read it; clients have no access.
+create or replace view public.qualified_users as
+  select u.id from auth.users u
+  where u.created_at <= now() - interval '7 days'
+    and (u.email_confirmed_at is not null or u.phone_confirmed_at is not null);
+revoke all on public.qualified_users from public, anon, authenticated;
+
+-- Owner-run (not security_invoker): shop_feedback is own-rows-only under RLS, so
+-- the aggregate must bypass it. Safe because the view only emits shops with >= 5
+-- qualified voters and exposes counts, never user ids. One row per user per shop, so
+-- count(*) is the number of distinct voters. bill_backed votes weigh 2.
+create or replace view public.shop_trust as
+  select f.shop_id,
+         count(*) filter (where f.vote = 1)  as up,
+         count(*) filter (where f.vote = -1) as down,
+         count(*)                            as voters,
+         (sum(case when f.vote = 1 then (case when f.bill_backed then 2 else 1 end) else 0 end)::numeric
+           / sum(case when f.bill_backed then 2 else 1 end))::numeric(4,3) as score_share,
+         (select coalesce(array_agg(x.r order by x.cnt desc), '{}')
+            from (select r, count(*) as cnt
+                    from shop_feedback f2 join qualified_users q2 on q2.id = f2.user_id, unnest(f2.reasons) as r
+                   where f2.shop_id = f.shop_id and f2.vote = 1
+                   group by r order by cnt desc limit 2) x) as top_reasons
+  from shop_feedback f join qualified_users q on q.id = f.user_id
+  group by f.shop_id
+  having count(*) >= 5;
+
+create or replace view public.store_prices as
+  select c.model_id, c.item_key, c.shop_id, s.name as shop_name, s.city, s.area,
+         (percentile_cont(0.5) within group (order by c.price))::numeric(10,2) as median_price,
+         count(*) as n
+  from contributions c
+  join contribution_links l on l.contribution_id = c.id
+  join qualified_users q on q.id = l.user_id
+  join shops s on s.id = c.shop_id
+  where c.kind = 'part' and c.price is not null
+  group by c.model_id, c.item_key, c.shop_id, s.name, s.city, s.area
+  having count(distinct l.user_id) >= 5;
+
+grant select on public.shop_trust, public.store_prices to authenticated;
+revoke all on public.shop_trust, public.store_prices from anon;
+
 create or replace function public.submit_contributions(rows jsonb) returns int
 language plpgsql security definer set search_path = public as $$
 declare r jsonb; cid uuid; n int := 0;
@@ -261,11 +393,11 @@ begin
       where user_id = auth.uid() and source_key = r->>'source_key';
     if cid is null then
       insert into contributions (kind, model_id, engine, odometer_band, month, l100,
-                                 price_per_l, item_key, brand, part_no, price, km_since_prev)
+                                 price_per_l, item_key, brand, part_no, price, km_since_prev, shop_id)
       values (r->>'kind', r->>'model_id', r->>'engine', (r->>'odometer_band')::int,
               r->>'month', (r->>'l100')::numeric, (r->>'price_per_l')::numeric,
               r->>'item_key', r->>'brand', r->>'part_no', (r->>'price')::numeric,
-              (r->>'km_since_prev')::int)
+              (r->>'km_since_prev')::int, (r->>'shop_id')::uuid)
       returning id into cid;
       insert into contribution_links (user_id, source_key, contribution_id)
         values (auth.uid(), r->>'source_key', cid);
@@ -274,7 +406,8 @@ begin
         engine = r->>'engine', odometer_band = (r->>'odometer_band')::int, month = r->>'month',
         l100 = (r->>'l100')::numeric, price_per_l = (r->>'price_per_l')::numeric,
         brand = r->>'brand', part_no = r->>'part_no', price = (r->>'price')::numeric,
-        km_since_prev = (r->>'km_since_prev')::int
+        km_since_prev = (r->>'km_since_prev')::int,
+        shop_id = (r->>'shop_id')::uuid
       where id = cid;
     end if;
     n := n + 1;
@@ -289,6 +422,7 @@ language plpgsql security definer set search_path = public as $$
 declare n int;
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
+  delete from shop_feedback where user_id = auth.uid();
   with gone as (
     delete from contributions where id in
       (select contribution_id from contribution_links where user_id = auth.uid())
@@ -310,6 +444,7 @@ create or replace view public.fuel_stats as
          (percentile_cont(0.75) within group (order by c.l100))::numeric(5,2) as p75_l100,
          count(*) as n
   from contributions c join contribution_links l on l.contribution_id = c.id
+  join qualified_users q on q.id = l.user_id
   where c.kind = 'fuel' and c.l100 is not null
   group by c.model_id, c.engine, c.odometer_band
   having count(distinct l.user_id) >= 5;
@@ -322,6 +457,7 @@ create or replace view public.brand_life as
          (percentile_cont(0.5) within group (order by c.price))::numeric(10,2) as median_price,
          count(*) as n
   from contributions c join contribution_links l on l.contribution_id = c.id
+  join qualified_users q on q.id = l.user_id
   where c.kind = 'part' and c.km_since_prev is not null and c.price is not null
   group by c.model_id, c.item_key, c.brand
   having count(distinct l.user_id) >= 5;

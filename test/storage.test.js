@@ -127,6 +127,11 @@ test('normalizeRecords fills the fields the render paths call methods on', () =>
   ['history', 'spending', 'fuel', 'docs', 'services'].forEach(k => assert.ok(s[k][0].id, `${k} entry should get an id`));
 });
 
+test('normalizeRecords keeps a history entry shop object', () => {
+  const shop = { name: 'Al Amal', city: 'Jeddah', area: 'Balad' };
+  assert.deepStrictEqual(normalizeRecords({ history: [{ id: 'h1', shop }] }, ids).history[0].shop, shop);
+});
+
 test('normalizeRecords coerces numeric fields instead of leaving NaN', () => {
   const s = normalizeRecords({
     history: [{ cost: 'abc', odometer: null }],

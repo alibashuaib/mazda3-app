@@ -92,6 +92,16 @@ function renderParts() {
           slot.textContent = `${t('Longest-lasting brand')}: ${info.best.brand} (~${info.best.medianKm} km, SAR ${info.best.medianPrice})` +
             (pr ? ` · ${t('Typical replacement')}: ${pr.fromKm}–${pr.toKm} km — ${pr.usedKm} ${t('km since the last one')}` : '');
         }).catch(() => {});
+        shops.getStorePrices(cur.car.modelId, key).then(prices => {
+          if (!prices.length) return;
+          return shops.getTrust(prices.map(r => r.shop_id)).then(trust => {
+            const a = shops.storeAdvice(prices, trust, shops.lastCity(cur.history));
+            const slot = a && document.getElementById(`shop_${p.id}`);
+            if (!slot) return;
+            slot.textContent = `${a.local ? `${t('Cheapest in')} ${a.city}` : t('Cheapest shop')}: ${a.name}${a.area ? ` (${a.area})` : ''}, SAR ${a.medianPrice}` +
+              (a.trusted ? ` · ✓ ${t('Trusted')} (${a.pct}%)` : '');
+          });
+        }).catch(() => {});
       } catch (e) { /* insight is optional */ }
     });
     if (pricing.available()) {
@@ -146,6 +156,7 @@ function partCard(p) {
         <div class="muted" style="font-size:11px">${p.options.length} ${t('options')}</div>
         <div class="muted" id="avg_${p.id}" style="font-size:11px;margin-top:2px"></div>
         <div class="muted" id="life_${p.id}" style="font-size:11px;margin-top:2px"></div>
+        <div class="muted" id="shop_${p.id}" style="font-size:11px;margin-top:2px"></div>
       </div>
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>

@@ -403,6 +403,9 @@ const AR = {
   'Typical': 'المعتاد',
   'Yours': 'سيارتك',
   'Longest-lasting brand': 'العلامة الأطول عمراً',
+  'Cheapest in': 'الأرخص في',
+  'Cheapest shop': 'أرخص محل',
+  'Trusted': 'موثوق',
   'Typical replacement': 'الاستبدال المعتاد',
   'km since the last one': 'كم منذ آخر مرة',
   'Admin': 'الإدارة',
@@ -424,7 +427,12 @@ const AR = {
   'Save changes': 'حفظ التغييرات',
   'Catalogue saved': 'تم حفظ الدليل',
   'Could not save. Check your connection.': 'تعذّر الحفظ. تحقّق من الاتصال.',
-  'Recent changes': 'آخر التغييرات'
+  'Recent changes': 'آخر التغييرات',
+  'Shop (optional)': 'المتجر (اختياري)', 'City': 'المدينة', 'Area': 'الحي',
+  'Would you buy from this shop again?': 'هل ستشتري من هذا المتجر مرة أخرى؟',
+  'Good price': 'سعر جيد', 'Quality work': 'جودة العمل', 'Honest': 'أمين', 'Fast': 'سريع',
+  'Send': 'إرسال', 'Not now': 'ليس الآن', 'Thanks for the feedback': 'شكرًا على رأيك',
+  'Could not send feedback': 'تعذّر إرسال الرأي'
 };
 
   return { AR };

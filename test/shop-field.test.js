@@ -1,0 +1,165 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { bootApp } = require('./helpers/boot.js');
+
+/* shopField is a plain script global, so it is driven through the boot harness. */
+async function withField(initial, fn) {
+  const app = await bootApp();
+  try { await fn(app, app.api.shopField(initial)); } finally { app.cleanup(); }
+}
+const inputs = f => f.nodes.flatMap(n => [...n.querySelectorAll('input')]);
+const typeName = (app, input, v) => { input.value = v; input.dispatchEvent(new app.window.Event('input')); };
+const tick = () => new Promise(r => setImmediate(r));
+const settle = () => new Promise(r => setTimeout(r, 320));   // past the 250ms search debounce
+
+test('value() is null for a blank name, a trimmed triple otherwise', () => withField(null, (app, f) => {
+  const [name, city, area] = inputs(f);
+  assert.strictEqual(f.value(), null);
+  name.value = '  Al Amal  '; city.value = ' Jeddah '; area.value = ' Balad ';
+  assert.strictEqual(JSON.stringify(f.value()), JSON.stringify({ name: 'Al Amal', city: 'Jeddah', area: 'Balad' })); // vm realm: no deepStrictEqual
+  name.value = '   ';
+  assert.strictEqual(f.value(), null);
+}));
+
+test('City defaults to the latest history entry shop city', async () => {
+  const app = await bootApp();
+  try {
+    app.api.session.current().history.push({ id: 'x', date: '2030-01-01', shop: { name: 'A', city: 'Dammam' } });
+    assert.strictEqual(inputs(app.api.shopField())[1].value, 'Dammam');
+    assert.strictEqual(inputs(app.api.shopField({ city: 'Makkah' }))[1].value, 'Makkah');
+  } finally { app.cleanup(); }
+});
+
+test('a stale search response never overwrites newer suggestions', () => withField(null, async (app, f) => {
+  const pending = [];
+  app.api.shops.search = () => new Promise(res => pending.push(res));
+  const [name] = inputs(f);
+  typeName(app, name, 'al');
+  await settle();
+  typeName(app, name, 'ala');
+  await settle();
+  assert.strictEqual(pending.length, 2);
+  pending[1]([{ name: 'New', city: 'Jeddah' }]);
+  await tick();
+  pending[0]([{ name: 'Old', city: 'Jeddah' }]);
+  await tick();
+  const dl = f.nodes.find(n => n.tagName === 'DATALIST');
+  assert.strictEqual([...dl.children].map(o => o.value).join('|'), 'New');
+}));
+
+test('search is debounced: a burst of keystrokes sends one request for the last value', () => withField(null, async (app, f) => {
+  const calls = [];
+  app.api.shops.search = q => { calls.push(q); return Promise.resolve([]); };
+  const [name] = inputs(f);
+  ['s', 'sa', 'sal'].forEach(v => typeName(app, name, v));
+  await tick();
+  assert.strictEqual(calls.length, 0, 'nothing sent before the debounce window ends');
+  await settle();
+  assert.deepStrictEqual([...calls], ['sal']);
+}));
+
+test('suggestions are real option elements carrying the exact name', () => withField(null, async (app, f) => {
+  const evil = '<b>"&Shop';
+  app.api.shops.search = () => Promise.resolve([{ name: evil, city: 'Jeddah', area: 'Balad' }]);
+  typeName(app, inputs(f)[0], 'sh');
+  await settle();
+  const opts = [...f.nodes.find(n => n.tagName === 'DATALIST').children];
+  assert.strictEqual(opts.length, 1);
+  assert.strictEqual(opts[0].tagName, 'OPTION');
+  assert.strictEqual(opts[0].value, evil);
+  assert.strictEqual(opts[0].children.length, 0, 'no markup was parsed out of the name');
+}));
+
+/* ---- feedback modal + afterPurchase ---- */
+const btn = (app, label) => [...app.document.querySelectorAll('#modalCard button')].find(b => b.textContent.includes(label));
+
+test('feedback: Send is disabled until a thumb is chosen, then sends thumb and reasons', async () => {
+  const app = await bootApp();
+  try {
+    const calls = [];
+    app.api.shops.vote = (...a) => { calls.push(a); return Promise.resolve(true); };
+    app.api.openShopFeedback({ id: 's1', name: 'Al Amal', city: 'Jeddah' });
+    const send = btn(app, 'Send');
+    assert.strictEqual(send.disabled, true);
+    btn(app, 'Fast').onclick(); btn(app, 'Honest').onclick(); btn(app, 'Fast').onclick(); // Fast toggled off again
+    assert.strictEqual(send.disabled, true, 'reasons alone do not enable Send');
+    btn(app, '👎').onclick();
+    assert.strictEqual(btn(app, '👎').getAttribute('aria-pressed'), 'true');
+    assert.strictEqual(btn(app, '👍').getAttribute('aria-pressed'), 'false');
+    assert.strictEqual(send.disabled, false);
+    await send.onclick();
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(JSON.stringify(calls[0]), JSON.stringify(['s1', false, ['honest']]));
+    assert.strictEqual(app.document.querySelector('#modalHost').hidden, true);
+  } finally { app.cleanup(); }
+});
+
+test('feedback: Not now sends nothing and closes', async () => {
+  const app = await bootApp();
+  try {
+    let n = 0;
+    app.api.shops.vote = () => { n++; return Promise.resolve(true); };
+    app.api.openShopFeedback({ id: 's1', name: 'A', city: 'B' });
+    btn(app, 'Not now').onclick();
+    assert.strictEqual(n, 0);
+    assert.strictEqual(app.document.querySelector('#modalHost').hidden, true);
+  } finally { app.cleanup(); }
+});
+
+async function purchase(share, shopIn) {
+  const app = await bootApp();
+  const seen = { create: 0, prompt: 0 };
+  app.api.insights.shareEnabled = () => Promise.resolve(share);
+  app.api.shops.findOrCreate = () => { seen.create++; return Promise.resolve({ id: 's1', name: 'A', city: 'B' }); };
+  app.api.openShopFeedback = () => { seen.prompt++; };
+  const cur = app.api.session.current();
+  await app.api.afterPurchase([], shopIn, cur, 'v1');
+  app.cleanup();
+  return seen;
+}
+
+test('afterPurchase: sharing off creates no shop and shows no prompt', async () => {
+  const s = await purchase(false, { name: 'A', city: 'B', area: '' });
+  assert.strictEqual(s.create + s.prompt, 0);
+});
+
+test('afterPurchase: sharing on creates the shop and prompts; no shop means no prompt', async () => {
+  let s = await purchase(true, { name: 'A', city: 'B', area: '' });
+  assert.strictEqual(s.create + '/' + s.prompt, '1/1');
+  s = await purchase(true, null);
+  assert.strictEqual(s.create + s.prompt, 0);
+});
+
+test('afterPurchase: no feedback prompt over an already-open modal', async () => {
+  const app = await bootApp();
+  try {
+    let prompts = 0;
+    app.api.insights.shareEnabled = () => Promise.resolve(true);
+    app.api.shops.findOrCreate = () => Promise.resolve({ id: 's1', name: 'A', city: 'B' });
+    app.api.openShopFeedback = () => { prompts++; };
+    app.document.querySelector('#modalHost').hidden = false;
+    await app.api.afterPurchase([], { name: 'A', city: 'B', area: '' }, app.api.session.current(), 'v1');
+    assert.strictEqual(prompts, 0);
+    app.document.querySelector('#modalHost').hidden = true;
+    await app.api.afterPurchase([], { name: 'A', city: 'B', area: '' }, app.api.session.current(), 'v1');
+    assert.strictEqual(prompts, 1);
+  } finally { app.cleanup(); }
+});
+
+test('Parts page shows the cheapest shop as text, never markup', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app, evil = '<img src=x onerror=alert(1)>';
+    api.insights.available = () => true;
+    api.insights.getBrandLife = () => Promise.resolve([]);
+    api.shops.getStorePrices = () => Promise.resolve([{ shop_id: 's1', shop_name: evil, city: 'Jeddah', area: '', median_price: 40, n: 3 }]);
+    api.shops.getTrust = () => Promise.resolve([{ shop_id: 's1', score_share: 0.9 }]);
+    api.go('parts');
+    await tick(); await tick(); await tick();
+    const slot = app.window.document.querySelector('[id^="shop_"]');
+    assert.ok(slot.textContent.includes(evil) && slot.textContent.includes('SAR 40'));
+    assert.strictEqual(slot.children.length, 0);
+    assert.ok(slot.textContent.includes('90%'));
+  } finally { app.cleanup(); }
+});

@@ -117,18 +117,32 @@ function buildPlan(v) {
    catalogue part (OEM or Alternative) they actually used for each linked part.
    The picked option's price drives the cost; any labour baked into the service's
    estimate (est. cost − default parts) is preserved. */
+/* Resolve the shop, share part prices tagged with it, then ask for feedback.
+   Fire-and-forget: the save already succeeded, so shop features are optional. */
+async function afterPurchase(logged, shopIn, cur, vid) {
+  try {
+    // Sharing off: nothing leaves the device (no shop row, no prices, no vote).
+    if (!(await insights.shareEnabled())) return;
+    const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
+    contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
+    if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop);  // never stack on an open modal
+  } catch (e) { /* shop features optional; save already succeeded */ }
+}
+
 function openLogConfirm(services, opts) {
   opts = opts || {};
   const checklist = opts.checklist || services.length > 1; // per-service Done / Not yet toggles
   const defIdx = p => { const i = p.options.findIndex(o => o.tag === 'OEM'); return i >= 0 ? i : 0; };
   const laborShare = svc => { const lp = partsForService(svc); if (!lp.length) return 0; const dflt = lp.reduce((a, p) => a + Number(p.options[defIdx(p)].price || 0), 0); return Math.max(0, Number(svc.cost || 0) - dflt); };
   const doneState = new Map(); services.forEach(s => doneState.set(s.id, true));
+  const shopF = shopField();
   openModal(opts.title || (services.length > 1 ? 'Log a milestone' : services[0].name),
     opts.sub || 'Pick the parts you used (OEM or alternative), then log it.', card => {
       const r = el('div', 'field-row');
       r.append(field('Odometer (km)', html`<input id="lc_odo" type="number" value="${opts.odometer != null ? opts.odometer : session.current().car.odometer}">`),
         field('Date', html`<input id="lc_date" type="date" value="${isoDate(today())}">`));
       card.appendChild(r);
+      shopF.nodes.forEach(n => card.appendChild(n));
 
       const picks = new Map(); // `${part.id}:${svc.id}` -> <select>
       services.forEach(svc => {
@@ -200,6 +214,7 @@ function openLogConfirm(services, opts) {
         const odo = +$('#lc_odo').value || session.current().car.odometer;
         const date = $('#lc_date').value || isoDate(today());
         const logged = [];
+        const shopIn = shopF.value();   // read before closeModal(): the DOM is gone afterwards
         let grand = 0, nDone = 0, nSkip = 0, nPartSkip = 0, lastName = 'Service';
         services.forEach(svc => {
           if (doneState.get(svc.id) === false) { svc.deferred = true; svc.deferredAt = date; nSkip++; return; }
@@ -215,13 +230,14 @@ function openLogConfirm(services, opts) {
           svc.pendingParts = [...pend]; nPartSkip += skippedParts.length;
           const cost = svcCost(svc); grand += cost; nDone++; lastName = svc.name;
           const h = { id: uid(), name: svc.name, icon: svc.icon || '🔧', date, odometer: odo, cost, cat: 'Maintenance', note: '', parts: chosen };
+          if (shopIn) h.shop = shopIn;
           session.current().history.push(h); logged.push(h);
         });
         if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Milestone')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
         if (odo > (session.current().car.odometer || 0)) session.current().car.odometer = odo;
         const cur = session.current(), vid = session.garage().activeId;
         const ok = await save(); closeModal();
-        if (ok) contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history })));
+        if (ok) afterPurchase(logged, shopIn, cur, vid);
         (opts.onDone || (() => go('maintenance')))();
         if (ok) {
           if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
@@ -550,6 +566,7 @@ function openAddHistory(e, prefill) {
   const editing = !!e;
   const p = e || prefill || {}; // prefill = { name, icon, cat, odometer, cost } from the plan
   const cats = ['Maintenance', 'Tires', 'Parts', 'Fuel', 'Electrical', 'Other'];
+  const shopF = shopField(e && e.shop);
   openModal(editing ? 'Edit service record' : 'Log a past service', editing ? '' : 'Record work already done on your car.', card => {
     card.appendChild(field('Service', html`<input id="h_name" value="${p.name || ''}" placeholder="${t('e.g. Timing chain inspection')}">`));
     const r0 = el('div', 'field-row');
@@ -563,6 +580,7 @@ function openAddHistory(e, prefill) {
     card.appendChild(field('Cost (SAR)', html`<input id="h_cost" type="number" value="${p.cost != null ? p.cost : 0}">`));
     card.appendChild(field('Note', html`<textarea id="h_note" rows="2">${e ? (e.note || '') : ''}</textarea>`));
     let hphoto = e ? (e.photo || '') : '';
+    shopF.nodes.forEach(n => card.appendChild(n));
     card.appendChild(field('Receipt / invoice', ''));
     card.appendChild(photoPicker(hphoto, v => hphoto = v));
     if (!editing) {
@@ -580,6 +598,8 @@ function openAddHistory(e, prefill) {
         date: $('#h_date').value || isoDate(today()), odometer: +$('#h_odo').value || 0,
         cost: +$('#h_cost').value || 0, note: $('#h_note').value.trim(), photo: hphoto
       };
+      const shopIn = shopF.value();   // read before commit() closes the modal
+      if (shopIn) obj.shop = shopIn; else if (e) delete e.shop;
       if (e) Object.assign(e, obj);
       else {
         session.current().history.push(obj);
@@ -590,7 +610,8 @@ function openAddHistory(e, prefill) {
           if (sv && obj.odometer > 0) { sv.lastKm = obj.odometer; sv.lastDate = obj.date; }
         }
       }
-      await commit('maintenance', editing ? 'Record updated' : 'Service logged ✓');
+      const ok = await commit('maintenance', editing ? 'Record updated' : 'Service logged ✓');
+      if (ok && !editing && shopIn) afterPurchase([], shopIn, session.current(), session.garage().activeId);
     });
     card.appendChild(b);
     if (editing) {
