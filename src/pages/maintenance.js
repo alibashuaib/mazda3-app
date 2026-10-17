@@ -654,7 +654,7 @@ function openAddHistory(e, prefill) {
         if (pf.cost > 0) inCost.value = pf.cost;
         if (pf.shop) shopF.set(pf.shop);
         billReadId = res.billReadId;
-        billParts = billParts.filter(x => !x.fromBill).concat(pf.parts.map(x => ({ ...x, action: 'replaced', finding: '', fromBill: true }))).slice(0, 15);
+        billParts = billParts.filter(x => !x.fromBill).concat(pf.parts.map(x => ({ ...x, action: x.action || 'replaced', finding: '', fromBill: true }))).slice(0, 15);
         drawParts();
         toast('Bill read — check the details');
       });

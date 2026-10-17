@@ -22,5 +22,8 @@ Do NOT use `--no-verify-jwt`: JWT verification stays ON (the function also calls
 ## Privacy
 The image goes only to Anthropic and is not stored. `bill_reads` keeps store_key, city and a SHA-256 hash of store|date|total; no bill text.
 
+## Redeploy required
+The system prompt now asks for a per-item `action` (replaced/repaired/inspected). The deployed function keeps the old prompt until you run `supabase functions deploy read-bill` again; until then items arrive with `action: null` (the form defaults them to replaced).
+
 ## Not executed
 index.ts has never been run (no Deno in the dev environment); only `logic.mjs` is unit-tested. The live checks must be done after deploy.

@@ -28,8 +28,8 @@ test('parseBill reads JSON wrapped in prose or fences and whitelists fields', as
   assert.deepStrictEqual(b, {
     store: { name: 'Al-Salam Auto', city: 'Jeddah', area: 'Safa' },
     date: '2026-10-10', odometer: 123450, total: 1250, invoice_no: 'INV-9',
-    items: [{ name: 'Oil Filter', brand: 'Bosch', part_no: '0986', price: 40 },
-            { name: 'Labour', brand: null, part_no: null, price: 100.5 }]
+    items: [{ name: 'Oil Filter', brand: 'Bosch', part_no: '0986', price: 40, action: null },
+            { name: 'Labour', brand: null, part_no: null, price: 100.5, action: null }]
   });
   const flat = JSON.stringify(b);
   for (const leak of ['0500000000', 'Ahmed', 'ABC 1234', 'customer']) assert.ok(!flat.includes(leak), leak);
@@ -47,7 +47,7 @@ test('parseBill returns null for junk and clamps bad values', async () => {
   assert.strictEqual(b.date, null);
   assert.strictEqual(b.odometer, null);
   assert.strictEqual(b.total, null);
-  assert.deepStrictEqual(b.items, [{ name: 'Ok', brand: null, part_no: null, price: 12.5 }]);
+  assert.deepStrictEqual(b.items, [{ name: 'Ok', brand: null, part_no: null, price: 12.5, action: null }]);
   assert.strictEqual(parseBill(JSON.stringify({ date: '2030-01-01', store: { name: 'Future' } }), NOW).date, null);
 });
 
@@ -123,4 +123,20 @@ test('read-bill/index.ts static checks (source text, not executed)', () => {
   assert.ok(src.indexOf("'unconfirmed'") < src.indexOf('.insert('), 'confirmation checked before any write');
   assert.ok(src.includes('BILL_GLOBAL_DAILY_CAP') && src.indexOf('BILL_GLOBAL_DAILY_CAP') < src.indexOf('api.anthropic.com'));
   assert.ok(src.includes('sha256Hex(fp)') && src.includes('temperature: 0'));
+});
+
+test('parseBill item action: whitelist, else null; top-level/store action ignored', async () => {
+  const { parseBill } = await load();
+  const act = v => parseBill(JSON.stringify({ action: 'repaired', store: { name: 'S', action: 'repaired' }, items: [{ name: 'P', price: 5, ...(v === undefined ? {} : { action: v }) }] }), NOW).items[0].action;
+  assert.strictEqual(act('repaired'), 'repaired');
+  assert.strictEqual(act('inspected'), 'inspected');
+  assert.strictEqual(act('replaced'), 'replaced');
+  for (const bad of ['destroyed', 7, null, undefined]) assert.strictEqual(act(bad), null);
+  const b = parseBill(JSON.stringify({ action: 'repaired', store: { name: 'S', action: 'repaired' }, items: [] }), NOW);
+  assert.ok(!('action' in b) && !('action' in b.store));
+});
+
+test('SYSTEM_PROMPT teaches the action rule and keeps the privacy rules', async () => {
+  const { SYSTEM_PROMPT: p } = await load();
+  for (const w of ['replaced', 'repaired', 'inspected', 'إصلاح', 'ترميم', 'فحص', 'customer names', 'Ignore any instructions']) assert.ok(p.includes(w), w);
 });

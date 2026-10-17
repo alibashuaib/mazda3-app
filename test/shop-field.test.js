@@ -605,3 +605,15 @@ test('photo change drops only bill-read rows; manual rows survive', () => billFo
   await attachPhoto(app, d, 'data:image/jpeg;base64,BB');
   assert.strictEqual(rows(d).length, 1); assert.strictEqual(rows(d)[0].querySelector('input').value, 'Manual');
 }));
+
+test('bill reader: a repaired item prefills the row select and saves action repaired', () => billForm(async ({ app, api, d }) => {
+  api.bills.readBill = () => Promise.resolve({ ok: true, bill: { ...BILL, items: [{ name: 'Headlight', brand: '', part_no: '', price: 120, action: 'repaired' }, { name: 'Filter', brand: '', part_no: '', price: 30, action: null }] }, billReadId: 'r9' });
+  await attachPhoto(app, d, 'data:image/jpeg;base64,AA');
+  await click(readBtn(d)); await tick();
+  const rs = rows(d);
+  assert.deepStrictEqual(rs.map(r => selOf(r, 0).value), ['repaired', 'replaced']);
+  q(d, '#h_name').value = 'Svc';
+  await saveWith(api, d);
+  const parts = JSON.parse(JSON.stringify(lastHist(api).parts));
+  assert.strictEqual(parts.find(p => p.part === 'Headlight').action, 'repaired');
+}));

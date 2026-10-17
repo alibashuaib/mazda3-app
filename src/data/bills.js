@@ -31,7 +31,7 @@
   }
 
   function toPrefill(bill) {
-    const parts = (bill.items || []).map(i => ({ part: i.name, brand: i.brand || '', partNo: i.part_no || '', price: i.price }));
+    const parts = (bill.items || []).map(i => ({ part: i.name, brand: i.brand || '', partNo: i.part_no || '', price: i.price, action: i.action || 'replaced' }));
     const sum = parts.reduce((a, p) => a + p.price, 0);
     return {
       name: parts.length ? parts[0].part : '',
