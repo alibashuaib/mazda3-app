@@ -58,6 +58,67 @@ function adminSignIn() {
   return card;
 }
 
+const DIFF_LABELS = { interval_km: 'Dealer interval (km)', interval_months: 'Dealer interval (mo)', note: 'Note', parts: 'Parts' };
+
+/* Drafts and recalls the intake function wrote, waiting for a decision. Every
+   dynamic string is textContent; a load failure just hides the queue. */
+async function adminQueue() {
+  let drafts = [], recalls = [];
+  try { [drafts, recalls] = await Promise.all([catalogAdmin.listDrafts(), catalogAdmin.listPendingRecalls()]); }
+  catch (e) { console.error(e); }
+  const card = el('div', 'card');
+  card.style.padding = '16px';
+  const h = el('h3'); h.textContent = t('Review queue');
+  card.appendChild(h);
+  if (!drafts.length && !recalls.length) {
+    const p = el('p', 'muted'); p.textContent = t('Nothing waiting for review');
+    card.appendChild(p);
+  }
+  const decide = (box, approve, run) => {
+    const mkBtn = (label, cls, ok) => {
+      const b = el('button', cls); b.type = 'button'; b.textContent = t(label);
+      onAsyncClick(b, async () => { try { await run(ok); go('admin'); } catch (e) { console.error(e); toast('Could not save'); } });
+      return b;
+    };
+    const row = el('div', 'field-row');
+    row.append(mkBtn('Approve', 'btn primary', true), mkBtn('Reject', 'btn ghost', false));
+    box.appendChild(row);
+  };
+  drafts.forEach(d => {
+    const box = el('div', 'admin-item');
+    const title = el('h4'); title.textContent = d.service;
+    box.appendChild(title);
+    const why = el('p', 'muted'); why.textContent = t(d.reason);
+    box.appendChild(why);
+    catalogAdmin.draftDiff(d.live, d.proposed).forEach(r => {
+      const line = el('div'); line.textContent = `${t(DIFF_LABELS[r.field])}: ${r.before || '—'} → ${r.after || '—'}`;
+      box.appendChild(line);
+    });
+    if (/^https:\/\//.test(d.source_url)) {
+      const a = el('a'); a.href = d.source_url; a.rel = 'noopener'; a.target = '_blank';
+      try { a.textContent = new URL(d.source_url).hostname; } catch (e) { a.textContent = d.source_url; }
+      box.appendChild(a);
+    }
+    decide(box, true, ok => catalogAdmin.decideDraft(d.id, ok));
+    card.appendChild(box);
+  });
+  recalls.forEach(r => {
+    const box = el('div', 'admin-item');
+    const title = el('h4'); title.textContent = `${r.campaign} · ${r.component}`;
+    const sum = el('p', 'muted'); sum.textContent = `${(r.years || []).join(', ')} — ${r.summary}`;
+    box.append(title, sum);
+    decide(box, true, ok => catalogAdmin.decideRecall(r.campaign, r.car_model_id, ok));
+    card.appendChild(box);
+  });
+  const run = el('button', 'btn ghost block'); run.type = 'button'; run.textContent = t('Check Mazda sources now');
+  onAsyncClick(run, async () => {
+    try { const r = await catalogAdmin.runIntake(); toast(`${r ? r.drafts : 0} ${t('new drafts')}`); go('admin'); }
+    catch (e) { console.error(e); toast('Could not check sources'); }
+  });
+  card.appendChild(run);
+  return card;
+}
+
 async function adminList() {
   const models = await catalogAdmin.listModels();
   const ordered = models.filter(m => m.status === 'draft').concat(models.filter(m => m.status !== 'draft'));
@@ -69,7 +130,9 @@ async function adminList() {
     it.onclick = () => { adminModelId = m.id; go('admin'); };
     wrap.appendChild(it);
   });
-  return wrap;
+  const both = el('div');
+  both.append(await adminQueue(), wrap);
+  return both;
 }
 
 async function adminEditor(id) {
