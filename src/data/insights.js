@@ -97,6 +97,8 @@
 
   /* ---- Network + consent. Every call resolves; failures never block local saves. ---- */
   let env = { client: null, metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) };
+  // Community and shared-list tables are readable by signed-in users only; signed out, make no request.
+  const live = () => !!env.client && (typeof env.signedIn === 'function' ? !!env.signedIn() : true);
   const DEFAULT_ENV = env;
   /* brand_life read cache: 5 min TTL, shared in-flight request, successes only.
      `epoch` stops a request in flight during reset()/configure() from repopulating. */
@@ -117,7 +119,7 @@
   }
   function configure(next) { clearCache(); env = Object.assign({}, env, next || {}); }
   function reset() { clearCache(); env = DEFAULT_ENV; }
-  function available() { return !!env.client; }
+  function available() { return !!live(); }
 
   const shareEnabled = () => env.metaGet().then(m => m.insightsShare !== false);
   const noticeSeen = () => env.metaGet().then(m => m.insightsNoticeSeen === true);
@@ -125,13 +127,13 @@
   /* Preference lives on the server too, so it survives sign-out (storage.wipe clears meta) and new devices.
      Local meta stays the fast read path; the server row wins on sign-in. */
   function pushPrefs() {
-    if (!env.client) return Promise.resolve(false);
+    if (!live()) return Promise.resolve(false);
     return env.metaGet().then(m => env.client.from('insights_prefs')
       .upsert({ share: m.insightsShare !== false, notice_seen: m.insightsNoticeSeen === true, updated_at: new Date().toISOString() }))
       .then(res => !(res && res.error)).catch(() => false);
   }
   function syncPrefs() {
-    if (!env.client) return Promise.resolve(false);
+    if (!live()) return Promise.resolve(false);
     return Promise.resolve().then(() => env.client.from('insights_prefs').select('share,notice_seen').maybeSingle()).then(res => {
       if (!res || res.error) return false;
       if (!res.data) return pushPrefs();
@@ -153,7 +155,7 @@
   }
 
   function rpc(fn, args) {
-    if (!env.client) return Promise.resolve(false);
+    if (!live()) return Promise.resolve(false);
     return Promise.resolve().then(() => env.client.rpc(fn, args))
       .then(res => !(res && res.error)).catch(() => false);
   }
@@ -161,7 +163,7 @@
   const deleteMine = () => rpc('delete_my_contributions');
 
   function stats(table, filters) {
-    if (!env.client) return Promise.resolve([]);
+    if (!live()) return Promise.resolve([]);
     return Promise.resolve().then(() => {
       let q = env.client.from(table).select('*').eq('model_id', filters.modelId);
       if (filters.itemKey) q = q.eq('item_key', filters.itemKey);
@@ -170,7 +172,7 @@
   }
   const getFuelStats = modelId => stats('fuel_stats', { modelId });
   const itemStats = table => (modelId, itemKey) => {
-    if (!env.client) return Promise.resolve([]);
+    if (!live()) return Promise.resolve([]);
     return memo(JSON.stringify([table, modelId, itemKey]), () => Promise.resolve().then(() => { const q = env.client.from(table).select('*').eq('model_id', modelId); return itemKey == null ? q : q.eq('item_key', itemKey); })
       .then(res => { const ok = !!(res && !res.error && res.data); return { ok, v: ok ? res.data : [] }; }).catch(() => ({ ok: false, v: [] })));
   };

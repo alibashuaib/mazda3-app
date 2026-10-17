@@ -14,12 +14,14 @@
 })(typeof self !== 'undefined' ? self : globalThis, function (account) {
 
   let env = { client: null };
+  // Community and shared-list tables are readable by signed-in users only; signed out, make no request.
+  const live = () => !!env.client && (typeof env.signedIn === 'function' ? !!env.signedIn() : true);
 
   function configure(next) { env = Object.assign({}, env, next || {}); }
   function reset() { env = { client: null }; }
-  function available() { return !!env.client; }
+  function available() { return !!live(); }
   function searchItems(query) {
-    if (!env.client) return Promise.resolve([]);
+    if (!live()) return Promise.resolve([]);
     return Promise.resolve(
       env.client.from('price_items').select('id,label,category').ilike('label', `%${query}%`).limit(20)
     ).then(res => (res && res.error) ? [] : (res.data || [])).catch(() => []);
@@ -41,14 +43,14 @@
   // an existing row that differs only in case, defeating that index's
   // whole purpose.
   function findExactItem(label) {
-    if (!env.client) return Promise.resolve(null);
+    if (!live()) return Promise.resolve(null);
     return Promise.resolve(
       env.client.from('price_items').select('id,label,category').ilike('label', escapeLikePattern(label)).maybeSingle()
     ).then(res => (res && res.error) ? null : (res.data || null)).catch(() => null);
   }
 
   function createItem(label, category, sourcePartNo) {
-    if (!env.client) return Promise.resolve(null);
+    if (!live()) return Promise.resolve(null);
     return Promise.resolve(
       env.client.from('price_items')
         .insert({ label, category, source_part_no: sourcePartNo || null })
@@ -68,19 +70,19 @@
   // entry point both UI surfaces should use instead of duplicating the
   // find-or-create sequence themselves.
   function findOrCreateItem(label, category, sourcePartNo) {
-    if (!env.client) return Promise.resolve(null);
+    if (!live()) return Promise.resolve(null);
     return findExactItem(label).then(existing => existing || createItem(label, category, sourcePartNo));
   }
 
   function submitPrice(itemId, price) {
-    if (!env.client || !account.user()) return Promise.resolve(false);
+    if (!live() || !account.user()) return Promise.resolve(false);
     return Promise.resolve(
       env.client.from('price_observations').insert({ item_id: itemId, price })
     ).then(res => !(res && res.error)).catch(() => false);
   }
 
   function getAverages(itemIds) {
-    if (!env.client || !itemIds || !itemIds.length) return Promise.resolve(new Map());
+    if (!live() || !itemIds || !itemIds.length) return Promise.resolve(new Map());
     return Promise.resolve(
       env.client.from('price_item_averages').select('item_id,avg_price,sample_count').in('item_id', itemIds)
     ).then(res => {

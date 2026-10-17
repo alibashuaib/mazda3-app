@@ -548,9 +548,10 @@ const canSignIn = location.protocol !== 'file:';
 function connectBackend() {
   const client = supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY);
   account.configure({ client });
-  pricing.configure({ client });
-  insights.configure({ client, metaGet, metaSet });
-  shops.configure({ client });
+  const signedIn = () => !!account.user();
+  pricing.configure({ client, signedIn });
+  insights.configure({ client, metaGet, metaSet, signedIn });
+  shops.configure({ client, signedIn });
   recalls.configure({ client });
   bills.configure({ client });
   remoteCatalog.configure({ client });

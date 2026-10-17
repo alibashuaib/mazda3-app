@@ -307,3 +307,13 @@ test('similar gives up on a hung request instead of hanging the save', async () 
   shops.configure({ client: { from: () => ({ select: () => ({ ilike: () => ({ limit: () => new Promise(() => {}) }) }) }) }, timeoutMs: 20 });
   assert.deepStrictEqual(await shops.similar('Alsalam Auto', 'Jeddah'), []);
 });
+
+test('signed out: shop reads and votes make no request', async () => {
+  let calls = 0;
+  const q = () => { calls++; const p = Promise.resolve({ data: [], error: null }); const c = { then: p.then.bind(p), catch: p.catch.bind(p) }; ['select', 'eq', 'in', 'ilike', 'limit', 'maybeSingle', 'order'].forEach(k => { c[k] = () => c; }); return c; };
+  shops.configure({ client: { from: q, rpc: () => { calls++; return Promise.resolve({ error: null }); } }, signedIn: () => false });
+  assert.strictEqual(shops.available(), false);
+  await shops.getStorePrices('m', 'k'); await shops.getTrust(['a']); await shops.search('abc'); await shops.vote('a', 1, []);
+  assert.strictEqual(calls, 0);
+  shops.reset();
+});

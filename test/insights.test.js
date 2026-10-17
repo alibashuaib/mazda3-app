@@ -425,3 +425,20 @@ test('model-wide stats make one query for all items and cache it', async () => {
   assert.deepStrictEqual(calls[0][1], ['model_id'], 'no item_key filter');
   ins.reset();
 });
+
+test('signed out: no community request leaves the app, signed in: they do', async () => {
+  let calls = 0, signedIn = false;
+  const client = { from: () => { calls++; const p = Promise.resolve({ data: [], error: null }); const q = { then: p.then.bind(p), catch: p.catch.bind(p), select: () => q, eq: () => q }; return q; }, rpc: () => { calls++; return Promise.resolve({ error: null }); } };
+  ins.configure({ client, signedIn: () => signedIn });
+  assert.strictEqual(ins.available(), false);
+  assert.deepStrictEqual(await ins.getBrandLife('m', 'k'), []);
+  assert.deepStrictEqual(await ins.getModelRepairStats('m'), []);
+  assert.deepStrictEqual(await ins.getFuelStats('m'), []);
+  assert.strictEqual(await ins.submit([{}]), false);
+  assert.strictEqual(calls, 0);
+  signedIn = true;
+  assert.strictEqual(ins.available(), true);
+  await ins.getBrandLife('m', 'k');
+  assert.strictEqual(calls, 1);
+  ins.reset();
+});

@@ -258,3 +258,14 @@ test('getAverages() resolves an empty Map for an empty list without calling the 
   const averages = await pricing.getAverages([]);
   assert.strictEqual(averages.size, 0);
 });
+
+test('signed out: price reads make no request', async () => {
+  const pricing = require('../src/data/pricing.js');
+  let calls = 0;
+  const c = () => { calls++; const p = Promise.resolve({ data: [], error: null }); const o = { then: p.then.bind(p), catch: p.catch.bind(p) }; ['select', 'ilike', 'limit', 'maybeSingle', 'in'].forEach(k => { o[k] = () => o; }); return o; };
+  pricing.configure({ client: { from: c }, signedIn: () => false });
+  assert.strictEqual(pricing.available(), false);
+  await pricing.searchItems('oil'); await pricing.getAverages([1]);
+  assert.strictEqual(calls, 0);
+  pricing.reset();
+});
