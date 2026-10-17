@@ -65,3 +65,14 @@ New tables, all RLS on: `schedule_sources`, `recalls`. Extra column on `dealer_p
 - Unit: extraction clamping and schema, recall mapping, the `guidance()` decision table (one test per row, plus the safety-critical rule), diff rendering as text not markup.
 - SQL: RLS (admin-only writes, drafts invisible to users), approved-campaign de-duplication.
 - Live (last): one real source URL end to end, one recall fetch, review-queue approve and reject.
+
+## 7. As built (corrections to the sections above)
+
+- Drafts live in a new `plan_drafts` table, not as a `draft` status on `dealer_plan_items` (that table has no status column; `status` exists only on `car_models`). `decide_plan_draft` (admin-only RPC) applies an approval and clamps intervals; the existing trigger logs it and bumps `plan_updated_at`.
+- The weekly job is pg_cron + pg_net calling `plan-intake` with an `x-cron-secret`; the admin button calls it with the admin's JWT.
+- Model years come from the seeded `car_models.generation` text ("BM/BN · 2014–18", "BP · 2019+"); NHTSA model name is `mazda` + number for numeric models (`mazda3`), else the model name as is.
+- `guidance.decide` returns a fixed translatable `reason` plus a separate number `n`.
+- The `severity` column and automatic severe-schedule selection are not built.
+- `recalls.forModel` filters `status = 'approved'` on the client as well as in RLS, because admins can read pending rows.
+- Owner wording and threshold approval (blocks release): NOT YET GIVEN. Record the date here once `REPAIR_SHARE = 50`, `ATTENTION_RATE = 30`, `MIN_INSPECTIONS = 3` and every new English/Arabic string are approved.
+- Extraction model `claude-sonnet-5-5` (`INTAKE_MODEL`): unverified until one real call works.
