@@ -243,3 +243,56 @@ test('clearCache() forces the next read to refetch (sign-out / opt-out)', async 
   shops.clearCache();
   assert.strictEqual((await shops.getStorePrices('m3', 'oil'))[0].n, 2);
 });
+
+test('search matches the spaceless name_key, with or without spaces typed', async () => {
+  for (const q of ['Alsalam', 'al salam']) {
+    const log = [];
+    shops.configure({ client: queueClient([{ data: [row], error: null }], log) });
+    await shops.search(q, '');
+    assert.deepStrictEqual(log.find(l => l[0] === 'ilike'), ['ilike', 'name_key', '%alsalam%']);
+  }
+  const log = [];
+  shops.configure({ client: queueClient([], log) });
+  assert.deepStrictEqual(await shops.search('a ', ''), [], 'one-char key is too short');
+  assert.strictEqual(log.length, 0);
+});
+
+test('search falls back to all cities when the typed city yields nothing', async () => {
+  let log = [];
+  shops.configure({ client: queueClient([{ data: [], error: null }, { data: [row], error: null }], log) });
+  assert.deepStrictEqual(await shops.search('salam', 'Taif'), [row]);
+  assert.strictEqual(log.filter(l => l[0] === 'ilike' && l[1] === 'city').length, 1, 'second query has no city filter');
+  assert.strictEqual(log.filter(l => l[0] === 'from').length, 2);
+  log = [];
+  shops.configure({ client: queueClient([{ data: [row], error: null }], log) });
+  await shops.search('salam', 'Jeddah');
+  assert.strictEqual(log.filter(l => l[0] === 'from').length, 1, 'city hit: no second query');
+});
+
+test('similarity: identical 1, empty 0, spaces ignored, Arabic works', () => {
+  assert.strictEqual(shops.similarity('Al Salam', 'alsalam'), 1);
+  assert.strictEqual(shops.similarity('', ''), 0);
+  assert.strictEqual(shops.similarity('abc', ''), 0);
+  assert.strictEqual(shops.similarity('السلام', 'السلام'), 1);
+  assert.ok(shops.similarity('مركز السلام', 'مركز السلم') >= 0.75);
+  assert.ok(shops.similarity('Toyota Service', 'Al Salam Auto') < 0.5);
+});
+
+test('similar flags near-duplicates, not exact or unrelated, never rejects', async () => {
+  const rows = [{ id: 'a', name: 'Al Salam Auto', city: 'Jeddah' }, { id: 'b', name: 'Toyota Service', city: 'Jeddah' }];
+  shops.configure({ client: queueClient([{ data: rows, error: null }], []) });
+  assert.deepStrictEqual((await shops.similar('Alsalam Auto', 'Jeddah')).map(r => r.id), ['a']);
+  shops.configure({ client: queueClient([{ data: rows, error: null }], []) });
+  assert.deepStrictEqual(await shops.similar('Al Salam Auto', 'Jeddah'), [], 'exact key is not a near-duplicate');
+  shops.configure({ client: queueClient([{ data: rows, error: null }], []) });
+  assert.deepStrictEqual(await shops.similar('Toyota Servise', 'Jeddah').then(r => r.map(x => x.id)), ['b']);
+  shops.configure({ client: { from: () => { throw new Error('boom'); } } });
+  assert.deepStrictEqual(await shops.similar('x y z', 'Jeddah'), []);
+  shops.reset();
+  assert.deepStrictEqual(await shops.similar('Alsalam', 'Jeddah'), []);
+});
+
+test('similar gives up on a hung request instead of hanging the save', async () => {
+  shops.configure({ client: { from: () => ({ select: () => ({ ilike: () => ({ limit: () => new Promise(() => {}) }) }) }) }, timeoutMs: 20 });
+  assert.deepStrictEqual(await shops.similar('Alsalam Auto', 'Jeddah'), []);
+});
