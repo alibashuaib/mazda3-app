@@ -616,14 +616,16 @@ function openAddHistory(e, prefill) {
           const g = repairHint(bp.part, rs, lang); tipEl.textContent = g; tipEl.hidden = !g;
         };
         const nm = mk('Part name', bp.part, v => { bp.part = v; showTip(); }); nm.setAttribute('list', dl.id);
-        nm.addEventListener('change', () => {   // not per keystroke
+        const lookup = () => {
           const key = keyOf(bp.part), seq = bp.seq = (bp.seq || 0) + 1;
           if (!key || !insights.available()) return;
           insights.getRepairStats(session.current().car.modelId, key).then(rows => {
             if (seq !== bp.seq || !tipEl.isConnected) return;
             bp.rs = { key, info: insights.repairInsight(rows) }; showTip();
           }).catch(() => {});
-        });
+        };
+        nm.addEventListener('change', lookup);   // not per keystroke
+        if (bp.fromBill && !bp.rs) lookup();   // bill-prefilled names never fire 'change'
         const act = mkSel(ACTS, bp.action, v => { bp.action = v; if (v !== 'inspected') bp.finding = ''; drawParts(); });
         const rm = el('button', 'btn ghost', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', t('Remove'));
         rm.onclick = () => { billParts.splice(billParts.indexOf(bp), 1); drawParts(); };
