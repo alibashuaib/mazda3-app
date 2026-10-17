@@ -176,4 +176,4 @@ model/part/store combinations stay hidden. Arabic strings added for all new text
 - Bill reader suggests `repaired` / `inspected` from line wording; the user can change it before saving. `read-bill` must be redeployed for this.
 - Old history entries cannot be re-labelled after saving (editing never re-contributes).
 - Curated tips are general guidance, not diagnosis, and are not expert-verified.
-- **Owner wording approval (blocks release): NOT YET GIVEN.** Record the date here once every `tipEn`/`tipAr` in `src/data/repairable.js` is approved.
+- **Owner wording approval (blocks release): GIVEN 2026-10-18** for every `tipEn`/`tipAr` in `src/data/repairable.js`.
