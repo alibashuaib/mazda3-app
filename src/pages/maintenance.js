@@ -499,7 +499,7 @@ function buildHistory(v) {
       const box = el('div', 'tl-note');
       acted.forEach(x => {
         const line = el('div');
-        line.textContent = `${x.part} — ${t(x.action === 'repaired' ? 'Repaired' : 'Inspected')}` + (x.finding === 'attention' ? ` · ${t('Needs attention')}` : '');
+        line.textContent = `${x.part || ''} — ${t(x.action === 'repaired' ? 'Repaired' : 'Inspected')}` + (x.finding === 'attention' ? ` · ${t('Needs attention')}` : '');
         box.appendChild(line);
       });
       item.querySelector('.tl-card').appendChild(box);

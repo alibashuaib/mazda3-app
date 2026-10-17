@@ -692,7 +692,7 @@ test('timeline: repaired/inspected parts get labels as text; replaced and legacy
     api.session.current().history.push(
       { id: 'a', name: 'Fix', date: '2026-01-01', odometer: 1, parts: [{ part: evil, price: 5, action: 'repaired' }, { part: 'Brakes', action: 'inspected', finding: 'attention' }, { part: 'Pad', price: 3 }, { part: 'Oil', price: 3, action: 'replaced' }] },
       { id: 'b', name: 'Old', date: '2026-02-01', odometer: 2, parts: [{ part: 'Pad', price: 3 }] });
-    api.go('maintenance'); api.evalInApp ? 0 : 0;
+    api.go('maintenance');
     const btns = [...d.querySelectorAll('.seg button')].find(b => /History/.test(b.textContent));
     if (btns) btns.onclick();
     const cards = [...d.querySelectorAll('.tl-card')];
