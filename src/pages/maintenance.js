@@ -458,6 +458,28 @@ function scheduleTimelineItem(s, st, isLast) {
       <div class="tl-sub">${fmtDate(st.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })} · ${kmTxt}</div>
     </div>`;
   item.querySelector('.tl-card').onclick = () => openServiceDetail(s);
+
+  // One answer per item: the dealer interval first, community numbers join when they load.
+  const guide = el('div', 'tl-guide muted'); guide.style.cssText = 'font-size:12px;margin-top:4px';
+  item.querySelector('.tl-card').appendChild(guide);
+  const cur = session.current(), key = String(s.name || '').toLowerCase().trim();
+  const usedKm = Math.max(0, (Number(cur.car.odometer) || 0) - (Number(s.lastKm) || 0));
+  const GUIDE = { ok: 'OK', replace: 'Replace', repair: 'Repair first', inspect: 'Inspect' };
+  const paint = (life, repair) => {
+    const d = guidance.decide({ level: st.level, name: s.name, medianLifeKm: life, usedKm, repair, tip: repairable.tip(s.name, lang), safety: guidance.isSafetyCritical(s.name) });
+    let txt = `${t(GUIDE[d.action])} — ${d.n != null ? d.n + '% ' : ''}${t(d.reason)}`;
+    if (!d.communityUsed) txt += ` · ${t('Mazda schedule only')}`;
+    guide.textContent = txt;
+  };
+  paint(null, null);
+  if (key && insights.available()) {
+    const modelId = cur.car.modelId;
+    Promise.all([insights.getBrandLife(modelId, key), insights.getRepairStats(modelId, key)]).then(([life, rows]) => {
+      if (!guide.isConnected) return;
+      const best = (life || []).slice().sort((a, b) => Number(b.n) - Number(a.n))[0];
+      paint(best ? Number(best.median_km) : null, insights.repairInsight(rows));
+    }).catch(() => {});
+  }
   return item;
 }
 

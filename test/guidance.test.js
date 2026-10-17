@@ -39,3 +39,8 @@ test('reasons are plain strings and never carry markup from the part name', () =
   const r = g.decide({ ...base, name: '<img src=x onerror=1>' });
   assert.ok(typeof r.reason === 'string' && !r.reason.includes('<'));
 });
+test('numbers travel separately so the reason stays a translatable key', () => {
+  const r = g.decide({ ...base, level: 'ok', repair: { share: null, attention: 40, nInspected: 6 } });
+  assert.strictEqual(r.n, 40); assert.ok(!/\d/.test(r.reason));
+  assert.strictEqual(g.decide({ ...base, level: 'ok' }).n, null);
+});

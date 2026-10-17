@@ -18,13 +18,13 @@
     const due = level === 'warn' || level === 'danger';
     const flagged = !!(repair && repair.attention != null && repair.nInspected >= MIN_INSPECTIONS && repair.attention >= ATTENTION_RATE);
     const communityUsed = !!(repair && (repair.share != null || flagged)) || medianLifeKm != null;
-    if (flagged) return { action: 'inspect', reason: `${repair.attention}% of owners who inspected this found a problem`, communityUsed: true };
-    if (!due) return { action: 'ok', reason: 'Not due yet', communityUsed };
-    if (safety) return { action: 'inspect', reason: 'Safety-critical and due: have it checked', communityUsed };
+    if (flagged) return { action: 'inspect', reason: 'of owners who inspected this found a problem', n: repair.attention, communityUsed: true };
+    if (!due) return { action: 'ok', reason: 'Not due yet', n: null, communityUsed };
+    if (safety) return { action: 'inspect', reason: 'Safety-critical and due: have it checked', n: null, communityUsed };
     const pastLife = medianLifeKm != null && usedKm >= medianLifeKm;
     if (pastLife && tip && repair && repair.share != null && repair.share >= REPAIR_SHARE)
-      return { action: 'repair', reason: `${repair.share}% of owners repaired this instead of replacing it`, communityUsed: true };
-    return { action: 'replace', reason: medianLifeKm != null ? 'Due, and past the typical life other owners see' : 'Due by the Mazda schedule', communityUsed };
+      return { action: 'repair', reason: 'of owners repaired this instead of replacing it', n: repair.share, communityUsed: true };
+    return { action: 'replace', reason: pastLife ? 'Due, and past the typical life other owners see' : 'Due by the Mazda schedule', n: null, communityUsed };
   }
 
   return { decide, isSafetyCritical, REPAIR_SHARE, ATTENTION_RATE, MIN_INSPECTIONS };

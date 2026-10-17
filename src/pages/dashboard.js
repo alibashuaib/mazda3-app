@@ -287,6 +287,18 @@ function renderDashboard() {
   topRow.appendChild(hero);
   v.appendChild(topRow);
 
+  // Approved recalls for this model (NHTSA, US market): a pointer to the dealer, never a verdict.
+  const recallBox = el('div', 'card recall-banner'); recallBox.style.cssText = 'padding:12px 14px;margin:10px 0'; recallBox.hidden = true;
+  v.appendChild(recallBox);
+  recalls.forModel(session.current().car.modelId).then(rows => {
+    if (!rows || !rows.length || !recallBox.isConnected) return;
+    const head = el('strong');
+    head.textContent = `⚠️ ${rows.length} ${t(rows.length === 1 ? 'recall' : 'recalls')} ${t('found for this model year in the US — confirm with your Mazda dealer')}`;
+    recallBox.replaceChildren(head);
+    rows.forEach(r => { const line = el('div', 'muted'); line.style.fontSize = '12px'; line.textContent = `${r.campaign} · ${r.component}`; recallBox.appendChild(line); });
+    recallBox.hidden = false;
+  }).catch(() => {});
+
   // tiles — each links to the page it summarizes
   const tiles = el('div', 'tiles');
   tiles.innerHTML = html`
