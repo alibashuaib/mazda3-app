@@ -741,3 +741,86 @@ drop policy if exists admin_read_dealer_plan_changes on public.dealer_plan_chang
 create policy admin_read_dealer_plan_changes on public.dealer_plan_changes for select to authenticated
   using (public.is_admin());
 revoke all on public.dealer_plan_changes from anon;
+
+-- Guidance engine: sources the intake function reads, recalls, and drafts awaiting admin approval.
+create table if not exists public.schedule_sources (
+  id bigint generated always as identity primary key,
+  car_model_id text not null references public.car_models on delete cascade,
+  url text not null check (url ~ '^https://'),
+  content_hash text,
+  last_checked_at timestamptz,
+  unique (car_model_id, url)
+);
+
+create table if not exists public.recalls (
+  campaign text not null,
+  car_model_id text not null references public.car_models on delete cascade,
+  years int[] not null default '{}',
+  component text not null,
+  summary text not null,
+  remedy text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  fetched_at timestamptz not null default now(),
+  primary key (campaign, car_model_id)
+);
+
+create table if not exists public.plan_drafts (
+  id bigint generated always as identity primary key,
+  car_model_id text not null references public.car_models on delete cascade,
+  source_id bigint references public.schedule_sources on delete set null,
+  service text not null,
+  proposed jsonb not null,                  -- { interval_km, interval_months, note, parts }
+  reason text not null default '',
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  created_at timestamptz not null default now(),
+  decided_by uuid,
+  decided_at timestamptz
+);
+create unique index if not exists plan_drafts_one_pending
+  on public.plan_drafts (car_model_id, service) where status = 'pending';
+
+alter table public.schedule_sources enable row level security;
+alter table public.recalls enable row level security;
+alter table public.plan_drafts enable row level security;
+
+drop policy if exists admin_schedule_sources on public.schedule_sources;
+create policy admin_schedule_sources on public.schedule_sources for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists admin_plan_drafts on public.plan_drafts;
+create policy admin_plan_drafts on public.plan_drafts for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists read_recalls on public.recalls;
+create policy read_recalls on public.recalls for select to anon, authenticated
+  using (status = 'approved' or public.is_admin());
+drop policy if exists admin_write_recalls on public.recalls;
+create policy admin_write_recalls on public.recalls for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+grant select on public.recalls to anon, authenticated;
+grant update (status) on public.recalls to authenticated;
+grant select, insert, update, delete on public.schedule_sources, public.plan_drafts to authenticated;
+
+-- Applies (or rejects) one pending draft. Approval upserts the live plan item, so the
+-- existing dealer_plan_item_change trigger logs it and bumps plan_updated_at.
+create or replace function public.decide_plan_draft(p_id bigint, p_approve boolean, p_edit jsonb default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare d public.plan_drafts; v jsonb; src text;
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  select * into d from public.plan_drafts where id = p_id and status = 'pending' for update;
+  if not found then raise exception 'no pending draft'; end if;
+  if p_approve then
+    v := coalesce(p_edit, d.proposed);
+    select url into src from public.schedule_sources where id = d.source_id;
+    insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, note, parts, source_url)
+    values (d.car_model_id, d.service,
+            nullif(least(greatest((v->>'interval_km')::int, 0), 1000000), 0),
+            nullif(least(greatest((v->>'interval_months')::int, 0), 240), 0),
+            left(coalesce(v->>'note', ''), 300), coalesce(v->'parts', '[]'::jsonb), src)
+    on conflict (car_model_id, service) do update set
+      interval_km = excluded.interval_km, interval_months = excluded.interval_months,
+      note = excluded.note, parts = excluded.parts, source_url = excluded.source_url;
+  end if;
+  update public.plan_drafts set status = case when p_approve then 'approved' else 'rejected' end,
+         decided_by = auth.uid(), decided_at = now() where id = p_id;
+end $$;
+revoke execute on function public.decide_plan_draft(bigint, boolean, jsonb) from anon;

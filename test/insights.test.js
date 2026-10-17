@@ -412,3 +412,16 @@ test('repairInsight rounds median prices to whole SAR', () => {
   const info = ins.repairInsight([{ n_repaired: 4, n_replaced: 6, n_inspected: 0, median_price_repaired: '333.33', median_price_replaced: '540.5', median_km_after_repair: null, attention_share: null }]);
   assert.strictEqual(info.priceRepaired, 333); assert.strictEqual(info.priceReplaced, 541);
 });
+
+test('model-wide stats make one query for all items and cache it', async () => {
+  const calls = [];
+  const client = { from: t => { const c = { eqs: [] }; calls.push([t, c.eqs]); const p = Promise.resolve({ data: [{ item_key: 'a' }], error: null });
+    const q = { then: p.then.bind(p), catch: p.catch.bind(p), select: () => q, eq: (k, v) => { c.eqs.push(k); return q; } }; return q; } };
+  ins.configure({ client });
+  await ins.getModelBrandLife('m1'); await ins.getModelBrandLife('m1');
+  const r = await ins.getModelRepairStats('m1');
+  assert.strictEqual(r.length, 1);
+  assert.deepStrictEqual(calls.map(c => c[0]), ['brand_life', 'repair_stats']);
+  assert.deepStrictEqual(calls[0][1], ['model_id'], 'no item_key filter');
+  ins.reset();
+});

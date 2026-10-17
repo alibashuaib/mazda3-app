@@ -104,9 +104,47 @@
     return name + ': ' + keys.map(k => `${k} ${JSON.stringify(b[k] ?? null)} → ${JSON.stringify(a[k] ?? null)}`).join(', ');
   }
 
+
+  /* ---- Review queue: drafts the intake function wrote, awaiting a decision ---- */
+  function draftDiff(live, proposed) {
+    const fmt = (k, o) => !o ? '' : k === 'parts' ? formatParts(o.parts) : o[k] == null ? '' : String(o[k]);
+    return ['interval_km', 'interval_months', 'note', 'parts']
+      .map(k => ({ field: k, before: fmt(k, live), after: fmt(k, proposed) }))
+      .filter(r => r.before !== r.after);
+  }
+  function addSource(carModelId, url) {
+    const u = String(url || '').trim();
+    if (!/^https:\/\//i.test(u)) return Promise.reject(new Error('https only'));
+    return Promise.resolve(env.client.from('schedule_sources').insert({ car_model_id: carModelId, url: u })).then(data);
+  }
+  function decideDraft(id, approve, edit) {
+    return Promise.resolve(env.client.rpc('decide_plan_draft', { p_id: id, p_approve: !!approve, p_edit: edit || null })).then(data);
+  }
+  function listDrafts() {
+    return Promise.all([
+      env.client.from('plan_drafts').select('id,car_model_id,service,proposed,reason,source_id').eq('status', 'pending').order('created_at'),
+      env.client.from('dealer_plan_items').select('car_model_id,service,interval_km,interval_months,note,parts'),
+      env.client.from('schedule_sources').select('id,url')
+    ]).then(([d, items, srcs]) => (data(d) || []).map(x => ({
+      ...x,
+      live: (data(items) || []).find(i => i.car_model_id === x.car_model_id && i.service === x.service),
+      source_url: ((data(srcs) || []).find(s => s.id === x.source_id) || {}).url || ''
+    })));
+  }
+  function listPendingRecalls() {
+    return Promise.resolve(env.client.from('recalls').select('campaign,car_model_id,component,summary,years').eq('status', 'pending')).then(data).then(r => r || []);
+  }
+  function decideRecall(campaign, carModelId, approve) {
+    return Promise.resolve(env.client.from('recalls').update({ status: approve ? 'approved' : 'rejected' }).eq('campaign', campaign).eq('car_model_id', carModelId)).then(data);
+  }
+  function runIntake(carModelId) {
+    return Promise.resolve(env.client.functions.invoke('plan-intake', { body: carModelId ? { car_model_id: carModelId } : {} })).then(data);
+  }
+
   return {
     configure, reset, available, isAdmin, knownAdmin, draftCount,
     listModels, loadModel, saveWarranty, saveItem, approve,
-    num, parseParts, formatParts, itemPatch, describeChange
+    num, parseParts, formatParts, itemPatch, describeChange,
+    draftDiff, addSource, decideDraft, listDrafts, listPendingRecalls, decideRecall, runIntake
   };
 });

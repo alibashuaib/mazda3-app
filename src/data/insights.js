@@ -171,11 +171,14 @@
   const getFuelStats = modelId => stats('fuel_stats', { modelId });
   const itemStats = table => (modelId, itemKey) => {
     if (!env.client) return Promise.resolve([]);
-    return memo(JSON.stringify([table, modelId, itemKey]), () => Promise.resolve().then(() => env.client.from(table).select('*').eq('model_id', modelId).eq('item_key', itemKey))
+    return memo(JSON.stringify([table, modelId, itemKey]), () => Promise.resolve().then(() => { const q = env.client.from(table).select('*').eq('model_id', modelId); return itemKey == null ? q : q.eq('item_key', itemKey); })
       .then(res => { const ok = !!(res && !res.error && res.data); return { ok, v: ok ? res.data : [] }; }).catch(() => ({ ok: false, v: [] })));
   };
   const getBrandLife = itemStats('brand_life');
   const getRepairStats = itemStats('repair_stats');
+  // Every item for a model in one query (the views are small: only rows past the 5-user floor).
+  const getModelBrandLife = modelId => itemStats('brand_life')(modelId, null);
+  const getModelRepairStats = modelId => itemStats('repair_stats')(modelId, null);
 
-  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife, getRepairStats, repairInsight, repairMode };
+  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife, getRepairStats, getModelBrandLife, getModelRepairStats, repairInsight, repairMode };
 });
