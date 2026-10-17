@@ -76,3 +76,5 @@ New tables, all RLS on: `schedule_sources`, `recalls`. Extra column on `dealer_p
 - `recalls.forModel` filters `status = 'approved'` on the client as well as in RLS, because admins can read pending rows.
 - Owner wording and threshold approval (blocks release): NOT YET GIVEN. Record the date here once `REPAIR_SHARE = 50`, `ATTENTION_RATE = 30`, `MIN_INSPECTIONS = 3` and every new English/Arabic string are approved.
 - Extraction model `claude-sonnet-5-5` (`INTAKE_MODEL`): unverified until one real call works.
+- Community lookup is one cached query per model (`getModelBrandLife`, `getModelRepairStats`); a service name matches community item keys by whole phrase (`guidance.matchRows`: "engine oil" matches "engine oil 0w-20", not "oil filter"). Names that never match stay on the "Mazda schedule only" line.
+- A source whose output cannot be parsed is not re-sent to the model until its content changes (clear `content_hash` to force). Source hosts must resolve to public addresses (`isPrivateIp`); a rebinding race between that check and the fetch remains.

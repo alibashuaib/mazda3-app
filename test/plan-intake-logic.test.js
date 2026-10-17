@@ -61,3 +61,12 @@ test('diffDraft is false for identical content and true for any change', async (
   assert.strictEqual(diffDraft(live, { ...live, interval_km: 15000 }), true);
   assert.strictEqual(diffDraft(undefined, { ...live }), true);
 });
+
+test('isPrivateIp flags loopback, private, link-local, CGNAT and unspecified, v4 and v6', async () => {
+  const { isPrivateIp } = await load();
+  for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0',
+    '::1', '::', 'fe80::1', 'fc00::1', 'fd12::1', '::ffff:10.0.0.1'])
+    assert.strictEqual(isPrivateIp(ip), true, ip);
+  for (const ip of ['8.8.8.8', '172.32.0.1', '104.18.2.3', '2606:4700::1111'])
+    assert.strictEqual(isPrivateIp(ip), false, ip);
+});

@@ -44,3 +44,12 @@ test('numbers travel separately so the reason stays a translatable key', () => {
   assert.strictEqual(r.n, 40); assert.ok(!/\d/.test(r.reason));
   assert.strictEqual(g.decide({ ...base, level: 'ok' }).n, null);
 });
+
+test('matchRows links a service name to community item keys by whole phrase', () => {
+  const rows = [{ item_key: 'engine oil' }, { item_key: 'engine oil 0w-20' }, { item_key: 'oil filter' }, { item_key: 'cabin filter' }];
+  assert.deepStrictEqual(g.matchRows('Engine Oil', rows).map(r => r.item_key), ['engine oil', 'engine oil 0w-20']);
+  assert.deepStrictEqual(g.matchRows('Cabin (A/C) Filter', rows), []);
+  assert.deepStrictEqual(g.matchRows('Oil', rows), [], 'too short to match loosely');
+  assert.deepStrictEqual(g.matchRows('', rows), []);
+  assert.deepStrictEqual(g.matchRows('Engine Oil', null), []);
+});

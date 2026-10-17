@@ -17,6 +17,19 @@ export function isSafeUrl(u) {
   return true;
 }
 
+/* For the DNS check in index.ts: true when a resolved address is not a public one. */
+export function isPrivateIp(ip) {
+  const x = String(ip ?? '').toLowerCase();
+  const v4 = x.startsWith('::ffff:') ? x.slice(7) : x;
+  const m = v4.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  }
+  return x === '::1' || x === '::' || /^f[cd]/.test(x) || /^fe[89ab]/.test(x);
+}
+
 export function htmlToText(html, max = MAX_TEXT) {
   return String(html ?? '')
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')

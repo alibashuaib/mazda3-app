@@ -2,20 +2,30 @@
 // Secrets: ANTHROPIC_API_KEY, INTAKE_CRON_SECRET (required); INTAKE_MODEL (optional).
 // Never writes dealer_plan_items: only plan_drafts and pending recalls.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { SYSTEM_PROMPT, diffDraft, htmlToText, isSafeUrl, parseRecalls, parseSchedule, sha256Hex } from './logic.mjs';
+import { SYSTEM_PROMPT, diffDraft, htmlToText, isPrivateIp, isSafeUrl, parseRecalls, parseSchedule, sha256Hex } from './logic.mjs';
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret' };
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 const MAX_PDF = 8_000_000;
 
+// A public-looking hostname must not resolve to a private address (DNS rebinding). Not airtight
+// (the fetch resolves again), but sources are admin-registered, so this closes the easy hole.
+async function resolvesPublic(url: string): Promise<boolean> {
+  try {
+    const host = new URL(url).hostname;
+    const ips = [...await Deno.resolveDns(host, 'A').catch(() => []), ...await Deno.resolveDns(host, 'AAAA').catch(() => [])];
+    return ips.length > 0 && !ips.some(isPrivateIp);
+  } catch { return false; }
+}
+
 async function fetchSource(url: string): Promise<{ kind: 'text' | 'pdf'; body: string } | null> {
-  if (!isSafeUrl(url)) return null;
+  if (!isSafeUrl(url) || !(await resolvesPublic(url))) return null;
   const r = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(20000) });
   if (r.status >= 300 && r.status < 400) {                 // follow one redirect, re-checked
     const loc = r.headers.get('location');
     if (!loc) return null;
     const next = new URL(loc, url).toString();
-    if (!isSafeUrl(next)) return null;
+    if (!isSafeUrl(next) || !(await resolvesPublic(next))) return null;
     return fetchSource1(next);
   }
   return readBody(r);
@@ -84,7 +94,10 @@ Deno.serve(async (req) => {
           });
           if (!r.ok) { skipped++; continue; }
           const items = parseSchedule((await r.json())?.content?.[0]?.text ?? '');
-          if (!items) { skipped++; continue; }           // fail closed: no partial drafts
+          if (!items) {                                   // fail closed: no partial drafts
+            await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // same content is not retried; clear content_hash to force
+            skipped++; continue;
+          }
           const { data: live } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,note,parts').eq('car_model_id', car.id);
           for (const it of items) {
             const cur = (live ?? []).find((x: any) => x.service.toLowerCase() === it.service.toLowerCase());

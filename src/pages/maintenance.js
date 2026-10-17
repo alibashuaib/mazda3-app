@@ -473,11 +473,12 @@ function scheduleTimelineItem(s, st, isLast) {
   };
   paint(null, null);
   if (key && insights.available()) {
-    const modelId = cur.car.modelId;
-    Promise.all([insights.getBrandLife(modelId, key), insights.getRepairStats(modelId, key)]).then(([life, rows]) => {
+    const modelId = cur.car.modelId;   // one cached query per model, shared by every item on the page
+    Promise.all([insights.getModelBrandLife(modelId), insights.getModelRepairStats(modelId)]).then(([life, repair]) => {
       if (!guide.isConnected) return;
-      const best = (life || []).slice().sort((a, b) => Number(b.n) - Number(a.n))[0];
-      paint(best ? Number(best.median_km) : null, insights.repairInsight(rows));
+      const best = guidance.matchRows(s.name, life).sort((a, b) => Number(b.n) - Number(a.n))[0];
+      const rep = guidance.matchRows(s.name, repair).sort((a, b) => (Number(b.n_repaired) + Number(b.n_replaced) + Number(b.n_inspected)) - (Number(a.n_repaired) + Number(a.n_replaced) + Number(a.n_inspected)))[0];
+      paint(best ? Number(best.median_km) : null, rep ? insights.repairInsight([rep]) : null);
     }).catch(() => {});
   }
   return item;

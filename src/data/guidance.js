@@ -27,5 +27,17 @@
     return { action: 'replace', reason: pastLife ? 'Due, and past the typical life other owners see' : 'Due by the Mazda schedule', n: null, communityUsed };
   }
 
-  return { decide, isSafetyCritical, REPAIR_SHARE, ATTENTION_RATE, MIN_INSPECTIONS };
+  /* Community rows whose item_key is the service name or contains it (or the reverse) as a whole
+     phrase: "engine oil" matches "engine oil 0w-20", never "oil filter". Names under 4 letters match nothing. */
+  const norm = x => String(x || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  function matchRows(service, rows) {
+    const a = norm(service);
+    if (a.length < 4 || !Array.isArray(rows)) return [];
+    return rows.filter(r => {
+      const b = norm(r && r.item_key);
+      return b.length >= 4 && (a === b || ` ${a} `.includes(` ${b} `) || ` ${b} `.includes(` ${a} `));
+    });
+  }
+
+  return { decide, isSafetyCritical, matchRows, REPAIR_SHARE, ATTENTION_RATE, MIN_INSPECTIONS };
 });
