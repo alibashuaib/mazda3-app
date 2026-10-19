@@ -33,5 +33,12 @@
     return p;
   }
 
-  return { configure, reset, forModel };
+  /* Campaigns cover specific model years; no year on the car (or none on the row) keeps the row. */
+  function forYear(rows, year) {
+    const y = Number(year);
+    if (!y) return rows || [];
+    return (rows || []).filter(r => !Array.isArray(r.years) || !r.years.length || r.years.map(Number).includes(y));
+  }
+
+  return { configure, reset, forModel, forYear };
 });

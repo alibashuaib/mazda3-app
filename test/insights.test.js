@@ -162,14 +162,67 @@ test('opt-out with a rejecting RPC: resolves false and delete stays pending', as
   assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
 });
 
-test('successful opt-out delete clears the pending flag; opting in leaves it alone', async () => {
-  const store = metaStore();
-  ins.configure(Object.assign(store, { client: okClient([]) }));
+test('successful opt-out delete clears the pending flag; opting in finishes a pending delete first', async () => {
+  const store = metaStore(), calls = [];
+  ins.configure(Object.assign(store, { client: okClient(calls) }));
   assert.strictEqual(await ins.setShare(false), true);
   assert.strictEqual((await store.metaGet()).insightsDeletePending, false);
   await store.metaSet({ insightsDeletePending: true });
+  calls.length = 0;
   assert.strictEqual(await ins.setShare(true), true);
-  assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
+  assert.deepStrictEqual(calls, [['delete_my_contributions', undefined]]);
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, false);
+  assert.strictEqual(await ins.shareEnabled(), true);
+});
+
+/* A client whose insights_prefs table records every upsert and can be held open. */
+function heldPrefsClient(server) {
+  const sent = [];
+  return { sent, client: {
+    rpc: () => Promise.resolve({ data: 1, error: null }),
+    from: () => ({
+      upsert: row => { sent.push(row); if (server.hold) return server.hold.then(() => ({ error: server.fail ? { message: 'x' } : null })); return Promise.resolve({ error: server.fail ? { message: 'x' } : null }); },
+      select: () => ({ maybeSingle: () => Promise.resolve({ data: server.row || null, error: null }) })
+    })
+  } };
+}
+
+test('opt-in with a pending delete that cannot run stays off and never pushes share=true', async () => {
+  const store = metaStore();
+  const pc = heldPrefsClient({});
+  pc.client.rpc = () => Promise.reject(new Error('offline'));
+  ins.configure(Object.assign(store, { client: pc.client }));
+  await store.metaSet({ insightsShare: false, insightsDeletePending: true });
+  assert.strictEqual(await ins.setShare(true), false);
+  assert.strictEqual(await ins.shareEnabled(), false);
+  assert.ok(!pc.sent.some(r => r.share === true), 'pushed share=true before the delete completed');
+});
+
+test('an offline opt-out survives the next sync: local change wins over the server row', async () => {
+  const store = metaStore();
+  const server = { fail: true, row: { share: true, notice_seen: true } };
+  const pc = heldPrefsClient(server);
+  ins.configure(Object.assign(store, { client: pc.client }));
+  await ins.setShare(false);                          // prefs push fails
+  assert.strictEqual((await store.metaGet()).insightsPrefsPending, true);
+  server.fail = false;
+  assert.strictEqual(await ins.syncPrefs(), true);
+  assert.strictEqual(await ins.shareEnabled(), false, 'server share=true overwrote the local opt-out');
+  assert.strictEqual(pc.sent[pc.sent.length - 1].share, false, 'the opt-out was not pushed');
+  assert.strictEqual((await store.metaGet()).insightsPrefsPending, false);
+});
+
+test('a push acknowledged after a newer change leaves that change pending', async () => {
+  const store = metaStore();
+  let release; const server = { hold: new Promise(r => { release = r; }) };
+  const pc = heldPrefsClient(server);
+  ins.configure(Object.assign(store, { client: pc.client }));
+  const first = ins.markNoticeSeen();                 // push in flight, held
+  await new Promise(r => setImmediate(r));
+  await store.metaSet({ insightsShare: false, insightsPrefsRev: 99, insightsPrefsPending: true });   // newer local change
+  release();
+  await first;
+  assert.strictEqual((await store.metaGet()).insightsPrefsPending, true, 'older ack cleared a newer change');
 });
 
 test('flushPendingDelete retries a failed delete once a client works', async () => {
@@ -441,4 +494,108 @@ test('signed out: no community request leaves the app, signed in: they do', asyn
   await ins.getBrandLife('m', 'k');
   assert.strictEqual(calls, 1);
   ins.reset();
+});
+
+test('lastReplacement ignores repairs and inspections; a part with no action counts as replaced', () => {
+  const h = [
+    { id: 'a', odometer: 20000, parts: [{ part: 'Brake Pads' }] },
+    { id: 'b', odometer: 80000, parts: [{ part: 'brake pads', action: 'inspected', finding: 'ok' }] },
+    { id: 'c', odometer: 60000, parts: [{ part: 'Brake pads', action: 'repaired', price: 50 }] }
+  ];
+  assert.strictEqual(ins.lastReplacement(h, 'Brake Pads').id, 'a');
+  h.push({ id: 'd', odometer: 70000, parts: [{ part: 'Brake Pads', action: 'replaced', price: 300 }] });
+  assert.strictEqual(ins.lastReplacement(h, 'brake pads').id, 'd');
+  assert.strictEqual(ins.lastReplacement(h, 'Wipers'), null);
+});
+
+test('brand life credits the part taken out, not the one put in', () => {
+  const prior = [{ id: 'h1', date: '2026-01-05', odometer: 10000, parts: [{ part: 'Brake pads', brand: 'A', price: 200 }] }];
+  const now = { id: 'h2', date: '2026-06-05', odometer: 40000, parts: [{ part: 'Brake pads', brand: 'B', price: 260 }] };
+  const [row] = ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: now, priorHistory: prior });
+  assert.strictEqual(row.km_since_prev, 30000);
+  assert.strictEqual(row.prev_brand, 'A');
+  assert.strictEqual(row.prev_price, 200);
+  assert.strictEqual(row.brand, 'B', 'the new purchase stays its own price observation');
+  assert.strictEqual(row.price, 260);
+});
+
+test('no brand is credited when the removed part has none', () => {
+  const prior = [{ id: 'h1', date: '2026-01-05', odometer: 10000, parts: [{ part: 'Brake pads', price: 200 }] }];
+  const now = { id: 'h2', date: '2026-06-05', odometer: 40000, parts: [{ part: 'Brake pads', brand: 'B', price: 260 }] };
+  const [row] = ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: now, priorHistory: prior });
+  assert.strictEqual(row.prev_brand, undefined, 'brand_life skips rows without prev_brand');
+  assert.strictEqual(row.prev_price, 200);
+});
+
+test('opting out takes effect locally at once, even behind a stalled earlier request', async () => {
+  const store = metaStore();
+  let release; const server = { hold: new Promise(r => { release = r; }) };
+  const pc = heldPrefsClient(server);
+  ins.configure(Object.assign(store, { client: pc.client }));
+  const stalled = ins.markNoticeSeen();
+  await new Promise(r => setImmediate(r));
+  const off = ins.setShare(false);
+  await new Promise(r => setImmediate(r));
+  assert.strictEqual(await ins.shareEnabled(), false, 'still sharing while the earlier push hangs');
+  assert.strictEqual((await store.metaGet()).insightsDeletePending, true);
+  release(); await stalled; await off;
+});
+
+test('a job queued by one account does nothing once another account is signed in', async () => {
+  const store = metaStore(), calls = [];
+  let user = 'A', release; const gate = new Promise(r => { release = r; });
+  const pc = heldPrefsClient({ hold: gate });
+  pc.client.rpc = (fn) => { calls.push([user, fn]); return Promise.resolve({ data: 1, error: null }); };
+  ins.configure(Object.assign(store, { client: pc.client, userId: () => user }));
+  const held = ins.markNoticeSeen();                  // A's push, held
+  await new Promise(r => setImmediate(r));
+  const off = ins.setShare(false);                    // A's opt-out queued behind it
+  user = 'B';                                         // A signs out, B signs in
+  release(); await held; await off;
+  assert.deepStrictEqual(calls, [], 'A\'s queued delete ran with B signed in');
+});
+
+test('a write the server refuses for consent (-1) is not reported as success', async () => {
+  ins.configure({ client: { rpc: () => Promise.resolve({ data: -1, error: null }) } });
+  assert.strictEqual(await ins.syncVehicle('v', []), false);
+  assert.strictEqual(await ins.submit([{}]), false);
+  ins.configure({ client: { rpc: () => Promise.resolve({ data: 0, error: null }) } });
+  assert.strictEqual(await ins.syncVehicle('v', []), true, 'an empty set is a real success');
+});
+
+test('pushPendingPrefs retries only an unacknowledged change', async () => {
+  const store = metaStore();
+  const pc = heldPrefsClient({});
+  ins.configure(Object.assign(store, { client: pc.client }));
+  assert.strictEqual(await ins.pushPendingPrefs(), true);
+  assert.strictEqual(pc.sent.length, 0);
+  await store.metaSet({ insightsShare: true, insightsPrefsPending: true, insightsPrefsRev: 3 });
+  assert.strictEqual(await ins.pushPendingPrefs(), true);
+  assert.strictEqual(pc.sent.length, 1);
+  assert.strictEqual((await store.metaGet()).insightsPrefsPending, false);
+});
+
+test('marking the notice seen never writes share, so it cannot undo an opt-out made elsewhere', async () => {
+  const store = metaStore();
+  const pc = heldPrefsClient({});
+  ins.configure(Object.assign(store, { client: pc.client }));
+  await store.metaSet({ insightsShare: true });       // this device still believes sharing is on
+  await ins.markNoticeSeen();
+  assert.strictEqual(pc.sent.length, 1);
+  assert.ok(!('share' in pc.sent[0]), 'the notice push carried share');
+  assert.strictEqual(pc.sent[0].notice_seen, true);
+});
+
+test('a notice write that never landed is kept locally and re-sent on the next sync', async () => {
+  const store = metaStore();
+  const server = { fail: true, row: { share: false, notice_seen: false } };
+  const pc = heldPrefsClient(server);
+  ins.configure(Object.assign(store, { client: pc.client }));
+  await ins.markNoticeSeen();                         // push fails
+  server.fail = false;
+  assert.strictEqual(await ins.syncPrefs(), true);
+  assert.strictEqual(await ins.noticeSeen(), true, 'the server row un-saw the notice');
+  assert.strictEqual(await ins.shareEnabled(), false);
+  const last = pc.sent[pc.sent.length - 1];
+  assert.deepStrictEqual([last.notice_seen, 'share' in last], [true, false]);
 });

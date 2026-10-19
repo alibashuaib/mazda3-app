@@ -14,8 +14,8 @@
    interval — its litres and cost carry forward and settle on the next full
    tank, which measures the whole stretch since the previous full one. The
    `full` flag was already collected and shown; this is what reads it. */
-function fuelRows() {
-  const entries = [...(session.current().fuel || [])].sort((a, b) => a.date.localeCompare(b.date) || a.odometer - b.odometer);
+function fuelRows(fuel) {
+  const entries = [...(fuel || session.current().fuel || [])].sort((a, b) => a.date.localeCompare(b.date) || a.odometer - b.odometer);
   let anchor = null;             // last full tank — the open interval's start
   let carriedL = 0, carriedCost = 0;   // partials since that anchor
   return entries.map(e => {
@@ -148,15 +148,8 @@ function openAddFuel(e) {
       const obj = { id: e ? e.id : uid(), date: $('#f_date').value || isoDate(today()), odometer: odo, litres, cost, full: $('#f_full').value !== 'no' };
       if (e) Object.assign(e, obj); else { session.current().fuel = session.current().fuel || []; session.current().fuel.push(obj); }
       // a fill-up is a real odometer reading — stamp it with the fill-up's own date
-      if (odo > session.current().car.odometer) { session.current().car.odometer = odo; session.current().car.odoUpdatedAt = obj.date; }
-      const cur = session.current(), vid = session.garage().activeId;
-      const ok = await commit('fuel', editing ? 'Fill-up updated' : 'Fill-up added');
-      if (ok) {
-        // l100 comes from fuelRows (full-to-full); partials/first fills have none and yield no row
-        const done = fuelRows().find(r => r.e.id === obj.id);
-        const row = done && insights.fuelContribution({ modelId: cur.car.modelId, engine: cur.car.engine, vehicleId: vid, entry: obj, l100: done.l100 });
-        if (row) contribute([row]);
-      }
+      noteOdometer(session.current().car, odo, obj.date);
+      await commit('fuel', editing ? 'Fill-up updated' : 'Fill-up added');   // community rows follow via the afterSave hook
     });
     card.appendChild(b);
     if (editing) {

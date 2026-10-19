@@ -320,7 +320,7 @@ function bannerRow(icon, title, sub, button) {
    the trigger now would take the theme, settings and vehicle switcher down
    with it, so only the Account ITEM is conditional.
    ============================================================ */
-const MENU_ITEM_SEL = '[role="menuitem"], [role="menuitemcheckbox"]';
+const MENU_ITEM_SEL = '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]';
 
 function menuItems() { return Array.from($('#accountMenu').querySelectorAll(MENU_ITEM_SEL)); }
 
@@ -385,6 +385,10 @@ function buildAccountMenu(menu) {
   }
 
   menu.appendChild(menuItem('Switch vehicle', 'menuitem', () => { closeAccountMenu(false); openGarage(); }, '🚗'));
+  /* Only where sign-in can work (a configured backend, not file://). */
+  if (account.available()) {
+    menu.appendChild(menuItem(account.user() ? 'Account' : 'Sign in', 'menuitem', () => { closeAccountMenu(false); openAccount(); }, '👤'));
+  }
   if (catalogAdmin.knownAdmin()) {
     const n = catalogAdmin.draftCount();
     menu.appendChild(menuItem(t('Admin') + (n ? ` (${n})` : ''), 'menuitem', () => {
@@ -393,19 +397,18 @@ function buildAccountMenu(menu) {
     }, '🛠️', true));
   }
 
-  /* Binary, so it maps onto menuitemcheckbox — which means the old button's
-     third state ('system', follow the device) is no longer reachable from the
-     topbar. It is still the default until the user picks explicitly, and the
-     matchMedia listener in main.js still tracks the device for anyone who
-     never touches this. Noted in the commit message. */
-  const dark = menuItem('Dark mode', 'menuitemcheckbox', null, currentTheme() === 'dark' ? '🌙' : '☀️');
-  dark.setAttribute('aria-checked', String(currentTheme() === 'dark'));
-  dark.onclick = () => {
-    setThemePref(currentTheme() === 'dark' ? 'light' : 'dark');
-    refreshForTheme();
-    closeAccountMenu(false);
-  };
-  menu.appendChild(dark);
+  /* Three radios, not a binary toggle, so "System" (follow the device) stays
+     reachable after the user has once picked Light or Dark. */
+  const pref = themePref();
+  [['system', 'System theme', '🖥️'], ['light', 'Light theme', '☀️'], ['dark', 'Dark theme', '🌙']].forEach(([p, label, icon]) => {
+    const it = menuItem(label, 'menuitemradio', () => {
+      setThemePref(p);
+      refreshForTheme();
+      closeAccountMenu(false);
+    }, icon);
+    it.setAttribute('aria-checked', String(pref === p));
+    menu.appendChild(it);
+  });
 
   /* Signed-out users have nothing shared, so no control for them. */
   if (account.user()) {
@@ -417,7 +420,8 @@ function buildAccountMenu(menu) {
       share.setAttribute('aria-checked', String(on));
       const ok = await insights.setShare(on);
       shops.clearCache(); insights.clearCache();   // opting out deletes votes and contributions
-      toast(on ? 'Sharing anonymous data'
+      if (on && !ok) share.setAttribute('aria-checked', 'false');
+      toast(on ? (ok ? 'Sharing anonymous data' : 'Sharing stays off until your earlier data is removed. Try again when online.')
         : ok ? 'Stopped sharing and removed your shared data'
           : 'Stopped sharing. Your shared data will be removed when you are back online.');
     };

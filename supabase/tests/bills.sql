@@ -121,16 +121,50 @@ do $$ begin
 end $$;
 reset role;
 
--- (g) opt-out erases the caller's bill reads only
+-- (g) opt-out erases where the caller shopped, keeps the rows (caps + dedupe), touches no one else
 select public.tmp_as_user(1);
 set local role authenticated;
 select public.delete_my_contributions();
 reset role;
 do $$ begin
-  if exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000001') then
-    raise exception 'FAIL: delete_my_contributions left bill_reads'; end if;
-  if not exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000002') then
-    raise exception 'FAIL: delete_my_contributions removed another user''s bill_reads'; end if;
+  if not exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000001') then
+    raise exception 'FAIL: opt-out deleted bill_reads (resets the daily cap)'; end if;
+  if exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000001'
+             and (store_key is not null or city is not null)) then
+    raise exception 'FAIL: opt-out left store_key/city'; end if;
+  if not exists (select 1 from public.insights_prefs where user_id = '00000000-0000-0000-0000-000000000001' and share = false) then
+    raise exception 'FAIL: opt-out did not record share = false'; end if;
+  if not exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000002' and store_key is not null) then
+    raise exception 'FAIL: opt-out touched another user''s bill_reads'; end if;
+end $$;
+
+-- (h) a read finishing after the opt-out (read-bill's service-role update) cannot restore the shop
+update public.bill_reads set store_key = 'late shop', city = 'riyadh'
+  where user_id = '00000000-0000-0000-0000-000000000001';
+do $$ begin
+  if exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000001' and store_key is not null) then
+    raise exception 'FAIL: late bill read restored store_key after opt-out'; end if;
+end $$;
+
+-- (i) uploads after a server-side opt-out are refused (-1, which the client keeps queued)
+-- and write nothing; a vote is refused too
+select public.tmp_as_user(1);
+set local role authenticated;
+do $$ begin
+  if public.submit_contributions('[{"kind":"fuel","source_key":"fuel:v:1","month":"2026-01","model_id":"m","odometer_band":0,"l100":7}]'::jsonb) <> -1
+     or public.sync_contributions('v', '[{"kind":"fuel","source_key":"fuel:v:1","month":"2026-01","model_id":"m","odometer_band":0,"l100":7}]'::jsonb) <> -1 then
+    raise exception 'FAIL: upload not refused after opt-out'; end if;
+  begin
+    perform public.vote_shop('aaaaaaaa-0000-0000-0000-000000000001', 1::smallint, '{}');
+    raise exception 'FAIL: vote accepted after opt-out';
+  exception when raise_exception then
+    if sqlerrm <> 'sharing is off' then raise; end if;
+  end;
+end $$;
+reset role;
+do $$ begin
+  if exists (select 1 from public.contribution_links where user_id = '00000000-0000-0000-0000-000000000001') then
+    raise exception 'FAIL: upload after opt-out wrote rows'; end if;
 end $$;
 
 rollback;

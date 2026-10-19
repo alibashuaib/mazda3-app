@@ -31,3 +31,11 @@ test('forModel resolves [] with no client', async () => {
   recalls.reset();
   assert.deepStrictEqual(await recalls.forModel('m1'), []);
 });
+
+test('forYear keeps rows for the car year, rows with no years, and everything when the car has no year', () => {
+  const rows = [{ campaign: 'A', years: [2016, 2017] }, { campaign: 'B', years: [2019] }, { campaign: 'C', years: [] }];
+  assert.deepStrictEqual(recalls.forYear(rows, 2016).map(r => r.campaign), ['A', 'C']);
+  assert.deepStrictEqual(recalls.forYear(rows, '2019').map(r => r.campaign), ['B', 'C']);
+  assert.deepStrictEqual(recalls.forYear(rows, '').map(r => r.campaign), ['A', 'B', 'C']);
+  assert.deepStrictEqual(recalls.forYear(null, 2016), []);
+});
