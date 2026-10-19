@@ -5,11 +5,11 @@ Drafts Mazda's published maintenance schedule from admin-registered source URLs 
 ## Deploy
 
 ```
-supabase functions deploy plan-intake
+supabase functions deploy plan-intake --no-verify-jwt
 supabase secrets set ANTHROPIC_API_KEY=... INTAKE_CRON_SECRET=...
 ```
 
-JWT verification stays ON. Callers send either an admin's JWT (the "Check Mazda sources now" button) or the header `x-cron-secret`.
+Gateway JWT verification must be OFF: the weekly pg_cron call sends only `x-cron-secret`, and the gateway would reject it before the function runs. The function does its own auth (index.ts, top of the handler): the request must carry either the `x-cron-secret` header or an admin's JWT (verified with `auth.getUser`, then `profiles.role = 'admin'`). The "Check Mazda sources now" button sends the admin JWT.
 
 ## Weekly schedule (pg_cron + pg_net)
 

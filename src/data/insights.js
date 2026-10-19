@@ -48,13 +48,28 @@
         ...(action === 'inspected' && (p.finding === 'ok' || p.finding === 'attention') ? { finding: p.finding } : {}),
         ...(shopId ? { shop_id: shopId } : {})
       };
-      if (prev) row.km_since_prev = historyEntry.odometer - prev.odometer;
+      if (prev) {
+        row.km_since_prev = historyEntry.odometer - prev.odometer;
+        /* That lifespan belongs to the part being taken OUT. brand_life groups by these and
+           ignores rows without them, so an unbranded old part is never credited. */
+        const old = (prev.parts || []).find(q => key(q.part) === k && actionOf(q) === 'replaced');
+        if (old && old.brand) row.prev_brand = old.brand;
+        if (old && old.price > 0) row.prev_price = round2(old.price);
+      }
       if (action === 'replaced') {
         const rep = latest(k, 'repaired', prev ? prev.odometer : -Infinity);
         if (rep) row.km_since_repair = historyEntry.odometer - rep.odometer;
       }
       return row;
     });
+  }
+
+  /* The history entry where this part was last REPLACED. A repair or an inspection leaves
+     the old part in the car, so it must not restart the replacement clock. */
+  function lastReplacement(history, partName) {
+    const k = key(partName);
+    return (history || []).filter(h => (h.parts || []).some(q => key(q.part) === k && actionOf(q) === 'replaced'))
+      .sort((a, b) => b.odometer - a.odometer)[0] || null;
   }
 
   function repairInsight(rows) {
@@ -123,35 +138,91 @@
 
   const shareEnabled = () => env.metaGet().then(m => m.insightsShare !== false);
   const noticeSeen = () => env.metaGet().then(m => m.insightsNoticeSeen === true);
-  const markNoticeSeen = () => env.metaSet({ insightsNoticeSeen: true }).then(pushPrefs).then(() => {});
-  /* Preference lives on the server too, so it survives sign-out (storage.wipe clears meta) and new devices.
-     Local meta stays the fast read path; the server row wins on sign-in. */
-  function pushPrefs() {
-    if (!live()) return Promise.resolve(false);
-    return env.metaGet().then(m => env.client.from('insights_prefs')
+  /* Preference writes and the opt-out delete run one at a time, in order, on this chain.
+     Every local change bumps insightsPrefsRev and marks it pending; a push clears pending only
+     if no newer change arrived while it was in flight. So a slow old push can never leave the
+     server on a stale value that the next sign-in would copy back down.
+     Preference lives on the server too, so it survives sign-out (storage.wipe clears meta) and
+     new devices. Local meta stays the fast read path. */
+  let chain = Promise.resolve();
+  /* Each queued job belongs to the account that queued it. If that account signs out (or another
+     signs in) before the job runs, every later step is skipped, so a job can never read or write
+     the next account's meta or call an RPC with its credentials. */
+  const who = () => (typeof env.userId === 'function' ? env.userId() : 'any') || null;
+  function serial(fn, uid) {
+    if (uid === undefined) uid = who();
+    const p = chain.then(() => fn(() => uid !== null && who() === uid));
+    chain = p.catch(() => {});
+    return p;
+  }
+  const bump = patch => env.metaGet().then(m => env.metaSet(Object.assign({}, patch,
+    { insightsPrefsRev: (Number(m.insightsPrefsRev) || 0) + 1, insightsPrefsPending: true })));
+
+  function pushNow(same) {
+    if (!live() || !same()) return Promise.resolve(false);
+    return env.metaGet().then(m => Promise.resolve().then(() => env.client.from('insights_prefs')
       .upsert({ share: m.insightsShare !== false, notice_seen: m.insightsNoticeSeen === true, updated_at: new Date().toISOString() }))
-      .then(res => !(res && res.error)).catch(() => false);
+      .then(res => {
+        if ((res && res.error) || !same()) return false;
+        return env.metaGet().then(now => (now.insightsPrefsRev === m.insightsPrefsRev
+          ? env.metaSet({ insightsPrefsPending: false }) : null)).then(() => true);
+      })).catch(() => false);
   }
-  function syncPrefs() {
-    if (!live()) return Promise.resolve(false);
-    return Promise.resolve().then(() => env.client.from('insights_prefs').select('share,notice_seen').maybeSingle()).then(res => {
-      if (!res || res.error) return false;
-      if (!res.data) return pushPrefs();
-      const patch = { insightsShare: res.data.share, insightsNoticeSeen: res.data.notice_seen };
-      if (!res.data.share) patch.insightsDeletePending = true;   // idempotent; clears any rows a lost delete left behind
-      return env.metaSet(patch).then(() => true);
-    }).catch(() => false);
-  }
-  /* Opt-out records a pending delete first so a failed RPC is retried by flushPendingDelete. */
-  function setShare(on) {
-    if (on) return env.metaSet({ insightsShare: true }).then(pushPrefs).then(() => true);
-    return env.metaSet({ insightsShare: false, insightsDeletePending: true }).then(pushPrefs).then(flushPendingDelete);
-  }
-  function flushPendingDelete() {
+  function flushNow(same) {
+    if (!same()) return Promise.resolve(false);
     return env.metaGet().then(m => {
       if (m.insightsDeletePending !== true) return true;
-      return deleteMine().then(ok => ok ? env.metaSet({ insightsDeletePending: false }).then(() => true) : false);
+      return deleteMine().then(ok => ok && same() ? env.metaSet({ insightsDeletePending: false }).then(() => true) : false);
     }).catch(() => false);
+  }
+
+  /* The notice writes notice_seen ONLY. Carrying share here let a stale device re-enable sharing
+     that another device had just turned off. It is not a consent change, so it does not bump
+     insightsPrefsRev; a lost write is repaired by syncPrefs(), which keeps a local "seen". */
+  function pushNotice(same) {
+    if (!live() || !same()) return Promise.resolve(false);
+    return Promise.resolve().then(() => env.client.from('insights_prefs')
+      .upsert({ notice_seen: true, updated_at: new Date().toISOString() }))
+      .then(res => !(res && res.error)).catch(() => false);
+  }
+  const markNoticeSeen = () => serial(same => same()
+    ? env.metaSet({ insightsNoticeSeen: true }).then(() => pushNotice(same)) : false).then(() => {});
+  const pushPrefs = () => serial(pushNow);
+  /* Reconnect/boot retry: only when a local change is still unacknowledged. */
+  const pushPendingPrefs = () => serial(same => env.metaGet().then(m => m.insightsPrefsPending === true ? pushNow(same) : true).catch(() => false));
+  const flushPendingDelete = () => serial(flushNow);
+
+  /* A local change not yet acknowledged wins over the server row; otherwise the server wins. */
+  function syncPrefs() {
+    return serial(same => {
+      if (!live() || !same()) return false;
+      return env.metaGet().then(m => {
+        if (m.insightsPrefsPending === true) return pushNow(same);
+        return Promise.resolve().then(() => env.client.from('insights_prefs').select('share,notice_seen').maybeSingle()).then(res => {
+          if (!res || res.error || !same()) return false;
+          if (!res.data) return pushNow(same);
+          const localSeen = m.insightsNoticeSeen === true && !res.data.notice_seen;   // a notice write that never landed
+          const patch = { insightsShare: res.data.share, insightsNoticeSeen: res.data.notice_seen || localSeen };
+          if (!res.data.share) patch.insightsDeletePending = true;   // idempotent; clears any rows a lost delete left behind
+          return env.metaSet(patch).then(() => (localSeen ? pushNotice(same) : null)).then(() => true);
+        });
+      }).catch(() => false);
+    });
+  }
+
+  /* Opt-out takes effect locally AT ONCE (saves and drains read it), whatever is still queued;
+     the server push and the delete follow on the chain. Opt-in finishes any outstanding delete
+     FIRST (the delete also sets the server to share=false, so landing after the opt-in would undo
+     it); if that delete cannot run, sharing stays off and this resolves false. */
+  function setShare(on) {
+    if (!on) {
+      const uid = who();   // captured now: the account can change while the local write runs
+      return bump({ insightsShare: false, insightsDeletePending: true })
+        .then(() => serial(same => pushNow(same).then(() => flushNow(same)), uid));
+    }
+    return serial(same => flushNow(same).then(ok => ok && same()
+      ? bump({ insightsShare: true }).then(() => pushNow(same)).then(() => true)   // an unacked opt-in stays pending and is retried
+      : false));
   }
 
   function rpc(fn, args) {
@@ -159,7 +230,15 @@
     return Promise.resolve().then(() => env.client.rpc(fn, args))
       .then(res => !(res && res.error)).catch(() => false);
   }
-  const submit = rows => rpc('submit_contributions', { rows });
+  /* The server answers -1 when it refused the write because the account opted out: not a
+     success, so the outbox keeps the entry and retries once the opt-in reaches the server. */
+  function write(fn, args) {
+    if (!live()) return Promise.resolve(false);
+    return Promise.resolve().then(() => env.client.rpc(fn, args))
+      .then(res => !(res && res.error) && !(res && res.data === -1)).catch(() => false);
+  }
+  const submit = rows => write('submit_contributions', { rows });
+  const syncVehicle = (vehicleId, rows) => write('sync_contributions', { p_vehicle: vehicleId, rows });
   const deleteMine = () => rpc('delete_my_contributions');
 
   function stats(table, filters) {
@@ -182,5 +261,5 @@
   const getModelBrandLife = modelId => itemStats('brand_life')(modelId, null);
   const getModelRepairStats = modelId => itemStats('repair_stats')(modelId, null);
 
-  return { band, monthOf, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, flushPendingDelete, submit, deleteMine, getFuelStats, getBrandLife, getRepairStats, getModelBrandLife, getModelRepairStats, repairInsight, repairMode };
+  return { band, monthOf, actionOf, lastReplacement, fuelContribution, partContributions, predictNext, fuelInsight, partInsight, configure, reset, clearCache, available, shareEnabled, noticeSeen, markNoticeSeen, setShare, syncPrefs, pushPrefs, pushPendingPrefs, flushPendingDelete, submit, syncVehicle, deleteMine, getFuelStats, getBrandLife, getRepairStats, getModelBrandLife, getModelRepairStats, repairInsight, repairMode };
 });

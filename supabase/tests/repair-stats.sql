@@ -18,7 +18,7 @@ create function public.tmp_part(n int, m text, sk text, act text, price numeric,
   select public.tmp_as(n);
   select public.submit_contributions(jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(
     'kind','part','source_key',sk,'month','2026-01','model_id',m,'odometer_band',0,'item_key','pad','brand','b',
-    'action',act,'price',price,'finding',finding,'km_since_prev',kmprev,'km_since_repair',kmrep,'shop_id',sid)))) $$;
+    'action',act,'price',price,'finding',finding,'km_since_prev',kmprev,'prev_brand','b','prev_price',price,'km_since_repair',kmrep,'shop_id',sid)))) $$;
 
 -- (a) mixed actions, 5 qualified users -> one row with correct numbers
 do $$ declare r record; begin

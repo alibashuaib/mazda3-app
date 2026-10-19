@@ -100,8 +100,7 @@ function renderParts() {
       try {
         const cur = session.current();
         const key = p.name.toLowerCase().trim();
-        const lastH = (cur.history || []).filter(h => (h.parts || []).some(q => String(q.part || '').toLowerCase().trim() === key))
-          .sort((a, b) => b.odometer - a.odometer)[0];
+        const lastH = insights.lastReplacement(cur.history, p.name);
         insights.getBrandLife(cur.car.modelId, key).then(rows => {
           const info = insights.partInsight(rows, lastH ? lastH.odometer : null, cur.car.odometer);
           const slot = info && document.getElementById(`life_${p.id}`);

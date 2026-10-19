@@ -205,8 +205,9 @@ async function purchase(share, shopIn) {
   app.api.insights.shareEnabled = () => Promise.resolve(share);
   app.api.shops.findOrCreate = () => { seen.create++; return Promise.resolve({ id: 's1', name: 'A', city: 'B' }); };
   app.api.openShopFeedback = () => { seen.prompt++; };
-  const cur = app.api.session.current();
-  await app.api.afterPurchase([], shopIn, cur, 'v1');
+  const h = { id: 'hp', name: 'x', date: '2026-01-01', odometer: 1 };
+  app.api.session.current().history.push(h);
+  await app.api.afterPurchase([h], shopIn, app.api.session.garage().activeId);
   app.cleanup();
   return seen;
 }
@@ -230,11 +231,14 @@ test('afterPurchase: no feedback prompt over an already-open modal', async () =>
     app.api.insights.shareEnabled = () => Promise.resolve(true);
     app.api.shops.findOrCreate = () => Promise.resolve({ id: 's1', name: 'A', city: 'B' });
     app.api.openShopFeedback = () => { prompts++; };
+    const h = { id: 'hp', name: 'x', date: '2026-01-01', odometer: 1 };
+    app.api.session.current().history.push(h);
+    const vid = app.api.session.garage().activeId;
     app.document.querySelector('#modalHost').hidden = false;
-    await app.api.afterPurchase([], { name: 'A', city: 'B', area: '' }, app.api.session.current(), 'v1');
+    await app.api.afterPurchase([h], { name: 'A', city: 'B', area: '' }, vid);
     assert.strictEqual(prompts, 0);
     app.document.querySelector('#modalHost').hidden = true;
-    await app.api.afterPurchase([], { name: 'A', city: 'B', area: '' }, app.api.session.current(), 'v1');
+    await app.api.afterPurchase([h], { name: 'A', city: 'B', area: '' }, vid);
     assert.strictEqual(prompts, 1);
   } finally { app.cleanup(); }
 });
@@ -436,15 +440,21 @@ test('shopField.set clears suggestions and re-arms the did-you-mean check', () =
 /* ---- Task 5: save path stores bill parts, contributes them, votes through the RPC ---- */
 const saveBtn = d => [...d.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Add to history');
 async function saveWith(api, d, { share = true } = {}) {
-  const contributed = [], votes = [], rpcs = [];
+  const snaps = [], votes = [], rpcs = [];
   api.insights.shareEnabled = () => Promise.resolve(share);
   api.shops.findOrCreate = () => Promise.resolve({ id: 's1', name: 'Al Salam Auto', city: 'Jeddah' });
-  api.contribute = rows => { contributed.push(...rows); };
+  // Community rows go up as the vehicle's whole snapshot after each save; keep the newest.
+  api.account.enqueueContributionSync = (vid, rows) => { snaps.push(rows); return Promise.resolve(true); };
   api.shops.vote = (...a) => { votes.push(a); return Promise.resolve(true); };
   api.openShopFeedback = (shop, id) => { api.shops.vote(shop.id, true, [], id); };
   api.shops.configure({ client: { rpc: (...a) => { rpcs.push(a); return Promise.resolve({ error: null }); }, from: () => { rpcs.push('from'); throw new Error('no table write'); } } });
-  await saveBtn(d).onclick(); await tick(); await tick(); await tick();
-  return { contributed, votes, rpcs };
+  await saveBtn(d).onclick();
+  for (let i = 0; i < 10; i++) await tick();
+  const h = api.session.current().history.slice(-1)[0];
+  const last = snaps[snaps.length - 1] || [];
+  // Only this entry's part rows: the seeded garage may carry history of its own.
+  const contributed = h ? last.filter(r => r.source_key.includes(':' + h.id + ':')) : [];
+  return { contributed, votes, rpcs, snaps };
 }
 const lastHist = api => api.session.current().history.slice(-1)[0];
 
@@ -588,8 +598,8 @@ test('save: repaired keeps action, inspected without price keeps finding, replac
     { part: 'Mirror', brand: '', partNo: '', price: 80, action: 'repaired' },
     { part: 'Pads', brand: '', partNo: '', action: 'inspected', finding: 'attention' },
     { part: 'Bulb', brand: '', partNo: '', price: 9 }]);
-  assert.deepStrictEqual(out.contributed.map(r => [r.item_key, r.action, r.finding]).sort(),
-    [['bulb', 'replaced', undefined], ['mirror', 'repaired', undefined], ['pads', 'inspected', 'attention']]);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(out.contributed.map(r => [r.item_key, r.action, r.finding || null]).sort())),
+    [['bulb', 'replaced', null], ['mirror', 'repaired', null], ['pads', 'inspected', 'attention']]);
 });
 
 test('save: sharing off still stores the parts, contributes nothing', async () => {

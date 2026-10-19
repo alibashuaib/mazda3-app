@@ -48,6 +48,7 @@ function adminSignIn() {
     err.hidden = true;
     try {
       await account.signIn($('#adm_email').value.trim(), $('#adm_pw').value);
+      await afterSignIn();
       go('admin');
     } catch (e) {
       err.textContent = t('Sign-in failed. Check your email and password.');
