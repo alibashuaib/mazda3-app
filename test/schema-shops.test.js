@@ -27,11 +27,10 @@ test('shop_feedback: one vote per user per shop, own rows only, tag whitelist', 
   assert.match(sql, /create policy own_shop_feedback on public\.shop_feedback for all/);
 });
 
-test('shop_feedback: bill_backed is not client-writable (column grants)', () => {
+test('shop_feedback: no direct client INSERT/UPDATE, votes go through vote_shop', () => {
   assert.match(sql, /revoke all on public\.shop_feedback from anon, authenticated;/);
-  assert.match(sql, /grant insert \(shop_id, vote, reasons\) on public\.shop_feedback to authenticated;/);
-  assert.match(sql, /grant update \(shop_id, vote, reasons\) on public\.shop_feedback to authenticated;/);
-  assert.doesNotMatch(sql, /grant [^;]*bill_backed[^;]*to authenticated/);
+  assert.match(sql, /grant select, delete on public\.shop_feedback to authenticated;/);
+  assert.doesNotMatch(sql, /grant [^;]*(insert|update)[^;]*on public\.shop_feedback/);
   assert.match(sql, /revoke all on public\.shops from anon;/);
 });
 

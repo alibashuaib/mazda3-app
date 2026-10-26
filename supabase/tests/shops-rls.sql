@@ -48,16 +48,12 @@ end $$;
 
 -- (d) feedback is own-rows-only, second vote upserts, bogus reason fails
 do $$ begin
-  insert into public.shop_feedback (shop_id, vote, reasons)
-    values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{price}');
-  insert into public.shop_feedback (shop_id, vote, reasons)
-    values ('aaaaaaaa-0000-0000-0000-000000000001', -1, '{}')
-    on conflict (shop_id, user_id) do update set vote = excluded.vote, reasons = excluded.reasons;
+  perform public.vote_shop('aaaaaaaa-0000-0000-0000-000000000001', 1::smallint, '{price}');
+  perform public.vote_shop('aaaaaaaa-0000-0000-0000-000000000001', -1::smallint, '{}');
   if (select count(*) from public.shop_feedback) <> 1 then raise exception 'FAIL: second vote did not upsert to one row'; end if;
   if (select vote from public.shop_feedback) <> -1 then raise exception 'FAIL: upsert did not change vote'; end if;
   begin
-    insert into public.shop_feedback (shop_id, vote, reasons)
-      values ('aaaaaaaa-0000-0000-0000-000000000002', 1, '{bogus}');
+    perform public.vote_shop('aaaaaaaa-0000-0000-0000-000000000002', 1::smallint, '{bogus}');
     raise exception 'FAIL: bogus reason accepted';
   exception when check_violation then null; end;
 end $$;
@@ -69,36 +65,23 @@ do $$ begin
 end $$;
 reset role;
 
--- (d2) bill_backed is not client-writable; normal vote and vote change still work
+-- (d2) votes go through vote_shop only: no direct INSERT/UPDATE (it would skip the consent
+-- lock and could set bill_backed); a normal vote and a vote change still work
 select public.tmp_as_user(3);
 set local role authenticated;
 do $$ begin
   begin
-    insert into public.shop_feedback (shop_id, vote, bill_backed)
-      values ('aaaaaaaa-0000-0000-0000-000000000001', 1, true);
-    raise exception 'FAIL: client inserted bill_backed';
+    insert into public.shop_feedback (shop_id, vote, reasons)
+      values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{honest}');
+    raise exception 'FAIL: client inserted shop_feedback directly';
   exception when insufficient_privilege then null; end;
-  insert into public.shop_feedback (shop_id, vote, reasons)
-    values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{honest}')
-    on conflict (shop_id, user_id) do update set vote = excluded.vote, reasons = excluded.reasons;
-  insert into public.shop_feedback (shop_id, vote, reasons)
-    values ('aaaaaaaa-0000-0000-0000-000000000001', -1, '{}')
-    on conflict (shop_id, user_id) do update set vote = excluded.vote, reasons = excluded.reasons;
-  if (select vote from public.shop_feedback) <> -1 then raise exception 'FAIL: vote change did not apply'; end if;
-  -- exact statement PostgREST generates for upsert(..., {onConflict:'shop_id,user_id'})
-  insert into public.shop_feedback (shop_id, vote, reasons)
-    values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{price}')
-    on conflict (shop_id, user_id) do update set shop_id = excluded.shop_id, vote = excluded.vote, reasons = excluded.reasons;
-  insert into public.shop_feedback (shop_id, vote, reasons)
-    values ('aaaaaaaa-0000-0000-0000-000000000001', -1, '{}')
-    on conflict (shop_id, user_id) do update set shop_id = excluded.shop_id, vote = excluded.vote, reasons = excluded.reasons;
+  perform public.vote_shop('aaaaaaaa-0000-0000-0000-000000000001', 1::smallint, '{honest}');
+  perform public.vote_shop('aaaaaaaa-0000-0000-0000-000000000001', -1::smallint, '{}');
   if (select count(*) from public.shop_feedback) <> 1 or (select vote from public.shop_feedback) <> -1 then
-    raise exception 'FAIL: PostgREST-style upsert did not leave one row with the new vote'; end if;
+    raise exception 'FAIL: vote change did not leave one row with the new vote'; end if;
   begin
-    insert into public.shop_feedback (shop_id, vote, reasons, bill_backed)
-      values ('aaaaaaaa-0000-0000-0000-000000000001', 1, '{}', true)
-      on conflict (shop_id, user_id) do update set shop_id = excluded.shop_id, vote = excluded.vote, reasons = excluded.reasons, bill_backed = excluded.bill_backed;
-    raise exception 'FAIL: PostgREST-style upsert with bill_backed accepted';
+    update public.shop_feedback set vote = 1;
+    raise exception 'FAIL: client updated shop_feedback directly';
   exception when insufficient_privilege then null; end;
   begin
     update public.shop_feedback set bill_backed = true;

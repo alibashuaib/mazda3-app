@@ -1408,3 +1408,72 @@ test('a queued contribution is dropped, not uploaded, when sharing was turned of
   assert.strictEqual(await account.drain(), 0);
   assert.deepStrictEqual(sent, []);
 });
+
+/* ---- per-vehicle community snapshots (contribution-sync) ---- */
+test('a vehicle snapshot replaces the older one still queued and drains through syncContributions', async () => {
+  await freshStorage();
+  const sent = [];
+  signInAs(fullClient({ rows: [] }), { syncContributions: (vid, rows) => { sent.push([vid, rows]); return Promise.resolve(true); } });
+  await account.enqueueContributionSync('v1', [{ source_key: 'fuel:v1:a' }]);
+  await account.enqueueContributionSync('v1', [{ source_key: 'fuel:v1:b' }]);
+  assert.strictEqual(await account.outboxSize(), 1, 'one entry per vehicle');
+  assert.strictEqual(await account.drain(), 0);
+  assert.deepStrictEqual(sent, [['v1', [{ source_key: 'fuel:v1:b' }]]]);
+});
+
+test('a snapshot replaced while its upload is in flight stays queued, even with an equal timestamp', async () => {
+  await freshStorage();
+  let release; const gate = new Promise(r => { release = r; });
+  const sent = [];
+  signInAs(fullClient({ rows: [] }), { syncContributions: (vid, rows) => { sent.push(rows); return sent.length === 1 ? gate.then(() => true) : Promise.resolve(true); } });
+  await account.enqueueContributionSync('v1', [{ source_key: 'old' }]);
+  const first = account.drain();
+  await new Promise(r => setImmediate(r));
+  const [queued] = await storage.outboxAll();
+  await storage.outboxAdd(Object.assign({}, queued, { rows: [{ source_key: 'new' }], rev: 'r2' }));   // same createdAt
+  release();
+  assert.strictEqual(await first, 1, 'the newer snapshot was deleted by the older acknowledgement');
+  assert.strictEqual(await account.drain(), 0);
+  assert.deepStrictEqual(sent, [[{ source_key: 'old' }], [{ source_key: 'new' }]]);
+});
+
+test('a snapshot drained with sharing off is dropped, not uploaded', async () => {
+  await freshStorage();
+  const sent = [];
+  signInAs(fullClient({ rows: [] }), { shareEnabled: () => Promise.resolve(false), syncContributions: (v, r) => { sent.push(r); return Promise.resolve(true); } });
+  await account.enqueueContributionSync('v1', [{ source_key: 'k' }]);
+  assert.strictEqual(await account.drain(), 0);
+  assert.deepStrictEqual(sent, []);
+});
+
+test('drain is single-flight: a second call waits for the first', async () => {
+  await freshStorage();
+  let release; const gate = new Promise(r => { release = r; });
+  const order = [];
+  signInAs(fullClient({ rows: [] }), { syncContributions: (vid) => { order.push('start ' + vid); return gate.then(() => { order.push('end ' + vid); return true; }); } });
+  await account.enqueueContributionSync('v1', []);
+  const a = account.drain();
+  await new Promise(r => setImmediate(r));
+  await account.enqueueContributionSync('v2', []);
+  const b = account.drain();
+  await new Promise(r => setImmediate(r));
+  assert.deepStrictEqual(order, ['start v1'], 'the second drain started while the first was running');
+  release();
+  await a; await b;
+  assert.deepStrictEqual(order, ['start v1', 'end v1', 'start v2', 'end v2']);
+});
+
+test('a drain batch stops once the account changes mid-flight', async () => {
+  await freshStorage();
+  let release; const gate = new Promise(r => { release = r; });
+  const sent = [];
+  signInAs(fullClient({ rows: [] }), { syncContributions: (vid) => { sent.push(vid); return vid === 'v1' ? gate.then(() => true) : Promise.resolve(true); } });
+  await account.enqueueContributionSync('v1', []);
+  await account.enqueueContributionSync('v2', []);
+  const run = account.drain();
+  await new Promise(r => setImmediate(r));
+  account.setUserForTest({ id: 'someone-else' });
+  release();
+  await run;
+  assert.deepStrictEqual(sent, ['v1'], "v2 was uploaded under the next account's session");
+});

@@ -131,6 +131,8 @@ async function deleteVehicle(id) {
   // never rejects on its own no-op paths, so no .catch() is needed here.
   // reconnect/next-boot remains the fallback if this device is offline now.
   account.enqueueTombstone(id, photoIds).then(kickSync);
+  // Its community rows go too: an empty set replaces any snapshot still queued for it.
+  insights.shareEnabled().then(on => on && account.enqueueContributionSync(id, [])).then(kickSync).catch(() => {});
   // Deleting the active vehicle picks a new one (setVehicles's kept[0]
   // fallback above) — push it unconditionally rather than only when it
   // changed; an extra upsert of the same id is harmless, and skipping it
@@ -154,14 +156,37 @@ async function deleteVehicle(id) {
    and drain() already swallows its own failures (no retry counter to
    corrupt), so there is nothing here to catch. */
 function kickSync() {
-  if (typeof navigator === 'undefined' || navigator.onLine !== false) account.drain();
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  // An unacknowledged sharing change goes first, so the server's consent matches before uploads.
+  insights.pushPendingPrefs().catch(() => {}).then(() => account.drain());
 }
 
 /* Fire-and-forget: queue anonymous insight rows when the user opted in.
    Must never reject or delay a local save. */
-function contribute(rows) {
-  if (!rows || !rows.length) return;
-  insights.shareEnabled().then(on => on && account.enqueueContribution(rows)).then(kickSync).catch(() => {});
+/* Every community row one vehicle should have on the server right now, built from that
+   vehicle's saved data: fuel from full-to-full intervals, parts from its whole history (a
+   back-dated record changes the rows after it). */
+function vehicleContributions(vid, data) {
+  const car = (data && data.car) || {};
+  const fuel = fuelRows((data && data.fuel) || []).filter(r => r.l100 != null)
+    .map(r => insights.fuelContribution({ modelId: car.modelId, engine: car.engine, vehicleId: vid, entry: r.e, l100: r.l100 }));
+  const history = (data && data.history) || [];
+  /* No shop on the record: send shop_id null so the server clears an old link. A shop not yet
+     resolved to an id: leave the key out so the server keeps what it has. */
+  const parts = history.flatMap(h => insights.partContributions({ modelId: car.modelId, vehicleId: vid, historyEntry: h, priorHistory: history, shopId: h.shopId })
+    .map(r => (h.shop ? r : Object.assign(r, { shop_id: null }))));
+  // ponytail: the RPC takes 1000 rows; past that only the newest are kept (a very long history).
+  return fuel.concat(parts).filter(Boolean).slice(-1000);
+}
+
+/* Replace the server's rows for this vehicle with its current set. Called from the afterSave
+   hook, so every add, edit, delete and undo goes through it. A vehicle that is gone by the
+   time consent resolves is skipped: deleteVehicle has queued its empty set. */
+function syncContributions(vid, data) {
+  insights.shareEnabled().then(on => {
+    if (!on || !session.garage() || !session.garage().vehicles.some(v => v.id === vid)) return false;
+    return account.enqueueContributionSync(vid, vehicleContributions(vid, data));
+  }).then(kickSync).catch(() => {});
 }
 
 /* What is dragging the score down — a bare number is not actionable. */
@@ -170,8 +195,16 @@ function openHealthBreakdown() {
   openModal(t('Health score'), html`${healthScore()} / 100 — ${t('what is affecting it')}`, card => {
     if (!bad.length) { card.appendChild(emptyState('✅', 'Everything is on track.')); return; }
     const list = el('div', 'list');
-    bad.forEach(({ s, st }) => list.appendChild(serviceItem(s, st)));
+    const n = session.current().services.length;
+    bad.forEach(({ s, st }) => {
+      const item = serviceItem(s, st);
+      const pts = el('span', 'muted', html`−${(Math.round(healthPenalty(st.level, n) * 10) / 10).toString()} ${t('points')}`);
+      pts.style.cssText = 'display:block;font-size:12px;margin-top:2px';
+      item.querySelector('.item-side').appendChild(pts);
+      list.appendChild(item);
+    });
     card.appendChild(list);
+    card.appendChild(el('p', 'muted', html`${t('Overdue costs a full share of the score, due soon 40% of one. The total is rounded.')}`));
   });
 }
 
@@ -537,7 +570,7 @@ applyNavLabels();
    the Arabic save-failure toasts working. */
 session.configure({
   notify: (msg, kind) => toast(msg, kind),
-  afterSave: (id, data, photoIds) => { account.enqueueVehicle(id, data); (photoIds || []).forEach(pid => account.enqueuePhoto(pid)); kickSync(); }
+  afterSave: (id, data, photoIds) => { account.enqueueVehicle(id, data); (photoIds || []).forEach(pid => account.enqueuePhoto(pid)); kickSync(); syncContributions(id, data); }
 });
 
 /* Gate on the protocol directly. account.available() also requires a client,
@@ -550,7 +583,7 @@ function connectBackend() {
   account.configure({ client });
   const signedIn = () => !!account.user();
   pricing.configure({ client, signedIn });
-  insights.configure({ client, metaGet, metaSet, signedIn });
+  insights.configure({ client, metaGet, metaSet, signedIn, userId: () => account.user() && account.user().id });
   shops.configure({ client, signedIn });
   recalls.configure({ client });
   bills.configure({ client });
@@ -584,6 +617,7 @@ account.configure({
   rerender: () => { shops.clearCache(); insights.clearCache(); applyAccent(); renderTopbar(); go(current); },
   choose: askWhichGarage,
   submitContributions: rows => insights.submit(rows),
+  syncContributions: (vid, rows) => insights.syncVehicle(vid, rows),
   shareEnabled: () => insights.shareEnabled(),
   flushPendingDelete: () => insights.flushPendingDelete()
 });
@@ -600,8 +634,80 @@ function syncDealerPlan() {
   if (res) session.save();
   return res;
 }
-/* The menu trigger stays available because it owns vehicle switching and the
-   theme control, even though account/sign-in is no longer exposed in the UI. */
+/* Everything that must follow a sign-in, on boot and after the account dialog alike:
+   the account's sharing choice comes down (or a pending local change goes up) BEFORE
+   anything can write community data, then the one-time notice, then the admin check. */
+function afterSignIn() {
+  if (!account.user()) return Promise.resolve();
+  return insights.syncPrefs().then(ok => {
+    // Sharing choice unknown (lookup failed): no notice, no push that could carry the default "on".
+    if (!ok) return true;
+    return insights.flushPendingDelete().then(() => insights.noticeSeen());
+  }).then(async seen => {
+    if (seen) return;
+    await insights.markNoticeSeen();   /* before the toast, so a second tab/boot cannot repeat it */
+    if (await insights.shareEnabled()) toast('Your anonymous car data now helps other owners. Turn it off in the menu.');
+  }).then(() => catalogAdmin.isAdmin()).catch(() => {});
+}
+
+/* Sign in, sign up, or (signed in) see sync status and sign out. Restored from 32cba07,
+   minus the Garage / Car profile shortcuts the menu and topbar now carry. */
+function openAccount() {
+  const signedIn = !!account.user();
+  openModal(t('Account'), signedIn ? t('Signed in as') + ' ' + account.user().email : t('Sign in to back up your garage and share anonymous data with other owners.'), card => {
+    if (signedIn) {
+      const status = el('p', 'muted');
+      account.outboxSize().then(pending => { status.textContent = pending ? t('Waiting to sync') + ' · ' + pending : t('Synced'); });
+      card.appendChild(status);
+      const out = el('button', 'btn ghost block', html`${t('Sign out')}`);
+      out.style.color = 'var(--danger)';
+      out.onclick = () => { closeModal(); account.signOut(); };
+      card.appendChild(out);
+      return;
+    }
+
+    const form = el('div', 'stack');
+    form.innerHTML = html`
+      <label class="field"><span>${t('Email')}</span><input type="email" id="ac_email" autocomplete="email"></label>
+      <label class="field"><span>${t('Password')}</span><input type="password" id="ac_pw" autocomplete="current-password"></label>
+      <p class="muted" id="ac_err" hidden></p>`;
+    card.appendChild(form);
+
+    const err = form.querySelector('#ac_err');
+    const show = msg => { err.textContent = t(msg); err.hidden = false; };
+
+    const submit = mode => async () => {
+      err.hidden = true;
+      const email = form.querySelector('#ac_email').value.trim();
+      const pw = form.querySelector('#ac_pw').value;
+      if (pw.length < 6) return show('Password must be at least 6 characters.');
+      // Both buttons: a click on the OTHER one before this settles would fire a second,
+      // conflicting sign-in/sign-up call.
+      inBtn.disabled = true; upBtn.disabled = true;
+      try {
+        await account.signIn(email, pw, { signUp: mode === 'up' });
+        await afterSignIn();   // consent settled before the dialog closes
+        closeModal();
+        renderTopbar();
+      } catch (e) {
+        const m = String(e && e.message || '');
+        if (m === 'PULL_FAILED') return show('Couldn’t reach your garage. Check your connection and try again.');
+        if (m === 'EMAIL_NOT_CONFIRMED') return show(mode === 'up' ? 'Check your email to confirm your account, then sign in.' : 'Check your email to confirm your account.');
+        if (m === 'EMAIL_ALREADY_REGISTERED') return show('That email is already registered. Sign in instead.');
+        show('Wrong email or password.');
+      } finally {
+        inBtn.disabled = false; upBtn.disabled = false;
+      }
+    };
+
+    const inBtn = el('button', 'btn primary block', html`${t('Sign in')}`);
+    inBtn.onclick = submit('in');
+    const upBtn = el('button', 'btn ghost block', html`${t('Sign up')}`);
+    upBtn.onclick = submit('up');
+    card.appendChild(inBtn);
+    card.appendChild(upBtn);
+  });
+}
 
 session.load()
   .then(firstRun => { if (firstRun) return session.save(); })   // first run — persist whatever hydrate() built (a migrated legacy car, or nothing)
@@ -621,15 +727,7 @@ session.load()
     backend
       .then(() => { if (current === 'admin') go('admin'); })   // #admin painted before the client existed
       .then(() => account.start())
-      .then(() => {
-        if (!account.user()) return;
-        return insights.syncPrefs().then(() => { insights.flushPendingDelete(); return insights.noticeSeen(); }).then(async seen => {
-          if (seen) return;
-          await insights.markNoticeSeen();   /* before the toast, so a second tab/boot cannot repeat it */
-          if (await insights.shareEnabled()) toast('Your anonymous car data now helps other owners. Turn it off in the menu.');
-        });
-      })
-      .then(() => catalogAdmin.isAdmin())
+      .then(afterSignIn)
       .catch(err => console.error('account.start() failed:', err));
     // Same rule as account.start(): after first paint, and never fatal.
     remoteCatalog.load()
@@ -645,7 +743,7 @@ session.load()
   });
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { account.sync(); if (account.user()) insights.flushPendingDelete(); });
+  window.addEventListener('online', () => { if (account.user()) insights.flushPendingDelete(); insights.pushPendingPrefs().catch(() => {}).then(() => account.sync()); });
   window.__hasOnlineSyncListener = true;   /* Test seam only. e2e presence check only. */
 }
 

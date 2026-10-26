@@ -27,7 +27,7 @@ begin
     perform public.submit_contributions(jsonb_build_array(
       jsonb_build_object('kind','fuel','source_key','f-'||m,'month','2026-01','model_id',m,'odometer_band',0,'engine','e','l100',8),
       jsonb_build_object('kind','part','source_key','p-'||m,'month','2026-01','model_id',m,'odometer_band',0,
-        'item_key','oil','brand','b','price',100,'km_since_prev',5000,'shop_id',sid)));
+        'item_key','oil','brand','b','price',100,'km_since_prev',5000,'prev_brand','b','prev_price',90,'shop_id',sid)));
     insert into public.shop_feedback (shop_id, vote, reasons) values (sid, 1, '{price}');
   end loop;
 end $$;

@@ -45,10 +45,10 @@ test('guidance line: markup in a service name stays text', async () => {
   } finally { app.cleanup(); }
 });
 
-async function banner(rows) {
+async function banner(rows, seen) {
   const app = await bootApp();
   try {
-    app.api.recalls.forModel = () => Promise.resolve(rows);
+    app.api.recalls.forModel = id => { if (seen) seen.push(id); return Promise.resolve(rows); };
     app.api.go('dashboard'); await tick(); await tick();
     const el0 = app.document.querySelector('.recall-banner'), b = el0 && !el0.hidden ? el0 : null;   // present but hidden counts as none
     return { b, text: b ? b.textContent : '', img: b ? b.querySelector('img') : null };
@@ -64,6 +64,14 @@ test('recall banner: count, dealer wording, component as text', async () => {
 });
 test('recall banner: none when there are no approved recalls', async () => {
   assert.ok(!(await banner([])).b);
+});
+test('recall banner: looks up the catalogue id (model + engine), not the bare model id', async () => {
+  const seen = [];
+  await banner([], seen);
+  assert.ok(seen.length && seen[0].includes(':'), `queried ${seen[0]}`);
+});
+test('recall banner: rows for other model years are not shown', async () => {
+  assert.ok(!(await banner([{ campaign: 'A', component: 'x', summary: 's', years: [2021] }])).b);
 });
 
 test('guidance line: community rows for a longer item key still match the service name', async () => {

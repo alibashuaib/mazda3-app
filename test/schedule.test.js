@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence } = require('../src/core/schedule.js');
+const { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence, healthPenalty, noteOdometer } = require('../src/core/schedule.js');
 
 test('today() returns local midnight', () => {
   const d = today();
@@ -178,4 +178,23 @@ test('nextTheme cycles system to light to dark and back', () => {
 test('nextTheme recovers from an unrecognised stored value', () => {
   assert.strictEqual(nextTheme('chartreuse'), 'system');
   assert.strictEqual(nextTheme(null), 'system');
+});
+
+test('healthPenalty is the per-service share healthFrom subtracts', () => {
+  assert.strictEqual(healthPenalty('danger', 4), 25);
+  assert.strictEqual(healthPenalty('warn', 4), 10);
+  assert.strictEqual(healthPenalty('ok', 4), 0);
+  assert.strictEqual(healthFrom(['danger', 'warn', 'ok', 'ok']), 100 - 25 - 10);
+});
+
+test('noteOdometer: higher or equal refreshes, lower and junk are ignored, the date never goes backwards', () => {
+  const car = { odometer: 50000, odoUpdatedAt: '2026-01-10' };
+  assert.strictEqual(noteOdometer(car, 50000, '2026-03-01'), true);
+  assert.deepStrictEqual(car, { odometer: 50000, odoUpdatedAt: '2026-03-01' });
+  assert.strictEqual(noteOdometer(car, 49000, '2026-04-01'), false);
+  assert.strictEqual(car.odometer, 50000);
+  assert.strictEqual(noteOdometer(car, 51000, '2026-02-01'), true);   // back-dated entry: mileage moves, date does not
+  assert.deepStrictEqual(car, { odometer: 51000, odoUpdatedAt: '2026-03-01' });
+  assert.strictEqual(noteOdometer(car, NaN, '2026-05-01'), false);
+  assert.strictEqual(noteOdometer(car, 0, '2026-05-01'), false);
 });

@@ -230,6 +230,16 @@ end $$;
 alter table public.contributions add column if not exists action text not null default 'replaced';
 alter table public.contributions add column if not exists finding text;
 alter table public.contributions add column if not exists km_since_repair int;
+-- Brand life: km_since_prev is the lifespan of the PREVIOUS part, so it is credited to
+-- that part's brand and price, not to the one just installed.
+alter table public.contributions add column if not exists prev_brand text;
+alter table public.contributions add column if not exists prev_price numeric;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'contributions_prev_chk') then
+    alter table public.contributions add constraint contributions_prev_chk
+      check (length(prev_brand) <= 80 and prev_price > 0) not valid;
+  end if;
+end $$;
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'contributions_action_chk') then
     alter table public.contributions add constraint contributions_action_chk
@@ -344,12 +354,11 @@ alter table public.shop_feedback enable row level security;
 drop policy if exists own_shop_feedback on public.shop_feedback;
 create policy own_shop_feedback on public.shop_feedback for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
--- Column-level grants: bill_backed (doubles vote weight) is never client-writable.
+-- No direct INSERT/UPDATE: every vote goes through vote_shop(), which takes the consent
+-- lock and refuses opted-out accounts. A direct write would skip both (and could set
+-- bill_backed, which doubles vote weight).
 revoke all on public.shop_feedback from anon, authenticated;
 grant select, delete on public.shop_feedback to authenticated;
-grant insert (shop_id, vote, reasons) on public.shop_feedback to authenticated;
--- shop_id is needed too: PostgREST upsert emits DO UPDATE SET shop_id = EXCLUDED.shop_id, ...
-grant update (shop_id, vote, reasons) on public.shop_feedback to authenticated;
 
 alter table public.contributions
   add column if not exists shop_id uuid references public.shops on delete set null;
@@ -398,46 +407,101 @@ create or replace view public.store_prices as
 grant select on public.shop_trust, public.store_prices to authenticated;
 revoke all on public.shop_trust, public.store_prices from anon;
 
-create or replace function public.submit_contributions(rows jsonb) returns int
+-- Internal: one row in, one contribution upserted by (caller, source_key). Raises on a bad
+-- cast or CHECK; callers skip that row. On update a row without a shop_id key keeps the
+-- stored shop (a snapshot may be built before the shop lookup finished).
+create or replace function public.upsert_contribution(r jsonb) returns void
 language plpgsql security definer set search_path = public as $$
-declare r jsonb; cid uuid; n int := 0;
+declare cid uuid;
+begin
+  if jsonb_typeof(r) <> 'object' or r->>'kind' is null or r->>'kind' not in ('fuel', 'part')
+    or r->>'source_key' is null or coalesce(r->>'month', '') !~ '^\d{4}-(0[1-9]|1[0-2])$' then
+    raise exception 'bad row';
+  end if;
+  select contribution_id into cid from contribution_links
+    where user_id = auth.uid() and source_key = r->>'source_key';
+  if cid is null then
+    insert into contributions (kind, model_id, engine, odometer_band, month, l100,
+                               price_per_l, item_key, brand, part_no, price, km_since_prev, shop_id,
+                               action, finding, km_since_repair, prev_brand, prev_price)
+    values (r->>'kind', r->>'model_id', r->>'engine', (r->>'odometer_band')::int,
+            r->>'month', (r->>'l100')::numeric, (r->>'price_per_l')::numeric,
+            r->>'item_key', r->>'brand', r->>'part_no', (r->>'price')::numeric,
+            (r->>'km_since_prev')::int, (r->>'shop_id')::uuid,
+            coalesce(r->>'action', 'replaced'), r->>'finding', (r->>'km_since_repair')::int,
+            r->>'prev_brand', (r->>'prev_price')::numeric)
+    returning id into cid;
+    insert into contribution_links (user_id, source_key, contribution_id)
+      values (auth.uid(), r->>'source_key', cid);
+  else
+    update contributions set
+      engine = r->>'engine', odometer_band = (r->>'odometer_band')::int, month = r->>'month',
+      l100 = (r->>'l100')::numeric, price_per_l = (r->>'price_per_l')::numeric,
+      brand = r->>'brand', part_no = r->>'part_no', price = (r->>'price')::numeric,
+      km_since_prev = (r->>'km_since_prev')::int,
+      shop_id = case when r ? 'shop_id' then (r->>'shop_id')::uuid else shop_id end,
+      action = coalesce(r->>'action', 'replaced'), finding = r->>'finding',
+      km_since_repair = (r->>'km_since_repair')::int,
+      prev_brand = r->>'prev_brand', prev_price = (r->>'prev_price')::numeric
+    where id = cid;
+  end if;
+end $$;
+revoke all on function public.upsert_contribution(jsonb) from public, anon, authenticated;
+
+-- Every contribution write and the opt-out delete take this per-user lock first, then read
+-- consent. An upload that raced an opt-out either commits before the delete (and is deleted)
+-- or runs after it and sees share = false. Works with no insights_prefs row and across devices.
+create or replace function public.contrib_lock_and_consent() returns boolean
+language plpgsql security definer set search_path = public as $$
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('contrib:' || auth.uid()::text, 0));
+  return not exists (select 1 from insights_prefs where user_id = auth.uid() and share = false);
+end $$;
+revoke all on function public.contrib_lock_and_consent() from public, anon, authenticated;
+
+create or replace function public.submit_contributions(rows jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare r jsonb; n int := 0;
+begin
+  if not contrib_lock_and_consent() then return -1; end if;   -- -1 = refused: opted out
   if jsonb_typeof(rows) <> 'array' or jsonb_array_length(rows) > 50 then
     raise exception 'bad rows';
   end if;
   for r in select * from jsonb_array_elements(rows) loop
     -- Invalid rows are skipped individually; one bad row must not sink the batch.
-    continue when jsonb_typeof(r) <> 'object' or r->>'kind' is null or r->>'kind' not in ('fuel', 'part')
-      or r->>'source_key' is null or coalesce(r->>'month', '') !~ '^\d{4}-(0[1-9]|1[0-2])$';
     begin
-    select contribution_id into cid from contribution_links
-      where user_id = auth.uid() and source_key = r->>'source_key';
-    if cid is null then
-      insert into contributions (kind, model_id, engine, odometer_band, month, l100,
-                                 price_per_l, item_key, brand, part_no, price, km_since_prev, shop_id,
-                                 action, finding, km_since_repair)
-      values (r->>'kind', r->>'model_id', r->>'engine', (r->>'odometer_band')::int,
-              r->>'month', (r->>'l100')::numeric, (r->>'price_per_l')::numeric,
-              r->>'item_key', r->>'brand', r->>'part_no', (r->>'price')::numeric,
-              (r->>'km_since_prev')::int, (r->>'shop_id')::uuid,
-              coalesce(r->>'action', 'replaced'), r->>'finding', (r->>'km_since_repair')::int)
-      returning id into cid;
-      insert into contribution_links (user_id, source_key, contribution_id)
-        values (auth.uid(), r->>'source_key', cid);
-    else
-      update contributions set
-        engine = r->>'engine', odometer_band = (r->>'odometer_band')::int, month = r->>'month',
-        l100 = (r->>'l100')::numeric, price_per_l = (r->>'price_per_l')::numeric,
-        brand = r->>'brand', part_no = r->>'part_no', price = (r->>'price')::numeric,
-        km_since_prev = (r->>'km_since_prev')::int,
-        shop_id = (r->>'shop_id')::uuid,
-        action = coalesce(r->>'action', 'replaced'), finding = r->>'finding',
-        km_since_repair = (r->>'km_since_repair')::int
-      where id = cid;
-    end if;
-    n := n + 1;
+      perform upsert_contribution(r);
+      n := n + 1;
     exception when others then null;  -- bad cast / CHECK violation: skip this row
+    end;
+  end loop;
+  return n;
+end $$;
+
+-- The full set of one vehicle's contributions. Rows of that vehicle not in `rows` are
+-- deleted (an edited, deleted or recomputed record); empty rows = the vehicle is gone.
+create or replace function public.sync_contributions(p_vehicle text, rows jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare r jsonb; n int := 0; fp text := 'fuel:' || p_vehicle || ':'; pp text := 'part:' || p_vehicle || ':';
+begin
+  if not contrib_lock_and_consent() then return -1; end if;   -- -1 = refused: opted out
+  if coalesce(p_vehicle, '') = '' or jsonb_typeof(rows) <> 'array' or jsonb_array_length(rows) > 1000 then
+    raise exception 'bad rows';
+  end if;
+  delete from contributions where id in (
+    select l.contribution_id from contribution_links l
+    where l.user_id = auth.uid()
+      and (left(l.source_key, length(fp)) = fp or left(l.source_key, length(pp)) = pp)
+      and l.source_key not in (select x->>'source_key' from jsonb_array_elements(rows) x
+                               where x->>'source_key' is not null));
+  for r in select * from jsonb_array_elements(rows) loop
+    continue when left(coalesce(r->>'source_key', ''), length(fp)) <> fp
+              and left(coalesce(r->>'source_key', ''), length(pp)) <> pp;   -- another vehicle's key
+    begin
+      perform upsert_contribution(r);
+      n := n + 1;
+    exception when others then null;
     end;
   end loop;
   return n;
@@ -447,9 +511,16 @@ create or replace function public.delete_my_contributions() returns int
 language plpgsql security definer set search_path = public as $$
 declare n int;
 begin
-  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  perform contrib_lock_and_consent();   -- the lock; consent is being withdrawn either way
+  -- Record the opt-out server-side in the same transaction, so later uploads (any device)
+  -- and a bill read finishing after this see share = false.
+  insert into insights_prefs (user_id, share) values (auth.uid(), false)
+    on conflict (user_id) do update set share = false, updated_at = now();
   delete from shop_feedback where user_id = auth.uid();
-  delete from bill_reads where user_id = auth.uid();
+  -- Bill reads are kept: they are the daily-cap and one-bill-once records, and deleting them
+  -- would reset both. Only where the user shopped is erased; a read with no store_key can
+  -- never back a vote.
+  update bill_reads set store_key = null, city = null where user_id = auth.uid();
   with gone as (
     delete from contributions where id in
       (select contribution_id from contribution_links where user_id = auth.uid())
@@ -458,8 +529,8 @@ begin
   return n;
 end $$;
 
-revoke all on function public.submit_contributions(jsonb), public.delete_my_contributions() from public;
-grant execute on function public.submit_contributions(jsonb), public.delete_my_contributions() to authenticated;
+revoke all on function public.submit_contributions(jsonb), public.sync_contributions(text, jsonb), public.delete_my_contributions() from public;
+grant execute on function public.submit_contributions(jsonb), public.sync_contributions(text, jsonb), public.delete_my_contributions() to authenticated;
 
 -- Owner-run views (NOT security_invoker): they must count distinct users in
 -- contribution_links, which no signed-in user can read. The HAVING clause is
@@ -476,18 +547,19 @@ create or replace view public.fuel_stats as
   group by c.model_id, c.engine, c.odometer_band
   having count(distinct l.user_id) >= 5;
 
+-- A row says "the previous part (prev_brand, bought for prev_price) lasted km_since_prev".
 create or replace view public.brand_life as
-  select c.model_id, c.item_key, c.brand,
+  select c.model_id, c.item_key, c.prev_brand as brand,
          percentile_cont(0.5)  within group (order by c.km_since_prev) as median_km,
          percentile_cont(0.25) within group (order by c.km_since_prev) as p25_km,
          percentile_cont(0.75) within group (order by c.km_since_prev) as p75_km,
-         (percentile_cont(0.5) within group (order by c.price))::numeric(10,2) as median_price,
+         (percentile_cont(0.5) within group (order by c.prev_price))::numeric(10,2) as median_price,
          count(*) as n
   from contributions c join contribution_links l on l.contribution_id = c.id
   join qualified_users q on q.id = l.user_id
-  where c.kind = 'part' and c.km_since_prev is not null and c.price is not null
-    and c.action = 'replaced'
-  group by c.model_id, c.item_key, c.brand
+  where c.kind = 'part' and c.km_since_prev is not null and c.prev_brand is not null
+    and c.prev_price is not null and c.action = 'replaced'
+  group by c.model_id, c.item_key, c.prev_brand
   having count(distinct l.user_id) >= 5;
 
 -- Owner-run like the views above; >= 5 distinct qualified users per model+item; no user ids.
@@ -549,6 +621,22 @@ create index if not exists bill_reads_user_day_idx on public.bill_reads (user_id
 alter table public.bill_reads enable row level security;
 revoke all on public.bill_reads from anon, authenticated;
 
+-- read-bill writes store_key/city after the model call. If the user opted out meanwhile,
+-- the row keeps only what the caps need (fingerprint stays for one-bill-once).
+create or replace function public.bill_reads_respect_optout() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (new.store_key is not null or new.city is not null)
+     and exists (select 1 from insights_prefs where user_id = new.user_id and share = false) then
+    new.store_key := null; new.city := null;
+  end if;
+  return new;
+end $$;
+revoke all on function public.bill_reads_respect_optout() from public, anon, authenticated;
+drop trigger if exists bill_reads_respect_optout on public.bill_reads;
+create trigger bill_reads_respect_optout before insert or update on public.bill_reads
+  for each row execute function public.bill_reads_respect_optout();
+
 -- Vote on a shop. bill_backed is true only when the caller's own, unused,
 -- <= 7 day old bill read names a shop similar to the one voted on.
 create or replace function public.vote_shop(p_shop_id uuid, p_vote smallint, p_reasons text[],
@@ -557,6 +645,8 @@ returns boolean language plpgsql security definer set search_path = public, exte
 declare s shops%rowtype; b bill_reads%rowtype; backed boolean := false;
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
+  -- Same per-user lock as contributions: a vote racing an opt-out cannot survive its delete.
+  if not contrib_lock_and_consent() then raise exception 'sharing is off'; end if;
   select * into s from shops where id = p_shop_id;
   if not found then return false; end if;
   if p_bill_read_id is not null then
@@ -583,7 +673,7 @@ grant execute on function public.vote_shop(uuid, smallint, text[], uuid) to auth
 revoke all on public.contributions, public.contribution_links from anon, authenticated;
 revoke all on public.fuel_stats, public.brand_life from anon;
 revoke all on public.repair_stats from anon;
-revoke execute on function public.submit_contributions(jsonb), public.delete_my_contributions() from anon;
+revoke execute on function public.submit_contributions(jsonb), public.sync_contributions(text, jsonb), public.delete_my_contributions() from anon;
 
 -- ============================================================
 -- Phase 5a: shared catalogue, roles, dealer plans.

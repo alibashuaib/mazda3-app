@@ -15,10 +15,19 @@ test('contributions carry action, finding and km_since_repair with CHECKs', () =
 
 test('submit_contributions reads the new fields and keeps skipping bad rows', () => {
   const f = sql.match(/create or replace function public\.submit_contributions[\s\S]*?\nend \$\$;/)[0];
-  assert.match(f, /r->>'action'/);
-  assert.match(f, /r->>'finding'/);
-  assert.match(f, /r->>'km_since_repair'/);
+  const u = sql.match(/create or replace function public\.upsert_contribution[\s\S]*?\nend \$\$;/)[0];
+  assert.match(f, /perform upsert_contribution\(r\)/);
+  for (const k of ['action', 'finding', 'km_since_repair', 'prev_brand', 'prev_price']) assert.match(u, new RegExp(`r->>'${k}'`));
   assert.match(f, /exception when others then null/);
+});
+
+test('brand life credits the previous part: grouped by prev_brand, priced by prev_price', () => {
+  const life = sql.match(/create or replace view public\.brand_life[\s\S]*?;\n/)[0];
+  assert.match(life, /c\.prev_brand as brand/);
+  assert.match(life, /order by c\.prev_price/);
+  assert.match(life, /group by c\.model_id, c\.item_key, c\.prev_brand/);
+  assert.match(sql, /add column if not exists prev_brand text/);
+  assert.match(sql, /add column if not exists prev_price numeric/);
 });
 
 test('life and store prices count replacements only', () => {

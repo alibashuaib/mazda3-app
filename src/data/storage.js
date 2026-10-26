@@ -603,6 +603,21 @@
     return idbGetAll(backend.db, 'outbox');
   }
 
+  /* Remove `id` only if it still holds revision `rev`: an entry replaced while its upload was
+     in flight stays queued. One readwrite transaction, so a put cannot slip in between. */
+  function outboxRemoveIf(id, rev) {
+    if (backend.kind === 'local') {
+      const q = outboxLsRead(), hit = q.find(e => e.id === id);
+      if (!hit || hit.rev !== rev) return Promise.resolve(false);
+      return Promise.resolve(outboxLsWrite(q.filter(e => e.id !== id)));
+    }
+    return idbTx(backend.db, ['outbox'], 'readwrite', tx => {
+      const st = tx.objectStore('outbox');
+      const req = st.get(id);
+      req.onsuccess = () => { if (req.result && req.result.rev === rev) st.delete(id); };
+    }).then(() => true).catch(() => false);
+  }
+
   function outboxRemove(id) {
     if (backend.kind === 'local') return Promise.resolve(outboxLsWrite(outboxLsRead().filter(e => e.id !== id)));
     return idbTx(backend.db, ['outbox'], 'readwrite', tx => { tx.objectStore('outbox').delete(id); })
@@ -729,7 +744,7 @@
     photoIdsIn, orphanedPhotoIds, unreferencedPhotoIds, normalizeRecords,
     parseLegacyV1, readLegacyV1, migrationPlan, DIRTY_KEY,
     dataUrlToBlob, blobToDataUrl, openStorage, loadAll, saveVehicle, removeVehicle, wipe, backendKind,
-    outboxAdd, outboxAll, outboxRemove, metaGet, metaSet, getPhotoBlob, putPhotoBlob,
+    outboxAdd, outboxAll, outboxRemove, outboxRemoveIf, metaGet, metaSet, getPhotoBlob, putPhotoBlob,
     setQuickActiveId, getQuickActiveId, clearQuickActiveId
   };
 });

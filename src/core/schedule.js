@@ -77,11 +77,28 @@
   }
 
   /* 100 = everything on track. Overdue costs a full share of the score,
-     due-soon costs 40% of one. */
+     due-soon costs 40% of one. healthPenalty is that share in points, so the
+     breakdown and the score can never disagree. */
+  function healthPenalty(level, count) {
+    if (!count) return 0;
+    return (level === 'danger' ? 1 : level === 'warn' ? 0.4 : 0) * 100 / count;
+  }
   function healthFrom(levels) {
     if (!levels.length) return 100;
-    const penalty = levels.reduce((a, l) => a + (l === 'danger' ? 1 : l === 'warn' ? 0.4 : 0), 0);
-    return Math.round(Math.min(100, Math.max(0, 100 - (penalty / levels.length) * 100)));
+    const penalty = levels.reduce((a, l) => a + healthPenalty(l, levels.length), 0);
+    return Math.round(Math.min(100, Math.max(0, 100 - penalty)));
+  }
+
+  /* A new reading at or above the current one is the freshest mileage we have:
+     equal still confirms it. A lower reading is ignored here; correcting a wrong
+     high value is the manual "Update mileage" path, which sets it exactly.
+     ponytail: deleting a wrong high fuel entry does not lower the odometer by itself. */
+  function noteOdometer(car, km, date) {
+    const n = Number(km);
+    if (!car || !Number.isFinite(n) || n <= 0 || n < (Number(car.odometer) || 0)) return false;
+    car.odometer = n;
+    if (date && (!car.odoUpdatedAt || date > car.odoUpdatedAt)) car.odoUpdatedAt = date;
+    return true;
   }
 
   /* Cycle order for the theme button. An unrecognised value lands on
@@ -91,5 +108,5 @@
     return THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
   }
 
-  return { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince, healthFrom, nextTheme };
+  return { today, isoDate, isQuotaError, mergeMilestones, nextOverdueOccurrence, withinHorizon, daysSince, healthFrom, healthPenalty, noteOdometer, nextTheme };
 });

@@ -290,8 +290,11 @@ function renderDashboard() {
   // Approved recalls for this model (NHTSA, US market): a pointer to the dealer, never a verdict.
   const recallBox = el('div', 'card recall-banner'); recallBox.style.cssText = 'padding:12px 14px;margin:10px 0'; recallBox.hidden = true;
   v.appendChild(recallBox);
-  recalls.forModel(session.current().car.modelId).then(rows => {
-    if (!rows || !rows.length || !recallBox.isConnected) return;
+  // recalls.car_model_id is the catalogue id (model + engine), not the bare model id.
+  const recallCar = session.current().car;
+  recalls.forModel(recallCar.catalogId).then(all => {
+    const rows = recalls.forYear(all, recallCar.year);
+    if (!rows.length || !recallBox.isConnected) return;
     const head = el('strong');
     head.textContent = `⚠️ ${rows.length} ${t(rows.length === 1 ? 'recall' : 'recalls')} ${t('found for this model year in the US — confirm with your Mazda dealer')}`;
     recallBox.replaceChildren(head);

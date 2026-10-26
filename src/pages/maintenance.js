@@ -119,13 +119,25 @@ function buildPlan(v) {
    estimate (est. cost − default parts) is preserved. */
 /* Resolve the shop, share part prices tagged with it, then ask for feedback.
    Fire-and-forget: the save already succeeded, so shop features are optional. */
-async function afterPurchase(logged, shopIn, cur, vid, billReadId) {
+async function afterPurchase(logged, shopIn, vid, billReadId, opts) {
   try {
+    const uid = account.user() && account.user().id;   // the account this purchase belongs to
     // Sharing off: nothing leaves the device (no shop row, no prices, no vote).
     if (!(await insights.shareEnabled())) return;
     const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
-    contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
-    if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop, billReadId || null);  // never stack on an open modal
+    if (!(shop && shop.id)) return;
+    /* The part rows already went up with the save; this links them to the shop. Persisted on
+       the records so every later snapshot keeps the link. Re-read by id: the lookup is async,
+       and save() only writes the ACTIVE vehicle, so a vehicle that was switched away from or
+       deleted meanwhile is left alone (ponytail: the shop link is lost in that rare case). */
+    // The lookup was async: a sign-out/in, an opt-out, or a deleted record since then ends it here.
+    if ((account.user() && account.user().id) !== uid || !(await insights.shareEnabled())) return;
+    const g = session.garage(), ids = new Set(logged.map(h => h.id));
+    const live = g && g.activeId === vid ? (session.current().history || []).filter(h => ids.has(h.id)) : [];
+    if (!live.length) return;
+    live.forEach(h => { h.shopId = shop.id; });
+    await save();   // afterSave re-sends this vehicle's rows, now carrying shop_id
+    if (!(opts && opts.noPrompt) && $('#modalHost').hidden) openShopFeedback(shop, billReadId || null);  // never stack on an open modal
   } catch (e) { /* shop features optional; save already succeeded */ }
 }
 
@@ -234,10 +246,10 @@ function openLogConfirm(services, opts) {
           session.current().history.push(h); logged.push(h);
         });
         if (grand > 0) session.current().spending.push({ id: uid(), date, cat: 'Maintenance', desc: nDone > 1 ? `${t('Milestone')} · ${fmt(odo)} km` : lastName, amount: grand, odometer: odo });
-        if (odo > (session.current().car.odometer || 0)) session.current().car.odometer = odo;
-        const cur = session.current(), vid = session.garage().activeId;
+        noteOdometer(session.current().car, odo, date);
+        const vid = session.garage().activeId;
         const ok = await save(); closeModal();
-        if (ok) afterPurchase(logged, shopIn, cur, vid);
+        if (ok) afterPurchase(logged, shopIn, vid);
         (opts.onDone || (() => go('maintenance')))();
         if (ok) {
           if (nSkip) toast(`${nDone} ${t('logged')} · ${nSkip} ${t('carried forward')}`);
@@ -724,6 +736,9 @@ function openAddHistory(e, prefill) {
         cost: +$('#h_cost').value || 0, note: $('#h_note').value.trim(), photo: hphoto
       };
       const shopIn = await shopF.resolve().catch(() => shopF.value());   // read before commit() closes the modal
+      // A changed or cleared shop drops the old link; a new one is resolved after the save.
+      const shopChanged = e && JSON.stringify(e.shop || null) !== JSON.stringify(shopIn || null);
+      if (shopChanged) delete e.shopId;
       if (shopIn) obj.shop = shopIn; else if (e) delete e.shop;
       const bp = e ? [] : billParts.map(x => {
         const action = x.action === 'repaired' || x.action === 'inspected' ? x.action : 'replaced';
@@ -734,6 +749,7 @@ function openAddHistory(e, prefill) {
       }).filter(x => x.part && Number.isFinite(x.price) && (x.price > 0 || x.action === 'inspected')).slice(0, 15);
       bp.forEach(x => { if (!(x.price > 0)) delete x.price; });
       if (bp.length) obj.parts = bp;
+      noteOdometer(session.current().car, obj.odometer, obj.date);
       if (e) Object.assign(e, obj);
       else {
         session.current().history.push(obj);
@@ -745,7 +761,8 @@ function openAddHistory(e, prefill) {
         }
       }
       const ok = await commit('maintenance', editing ? 'Record updated' : 'Service logged ✓');
-      if (ok && !editing && (shopIn || bp.length)) afterPurchase([obj], shopIn, session.current(), session.garage().activeId, billReadId);
+      if (ok && !editing && (shopIn || bp.length)) afterPurchase([obj], shopIn, session.garage().activeId, billReadId);
+      if (ok && editing && shopChanged && shopIn) afterPurchase([e], shopIn, session.garage().activeId, null, { noPrompt: true });
     });
     card.appendChild(b);
     if (editing) {

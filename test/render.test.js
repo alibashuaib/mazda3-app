@@ -1032,7 +1032,8 @@ test('deleting a vehicle while signed in automatically drains without any online
       auth: { getSession: () => Promise.resolve({ data: { session: null }, error: null }) },
       from: table => ({
         upsert(row) { upserts[table].push(row); return Promise.resolve({ error: null }); }
-      })
+      }),
+      rpc: () => Promise.resolve({ data: 0, error: null })   // the delete also queues its empty community-row set
     })
   };
   const app = await bootApp({ protocol: 'https:', supabaseStub: stub });
@@ -1078,7 +1079,10 @@ test('deleting a vehicle while signed in automatically drains without any online
 
     assert.ok(pushed,
       'a delete must trigger an automatic drain (kickSync) without waiting for an `online` event');
-    assert.strictEqual(await api.account.outboxSize(), 0, 'the automatic drain must have emptied the outbox');
+    // The delete also queues the vehicle's empty community-row set, on its own consent read.
+    let left = await api.account.outboxSize();
+    while (left !== 0 && Date.now() < deadline + 2000) { await new Promise(r => setImmediate(r)); left = await api.account.outboxSize(); }
+    assert.strictEqual(left, 0, 'the automatic drain must have emptied the outbox');
   } finally { app.cleanup(); }
 });
 

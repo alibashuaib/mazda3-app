@@ -256,6 +256,16 @@
     return enqueue({ kind: 'contribution', rows });
   }
 
+  /* The full community row set for one vehicle. One entry per vehicle under a fixed id, so a
+     newer snapshot replaces an older one still waiting; `rev` is unique per snapshot so the
+     drain can tell whether the entry it uploaded is still the current one. Empty rows = the
+     vehicle is gone and its rows should be removed. */
+  function enqueueContributionSync(vehicleId, rows) {
+    if (!_user || !env.client || !vehicleId) return Promise.resolve(false);
+    return deps.outboxAdd({ id: 'csync:' + vehicleId, kind: 'contribution-sync', vehicleId, rows: rows || [],
+      rev: deps.uid(), createdAt: nowIso() });
+  }
+
   function outboxSize() {
     return deps.outboxAll().then(entries => entries.length);
   }
@@ -266,7 +276,7 @@
      delete of the same vehicle cannot resurrect it; a photo's own deletion
      from Storage drains after that, once the row that referenced it is
      already gone server-side. */
-  const KIND_ORDER = { photo: 0, vehicle: 1, garage: 1, tombstone: 2, 'photo-delete': 3, contribution: 1 };
+  const KIND_ORDER = { photo: 0, vehicle: 1, garage: 1, tombstone: 2, 'photo-delete': 3, contribution: 1, 'contribution-sync': 1.5 };
 
   function drainOne(entry) {
     if (entry.kind === 'photo') {
@@ -281,6 +291,14 @@
         on ? (env.submitContributions ? env.submitContributions(entry.rows) : true) : true)
         .then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
     }
+    if (entry.kind === 'contribution-sync') {
+      /* Sharing off: drop it. The opt-out delete already removed this user's server rows. */
+      return Promise.resolve(env.shareEnabled ? env.shareEnabled() : true).then(on => {
+        if (!on) return deps.outboxRemove(entry.id);
+        return Promise.resolve(env.syncContributions ? env.syncContributions(entry.vehicleId, entry.rows) : true)
+          .then(ok => ok && deps.outboxRemoveIf(entry.id, entry.rev));
+      }).catch(() => {});
+    }
     if (entry.kind === 'photo-delete') {
       return deletePhotoRemote(entry.photoId).then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
     }
@@ -290,13 +308,25 @@
     return run.then(ok => ok && deps.outboxRemove(entry.id)).catch(() => {});
   }
 
+  /* Single-flight: a drain requested while one runs chains after it instead of running
+     alongside, so an older snapshot can never be uploaded after a newer one. */
+  let _drainChain = Promise.resolve();
   function drain() {
+    const p = _drainChain.then(drainNow);
+    _drainChain = p.catch(() => {});
+    return p;
+  }
+  function drainNow() {
     if (!_user || !env.client) return Promise.resolve(0);
+    /* The batch belongs to the account that started it. signOut()/expire() null _user and
+       a new sign-in replaces it, so once it changes the rest of the batch is dropped —
+       otherwise A's queued rows would upload under B's session. */
+    const owner = _user;
     return deps.outboxAll().then(entries => {
       const sorted = entries.slice().sort((a, b) =>
         (KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) ||
         (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
-      return sorted.reduce((p, e) => p.then(() => drainOne(e)), Promise.resolve());
+      return sorted.reduce((p, e) => p.then(() => (_user === owner ? drainOne(e) : null)), Promise.resolve());
     }).then(() => deps.outboxAll()).then(remaining => remaining.length);
   }
 
@@ -710,7 +740,7 @@
   return {
     configure, reset, available, user, setUserForTest,
     stripPhotos, pushVehicle, pushGarage,
-    enqueueVehicle, enqueueGarage, enqueueTombstone, enqueuePhoto, enqueueContribution, drain, outboxSize,
+    enqueueVehicle, enqueueGarage, enqueueTombstone, enqueuePhoto, enqueueContribution, enqueueContributionSync, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
     signIn, signOut, expire, start, sync,
     SUPABASE_URL, SUPABASE_ANON_KEY
