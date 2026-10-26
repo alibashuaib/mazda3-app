@@ -71,7 +71,7 @@ test('the trigger is a closed menu button until it is opened', () => withBoot(as
 test('the remaining corner controls are reachable', () => withBoot(async ({ document, api }) => {
   api.toggleAccountMenu();
   assert.ok(byLabel(document, /Switch vehicle/), 'the vehicle switcher was lost in the move');
-  assert.ok(byLabel(document, /Dark theme/), 'the theme control was lost in the move');
+  assert.ok(byLabel(document, /System theme/), 'the theme control was lost in the move');
   assert.ok(byLabel(document, /العربية/), 'the language switch was not added');
 }));
 
@@ -101,23 +101,23 @@ test('Switch vehicle opens its dialog and closes the menu', () => withBoot(async
   assert.match(document.querySelector('#modalTitle').textContent, /Your garage|مرآبك|المرآب/);
 }));
 
-test('theme radios switch live, close the menu, and System is reachable again after an explicit pick', () => withBoot(async ({ document, api, window }) => {
+test('one theme item cycles System, Light, Dark and stays open', () => withBoot(async ({ document, api, window }) => {
   api.toggleAccountMenu();
-  const radios = items(document).filter(b => b.getAttribute('role') === 'menuitemradio');
-  assert.deepStrictEqual(radios.map(b => /System/.test(b.textContent) ? 's' : /Light/.test(b.textContent) ? 'l' : 'd'), ['s', 'l', 'd']);
-  assert.strictEqual(radios.filter(b => b.getAttribute('aria-checked') === 'true').length, 1, 'exactly one theme checked');
+  assert.strictEqual(items(document).filter(b => /theme/i.test(b.textContent)).length, 1, 'more than one theme item');
+  assert.ok(byLabel(document, /System theme/), 'starts on System');
 
-  byLabel(document, /Dark theme/).onclick();
+  byLabel(document, /System theme/).onclick();
+  assert.strictEqual(api.currentTheme(), 'light');
+  assert.strictEqual(menu(document).hidden, false, 'cycling closed the menu');
+  assert.ok(byLabel(document, /Light theme/), 'label did not follow the theme');
+
+  byLabel(document, /Light theme/).onclick();
   assert.strictEqual(api.currentTheme(), 'dark');
-  assert.strictEqual(menu(document).hidden, true, 'the menu did not close');
   assert.strictEqual(window.localStorage.getItem('garage.theme'), 'dark');
 
-  api.toggleAccountMenu();
-  assert.strictEqual(byLabel(document, /Dark theme/).getAttribute('aria-checked'), 'true');
-  byLabel(document, /System theme/).onclick();
+  byLabel(document, /Dark theme/).onclick();
   assert.strictEqual(window.localStorage.getItem('garage.theme'), null, 'System must clear the stored choice');
-  api.toggleAccountMenu();
-  assert.strictEqual(byLabel(document, /System theme/).getAttribute('aria-checked'), 'true');
+  assert.ok(byLabel(document, /System theme/), 'cycle did not return to System');
 }));
 
 test('opening focuses the first item', () => withBoot(async ({ document, api }) => {
@@ -179,7 +179,7 @@ test('the trigger stays on file:// and account is never exposed', () => withBoot
   api.toggleAccountMenu();
   assert.strictEqual(byLabel(document, /^Account$/), undefined, 'sign-in offered where it cannot work');
   assert.ok(byLabel(document, /Switch vehicle/), 'the vehicle switcher was lost on file://');
-  assert.ok(byLabel(document, /Dark theme/), 'the theme control was lost on file://');
+  assert.ok(byLabel(document, /System theme/), 'the theme control was lost on file://');
 }));
 
 test('the menu is translated, trigger included', () => withBoot(async ({ document, api, evalInApp }) => {

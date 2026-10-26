@@ -111,10 +111,9 @@ test('switches to Arabic and back, flipping direction both ways', async ({ page 
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
 
-  // The item's own label is translated along with the rest of the menu, so
-  // once Arabic is active it reads "الإنجليزية", not "English".
+  // The item's label stays "English" (not translated) once Arabic is active.
   await page.click('#accountBtn');
-  await page.click('#accountMenu [role="menuitem"]:has-text("الإنجليزية")');
+  await page.click('#accountMenu [role="menuitem"]:has-text("English")');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
 });
 

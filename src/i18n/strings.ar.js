@@ -13,10 +13,8 @@
 const AR = {
   // nav
   'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Parts': 'القطع', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
-  // account menu — language switch item names the *other* language; 'العربية'
-  // is shown raw (own script, no translation needed), but 'English' needs
-  // this entry so it reads in Arabic script once Arabic is active.
-  'English': 'الإنجليزية',
+  // account menu — language switch item names the *other* language; both
+  // 'العربية' and 'English' are shown raw (no translation entry needed).
   // statuses / pills
   'Overdue': 'متأخرة', 'Due soon': 'قريبة الاستحقاق', 'On track': 'على المسار', 'Active': 'الحالية', 'Switch ›': 'تبديل ›',
   // dashboard tiles / labels
@@ -364,7 +362,7 @@ const AR = {
   // theme
   'Theme: follows device': 'المظهر: حسب الجهاز',
   'Theme: light': 'المظهر: فاتح',
-  'Theme: dark': 'المظهر: داكن',
+  'Theme: dark': 'المظهر: ليلي',
 
   // storage
   'Could not open your garage': 'تعذّر فتح المرآب',
@@ -385,7 +383,7 @@ const AR = {
   'Gregorian': 'ميلادي', 'Hijri': 'هجري', 'Both': 'كلاهما',
   // account menu (the topbar's inline-end corner)
   'My account': 'حسابي', 'Account menu': 'قائمة الحساب',
-  'Switch vehicle': 'تبديل المركبة', 'System theme': 'مظهر النظام', 'Light theme': 'المظهر الفاتح', 'Dark theme': 'المظهر الداكن',
+  'Switch vehicle': 'تبديل المركبة', 'System theme': 'مظهر النظام', 'Light theme': 'المظهر الفاتح', 'Dark theme': 'الوضع الليلي',
   // community insights
   'Share anonymous data': 'مشاركة بيانات مجهولة',
   'Sharing anonymous data': 'تتم مشاركة بيانات مجهولة',

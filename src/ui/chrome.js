@@ -397,18 +397,17 @@ function buildAccountMenu(menu) {
     }, '🛠️', true));
   }
 
-  /* Three radios, not a binary toggle, so "System" (follow the device) stays
-     reachable after the user has once picked Light or Dark. */
-  const pref = themePref();
-  [['system', 'System theme', '🖥️'], ['light', 'Light theme', '☀️'], ['dark', 'Dark theme', '🌙']].forEach(([p, label, icon]) => {
-    const it = menuItem(label, 'menuitemradio', () => {
-      setThemePref(p);
-      refreshForTheme();
-      closeAccountMenu(false);
-    }, icon);
-    it.setAttribute('aria-checked', String(pref === p));
-    menu.appendChild(it);
-  });
+  /* One item that cycles System → Light → Dark, so "System" (follow the
+     device) stays reachable after the user has once picked Light or Dark. */
+  const THEMES = [['system', 'System theme', '🖥️'], ['light', 'Light theme', '☀️'], ['dark', 'Dark theme', '🌙']];
+  const themeIdx = () => Math.max(0, THEMES.findIndex(x => x[0] === themePref()));
+  const themeBtn = menuItem(THEMES[themeIdx()][1], 'menuitem', () => {
+    const [p, label, icon] = THEMES[(themeIdx() + 1) % THEMES.length];
+    setThemePref(p);
+    refreshForTheme();
+    themeBtn.innerHTML = html`<span class="menu-item-ic">${icon}</span>${t(label)}`;
+  }, THEMES[themeIdx()][2]);
+  menu.appendChild(themeBtn);
 
   /* Signed-out users have nothing shared, so no control for them. */
   if (account.user()) {
