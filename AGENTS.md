@@ -28,3 +28,6 @@ Structure all design critiques or mockups into three scannable segments:
 1. **System Guardrails**: Identify specific safe-zone, focus-state, or asset ratio violations.
 2. **Structural Blueprint**: A clean markdown wireframe or text component tree outlining exact layout hierarchy.
 3. **External Engine Prompts**: A copy-paste prompt explicitly structured for Canva or Figma UX Pilot workflows.
+## Persistent car asset editing memory
+
+Before auditing, editing, recoloring or replacing any car image, read [docs/CAR-ASSET-GUIDE.md](docs/CAR-ASSET-GUIDE.md) and [output/CAR-ASSET-LESSONS.md](output/CAR-ASSET-LESSONS.md). The guide retains the Mazda2 through the CX family, including installed revisions through 213 and earlier approved edits and rejections. Preserve the current approved endpoints, actual factory hardware, paint identity, both wheel badges, transparent edges and consistent color-switch framing. Use its validation workflow for remaining cars and update the guide after new approved work. Do not reapply rejected Mazda2 softening 175 or Mazda3 chrome-notch 196.

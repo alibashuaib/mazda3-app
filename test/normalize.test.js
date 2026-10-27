@@ -8,6 +8,7 @@ test('buildProfile assembles a complete vehicle from the catalogue', () => {
   assert.strictEqual(v.car.make, 'Mazda');
   assert.strictEqual(v.car.odometer, 316000);
   assert.strictEqual(v.car.year, 2016);
+  assert.strictEqual(v.car.color, 'Meteor Gray Mica (Code 42A)');
   assert.ok(v.services.length > 0);
   assert.ok(v.parts.length > 0);
   assert.deepStrictEqual(v.history, []);
@@ -245,6 +246,13 @@ test('seed is a fresh 2016 Mazda 3 at 0 km', () => {
   const v = seed();
   assert.strictEqual(v.car.odometer, 0);
   assert.strictEqual(v.car.year, 2016);
+  assert.strictEqual(v.car.color, 'Meteor Gray Mica (Code 42A)');
+});
+
+test('retired Mazda3 BM Machine Gray selection migrates to Meteor Gray', () => {
+  const v = normalizeData({ car: { modelId: 'mazda3bm', model: '3', color: 'Machine Gray Metallic (Code 46G)' } });
+  assert.strictEqual(v.car.color, 'Meteor Gray Mica (Code 42A)');
+  assert.strictEqual(buildProfile('mazda3bm', 0, { color: 'Machine Gray Metallic (Code 46G)' }).car.color, 'Meteor Gray Mica (Code 42A)');
 });
 
 test('normalizeData infers generation-specific CX models from model and year', () => {

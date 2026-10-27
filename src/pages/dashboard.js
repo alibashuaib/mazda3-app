@@ -196,6 +196,12 @@ const CAR_COLOR_PHOTOS = {
     'titanium-flash-mica': 'assets/mazda3-titanium-flash.webp'
   }
 };
+/* CX cutouts share width, center and baseline; each model keeps its height. */
+const CX_NORMALIZED_PHOTOS = new Set([
+  'cx30', 'cx5ke', 'cx5kf', 'cx5gen3', 'cx9tb', 'cx9',
+  'cx50', 'cx60', 'cx70', 'cx80', 'cx90'
+]);
+
 /* 'Soul Red Metallic (Code 41V)' -> 'soul-red-metallic' */
 function colorSlug(name) {
   return (name || '').toLowerCase().replace(/\s*\(code[^)]*\)\s*$/, '').trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -204,10 +210,15 @@ function studioCarImage(color, car) {
   const modelId = car && car.modelId;
   const byModel = CAR_COLOR_PHOTOS[modelId];
   const exact = byModel && byModel[colorSlug(color)];
-  const freshAsset = url => modelId === 'mazda3bp' ? `${url}?v=halo-free-65` : url;
+  const freshAsset = url => modelId === 'mazda3bp' ? `${url}?v=mazda3bp-cleanup-200`
+    : modelId === 'mazda6' ? `${url}?v=mazda6-wheel-logo-205`
+    : modelId === 'cx3' ? `${url}?v=cx3-alignment-logos-207`
+    : modelId === 'mazda2' ? `${url}?v=mazda2-paint-fixes-209`
+    : CX_NORMALIZED_PHOTOS.has(modelId) ? `${url}?v=cx-family-fixes-211`
+    : modelId === 'mazda3bm' ? `${url}?v=mazda3bm-framing-213` : url;
   if (exact) return freshAsset(exact);
   if (GENERIC_MODEL_IMAGE[modelId]) return freshAsset(GENERIC_MODEL_IMAGE[modelId]);
-  if (modelId === 'mazda3bm') return 'assets/mazda3-studio.webp';
+  if (modelId === 'mazda3bm') return freshAsset('assets/mazda3-studio.webp');
   return '';
 }
 

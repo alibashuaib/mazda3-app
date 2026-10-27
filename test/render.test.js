@@ -105,7 +105,7 @@ test('every catalog paint has a distinct existing photo', () => withBoot(async (
       if (['cx50', 'cx60', 'cx70', 'cx80', 'cx90'].includes(model.id)) {
         Object.assign(api.session.current().car, { modelId: model.id, color });
         api.go('dashboard');
-        assert.strictEqual(document.querySelector('.studio-car').getAttribute('src'), image, `${model.id}: ${color}`);
+        assert.strictEqual(document.querySelector('.studio-car').getAttribute('src'), `${image}?v=cx-family-fixes-211`, `${model.id}: ${color}`);
       }
       return image;
     });
@@ -117,9 +117,9 @@ test('an unavailable paint photo falls back to the model image', () => withBoot(
   Object.assign(api.session.current().car, { modelId: 'cx60', color: 'Platinum Quartz Metallic' });
   api.go('dashboard');
   const image = document.querySelector('.studio-car');
-  assert.strictEqual(image.getAttribute('src'), 'assets/cx60-platinum-quartz-metallic.webp');
+  assert.strictEqual(image.getAttribute('src'), 'assets/cx60-platinum-quartz-metallic.webp?v=cx-family-fixes-211');
   image.onerror();
-  assert.strictEqual(image.getAttribute('src'), 'assets/mazda-cx60.webp');
+  assert.strictEqual(image.getAttribute('src'), 'assets/mazda-cx60.webp?v=cx-family-fixes-211');
   assert.strictEqual(image.onerror, null, 'fallback failure would otherwise loop forever');
 }));
 
@@ -215,13 +215,13 @@ test('every CX-9 TB factory colour uses an exact photo instead of a tint', () =>
   car.modelId = 'cx9tb';
   car.model = 'CX-9';
   const photos = {
-    'Dolphin Gray Mica (Code 39T)': 'assets/mazda-cx9-tb.webp',
-    'Brilliant Black Clearcoat (Code A3F)': 'assets/cx9tb-brilliant-black-clearcoat.webp',
-    'Crystal White Pearl Mica (Code 34K)': 'assets/cx9tb-crystal-white-pearl-mica.webp',
-    'Copper Red Mica (Code 32V)': 'assets/cx9tb-copper-red-mica.webp',
-    'Liquid Silver Metallic (Code 38P)': 'assets/cx9tb-liquid-silver-metallic.webp',
-    'Metropolitan Gray Mica (Code 36C)': 'assets/cx9tb-metropolitan-gray-mica.webp',
-    'Stormy Blue Mica (Code 35J)': 'assets/cx9tb-stormy-blue-mica.webp'
+    'Dolphin Gray Mica (Code 39T)': 'assets/mazda-cx9-tb.webp?v=cx-family-fixes-211',
+    'Brilliant Black Clearcoat (Code A3F)': 'assets/cx9tb-brilliant-black-clearcoat.webp?v=cx-family-fixes-211',
+    'Crystal White Pearl Mica (Code 34K)': 'assets/cx9tb-crystal-white-pearl-mica.webp?v=cx-family-fixes-211',
+    'Copper Red Mica (Code 32V)': 'assets/cx9tb-copper-red-mica.webp?v=cx-family-fixes-211',
+    'Liquid Silver Metallic (Code 38P)': 'assets/cx9tb-liquid-silver-metallic.webp?v=cx-family-fixes-211',
+    'Metropolitan Gray Mica (Code 36C)': 'assets/cx9tb-metropolitan-gray-mica.webp?v=cx-family-fixes-211',
+    'Stormy Blue Mica (Code 35J)': 'assets/cx9tb-stormy-blue-mica.webp?v=cx-family-fixes-211'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -238,14 +238,14 @@ test('every CX-9 TC factory colour uses an exact photo instead of a tint', () =>
   car.modelId = 'cx9';
   car.model = 'CX-9';
   const photos = {
-    'Machine Gray Metallic (Code 46G)': 'assets/mazda-cx9-tc.webp',
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx9-soul-red-crystal-metallic.webp',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx9-snowflake-white-pearl-mica.webp',
-    'Jet Black Mica (Code 41W)': 'assets/cx9-jet-black-mica.webp',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx9-deep-crystal-blue-mica.webp',
-    'Sonic Silver Metallic (Code 45P)': 'assets/cx9-sonic-silver-metallic.webp',
-    'Titanium Flash Mica (Code 42S)': 'assets/cx9-titanium-flash-mica.webp',
-    'Polymetal Gray Metallic (Code 47C)': 'assets/cx9-polymetal-gray-metallic.webp'
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda-cx9-tc.webp?v=cx-family-fixes-211',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx9-soul-red-crystal-metallic.webp?v=cx-family-fixes-211',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx9-snowflake-white-pearl-mica.webp?v=cx-family-fixes-211',
+    'Jet Black Mica (Code 41W)': 'assets/cx9-jet-black-mica.webp?v=cx-family-fixes-211',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx9-deep-crystal-blue-mica.webp?v=cx-family-fixes-211',
+    'Sonic Silver Metallic (Code 45P)': 'assets/cx9-sonic-silver-metallic.webp?v=cx-family-fixes-211',
+    'Titanium Flash Mica (Code 42S)': 'assets/cx9-titanium-flash-mica.webp?v=cx-family-fixes-211',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/cx9-polymetal-gray-metallic.webp?v=cx-family-fixes-211'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -262,14 +262,14 @@ test('every Mazda3 BM/BN factory colour uses an exact photo instead of a tint', 
   car.modelId = 'mazda3bm';
   car.model = '3';
   const photos = {
-    'Meteor Gray Mica (Code 42A)': 'assets/mazda3-studio.webp',
-    'Soul Red Metallic (Code 41V)': 'assets/mazda3-soul-red.webp',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3-snowflake-white.webp',
-    'Jet Black Mica (Code 41W)': 'assets/mazda3-jet-black.webp',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3-deep-crystal-blue.webp',
-    'Blue Reflex Mica (Code 42B)': 'assets/mazda3-blue-reflex.webp',
-    'Liquid Silver Metallic (Code 38P)': 'assets/mazda3-liquid-silver.webp',
-    'Titanium Flash Mica (Code 42S)': 'assets/mazda3-titanium-flash.webp'
+    'Meteor Gray Mica (Code 42A)': 'assets/mazda3-studio.webp?v=mazda3bm-framing-213',
+    'Soul Red Metallic (Code 41V)': 'assets/mazda3-soul-red.webp?v=mazda3bm-framing-213',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3-snowflake-white.webp?v=mazda3bm-framing-213',
+    'Jet Black Mica (Code 41W)': 'assets/mazda3-jet-black.webp?v=mazda3bm-framing-213',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3-deep-crystal-blue.webp?v=mazda3bm-framing-213',
+    'Blue Reflex Mica (Code 42B)': 'assets/mazda3-blue-reflex.webp?v=mazda3bm-framing-213',
+    'Liquid Silver Metallic (Code 38P)': 'assets/mazda3-liquid-silver.webp?v=mazda3bm-framing-213',
+    'Titanium Flash Mica (Code 42S)': 'assets/mazda3-titanium-flash.webp?v=mazda3bm-framing-213'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -286,14 +286,14 @@ test('every Mazda3 BP factory colour uses an exact photo instead of a tint', () 
   car.modelId = 'mazda3bp';
   car.model = '3';
   const photos = {
-    'Machine Gray Metallic (Code 46G)': 'assets/mazda3-bp.webp?v=halo-free-65',
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda3bp-soul-red-crystal-metallic.webp?v=halo-free-65',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3bp-snowflake-white-pearl-mica.webp?v=halo-free-65',
-    'Jet Black Mica (Code 41W)': 'assets/mazda3bp-jet-black-mica.webp?v=halo-free-65',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3bp-deep-crystal-blue-mica.webp?v=halo-free-65',
-    'Polymetal Gray Metallic (Code 47C)': 'assets/mazda3bp-polymetal-gray-metallic.webp?v=halo-free-65',
-    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda3bp-platinum-quartz-metallic.webp?v=halo-free-65',
-    'Ceramic Metallic (Code 47A)': 'assets/mazda3bp-ceramic-metallic.webp?v=halo-free-65'
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda3-bp.webp?v=mazda3bp-cleanup-200',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda3bp-soul-red-crystal-metallic.webp?v=mazda3bp-cleanup-200',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda3bp-snowflake-white-pearl-mica.webp?v=mazda3bp-cleanup-200',
+    'Jet Black Mica (Code 41W)': 'assets/mazda3bp-jet-black-mica.webp?v=mazda3bp-cleanup-200',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda3bp-deep-crystal-blue-mica.webp?v=mazda3bp-cleanup-200',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/mazda3bp-polymetal-gray-metallic.webp?v=mazda3bp-cleanup-200',
+    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda3bp-platinum-quartz-metallic.webp?v=mazda3bp-cleanup-200',
+    'Ceramic Metallic (Code 47A)': 'assets/mazda3bp-ceramic-metallic.webp?v=mazda3bp-cleanup-200'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -310,15 +310,15 @@ test('every CX-30 DM factory colour uses an exact photo instead of a tint', () =
   car.modelId = 'cx30';
   car.model = 'CX-30';
   const photos = {
-    'Machine Gray Metallic (Code 46G)': 'assets/cx30-machine-gray-metallic.webp',
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx30-soul-red-crystal-metallic.webp',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx30-snowflake-white-pearl-mica.webp',
-    'Jet Black Mica (Code 41W)': 'assets/cx30-jet-black-mica.webp',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx30-deep-crystal-blue-mica.webp',
-    'Polymetal Gray Metallic (Code 47C)': 'assets/cx30-polymetal-gray-metallic.webp',
-    'Platinum Quartz Metallic (Code 47S)': 'assets/cx30-platinum-quartz-metallic.webp',
-    'Ceramic Metallic (Code 47A)': 'assets/cx30-ceramic-metallic.webp',
-    'Aero Gray Metallic (Code 52C)': 'assets/cx30-aero-gray-metallic.webp'
+    'Machine Gray Metallic (Code 46G)': 'assets/cx30-machine-gray-metallic.webp?v=cx-family-fixes-211',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx30-soul-red-crystal-metallic.webp?v=cx-family-fixes-211',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx30-snowflake-white-pearl-mica.webp?v=cx-family-fixes-211',
+    'Jet Black Mica (Code 41W)': 'assets/cx30-jet-black-mica.webp?v=cx-family-fixes-211',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx30-deep-crystal-blue-mica.webp?v=cx-family-fixes-211',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/cx30-polymetal-gray-metallic.webp?v=cx-family-fixes-211',
+    'Platinum Quartz Metallic (Code 47S)': 'assets/cx30-platinum-quartz-metallic.webp?v=cx-family-fixes-211',
+    'Ceramic Metallic (Code 47A)': 'assets/cx30-ceramic-metallic.webp?v=cx-family-fixes-211',
+    'Aero Gray Metallic (Code 52C)': 'assets/cx30-aero-gray-metallic.webp?v=cx-family-fixes-211'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -335,16 +335,16 @@ test('every CX-5 KF factory colour uses an exact photo instead of a tint', () =>
   car.modelId = 'cx5kf';
   car.model = 'CX-5';
   const photos = {
-    'Machine Gray Metallic (Code 46G)': 'assets/cx5kf-machine-gray-metallic.webp',
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx5kf-soul-red-crystal-metallic.webp',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx5kf-snowflake-white-pearl-mica.webp',
-    'Rhodium White Premium (Code 51K)': 'assets/cx5kf-rhodium-white-premium.webp',
-    'Jet Black Mica (Code 41W)': 'assets/cx5kf-jet-black-mica.webp',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx5kf-deep-crystal-blue-mica.webp',
-    'Eternal Blue Mica (Code 45B)': 'assets/cx5kf-eternal-blue-mica.webp',
-    'Sonic Silver Metallic (Code 45P)': 'assets/cx5kf-sonic-silver-metallic.webp',
-    'Polymetal Gray Metallic (Code 47C)': 'assets/cx5kf-polymetal-gray-metallic.webp',
-    'Zircon Sand Metallic (Code 48T)': 'assets/cx5kf-zircon-sand-metallic.webp'
+    'Machine Gray Metallic (Code 46G)': 'assets/cx5kf-machine-gray-metallic.webp?v=cx-family-fixes-211',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx5kf-soul-red-crystal-metallic.webp?v=cx-family-fixes-211',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/cx5kf-snowflake-white-pearl-mica.webp?v=cx-family-fixes-211',
+    'Rhodium White Premium (Code 51K)': 'assets/cx5kf-rhodium-white-premium.webp?v=cx-family-fixes-211',
+    'Jet Black Mica (Code 41W)': 'assets/cx5kf-jet-black-mica.webp?v=cx-family-fixes-211',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/cx5kf-deep-crystal-blue-mica.webp?v=cx-family-fixes-211',
+    'Eternal Blue Mica (Code 45B)': 'assets/cx5kf-eternal-blue-mica.webp?v=cx-family-fixes-211',
+    'Sonic Silver Metallic (Code 45P)': 'assets/cx5kf-sonic-silver-metallic.webp?v=cx-family-fixes-211',
+    'Polymetal Gray Metallic (Code 47C)': 'assets/cx5kf-polymetal-gray-metallic.webp?v=cx-family-fixes-211',
+    'Zircon Sand Metallic (Code 48T)': 'assets/cx5kf-zircon-sand-metallic.webp?v=cx-family-fixes-211'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -361,12 +361,12 @@ test('every CX-5 Gen3 factory colour uses an exact photo instead of a tint', () 
   car.modelId = 'cx5gen3';
   car.model = 'CX-5';
   const photos = {
-    'Navy Blue Mica': 'assets/cx5gen3-navy-blue-mica.webp',
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx5gen3-soul-red-crystal-metallic.webp',
-    'Rhodium White Premium (Code 51K)': 'assets/cx5gen3-rhodium-white-premium.webp',
-    'Machine Gray Metallic (Code 46G)': 'assets/cx5gen3-machine-gray-metallic.webp',
-    'Jet Black Mica (Code 41W)': 'assets/cx5gen3-jet-black-mica.webp',
-    'Aero Gray Metallic (Code 52C)': 'assets/cx5gen3-aero-gray-metallic.webp'
+    'Navy Blue Mica': 'assets/cx5gen3-navy-blue-mica.webp?v=cx-family-fixes-211',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/cx5gen3-soul-red-crystal-metallic.webp?v=cx-family-fixes-211',
+    'Rhodium White Premium (Code 51K)': 'assets/cx5gen3-rhodium-white-premium.webp?v=cx-family-fixes-211',
+    'Machine Gray Metallic (Code 46G)': 'assets/cx5gen3-machine-gray-metallic.webp?v=cx-family-fixes-211',
+    'Jet Black Mica (Code 41W)': 'assets/cx5gen3-jet-black-mica.webp?v=cx-family-fixes-211',
+    'Aero Gray Metallic (Code 52C)': 'assets/cx5gen3-aero-gray-metallic.webp?v=cx-family-fixes-211'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -383,14 +383,14 @@ test('every Mazda2 DJ factory colour uses an exact photo instead of a tint', () 
   car.modelId = 'mazda2';
   car.model = '2';
   const photos = {
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda2-soul-red-crystal-metallic.webp',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda2-snowflake-white-pearl-mica.webp',
-    'Jet Black Mica (Code 41W)': 'assets/mazda2-jet-black-mica.webp',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda2-deep-crystal-blue-mica.webp',
-    'Dynamic Blue Mica (Code 44J)': 'assets/mazda2-dynamic-blue-mica.webp',
-    'Machine Gray Metallic (Code 46G)': 'assets/mazda2-dj.webp',
-    'Ceramic Metallic (Code 47A)': 'assets/mazda2-ceramic-metallic.webp',
-    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda2-platinum-quartz-metallic.webp'
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda2-soul-red-crystal-metallic.webp?v=mazda2-paint-fixes-209',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda2-snowflake-white-pearl-mica.webp?v=mazda2-paint-fixes-209',
+    'Jet Black Mica (Code 41W)': 'assets/mazda2-jet-black-mica.webp?v=mazda2-paint-fixes-209',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda2-deep-crystal-blue-mica.webp?v=mazda2-paint-fixes-209',
+    'Dynamic Blue Mica (Code 44J)': 'assets/mazda2-dynamic-blue-mica.webp?v=mazda2-paint-fixes-209',
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda2-dj.webp?v=mazda2-paint-fixes-209',
+    'Ceramic Metallic (Code 47A)': 'assets/mazda2-ceramic-metallic.webp?v=mazda2-paint-fixes-209',
+    'Platinum Quartz Metallic (Code 47S)': 'assets/mazda2-platinum-quartz-metallic.webp?v=mazda2-paint-fixes-209'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -422,7 +422,7 @@ test('every CX-3 DK factory colour uses an exact photo instead of a tint', () =>
     car.color = color;
     api.go('dashboard');
     const studio = document.querySelector('.car-studio');
-    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), src, color);
+    assert.strictEqual(studio.querySelector('.studio-car').getAttribute('src'), `${src}?v=cx3-alignment-logos-207`, color);
     assert.ok(![...studio.classList].some(name => name.startsWith('paint-')), `${color} still uses a tint class`);
   }
 }));
@@ -432,16 +432,16 @@ test('every CX-5 KE factory colour uses an exact photo instead of a tint', () =>
   car.modelId = 'cx5ke';
   car.model = 'CX-5';
   const photos = {
-    'Meteor Gray Mica (Code 42A)': 'assets/mazda-cx5-ke.webp',
-    'Soul Red Metallic (Code 41V)': 'assets/cx5ke-soul-red-metallic.webp',
-    'Crystal White Pearl Mica (Code 34K)': 'assets/cx5ke-crystal-white-pearl-mica.webp',
-    'Jet Black Mica (Code 41W)': 'assets/cx5ke-jet-black-mica.webp',
-    'Blue Reflex Mica (Code 42B)': 'assets/cx5ke-blue-reflex-mica.webp',
-    'Sky Blue Mica (Code 41B)': 'assets/cx5ke-sky-blue-mica.webp',
-    'Stormy Blue Mica (Code 35J)': 'assets/cx5ke-stormy-blue-mica.webp',
-    'Liquid Silver Metallic (Code 38P)': 'assets/cx5ke-liquid-silver-metallic.webp',
-    'Metropolitan Gray Mica (Code 36C)': 'assets/cx5ke-metropolitan-gray-mica.webp',
-    'Zeal Red Mica (Code 41G)': 'assets/cx5ke-zeal-red-mica.webp'
+    'Meteor Gray Mica (Code 42A)': 'assets/mazda-cx5-ke.webp?v=cx-family-fixes-211',
+    'Soul Red Metallic (Code 41V)': 'assets/cx5ke-soul-red-metallic.webp?v=cx-family-fixes-211',
+    'Crystal White Pearl Mica (Code 34K)': 'assets/cx5ke-crystal-white-pearl-mica.webp?v=cx-family-fixes-211',
+    'Jet Black Mica (Code 41W)': 'assets/cx5ke-jet-black-mica.webp?v=cx-family-fixes-211',
+    'Blue Reflex Mica (Code 42B)': 'assets/cx5ke-blue-reflex-mica.webp?v=cx-family-fixes-211',
+    'Sky Blue Mica (Code 41B)': 'assets/cx5ke-sky-blue-mica.webp?v=cx-family-fixes-211',
+    'Stormy Blue Mica (Code 35J)': 'assets/cx5ke-stormy-blue-mica.webp?v=cx-family-fixes-211',
+    'Liquid Silver Metallic (Code 38P)': 'assets/cx5ke-liquid-silver-metallic.webp?v=cx-family-fixes-211',
+    'Metropolitan Gray Mica (Code 36C)': 'assets/cx5ke-metropolitan-gray-mica.webp?v=cx-family-fixes-211',
+    'Zeal Red Mica (Code 41G)': 'assets/cx5ke-zeal-red-mica.webp?v=cx-family-fixes-211'
   };
 
   for (const [color, src] of Object.entries(photos)) {
@@ -458,15 +458,15 @@ test('every Mazda6 GJ/GL factory colour uses an exact photo instead of a tint', 
   car.modelId = 'mazda6';
   car.model = 'Mazda6';
   const photos = {
-    'Machine Gray Metallic (Code 46G)': 'assets/mazda6-gj.webp',
-    'Soul Red Metallic (Code 41V)': 'assets/mazda6-soul-red-metallic.webp',
-    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda6-soul-red-crystal-metallic.webp',
-    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda6-snowflake-white-pearl-mica.webp',
-    'Jet Black Mica (Code 41W)': 'assets/mazda6-jet-black-mica.webp',
-    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda6-deep-crystal-blue-mica.webp',
-    'Blue Reflex Mica (Code 42B)': 'assets/mazda6-blue-reflex-mica.webp',
-    'Sonic Silver Metallic (Code 45P)': 'assets/mazda6-sonic-silver-metallic.webp',
-    'Titanium Flash Mica (Code 42S)': 'assets/mazda6-titanium-flash-mica.webp'
+    'Machine Gray Metallic (Code 46G)': 'assets/mazda6-gj.webp?v=mazda6-wheel-logo-205',
+    'Soul Red Metallic (Code 41V)': 'assets/mazda6-soul-red-metallic.webp?v=mazda6-wheel-logo-205',
+    'Soul Red Crystal Metallic (Code 46V)': 'assets/mazda6-soul-red-crystal-metallic.webp?v=mazda6-wheel-logo-205',
+    'Snowflake White Pearl Mica (Code 25D)': 'assets/mazda6-snowflake-white-pearl-mica.webp?v=mazda6-wheel-logo-205',
+    'Jet Black Mica (Code 41W)': 'assets/mazda6-jet-black-mica.webp?v=mazda6-wheel-logo-205',
+    'Deep Crystal Blue Mica (Code 42M)': 'assets/mazda6-deep-crystal-blue-mica.webp?v=mazda6-wheel-logo-205',
+    'Blue Reflex Mica (Code 42B)': 'assets/mazda6-blue-reflex-mica.webp?v=mazda6-wheel-logo-205',
+    'Sonic Silver Metallic (Code 45P)': 'assets/mazda6-sonic-silver-metallic.webp?v=mazda6-wheel-logo-205',
+    'Titanium Flash Mica (Code 42S)': 'assets/mazda6-titanium-flash-mica.webp?v=mazda6-wheel-logo-205'
   };
 
   for (const [color, src] of Object.entries(photos)) {
