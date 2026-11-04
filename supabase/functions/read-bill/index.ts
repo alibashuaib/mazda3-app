@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
       .eq('user_id', u.user.id).gte('created_at', since);
     if (cntErr || count == null) return json(503, { error: 'unavailable' });
     // Global kill switch on spend: all users, last 24h (includes this attempt). Fail closed.
-    const globalCap = Number(Deno.env.get('BILL_GLOBAL_DAILY_CAP') ?? 500) || 500;
+    // 0 is a valid value (stop all reads); only unset or non-numeric falls back to 500.
+    const capEnv = (Deno.env.get('BILL_GLOBAL_DAILY_CAP') ?? '').trim();
+    const globalCap = capEnv !== '' && Number.isFinite(Number(capEnv)) ? Number(capEnv) : 500;
     const { count: all, error: allErr } = await admin.from('bill_reads').select('id', { count: 'exact', head: true })
       .gte('created_at', since);
     if (allErr || all == null || all > globalCap) {
@@ -60,6 +62,12 @@ Deno.serve(async (req) => {
       return json(429, { error: 'limit' });
     }
 
+    // An upstream failure read nothing and cost nothing, so it gives the attempt back.
+    // An unreadable bill (422) still keeps its row: the model call was paid for.
+    const upstreamFailed = async () => {
+      await admin.from('bill_reads').delete().eq('id', row.id);
+      return json(502, { error: 'upstream' });
+    };
     let text = '';
     try {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -76,9 +84,9 @@ Deno.serve(async (req) => {
           ] }],
         }),
       });
-      if (!r.ok) return json(502, { error: 'upstream' });
+      if (!r.ok) return await upstreamFailed();
       text = (await r.json())?.content?.[0]?.text ?? '';
-    } catch { return json(502, { error: 'upstream' }); }
+    } catch { return await upstreamFailed(); }
 
     const bill = parseBill(text);
     if (!bill) return json(422, { error: 'unreadable' });

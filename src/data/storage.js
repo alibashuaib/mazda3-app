@@ -537,7 +537,15 @@
         : { ok: false, error: res.error });
     }
     const split = splitPhotos(data, makeId);
-    const photoIds = Object.keys(split.photos);
+    /* Only photos that decode to a blob are stored, so only those are reported:
+       the caller queues photoIds for upload, and an unstored id would 404. */
+    const blobs = {};
+    Object.keys(split.photos).forEach(id => {
+      const blob = dataUrlToBlob(split.photos[id]);
+      if (blob) blobs[id] = blob;
+      else console.warn('[storage] dropping unreadable photo', id);
+    });
+    const photoIds = Object.keys(blobs);
     const db = backend.db;
     return idbTx(db, ['meta', 'vehicles', 'photos'], 'readwrite', tx => {
       const vehicles = tx.objectStore('vehicles');
@@ -552,10 +560,7 @@
       };
       vehicles.put({ id: vehicleId, data: split.data });
       if (activeId !== undefined) putMetaPreserving(tx, { activeId });
-      Object.keys(split.photos).forEach(id => {
-        const blob = dataUrlToBlob(split.photos[id]);
-        if (blob) tx.objectStore('photos').put({ id, blob });
-      });
+      photoIds.forEach(id => tx.objectStore('photos').put({ id, blob: blobs[id] }));
     }).then(() => ({ ok: true, photoIds, data: split.data }))
       .catch(e => ({ ok: false, error: e }));
   }

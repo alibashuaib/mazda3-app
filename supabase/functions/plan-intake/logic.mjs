@@ -82,6 +82,16 @@ export function parseRecalls(json, years) {
 
 export function diffDraft(live, proposed) {
   if (!live) return true;
-  const pick = o => JSON.stringify([o.interval_km ?? null, o.interval_months ?? null, o.note || '', o.parts || []]);
+  // Parts as tuples: jsonb hands back object keys in its own order, so stringifying the objects would differ.
+  const pick = o => JSON.stringify([o.interval_km ?? null, o.interval_months ?? null, o.note || '',
+    (o.parts || []).map(p => [p.name ?? '', p.part_no ?? '', p.qty ?? 1])]);
   return pick(live) !== pick(proposed);
+}
+
+/* Constant-time string compare: hashing first makes both sides the same length. */
+export async function safeEqual(a, b) {
+  const [x, y] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  return d === 0;
 }

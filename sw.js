@@ -45,6 +45,8 @@ self.addEventListener('fetch', e => {
         caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
       }
       return res;
-    }).catch(() => caches.match(req))
+    /* ignoreSearch: the dashboard asks for photos with a ?v= cache-buster,
+       but the precached default photo is stored under its bare URL. */
+    }).catch(() => caches.match(req, { ignoreSearch: true }))
   );
 });

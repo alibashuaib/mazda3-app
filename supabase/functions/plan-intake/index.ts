@@ -2,7 +2,7 @@
 // Secrets: ANTHROPIC_API_KEY, INTAKE_CRON_SECRET (required); INTAKE_MODEL (optional).
 // Never writes dealer_plan_items: only plan_drafts and pending recalls.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { SYSTEM_PROMPT, diffDraft, htmlToText, isPrivateIp, isSafeUrl, parseRecalls, parseSchedule, sha256Hex } from './logic.mjs';
+import { SYSTEM_PROMPT, diffDraft, htmlToText, isPrivateIp, isSafeUrl, parseRecalls, parseSchedule, safeEqual, sha256Hex } from './logic.mjs';
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret' };
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const admin = createClient(url, serviceKey);
 
     const secret = req.headers.get('x-cron-secret');
-    if (!(secret && secret === cron)) {                    // otherwise must be an admin's JWT
+    if (!(secret && await safeEqual(secret, cron))) {                    // otherwise must be an admin's JWT
       const userClient = createClient(url, anonKey, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } });
       const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
       const { data: u } = await userClient.auth.getUser(jwt);

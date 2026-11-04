@@ -495,6 +495,23 @@ test('migrateFromLocal drops a corrupt photo and warns, rather than blocking mig
   }
 });
 
+/* The caller queues res.photoIds for upload, so an id with no stored blob
+   would be uploaded from nothing and 404 on every other device. */
+test('saveVehicle on IndexedDB does not report a photo it could not store', async () => {
+  const s = freshStorage();
+  await s.openStorage({ protocol: 'https:', hasIndexedDb: true });
+  const origWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const res = await s.saveVehicle('v1', vehicleData('data:image/jpeg;base64,not-valid-base64!!!'), 'v1', makeId);
+    assert.strictEqual(res.ok, true);
+    assert.deepStrictEqual(res.photoIds, []);
+    assert.deepStrictEqual((await s.loadAll()).photos, {});
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
 test('wipe() succeeds on the localStorage backend too', async () => {
   const storage = freshStorage({ vehicles: [{ id: 'a', data: {} }], activeId: 'a' });
   await storage.openStorage({ protocol: 'file:', hasIndexedDb: false });
