@@ -18,6 +18,13 @@ test('RLS: table regex finds the known tables', () => {
   assert.strictEqual(tables.filter(t => t === 'app_errors').length, 1);
 });
 
+test('RLS: every supabase/tests/*.sql is named in the CI workflow', () => {
+  const yml = fs.readFileSync(path.join(root, '.github/workflows/test.yml'), 'utf8');
+  for (const f of fs.readdirSync(path.join(root, 'supabase/tests')).filter(f => f.endsWith('.sql'))) {
+    assert.ok(yml.includes(f), f + ' is not run by .github/workflows/test.yml');
+  }
+});
+
 test('RLS: every create table has enable row level security', () => {
   for (const name of tables) {
     const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
