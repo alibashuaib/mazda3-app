@@ -854,6 +854,11 @@ create or replace function public.app_errors_before_insert() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if auth.role() in ('anon', 'authenticated') then
+    -- Clients cannot pick a source: forcing 'client' keeps the cap below
+    -- un-bypassable and stops spoofed edge-function rows. Only service_role
+    -- may write other sources.
+    new.source := 'client';
+    perform pg_advisory_xact_lock(hashtext('app_errors_client_cap'));
     if (select count(*) from public.app_errors
          where source = 'client' and created_at > now() - interval '1 hour') >= 500 then
       raise exception 'rate limited';

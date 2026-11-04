@@ -1,0 +1,26 @@
+'use strict';
+/* ==== RLS coverage — static guards on schema.sql and the CI workflow ====
+ * No Postgres here (supabase/tests/*.sql hold the real policy checks, run by
+ * the `rls` CI job). These tests only stop two silent regressions: a new
+ * table shipped without row level security, and a SQL test file CI never runs.
+ */
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.join(__dirname, '..');
+const schema = fs.readFileSync(path.join(root, 'supabase/schema.sql'), 'utf8');
+const tables = [...schema.matchAll(/create table (?:if not exists )?public\.([a-z_]+)/g)].map(m => m[1]);
+
+test('RLS: table regex finds the known tables', () => {
+  assert.ok(tables.length >= 16, 'found only ' + tables.length + ' tables; regex broken?');
+  assert.strictEqual(tables.filter(t => t === 'app_errors').length, 1);
+});
+
+test('RLS: every create table has enable row level security', () => {
+  for (const name of tables) {
+    const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
+    assert.ok(re.test(schema), 'table ' + name + ' lacks enable row level security');
+  }
+});
