@@ -75,6 +75,7 @@ const SCRIPTS = [
   'src/core/schedule.js',
   'src/data/storage.js',
   'src/data/normalize.js',
+  'src/data/error-log.js',
   'src/data/session.js',
   'src/data/status.js',
   'src/data/account.js',
