@@ -2,20 +2,19 @@
 // Secrets: ANTHROPIC_API_KEY (required), BILL_MODEL (optional, default below).
 // Deploy: supabase functions deploy read-bill; supabase secrets set ANTHROPIC_API_KEY=...
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { allowedOrigins, corsDecision } from '../_shared/cors.mjs';
 import { DAILY_CAP, SYSTEM_PROMPT, fingerprint, parseBill, sha256Hex, storeKey, validateImage } from './logic.mjs';
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 const MAX_BODY = 2_200_000;
 
 Deno.serve(async (req) => {
   try {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+    // Origin gate first: foreign/null Origin never reaches OPTIONS, auth or the paid model (D-13/D-14/D-16).
+    const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
+    if (!cors.ok) return new Response('forbidden', { status: 403 });
+    const json = (status: number, body: unknown) =>
+      new Response(JSON.stringify(body), { status, headers: { ...cors.headers, 'Content-Type': 'application/json' } });
+    if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: cors.headers });
     if (req.method !== 'POST') return json(405, { error: 'method' });
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
     const url = Deno.env.get('SUPABASE_URL');

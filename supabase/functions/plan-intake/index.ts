@@ -2,10 +2,9 @@
 // Secrets: ANTHROPIC_API_KEY, INTAKE_CRON_SECRET (required); INTAKE_MODEL (optional).
 // Never writes dealer_plan_items: only plan_drafts and pending recalls.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { allowedOrigins, corsDecision } from '../_shared/cors.mjs';
 import { SYSTEM_PROMPT, diffDraft, htmlToText, isPrivateIp, isSafeUrl, parseRecalls, parseSchedule, safeEqual, sha256Hex } from './logic.mjs';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret' };
-const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 const MAX_PDF = 8_000_000;
 
 // A public-looking hostname must not resolve to a private address (DNS rebinding). Not airtight
@@ -49,7 +48,11 @@ async function readBody(r: Response) {
 
 Deno.serve(async (req) => {
   try {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+    // Origin gate first: foreign/null Origin never reaches OPTIONS, auth or the paid model (D-13/D-14/D-16).
+    const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
+    if (!cors.ok) return new Response('forbidden', { status: 403 });
+    const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...cors.headers, 'Content-Type': 'application/json' } });
+    if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: cors.headers });
     if (req.method !== 'POST') return json(405, { error: 'method' });
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY'), url = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY'), serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
