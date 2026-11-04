@@ -167,6 +167,44 @@ test('safeFetch: robots matrix', async () => {
   assert.strictEqual((await go(null)).error, 'robots');          // network error on robots.txt
 });
 
+test('robots: pathological wildcard pattern on a long path returns quickly', async () => {
+  const { safeFetch, DEFAULT_POLICY } = await loadSF();
+  const R = 'https://a.example.com/robots.txt', P = 'https://a.example.com/' + 'a'.repeat(900);
+  const bad = 'Disallow: /' + '*a'.repeat(200) + 'b$';
+  const t0 = Date.now();
+  const r = await safeFetch(P, DEFAULT_POLICY, mk({ [P]: { headers: HTML, body: 'ok' }, [R]: { headers: { 'content-type': 'text/plain' }, body: 'User-agent: *\n' + bad } }).deps);
+  assert.ok(Date.now() - t0 < 500, 'took ' + (Date.now() - t0));
+  assert.strictEqual(r.ok, true);                                  // pattern cannot match, so allowed
+});
+
+test('robots: wildcard and anchor semantics, longest match wins', async () => {
+  const { safeFetch, DEFAULT_POLICY } = await loadSF();
+  const R = 'https://a.example.com/robots.txt';
+  const go = async (path, body) => (await safeFetch('https://a.example.com' + path, DEFAULT_POLICY,
+    mk({ ['https://a.example.com' + path]: { headers: HTML, body: 'ok' }, [R]: { headers: { 'content-type': 'text/plain' }, body } }).deps)).ok;
+  assert.strictEqual(await go('/a/file.pdf', 'User-agent: *\nDisallow: /*.pdf$'), false);
+  assert.strictEqual(await go('/a/file.pdf?x=1', 'User-agent: *\nDisallow: /*.pdf$'), true);
+  assert.strictEqual(await go('/a/b', 'User-agent: *\nDisallow: /a/*/x'), true);
+  assert.strictEqual(await go('/a/q/x/y', 'User-agent: *\nDisallow: /a/*/x'), false);
+  assert.strictEqual(await go('/a/b', 'User-agent: *\nDisallow: /a\nAllow: /a/b'), true);
+});
+
+test('dns resolveAll: only NotFound is empty; other errors fail closed', async () => {
+  const { resolveAll } = await import(url.pathToFileURL(path.join(fnDir, '_shared', 'dns-logic.mjs')).href);
+  class NotFound extends Error {}
+  const isNF = (e) => e instanceof NotFound;
+  const fake = (m) => async (h, t) => { const v = m[t]; if (v instanceof Error) throw v; return v; };
+  assert.deepStrictEqual(await resolveAll(fake({ A: ['1.2.3.4'], AAAA: new NotFound() }), isNF, 'h'), ['1.2.3.4']);
+  assert.strictEqual(await resolveAll(fake({ A: new Error('SERVFAIL'), AAAA: ['2606:4700::1111'] }), isNF, 'h'), null);
+  assert.deepStrictEqual(await resolveAll(fake({ A: new NotFound(), AAAA: new NotFound() }), isNF, 'h'), []);
+  // and safeFetch blocks on both null and the empty answer
+  const { safeFetch, DEFAULT_POLICY } = await loadSF();
+  for (const ans of [null, []]) {
+    const r = await safeFetch(A, { ...DEFAULT_POLICY, respectRobots: false }, { fetch: async () => { throw new Error('no'); }, resolve: async () => ans });
+    assert.deepStrictEqual(r, { ok: false, error: 'blocked' });
+  }
+});
+
 test('safeFetch: never throws on a throwing fetch', async () => {
   const { safeFetch, DEFAULT_POLICY } = await loadSF();
   const r = await safeFetch(A, { ...DEFAULT_POLICY, respectRobots: false }, { fetch: async () => { throw new Error('boom'); }, resolve: async () => PUB });

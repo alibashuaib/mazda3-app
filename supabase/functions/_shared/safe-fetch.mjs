@@ -127,11 +127,30 @@ function robotsPermit(txt, path, ua) {
   }
   const mine = groups.filter(g => g.agents.some(a => a !== '*' && me.includes(a)));
   const use = mine.length ? mine : groups.filter(g => g.agents.includes('*'));
-  let best = -1, allow = true;
+  let best = -1, allow = true, seen = 0;
+  const p = path.slice(0, MAX_PATH);
   for (const g of use) for (const [ok, pat] of g.rules) {
-    if (!pat) continue;                                     // empty Disallow = allow all
-    const re = new RegExp('^' + pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'));
-    if (re.test(path) && (pat.length > best || (pat.length === best && ok))) { best = pat.length; allow = ok; }
+    if (!pat || pat.length > MAX_PATTERN) continue;         // empty Disallow = allow all; oversized rule ignored
+    if (++seen > MAX_RULES) return allow;                   // attacker-controlled file: bound the work
+    if (globMatch(pat, p) && (pat.length > best || (pat.length === best && ok))) { best = pat.length; allow = ok; }
   }
   return allow;
+}
+
+const MAX_PATTERN = 512, MAX_RULES = 500, MAX_PATH = 1024;
+
+/* Linear-backtracking glob (no RegExp, so no ReDoS): '*' matches any run, trailing '$' anchors the end,
+   otherwise the pattern is a prefix match. Greedy two-pointer: remember only the last '*'. */
+function globMatch(pat, s) {
+  const anchored = pat.endsWith('$');
+  let g = (anchored ? pat.slice(0, -1) : pat + '*').replace(/\*+/g, '*');
+  let i = 0, j = 0, star = -1, mark = 0;
+  while (i < s.length) {
+    if (j < g.length && g[j] === '*') { star = j++; mark = i; }
+    else if (j < g.length && g[j] === s[i]) { i++; j++; }
+    else if (star >= 0) { j = star + 1; i = ++mark; }
+    else return false;
+  }
+  while (j < g.length && g[j] === '*') j++;
+  return j === g.length;
 }
