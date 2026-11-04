@@ -24,16 +24,25 @@
   let env = fresh();
   let sent = 0, seen = new Set(), buffer = [], hour = null;
 
+  // message/stack are untrusted free text: strip URL queries/fragments, auth
+  // params, emails and opaque token shapes before anything leaves the device.
   const scrub = text => String(text == null ? '' : text)
+    .replace(/(https?:\/\/[^\s?#"')]*)[?#][^\s"')]*/gi, '$1')
+    .replace(/\b(access_token|refresh_token|provider_token|code)=[^\s&"')]*/gi, '$1=[redacted]')
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/g, '[redacted]')
     .replace(/sk-[A-Za-z0-9_-]{8,}/g, '[redacted]')
-    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, '[redacted]');
+    .replace(/\bsb_[A-Za-z0-9_-]{8,}/g, '[redacted]')
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, '[redacted]')
+    .replace(/[A-Za-z0-9+/_-]{32,}={0,2}/g, '[redacted]');
   const clip = (v, n) => scrub(v).slice(0, n);
+  // Routes are page names only; anything carrying params or tokens is dropped.
+  const safeRoute = r => { const m = String(r == null ? '' : r).match(/^#\/?[A-Za-z0-9_-]{0,40}/); const s = m ? m[0] : ''; return /token/i.test(s) ? '' : s; };
 
   function buildRow(input, ctx) {
     const i = input || {}, c = ctx || {};
     const row = { source: 'client', message: clip(i.message, MESSAGE_MAX) || 'unknown error' };
     row.stack = i.stack ? clip(i.stack, STACK_MAX) : null;
-    row.route = i.route ? clip(i.route, ROUTE_MAX) : null;
+    row.route = safeRoute(i.route) || null;
     row.app_version = clip(c.appVersion || 'unknown', VERSION_MAX);
     return row;
   }
@@ -81,5 +90,5 @@
   }
   function reset() { env = fresh(); sent = 0; seen = new Set(); buffer = []; hour = null; try { localStorage.removeItem(HOUR_KEY); } catch (e) {} }
 
-  return { report, configure, reset, scrub, buildRow };
+  return { report, configure, reset, scrub, buildRow, safeRoute };
 });

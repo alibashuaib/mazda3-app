@@ -77,9 +77,29 @@ test('errorLog throttles to 20 rows per hour', async () => {
 test('scrub redacts sk- tokens and JWTs; fields are truncated', () => {
   const s = errorLog.scrub('key sk-abcdefgh12345 jwt eyJhbGci.eyJzdWIi.sig_1');
   assert.equal(s, 'key [redacted] jwt [redacted]');
-  const row = errorLog.buildRow({ message: 'm'.repeat(600), stack: 's'.repeat(3000) }, {});
+  const row = errorLog.buildRow({ message: 'm '.repeat(300), stack: 's '.repeat(1500) }, {});
   assert.equal(row.message.length, 500);
   assert.equal(row.stack.length, 2000);
+});
+
+test('scrub redaction table', () => {
+  const cases = [
+    ['mail bob@example.com now', 'mail [redacted] now'],
+    ['GET https://x.co/a/b?token=1&u=2 failed', 'GET https://x.co/a/b failed'],
+    ['at https://x.co/p#access_token=zz end', 'at https://x.co/p end'],
+    ['refresh_token=abc123 seen', 'refresh_token=[redacted] seen'],
+    ['provider_token=q&code=w', 'provider_token=[redacted]&code=[redacted]'],
+    ['key sb_secret_abcdef123', 'key [redacted]'],
+    ['blob ' + 'a'.repeat(40), 'blob [redacted]'],
+    ['hex ' + 'ab12'.repeat(10), 'hex [redacted]']
+  ];
+  for (const [inp, out] of cases) assert.equal(errorLog.scrub(inp), out, inp);
+});
+
+test('route is trimmed to a safe page name', () => {
+  assert.equal(errorLog.buildRow({ message: 'm', route: '#/admin?x=1' }, {}).route, '#/admin');
+  assert.equal(errorLog.buildRow({ message: 'm', route: '#access_token=abc&refresh_token=def' }, {}).route, null);
+  assert.equal(errorLog.buildRow({ message: 'm', route: '#/fuel' }, {}).route, '#/fuel');
 });
 
 test('errorLog buffers before configure (max 20) and flushes once on configure', async () => {

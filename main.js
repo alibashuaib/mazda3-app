@@ -543,7 +543,7 @@ if (typeof window !== 'undefined') {
   });
   window.addEventListener('unhandledrejection', ev => {
     const r = ev && ev.reason;
-    errorLog.report({ source: 'client', message: (r && r.message) || (typeof r === 'string' ? r : 'unhandled rejection'), stack: r && r.stack });
+    errorLog.report({ source: 'client', message: r instanceof Error ? r.message : 'unhandled rejection (' + (r === null ? 'null' : typeof r) + ')', stack: r instanceof Error ? r.stack : undefined });
   });
 }
 
@@ -581,7 +581,7 @@ const canSignIn = location.protocol !== 'file:';
 function connectBackend() {
   const client = supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY);
   account.configure({ client });
-  errorLog.configure({ client, route: () => String(location.hash || '').split('/').slice(0, 2).join('/') });
+  errorLog.configure({ client, route: () => (String(location.hash || '').match(/^#\/?[A-Za-z0-9_-]{0,40}/) || [''])[0] });
   appVersionFromCaches().then(v => { errorLog.configure({ appVersion: v }); relayPrecacheReport(); });
   const signedIn = () => !!account.user();
   pricing.configure({ client, signedIn });
