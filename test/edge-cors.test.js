@@ -46,3 +46,14 @@ test('CORS: allowedOrigins trims and drops empties', async () => {
   const { allowedOrigins } = await load();
   assert.deepStrictEqual(allowedOrigins(' http://a.test , ,http://b.test'), [PROD, 'http://a.test', 'http://b.test']);
 });
+
+test('CORS: edge sources have no wildcard ACAO and gate before OPTIONS/auth', () => {
+  for (const f of ['plan-intake', 'read-bill']) {
+    const src = fs.readFileSync(path.join(fnDir, f, 'index.ts'), 'utf8');
+    assert.ok(!/Access-Control-Allow-Origin['"]?\s*:\s*['"]\*/.test(src), f + ' has wildcard ACAO');
+    const gate = src.indexOf('corsDecision(');
+    assert.ok(gate > 0, f + ' missing corsDecision');
+    assert.ok(gate < src.indexOf("=== 'OPTIONS'"), f + ' gate after OPTIONS');
+    assert.ok(gate < src.indexOf('getUser'), f + ' gate after auth');
+  }
+});
