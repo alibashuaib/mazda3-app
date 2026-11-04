@@ -110,10 +110,59 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| FND-01 | Phase 1 | Pending |
+| FND-02 | Phase 1 | Pending |
+| FND-03 | Phase 1 | Pending |
+| FND-04 | Phase 1 | Pending |
+| FND-05 | Phase 1 | Pending |
+| FND-06 | Phase 1 | Pending |
+| FND-07 | Phase 1 | Pending |
+| FND-08 | Phase 1 | Pending |
+| FND-09 | Phase 1 | Pending |
+| FND-10 | Phase 1 | Pending |
+| FND-11 | Phase 1 | Pending |
+| CORE-01 | Phase 2 | Pending |
+| CORE-02 | Phase 2 | Pending |
+| CORE-03 | Phase 2 | Pending |
+| CORE-04 | Phase 2 | Pending |
+| CORE-05 | Phase 2 | Pending |
+| CORE-06 | Phase 2 | Pending |
+| CORE-07 | Phase 2 | Pending |
+| REV-01 | Phase 2 | Pending |
+| REV-02 | Phase 2 | Pending |
+| REV-03 | Phase 2 | Pending |
+| REV-04 | Phase 2 | Pending |
+| REV-05 | Phase 2 | Pending |
+| REV-06 | Phase 2 | Pending |
+| REV-09 | Phase 2 | Pending |
+| ENG-01 | Phase 3 | Pending |
+| ENG-02 | Phase 3 | Pending |
+| ENG-03 | Phase 3 | Pending |
+| ENG-04 | Phase 3 | Pending |
+| ENG-05 | Phase 3 | Pending |
+| ENG-06 | Phase 3 | Pending |
+| ENG-07 | Phase 3 | Pending |
+| ENG-08 | Phase 3 | Pending |
+| ENG-09 | Phase 3 | Pending |
+| SCH-01 | Phase 3 | Pending |
+| SCH-02 | Phase 3 | Pending |
+| SCH-03 | Phase 3 | Pending |
+| SCH-04 | Phase 3 | Pending |
+| SCH-05 | Phase 3 | Pending |
+| REV-07 | Phase 3 | Pending |
+| REV-08 | Phase 3 | Pending |
+| PRT-01 | Phase 4 | Pending |
+| PRT-02 | Phase 4 | Pending |
+| PRT-03 | Phase 4 | Pending |
+| COM-01 | Phase 4 | Pending |
+| COM-02 | Phase 4 | Pending |
+| COM-03 | Phase 4 | Pending |
+| NEW-01 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 48 total
-- Mapped to phases: 0 (filled by roadmap)
+- Mapped to phases: 48
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-11-05*
