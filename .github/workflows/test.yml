@@ -24,7 +24,7 @@ jobs:
       # Catches syntax errors in every shipped file. The suite parses the
       # modules it requires, but nothing loads app.js or sw.js, and a broken
       # app.js has twice passed a fully green suite.
-      - run: find . -name '*.js' -not -path './node_modules/*' -not -path './test/*' -print0 | xargs -0 -n1 node --check
+      - run: find . \( -name '*.js' -o -name '*.mjs' \) -not -path './node_modules/*' -not -path './test/*' -print0 | xargs -0 -n1 node --check
 
   # A real browser, because the Node suite runs against linkedom and therefore
   # cannot load the app the way a user does, cannot reproduce the real HTML
@@ -40,3 +40,28 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  # Real Postgres (Supabase local stack) so RLS policy regressions fail the
+  # build (FND-04). The allowlist is explicit on purpose: adding a SQL test is
+  # a conscious CI change, and test/rls-coverage.test.js fails if one is missing.
+  rls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          # Pinned 2026-11-05 (npm "supabase" latest at that date); bump deliberately.
+          version: 3.0.0
+      - run: supabase start
+      - name: Export DB URL
+        run: echo "DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/schema.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/seed-catalogue.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/app-errors-rls.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/bills.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/guidance.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/qualified-users.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/repair-stats.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/shops-rls.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/catalogue-rls.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -v fixture="$(cat test/fixtures/shop-norm.json)" -f supabase/tests/shop-norm.sql
