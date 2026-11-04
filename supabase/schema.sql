@@ -824,3 +824,72 @@ begin
          decided_by = auth.uid(), decided_at = now() where id = p_id;
 end $$;
 revoke execute on function public.decide_plan_draft(bigint, boolean, jsonb) from anon;
+
+-- ============================================================================
+-- Error log (FND-02, D-02..D-07)
+-- Clients (anon or signed in) can only INSERT; only an admin reads or resolves.
+-- No column for vehicle or record data (D-03). source is shared by the client
+-- logger and edge functions (D-05). Re-runnable.
+-- ============================================================================
+create table if not exists public.app_errors (
+  id          bigint generated always as identity primary key,
+  created_at  timestamptz not null default now(),
+  source      text not null check (source ~ '^[a-z0-9][a-z0-9-]{0,39}$'),
+  message     text not null check (char_length(message) between 1 and 500),
+  stack       text check (char_length(stack) <= 2000),
+  route       text check (char_length(route) <= 120),
+  app_version text check (char_length(app_version) <= 40),
+  user_id     uuid references auth.users on delete set null,
+  group_key   text not null,
+  resolved_at timestamptz
+);
+create index if not exists app_errors_created_idx on public.app_errors (created_at);
+create index if not exists app_errors_group_idx on public.app_errors (group_key);
+
+-- The anon key is public, so cap client inserts globally per hour. Only
+-- source='client' rows count: service-role edge-function errors must never use
+-- up the budget and silence client logging. user_id/group_key are always
+-- overwritten here, never trusted from the client.
+create or replace function public.app_errors_before_insert() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.role() in ('anon', 'authenticated') then
+    if (select count(*) from public.app_errors
+         where source = 'client' and created_at > now() - interval '1 hour') >= 500 then
+      raise exception 'rate limited';
+    end if;
+  end if;
+  new.user_id := auth.uid();
+  new.group_key := md5(new.source || '|' || left(regexp_replace(lower(new.message),
+    '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9]+', '#', 'g'), 200));
+  return new;
+end $$;
+drop trigger if exists app_errors_before_insert on public.app_errors;
+create trigger app_errors_before_insert before insert on public.app_errors
+  for each row execute function public.app_errors_before_insert();
+
+alter table public.app_errors enable row level security;
+revoke all on public.app_errors from anon, authenticated;
+grant insert (source, message, stack, route, app_version) on public.app_errors to anon, authenticated;
+drop policy if exists anon_insert_app_errors on public.app_errors;
+create policy anon_insert_app_errors on public.app_errors for insert to anon, authenticated with check (true);
+grant select (id, created_at, source, message, stack, route, app_version, user_id, group_key, resolved_at)
+  on public.app_errors to authenticated;
+drop policy if exists admin_read_app_errors on public.app_errors;
+create policy admin_read_app_errors on public.app_errors for select to authenticated using (public.is_admin());
+grant update (resolved_at) on public.app_errors to authenticated;
+drop policy if exists admin_resolve_app_errors on public.app_errors;
+create policy admin_resolve_app_errors on public.app_errors for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+-- 90-day retention (D-04). Skipped where pg_cron is unavailable (e.g. CI).
+do $$ begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+    if exists (select 1 from cron.job where jobname = 'app-errors-retention') then
+      perform cron.unschedule('app-errors-retention');
+    end if;
+    perform cron.schedule('app-errors-retention', '17 3 * * *',
+      $job$delete from public.app_errors where created_at < now() - interval '90 days'$job$);
+  end if;
+end $$;
