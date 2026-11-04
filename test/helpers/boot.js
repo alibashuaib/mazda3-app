@@ -88,6 +88,7 @@ const SCRIPTS = [
   'src/data/remote-catalog.js',
   'src/data/admin.js',
   'src/core/async-click.js',
+  'src/data/car-photos.js',
   'src/pages/dashboard.js',
   'src/pages/maintenance.js',
   'src/pages/parts.js',
