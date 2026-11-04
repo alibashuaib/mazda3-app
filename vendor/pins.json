@@ -1,0 +1,9 @@
+{
+  "supabase.js": {
+    "package": "@supabase/supabase-js",
+    "version": "2.58.0",
+    "sha256": "3ae8cfec4a4715f4e67aa45fe4e7c1a40d67787629c7f10e32afd7dd836edf4e",
+    "bytes": 136992,
+    "source": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"
+  }
+}
