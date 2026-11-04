@@ -533,6 +533,39 @@ document.documentElement.setAttribute('lang', lang);
 document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
 applyNavLabels();
 
+/* Silent crash reporting (D-10: no toast, no console). Attached this early so
+   errors before connectBackend() are buffered by errorLog (max 20) and flushed
+   when it is configured. */
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', ev => {
+    const e = ev && ev.error;
+    errorLog.report({ source: 'client', message: (ev && ev.message) || (e && e.message) || 'window error', stack: e && e.stack });
+  });
+  window.addEventListener('unhandledrejection', ev => {
+    const r = ev && ev.reason;
+    errorLog.report({ source: 'client', message: r instanceof Error ? r.message : 'unhandled rejection (' + (r === null ? 'null' : typeof r) + ')', stack: r instanceof Error ? r.stack : undefined });
+  });
+}
+
+/* Cache name written by the service worker (garage-<12 hex>) doubles as the build id. */
+function appVersionFromCaches() {
+  if (typeof caches === 'undefined') return Promise.resolve('unknown');
+  return caches.keys().then(keys => keys.find(k => /^garage-[0-9a-f]{12}$/.test(k)) || 'unknown').catch(() => 'unknown');
+}
+
+/* Relay of the precache report the service worker leaves in garage-meta (D-20):
+   log once, then delete. Never blocks boot; every failure is swallowed. */
+function relayPrecacheReport() {
+  if (typeof caches === 'undefined' || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+  Promise.resolve().then(() => caches.open('garage-meta')).then(cache =>
+    cache.match('/__precache-report').then(res => res ? res.json() : null).then(urls => {
+      if (!Array.isArray(urls) || !urls.length) return;
+      errorLog.report({ source: 'client', message: 'precache missing: ' + urls.join(', ') });
+      return cache.delete('/__precache-report');
+    })
+  ).catch(() => {});   // silent: this is diagnostics only
+}
+
 /* session.js emits its failure messages untranslated; t() here is what keeps
    the Arabic save-failure toasts working. */
 session.configure({
@@ -548,6 +581,8 @@ const canSignIn = location.protocol !== 'file:';
 function connectBackend() {
   const client = supabase.createClient(account.SUPABASE_URL, account.SUPABASE_ANON_KEY);
   account.configure({ client });
+  errorLog.configure({ client, route: () => (String(location.hash || '').match(/^#\/?[A-Za-z0-9_-]{0,40}/) || [''])[0] });
+  appVersionFromCaches().then(v => { errorLog.configure({ appVersion: v }); relayPrecacheReport(); });
   const signedIn = () => !!account.user();
   pricing.configure({ client, signedIn });
   insights.configure({ client, metaGet, metaSet, signedIn });

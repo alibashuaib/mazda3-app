@@ -9,7 +9,7 @@ const ASSETS = [
   './src/core/helpers.js', './src/ui/html.js', './src/ui/modal.js', './src/ui/photo.js', './src/ui/shop-field.js', './src/ui/shop-feedback.js',
   './src/ui/color.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js',
   './src/i18n/lang.js', './src/core/schedule.js', './src/data/storage.js', './src/data/normalize.js',
-  './src/data/session.js', './src/data/status.js', './vendor/supabase.js', './src/data/account.js',
+  './src/data/error-log.js', './src/data/session.js','./src/data/status.js', './vendor/supabase.js', './src/data/account.js',
   './src/data/pricing.js', './src/data/insights.js', './src/data/shops.js', './src/data/bills.js', './src/data/repairable.js', './src/data/guidance.js', './src/data/recalls.js', './src/data/remote-catalog.js', './src/data/admin.js', './src/core/async-click.js', './src/data/car-photos.js', './src/pages/dashboard.js',
   './src/pages/maintenance.js', './src/pages/parts.js', './src/pages/fuel.js',
   './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js', './src/pages/admin.js',
