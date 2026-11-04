@@ -13,6 +13,12 @@ const root = path.join(__dirname, '..');
 const pin = JSON.parse(fs.readFileSync(path.join(root, 'vendor', 'pins.json'), 'utf8'))['supabase.js'];
 const MSG = 'vendor/supabase.js changed without updating vendor/pins.json and vendor/README.md; update both in the same change';
 
+test('vendor/README.md states the pinned version and sha256', () => {
+  const readme = fs.readFileSync(path.join(root, 'vendor', 'README.md'), 'utf8');
+  assert.ok(readme.includes(pin.version), 'README missing pinned version; ' + MSG);
+  assert.ok(readme.includes(pin.sha256), 'README missing pinned sha256; ' + MSG);
+});
+
 test('vendor/supabase.js matches its sha256 and byte pin', () => {
   const buf = fs.readFileSync(path.join(root, 'vendor', 'supabase.js'));
   assert.strictEqual(createHash('sha256').update(buf).digest('hex'), pin.sha256, MSG);
