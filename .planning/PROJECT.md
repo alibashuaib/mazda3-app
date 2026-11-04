@@ -41,7 +41,8 @@ New and changed catalogue data (schedules, parts, prices, photos) arrives in the
 - [ ] `AGENTS.md` trimmed to project-relevant content
 
 **Autopilot catalogue (Mazda):**
-- [ ] Monthly run discovers new Mazda models/generations/engines and proposes them as draft `car_models`
+- [ ] Monthly run reviews every existing Mazda catalogue car (16 models: Mazda 2, 3 BM/BP, 6, CX-3, CX-30, CX-5 KE/KF/gen3, CX-9 TB/TC, CX-50, CX-60, CX-70, CX-80, CX-90): checks its schedule, parts, prices and photos against current sources and proposes corrections
+- [ ] Monthly run also flags new Mazda models/generations/engines as draft `car_models` (secondary to reviewing existing cars)
 - [ ] Autopilot finds official dealer schedule sources itself (web search), no manual URL entry required
 - [ ] Autopilot proposes dealer OEM parts (name, part number, fitment) per model
 - [ ] Autopilot proposes community data: common failures and cheaper alternatives from owner forums/groups
