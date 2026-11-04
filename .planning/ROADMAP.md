@@ -71,7 +71,7 @@ Harden the app first (autopilot adds server code and renders scraped content), t
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Reliable & Safe Foundation | 0/? | Not started | - |
+| 1. Reliable & Safe Foundation | 4/11 | In Progress|  |
 | 2. Proposal Gate & Review Queue | 0/? | Not started | - |
 | 3. Monthly Autopilot for Schedules & Recalls | 0/? | Not started | - |
 | 4. Parts, Prices, Community & New Models | 0/? | Not started | - |
