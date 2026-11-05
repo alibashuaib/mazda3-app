@@ -487,7 +487,9 @@ const AR = {
   'Approve {target}': 'اعتماد {target}', 'Schedule item': 'بند جدول الصيانة',
   'Car': 'السيارة', 'Kind': 'النوع', 'Confidence': 'الثقة', 'Run': 'التشغيل', 'Clear filters': 'مسح المرشحات',
   'No proposals match these filters': 'لا توجد مقترحات تطابق هذه المرشحات',
-  'Edit {target}': 'تعديل {target}', 'Approve edited value': 'اعتماد القيمة المعدّلة', 'Live value changed': 'تغيّرت القيمة الحالية',
+  'Edit {target}': 'تعديل {target}', 'Approve edited value': 'اعتماد القيمة المعدّلة', 'Reject {target}': 'رفض {target}', 'Reason (optional)': 'السبب (اختياري)',
+  'Why is this wrong or not useful?': 'لماذا هذا خاطئ أو غير مفيد؟', 'Reject proposal': 'رفض المقترح', 'Rejected': 'تم الرفض',
+  'Live value changed': 'تغيّرت القيمة الحالية',
   'The live value is now {live}. Reject this proposal or edit it against the live value.': 'القيمة الحالية الآن {live}. ارفض هذا المقترح أو عدّله بناءً على القيمة الحالية.'
 };
 

@@ -212,6 +212,14 @@
       .catch(() => ({ ok: false, error: 'failed' }));
   }
 
+  /* Never rejects. Empty reason is sent as null. */
+  function rejectProposal(id, reason) {
+    const r = String(reason || '').trim();
+    return Promise.resolve().then(() => env.client.rpc('reject_proposal', { p_id: id, p_reason: r || null }))
+      .then(res => (!res || res.error) ? { ok: false, error: 'failed' } : { ok: true })
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+
   /* Pure, in-memory filters over the one bounded fetch. Empty criterion = no filter. */
   function filterProposals(rows, f) {
     f = f || {};
@@ -229,7 +237,7 @@
   }
 
   return {
-    listProposals, applyProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
+    listProposals, applyProposal, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
     listErrors, resolveGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount,
     listModels, loadModel, saveWarranty, saveItem, approve,

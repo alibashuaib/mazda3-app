@@ -10,7 +10,7 @@ function stub(state) {
     auth: { getSession: () => Promise.resolve({ data: { session: null }, error: null }) },
     rpc: (name, args) => {
       state.rpc.push([name, args]);
-      if (name === 'apply_proposal' && !state.rpcResult[name]) state.proposals = state.proposals.filter(p => p.id !== args.p_id);
+      if ((name === 'apply_proposal' || name === 'reject_proposal') && !state.rpcResult[name]) state.proposals = state.proposals.filter(p => p.id !== args.p_id);
       return Promise.resolve(state.rpcResult[name] || { data: { ok: true, change_id: 1 }, error: null });
     },
     functions: { invoke: () => Promise.resolve({ data: {}, error: null }) },
@@ -216,5 +216,41 @@ test('stale approve shows the live value, keeps the row, edit uses the live hash
     btn(app, 'Approve edited value').onclick();
     assert.ok(await until(() => s.rpc.length === 2));
     assert.strictEqual(s.rpc[1][1].p_seen_hash, 'h1');
+  } finally { app.cleanup(); }
+});
+
+test('Reject shows a reason box, sends the text, and the row leaves', async () => {
+  const { app, s } = await open({ proposals: [prop()] });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick();
+    const rb = btn(app, 'Reject');
+    assert.strictEqual(rb.className, 'btn ghost reject');
+    assert.strictEqual(rb.getAttribute('aria-label'), 'Reject Engine Oil');
+    rb.onclick();
+    const ta = app.document.querySelector('#view textarea[data-k=reason]');
+    assert.strictEqual(ta.getAttribute('maxlength'), '300');
+    assert.strictEqual(ta.getAttribute('placeholder'), 'Why is this wrong or not useful?');
+    ta.value = 'dup';
+    btn(app, 'Reject proposal').onclick();
+    assert.ok(await until(() => s.rpc.length === 1));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(s.rpc[0])), ['reject_proposal', { p_id: 7, p_reason: 'dup' }]);
+    assert.ok(await until(() => !row(app)));
+  } finally { app.cleanup(); }
+});
+
+test('Reject failure keeps the row; reason and submitter note stay inert text', async () => {
+  const { app, s } = await open({ proposals: [prop({ reason: EVIL })], rpcResult: { reject_proposal: { data: null, error: { message: 'x' } } } });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick();
+    assert.strictEqual(app.document.querySelector('#view .proposal-panel img'), null);
+    btn(app, 'Reject').onclick();
+    app.document.querySelector('#view textarea[data-k=reason]').value = EVIL;
+    btn(app, 'Reject proposal').onclick();
+    assert.ok(await until(() => /Could not save/.test(text(app.document))));
+    assert.strictEqual(s.rpc[0][1].p_reason, EVIL);
+    assert.ok(row(app));
+    assert.strictEqual(app.document.querySelector('#view img'), null);
   } finally { app.cleanup(); }
 });

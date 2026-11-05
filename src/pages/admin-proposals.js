@@ -145,7 +145,10 @@ function proposalRow(p, models, refresh) {
   const edit = el('button', 'btn ghost'); edit.type = 'button';
   edit.textContent = t('Edit');
   edit.setAttribute('aria-label', t('Edit {target}').replace('{target}', p.target_key));
-  actions.append(approve, edit);
+  const rej = el('button', 'btn ghost reject'); rej.type = 'button';
+  rej.textContent = t('Reject');
+  rej.setAttribute('aria-label', t('Reject {target}').replace('{target}', p.target_key));
+  actions.append(approve, edit, rej);
 
   const form = el('div', 'proposal-edit');
   form.hidden = true;
@@ -174,7 +177,28 @@ function proposalRow(p, models, refresh) {
     form.hidden = false;
   };
 
-  panel.append(diff, why, src, actions, form);
+  // Inline two-step reject (no modal): the reason is optional, capped at 300 like the DB.
+  const rform = el('div', 'proposal-reject');
+  rform.hidden = true;
+  rej.onclick = () => {
+    rform.textContent = '';
+    const ta = field('Reason (optional)', html`<textarea data-k="reason" rows="2" maxlength="300" placeholder="${t('Why is this wrong or not useful?')}"></textarea>`);
+    const go = el('button', 'btn ghost reject'); go.type = 'button'; go.textContent = t('Reject proposal');
+    const cancel = el('button', 'btn ghost'); cancel.type = 'button'; cancel.textContent = t('Cancel');
+    cancel.onclick = () => { rform.hidden = true; };
+    onAsyncClick(go, async () => {
+      clearMsgs();
+      const r = await catalogAdmin.rejectProposal(p.id, ta.querySelector('textarea').value);
+      if (r.ok) { toast(t('Rejected')); return refresh(); }
+      const err = el('p', 'muted save-error'); err.setAttribute('role', 'alert');
+      err.textContent = t('Could not save. Check your connection.');
+      panel.appendChild(err);
+    });
+    rform.append(ta, go, cancel);
+    rform.hidden = false;
+  };
+
+  panel.append(diff, why, src, actions, form, rform);
   row.append(sum, panel);
   return row;
 }

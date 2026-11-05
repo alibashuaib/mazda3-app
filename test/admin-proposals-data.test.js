@@ -10,6 +10,18 @@ function chain(result) {
 }
 const withClient = client => admin.configure({ client });
 
+test('rejectProposal: sends reason or null, errors map to failed', async () => {
+  const calls = [];
+  withClient({ rpc: (n, a) => { calls.push([n, a]); return Promise.resolve({ data: { ok: true }, error: null }); } });
+  assert.deepStrictEqual(await admin.rejectProposal(5, ' x '), { ok: true });
+  await admin.rejectProposal(5, '  ');
+  assert.deepStrictEqual(calls, [['reject_proposal', { p_id: 5, p_reason: 'x' }], ['reject_proposal', { p_id: 5, p_reason: null }]]);
+  withClient({ rpc: () => Promise.resolve({ data: null, error: { message: 'x' } }) });
+  assert.deepStrictEqual(await admin.rejectProposal(5, 'x'), { ok: false, error: 'failed' });
+  withClient({ rpc: () => { throw new Error('boom'); } });
+  assert.deepStrictEqual(await admin.rejectProposal(5, 'x'), { ok: false, error: 'failed' });
+});
+
 test('listProposals: ok, empty, error, throw, cap', async () => {
   withClient({ from: () => chain({ data: undefined, error: null }) });
   assert.deepStrictEqual(await admin.listProposals(), { ok: true, rows: [], capped: false });
