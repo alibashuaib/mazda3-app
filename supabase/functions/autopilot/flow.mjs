@@ -82,6 +82,8 @@ export async function runExtract(job, deps) {
   for (const url of candidates) {
     const res = await deps.fetch(url, DEFAULT_POLICY);
     if (!res.ok) { skipped.push(`${url}: ${res.error}`); continue; }
+    // safeFetch follows redirects; the text we read must come from the host we were allowed to cite
+    if (hostOf(res.finalUrl || url) !== hostOf(url)) { skipped.push(`${url}: redirected to other host`); continue; }
     if (res.kind !== 'text') { skipped.push(`${url}: ${res.kind}`); continue; }   // pdf skipped by owner default
     const text = htmlToText(res.body, TEXT_LIMIT);
     const hash = await sha256Hex(text);
@@ -133,6 +135,7 @@ export async function runRecalls(job, deps) {
     const url = `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(car.make)}&model=${encodeURIComponent(model)}&modelYear=${y}`;
     const res = await deps.fetch(url, NHTSA_POLICY);
     if (!res.ok) continue;
+    if (hostOf(res.finalUrl || url) !== hostOf(url)) continue;   // redirected off the host recorded as evidence
     okFetches++;
     let j = null; try { j = JSON.parse(res.body); } catch (e) { /* unparseable body = no recalls */ }
     for (const f of parseRecalls(j, [y])) {

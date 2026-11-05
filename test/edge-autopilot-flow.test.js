@@ -186,3 +186,19 @@ test('index.ts: no direct live/proposal writes, only Anthropic bare fetch, impor
   for (const m of src.matchAll(/fetch\(\s*([^,)]+)/g)) assert.match(m[1], /api\.anthropic\.com|^url$/);
   for (const m of src.matchAll(/from '(\.[^']+)'/g)) assert.ok(fs.existsSync(path.join(dir, m[1])), m[1]);
 });
+
+test('extract: redirect to another host is skipped, nothing staged or paid', async () => {
+  const { deps, calls } = fakes({ candidates: ['https://ok.com/a'],
+    fetch: () => ({ ok: true, kind: 'text', body: PAGE, finalUrl: 'https://evil.com/a' }) });
+  const r = await flow.runExtract({ run_id: 1, car_model_id: CAR.id }, deps);
+  assert.deepEqual(r.notes.skipped, ['https://ok.com/a: redirected to other host']);
+  assert.ok(deps.staged.every(s => s.rows.length === 0));
+  assert.equal(calls.includes('reserve'), false);
+});
+
+test('recalls: NHTSA redirected off api.nhtsa.gov is not staged', async () => {
+  const body = JSON.stringify({ results: [{ NHTSACampaignNumber: '20V123', Component: 'AIR BAGS', Summary: 's', Remedy: 'r' }] });
+  const { deps } = fakes({ fetch: () => ({ ok: true, kind: 'json', body, finalUrl: 'https://evil.com/x' }) });
+  await assert.rejects(flow.runRecalls({ run_id: 1, car_model_id: CAR.id }, deps), /nhtsa unavailable/);
+  assert.equal(deps.staged.length, 0);
+});
