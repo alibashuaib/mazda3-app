@@ -40,6 +40,13 @@ select public.submit_proposal('schedule_item', 'demo:seed', 'Brake Fluid',
   $j$[{"url":"https://forum.example.com/thread/42","tier":"community","fetched_at":"2026-11-01T00:00:00Z","content_hash":"c1","quote":"Everyone here uses DOT 4 and changes it every two years."}]$j$::jsonb,
   102, 'Community note about fluid type', 'mazda');
 
+-- Newer value for the same target (CORE-04): submitting this makes the 40000
+-- proposal above 'superseded', so the owner sees only this pending one.
+select public.submit_proposal('schedule_item', 'demo:seed', 'Brake Fluid',
+  $j${"interval_km":30000,"interval_months":24,"note":"Use DOT 4 fluid","parts":[]}$j$::jsonb,
+  $j$[{"url":"https://forum.example.com/thread/42","tier":"community","fetched_at":"2026-11-01T00:00:00Z","content_hash":"c2","quote":"Two years or 30000 km, whichever comes first."}]$j$::jsonb,
+  102, 'Newer community figure', 'mazda');
+
 -- Insert of a service that has no live row yet.
 select public.submit_proposal('schedule_item', 'demo:seed', 'Spark Plugs',
   $j${"interval_km":60000,"interval_months":48,"note":"Iridium plugs","parts":[{"name":"Spark plug","part_no":"PE5R-18-110","qty":4}]}$j$::jsonb,
