@@ -35,7 +35,7 @@ Owner reviews, edits, approves, rejects and reverts seeded catalogue proposals i
 - `.planning/ROADMAP.md` — Phase 2 goal and success criteria
 - `.planning/REQUIREMENTS.md` — CORE-01..07, REV-01..06, REV-09
 - `.planning/phases/01-reliable-safe-foundation/01-VERIFICATION.md` — phase 1 status (human items pending)
-- `src/html.js` / `src/ui/html.js` — escaping template that all admin text must use
+- `src/ui/html.js` — escaping template that all admin text must use
 - `CLAUDE.md` — approval gate and security constraints
 </canonical_refs>
 
