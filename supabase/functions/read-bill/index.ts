@@ -3,11 +3,13 @@
 // Deploy: supabase functions deploy read-bill; supabase secrets set ANTHROPIC_API_KEY=...
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { allowedOrigins, corsDecision } from '../_shared/cors.mjs';
+import { logEdgeError } from '../_shared/app-errors.mjs';
 import { DAILY_CAP, SYSTEM_PROMPT, fingerprint, parseBill, sha256Hex, storeKey, validateImage } from './logic.mjs';
 
 const MAX_BODY = 2_200_000;
 
 Deno.serve(async (req) => {
+  let admin: any = null;   // hoisted so the outer catch can log; logEdgeError tolerates null
   try {
     // Origin gate first: foreign/null Origin never reaches OPTIONS, auth or the paid model (D-13/D-14/D-16).
     const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
@@ -31,7 +33,7 @@ Deno.serve(async (req) => {
     if (!u?.user) return json(401, { error: 'auth' });
     // Throwaway sign-ups would otherwise multiply the per-user cap: require a confirmed email or phone.
     if (!u.user.email_confirmed_at && !u.user.phone_confirmed_at) return json(403, { error: 'unconfirmed' });
-    const admin = createClient(url, serviceKey);
+    admin = createClient(url, serviceKey);
 
     if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY) return json(413, { error: 'image' });
     let image;
@@ -41,11 +43,17 @@ Deno.serve(async (req) => {
     // Insert the attempt first, then count (including it): parallel requests each see themselves,
     // so a burst cannot exceed the cap. Fail closed on any DB error, before the model is called.
     const { data: row, error: insErr } = await admin.from('bill_reads').insert({ user_id: u.user.id }).select('id').single();
-    if (insErr || !row) return json(503, { error: 'unavailable' });
+    if (insErr || !row) {
+      await logEdgeError(admin, 'read-bill', new Error('read-bill: bill_reads insert failed'), 'read-bill');
+      return json(503, { error: 'unavailable' });
+    }
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const { count, error: cntErr } = await admin.from('bill_reads').select('id', { count: 'exact', head: true })
       .eq('user_id', u.user.id).gte('created_at', since);
-    if (cntErr || count == null) return json(503, { error: 'unavailable' });
+    if (cntErr || count == null) {
+      await logEdgeError(admin, 'read-bill', new Error('read-bill: count failed'), 'read-bill');
+      return json(503, { error: 'unavailable' });
+    }
     // Global kill switch on spend: all users, last 24h (includes this attempt). Fail closed.
     // 0 is a valid value (stop all reads); only unset or non-numeric falls back to 500.
     const capEnv = (Deno.env.get('BILL_GLOBAL_DAILY_CAP') ?? '').trim();
@@ -54,6 +62,7 @@ Deno.serve(async (req) => {
       .gte('created_at', since);
     if (allErr || all == null || all > globalCap) {
       await admin.from('bill_reads').delete().eq('id', row.id);
+      await logEdgeError(admin, 'read-bill', new Error('read-bill: global count failed or cap reached'), 'read-bill');
       return json(503, { error: 'unavailable' });
     }
     if (count > DAILY_CAP) {
@@ -65,6 +74,7 @@ Deno.serve(async (req) => {
     // An unreadable bill (422) still keeps its row: the model call was paid for.
     const upstreamFailed = async () => {
       await admin.from('bill_reads').delete().eq('id', row.id);
+      await logEdgeError(admin, 'read-bill', new Error('read-bill: upstream failed'), 'read-bill');   // never the upstream body
       return json(502, { error: 'upstream' });
     };
     let text = '';
@@ -100,7 +110,8 @@ Deno.serve(async (req) => {
     }
     const { invoice_no: _omit, ...clean } = bill;
     return json(200, { bill: clean, billReadId });
-  } catch {
-    return json(500, { error: 'server' });
+  } catch (e) {
+    await logEdgeError(admin, 'read-bill', e, 'read-bill');
+    return new Response(JSON.stringify({ error: 'server' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 });

@@ -5,16 +5,21 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { allowedOrigins, corsDecision } from '../_shared/cors.mjs';
 import { DEFAULT_POLICY, NHTSA_POLICY, safeFetch } from '../_shared/safe-fetch.mjs';
 import { resolveHostAddresses } from '../_shared/dns.ts';
-import { SYSTEM_PROMPT, diffDraft, htmlToText, parseRecalls, parseSchedule, safeEqual, sha256Hex } from './logic.mjs';
+import { logEdgeError } from '../_shared/app-errors.mjs';
+import { SYSTEM_PROMPT, applyCarWrites, htmlToText, parseRecalls, parseSchedule, planCarWrites, recallRows, safeEqual, sha256Hex } from './logic.mjs';
 
 // External fetches go through safeFetch (scheme/host/DNS re-checked per hop, caps, type allowlist, robots).
 // DNS rebinding between check and connect is a residual risk; sources are admin-registered.
 
 Deno.serve(async (req) => {
+  // Hoisted so the outer catch can log (admin may still be null) and answer with CORS headers (json() is scoped to the try).
+  let admin: any = null;
+  let corsHeaders: Record<string, string> = {};
   try {
     // Origin gate first: foreign/null Origin never reaches OPTIONS, auth or the paid model (D-13/D-14/D-16).
     const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
     if (!cors.ok) return new Response('forbidden', { status: 403 });
+    corsHeaders = cors.headers;
     const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...cors.headers, 'Content-Type': 'application/json' } });
     if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: cors.headers });
     if (req.method !== 'POST') return json(405, { error: 'method' });
@@ -22,7 +27,7 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY'), serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const cron = Deno.env.get('INTAKE_CRON_SECRET');
     if (!apiKey || !url || !anonKey || !serviceKey || !cron) return json(503, { error: 'not configured' });
-    const admin = createClient(url, serviceKey);
+    admin = createClient(url, serviceKey);
 
     const secret = req.headers.get('x-cron-secret');
     if (!(secret && await safeEqual(secret, cron))) {                    // otherwise must be an admin's JWT
@@ -44,6 +49,7 @@ Deno.serve(async (req) => {
     for (const car of cars) {
       // ---- schedule drafts: only when a source's content hash changed ----
       const { data: srcs } = await admin.from('schedule_sources').select('*').eq('car_model_id', car.id);
+      let live = await loadLive(admin, car.id);               // once per car, reused across sources (Pitfall 19)
       for (const s of srcs ?? []) {
         try {
           const res = await safeFetch(s.url, DEFAULT_POLICY, { fetch, resolve: resolveHostAddresses });
@@ -66,20 +72,13 @@ Deno.serve(async (req) => {
             await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // same content is not retried; clear content_hash to force
             skipped++; continue;
           }
-          const { data: live } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,note,parts').eq('car_model_id', car.id);
-          for (const it of items) {
-            const cur = (live ?? []).find((x: any) => x.service.toLowerCase() === it.service.toLowerCase());
-            const proposed = { interval_km: it.interval_km, interval_months: it.interval_months, note: it.note, parts: it.parts };
-            if (!diffDraft(cur, proposed)) continue;
-            await admin.from('plan_drafts').delete().eq('car_model_id', car.id).eq('service', cur?.service ?? it.service).eq('status', 'pending');
-            const { error } = await admin.from('plan_drafts').insert({
-              car_model_id: car.id, source_id: s.id, service: cur?.service ?? it.service, proposed,
-              reason: cur ? 'Source differs from the live schedule' : 'New service found in the source',
-            });
-            if (!error) drafts++;
-          }
+          // One delete + one insert per source, whatever the item count (FND-10); live rows come from the per-car select above.
+          const plan = planCarWrites(car.id, s.id, items, live);
+          const written = await applyCarWrites(admin, car.id, plan, (e: Error) => logEdgeError(admin, 'plan-intake', e, 'plan-intake'));
+          drafts += written;
+          if (written) live = await loadLive(admin, car.id);   // refresh only after a write
           await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // only after drafts were written
-        } catch { skipped++; }
+        } catch (e) { skipped++; await logEdgeError(admin, 'plan-intake', e, 'plan-intake'); }
       }
 
       // ---- recalls: NHTSA, model-year range of the generation ----
@@ -88,21 +87,31 @@ Deno.serve(async (req) => {
         const found: any[] = [];
         for (const y of years) {
           const res = await safeFetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(car.make)}&model=${encodeURIComponent(/^\d+$/.test(car.model) ? 'mazda' + car.model : car.model)}&modelYear=${y}`, NHTSA_POLICY, { fetch, resolve: resolveHostAddresses });
-          if (res.ok) { let j = null; try { j = JSON.parse(res.body); } catch {} found.push(...parseRecalls(j, [y])); }
+          if (res.ok) { let j = null; try { j = JSON.parse(res.body); } catch (_) { /* unparseable NHTSA body: treated as no recalls */ } found.push(...parseRecalls(j, [y])); }
         }
         const merged = new Map<string, any>();
         for (const f of found) { const m = merged.get(f.campaign); if (m) m.years = [...new Set([...m.years, ...f.years])]; else merged.set(f.campaign, f); }
-        for (const f of merged.values()) {
-          const { data: ex } = await admin.from('recalls').select('campaign').eq('campaign', f.campaign).eq('car_model_id', car.id).maybeSingle();
-          if (ex) continue;                                // never reset an approved/rejected status
-          const { error } = await admin.from('recalls').insert({ ...f, car_model_id: car.id });
-          if (!error) recalls++;
+        if (merged.size) {
+          // One upsert per car; ignoreDuplicates never resets an approved/rejected row (Pitfall 20).
+          // select() returns only the rows actually inserted, so the count excludes ignored duplicates.
+          const { data: ins, error } = await admin.from('recalls')
+            .upsert(recallRows(car.id, merged.values()), { onConflict: 'campaign,car_model_id', ignoreDuplicates: true }).select('campaign');
+          if (error) await logEdgeError(admin, 'plan-intake', new Error('plan-intake: recalls upsert failed'), 'plan-intake');
+          else recalls += ins?.length ?? 0;
         }
       }
     }
     return json(200, { drafts, recalls, skipped });
-  } catch { return json(500, { error: 'server' }); }
+  } catch (e) {
+    await logEdgeError(admin, 'plan-intake', e, 'plan-intake');
+    return new Response(JSON.stringify({ error: 'server' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 });
+
+async function loadLive(admin: any, carId: string) {
+  const { data } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,note,parts').eq('car_model_id', carId);
+  return data ?? [];
+}
 
 // "BM/BN · 2014–18", "BP · 2019+" -> model years (open-ended capped at the current year).
 function yearsOf(gen: string): number[] {
