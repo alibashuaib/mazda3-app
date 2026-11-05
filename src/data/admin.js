@@ -183,7 +183,41 @@
       .catch(() => ({ ok: false, error: 'failed' }));
   }
 
+  /* ---- Proposals tab: the approval gate (Phase 2). Writes go through the
+     apply_proposal RPC only; the browser has no table write grants. ---- */
+  const PROPOSAL_COLS = 'id,run_id,kind,maker_id,car_model_id,target_key,op,before,after,evidence,confidence_tier,confidence_factors,reason,created_at';
+  const PROPOSAL_LIMIT = 500;   // DoS cap, same idea as ERR_LIMIT
+
+  /* Never rejects. */
+  function listProposals() {
+    return Promise.resolve().then(() => env.client.from('proposals').select(PROPOSAL_COLS)
+      .eq('status', 'pending').order('created_at', { ascending: false }).limit(PROPOSAL_LIMIT))
+      .then(res => {
+        if (!res || res.error) return { ok: false, error: 'failed' };
+        const rows = res.data || [];
+        return { ok: true, rows, capped: rows.length >= PROPOSAL_LIMIT };
+      })
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+
+  /* Never rejects. A stale refusal ({ok:false,error:'stale',live,live_hash}) is a
+     normal answer, passed through unchanged for the UI to show. */
+  function applyProposal(id, edit, seenHash) {
+    return Promise.resolve().then(() => env.client.rpc('apply_proposal',
+      { p_id: id, p_edit: edit || null, p_seen_hash: seenHash || null }))
+      .then(res => {
+        if (!res || res.error || !res.data) return { ok: false, error: 'failed' };
+        return res.data.ok === false ? res.data : Object.assign({ ok: true }, res.data);
+      })
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+
+  function confidenceLabel(tier) {
+    return tier === 'high' ? { text: 'High', cls: 'ok' } : tier === 'medium' ? { text: 'Medium', cls: 'warn' } : { text: 'Low', cls: 'danger' };
+  }
+
   return {
+    listProposals, applyProposal, confidenceLabel, PROPOSAL_LIMIT,
     listErrors, resolveGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount,
     listModels, loadModel, saveWarranty, saveItem, approve,

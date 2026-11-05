@@ -32,6 +32,9 @@ test('admin sees the catalogue with drafts marked for review', async () => {
   try {
     app.api.account.setUserForTest({ id: 'u1' });
     app.api.go('admin');
+    const tab = () => [...app.document.querySelectorAll('#view [role=tab]')].find(b => b.textContent === 'Review queue');
+    assert.ok(await until(tab), text(app.document));
+    tab().onclick();   // Proposals is the default tab since Phase 2
     assert.ok(await until(() => /CX-5/.test(text(app.document))), text(app.document));
     assert.match(text(app.document), /Needs review/);
   } finally { app.cleanup(); }

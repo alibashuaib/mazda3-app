@@ -475,7 +475,16 @@ const AR = {
   'Inspections found a problem': 'الفحص وجد مشكلة في', 'of the time': 'من الحالات',
   'Errors': 'الأخطاء', 'Could not load errors.': 'تعذّر تحميل الأخطاء.', 'No errors logged': 'لا توجد أخطاء مسجّلة',
   'Count': 'العدد', 'First seen': 'أول ظهور', 'Last seen': 'آخر ظهور', 'Source': 'المصدر',
-  'Resolve': 'تعيين كمحلول', 'Resolved': 'تم الحل', 'Show stacks': 'عرض التفاصيل', 'Hide stacks': 'إخفاء التفاصيل'
+  'Resolve': 'تعيين كمحلول', 'Resolved': 'تم الحل', 'Show stacks': 'عرض التفاصيل', 'Hide stacks': 'إخفاء التفاصيل',
+  'Proposals': 'المقترحات', 'No proposals waiting': 'لا توجد مقترحات بانتظارك',
+  'New findings from the autopilot will appear here for your approval. Nothing reaches users until you approve it.': 'ستظهر هنا النتائج الجديدة من الوضع التلقائي لاعتمادك. لا يصل شيء إلى المستخدمين قبل اعتمادك.',
+  'Could not load proposals. Check your connection and try again.': 'تعذّر تحميل المقترحات. تحقّق من الاتصال وحاول مجددًا.',
+  'Try again': 'حاول مجددًا', 'Approved': 'تم الاعتماد', 'Run {n}': 'التشغيل {n}',
+  'High': 'عالية', 'Medium': 'متوسطة', 'Low': 'منخفضة', 'Why this confidence': 'سبب مستوى الثقة',
+  'Best source: {tier}': 'أفضل مصدر: {tier}', 'Agreeing sources: {n}': 'المصادر المتفقة: {n}', 'Change size: {n}%': 'حجم التغيير: {n}%',
+  'Official': 'رسمي', 'Secondary': 'ثانوي', 'Invalid source link': 'رابط المصدر غير صالح', 'Sources': 'المصادر',
+  'Showing the newest 500. Approve or reject some to see more.': 'عرض أحدث 500. اعتمد بعضها أو ارفضه لعرض المزيد.',
+  'Approve {target}': 'اعتماد {target}', 'Schedule item': 'بند جدول الصيانة'
 };
 
   return { AR };

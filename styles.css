@@ -1037,3 +1037,15 @@ html { scroll-behavior: smooth; }
 }
 
 .admin-item + .admin-item { border-top: 1px solid var(--stroke); margin-top: 14px; padding-top: 14px; }
+
+/* Proposals tab (Phase 2) */
+.proposal-row { flex-direction: column; align-items: stretch; }
+.proposal-row .item-side { text-align: end; }
+.proposal-row .item-main p { white-space: normal; }
+.proposal-panel { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--stroke); display: grid; gap: 16px; }
+.proposal-row blockquote { margin: 0; padding-inline-start: 8px; border-inline-start: 3px solid var(--stroke-strong); }
+.proposal-alert { padding: 16px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn); }
+.proposal-alert.fail { background: var(--danger-soft); border-color: var(--danger); }
+.proposal-row .btn { min-height: 44px; }
+.proposal-row .pill { font-weight: 650; }
+.btn.ghost.reject { color: var(--danger); border-color: var(--danger-soft); }

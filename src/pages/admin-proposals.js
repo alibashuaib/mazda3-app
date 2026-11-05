@@ -1,0 +1,161 @@
+/* ============================================================
+   Garage — admin: Proposals tab (the approval gate's review queue).
+   Every field here (target, note, reason, quote, url) came from scraped or
+   LLM text and is untrusted: textContent only, never raw markup. A source
+   link is only built for https URLs that parse; the link text is the
+   hostname, never the raw URL. Plain script, exercised through the boot
+   harness. Loaded after admin.js (uses DIFF_LABELS and adminReport).
+   ============================================================ */
+'use strict';
+
+const PROPOSAL_TIER_LABEL = { official: 'Official', secondary: 'Secondary', community: 'Community' };
+
+function proposalCarLabel(models, id) {
+  const m = (models || []).find(x => x.id === id);
+  return m ? `${m.model} ${m.generation}` : String(id || '');
+}
+
+/* null when the URL is not a safe https link; otherwise the parsed URL. */
+function proposalSafeUrl(url) {
+  if (!/^https:\/\//i.test(String(url || ''))) return null;
+  try { const u = new URL(url); return u.protocol === 'https:' ? u : null; } catch (e) { return null; }
+}
+
+function proposalSource(ev) {
+  const box = el('div');
+  const q = el('blockquote');
+  q.setAttribute('dir', 'auto');
+  q.textContent = String(ev.quote || '').slice(0, 500);
+  const meta = el('p', 'muted');
+  const u = proposalSafeUrl(ev.url);
+  const tail = ' · ' + t(PROPOSAL_TIER_LABEL[ev.tier] || 'Community') + ' · ' + String(ev.fetched_at || '').slice(0, 10);
+  if (u) {
+    const a = el('a');
+    a.href = u.href; a.rel = 'noopener noreferrer'; a.target = '_blank';
+    a.setAttribute('dir', 'ltr');
+    a.textContent = u.hostname;
+    meta.append(a, document.createTextNode(tail));
+  } else {
+    meta.textContent = t('Invalid source link') + tail;
+  }
+  box.append(q, meta);
+  return box;
+}
+
+function proposalDiffLines(p, arrow) {
+  return catalogAdmin.draftDiff(p.before, p.after).map(r => {
+    const line = el('div');
+    const lab = document.createTextNode(t(DIFF_LABELS[r.field]) + ': ');
+    const b = el('span', 'muted'); b.setAttribute('dir', 'ltr'); b.textContent = r.before || '—';
+    const ar = el('span'); ar.setAttribute('aria-hidden', 'true'); ar.textContent = ' ' + arrow + ' ';
+    const a = el('strong'); a.setAttribute('dir', 'ltr'); a.textContent = r.after || '—';
+    line.append(lab, b, ar, a);
+    return line;
+  });
+}
+
+function proposalRow(p, models, refresh) {
+  const rtl = document.documentElement.getAttribute('dir') === 'rtl';
+  const arrow = rtl ? '←' : '→';
+  const row = el('div', 'item proposal-row');
+  const panelId = 'proposal-panel-' + p.id;
+  const first = catalogAdmin.draftDiff(p.before, p.after)[0];
+
+  const sum = el('div');
+  sum.style.cssText = 'display:flex;justify-content:space-between;gap:12px;cursor:pointer';
+  sum.setAttribute('role', 'button');
+  sum.tabIndex = 0;
+  sum.setAttribute('aria-expanded', 'false');
+  sum.setAttribute('aria-controls', panelId);
+  const main = el('div', 'item-main');
+  const h = el('h3'); h.setAttribute('dir', 'auto');
+  h.textContent = `${proposalCarLabel(models, p.car_model_id)} · ${p.target_key}`;
+  const sub = el('p');
+  sub.textContent = `${t(p.kind === 'schedule_item' ? 'Schedule item' : p.kind)} · ${first ? (first.before || '—') + ' ' + arrow + ' ' + (first.after || '—') : ''}`;
+  main.append(h, sub);
+  const side = el('div', 'item-side');
+  const conf = catalogAdmin.confidenceLabel(p.confidence_tier);
+  const pill = el('span', 'pill ' + conf.cls); pill.textContent = t(conf.text);
+  const run = el('div', 'sub'); run.textContent = t('Run {n}').replace('{n}', p.run_id == null ? '—' : String(p.run_id));
+  side.append(pill, run);
+  sum.append(main, side);
+
+  const panel = el('div', 'proposal-panel');
+  panel.id = panelId;
+  panel.hidden = true;
+  const toggle = () => {
+    const open = sum.getAttribute('aria-expanded') !== 'true';
+    sum.setAttribute('aria-expanded', open ? 'true' : 'false');
+    panel.hidden = !open;
+  };
+  sum.onclick = () => toggle();
+  sum.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+
+  const diff = el('div');
+  proposalDiffLines(p, arrow).forEach(l => diff.appendChild(l));
+  if (p.reason) { const r = el('p', 'muted'); r.setAttribute('dir', 'auto'); r.textContent = p.reason; diff.appendChild(r); }
+
+  const f = p.confidence_factors || {};
+  const why = el('div');
+  const wh = el('h4'); wh.textContent = t('Why this confidence');
+  const ul = el('ul');
+  const li = s => { const x = el('li'); x.textContent = s; ul.appendChild(x); };
+  li(t('Best source: {tier}').replace('{tier}', t(PROPOSAL_TIER_LABEL[f.best_tier] || 'Community')));
+  li(t('Agreeing sources: {n}').replace('{n}', String(Number(f.domains) || 0)));
+  if (f.change_pct != null) li(t('Change size: {n}%').replace('{n}', String(Number(f.change_pct) || 0)));
+  why.append(wh, ul);
+
+  const src = el('div');
+  const sh = el('h4'); sh.textContent = t('Sources');
+  src.appendChild(sh);
+  (Array.isArray(p.evidence) ? p.evidence : []).slice(0, 10).forEach(ev => src.appendChild(proposalSource(ev || {})));
+
+  const actions = el('div', 'field-row');
+  const approve = el('button', 'btn primary'); approve.type = 'button';
+  approve.textContent = t('Approve');
+  approve.setAttribute('aria-label', t('Approve {target}').replace('{target}', p.target_key));
+  onAsyncClick(approve, async () => {
+    const old = panel.querySelector('.save-error'); if (old) old.remove();
+    const r = await catalogAdmin.applyProposal(p.id, null, null);
+    if (r.ok) { toast(t('Approved')); return refresh(); }
+    // ponytail: stale gets the generic message here; plan 02-02 adds the live-value alert.
+    const err = el('p', 'muted save-error'); err.setAttribute('role', 'alert');
+    err.textContent = t('Could not save. Check your connection.');
+    panel.appendChild(err);
+  });
+  actions.appendChild(approve);
+
+  panel.append(diff, why, src, actions);
+  row.append(sum, panel);
+  return row;
+}
+
+/* res is listProposals() output; models is listModels() or []. */
+function adminProposals(res, models, refresh) {
+  const card = el('div', 'card');
+  card.style.padding = '16px';
+  if (!res.ok) {
+    const p = el('p', 'muted'); p.textContent = t('Could not load proposals. Check your connection and try again.');
+    const b = el('button', 'btn ghost'); b.type = 'button'; b.textContent = t('Try again');
+    b.onclick = () => refresh();
+    card.append(p, b);
+    return card;
+  }
+  if (!res.rows.length) {
+    const h = el('h3'); h.textContent = t('No proposals waiting');
+    const p = el('p', 'muted');
+    p.textContent = t('New findings from the autopilot will appear here for your approval. Nothing reaches users until you approve it.');
+    card.append(h, p);
+    return card;
+  }
+  const wrap = el('div');
+  const list = el('div', 'list');
+  res.rows.forEach(p => list.appendChild(proposalRow(p, models, () => { try { refresh(); } catch (e) { adminReport('admin: proposals refresh failed', e); } })));
+  wrap.appendChild(list);
+  if (res.capped) {
+    const m = el('p', 'muted');
+    m.textContent = t('Showing the newest 500. Approve or reject some to see more.');
+    wrap.appendChild(m);
+  }
+  return wrap;
+}

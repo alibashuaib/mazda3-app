@@ -7,7 +7,7 @@
 'use strict';
 
 let adminModelId = null;   // the car being edited, or null for the list
-let adminTab = 'queue';    // 'queue' | 'errors'
+let adminTab = 'proposals';    // 'proposals' | 'queue' | 'errors'
 
 /* Failures go to the error log (plan 01-10), not the browser console */
 function adminReport(message, e) {
@@ -36,13 +36,18 @@ async function renderAdminBody(body) {
     if (adminModelId) { const node = await adminEditor(adminModelId); body.innerHTML = ''; body.appendChild(node); return; }
     // One fetch feeds both the badge and the Errors tab. A failure here must
     // not take the review queue down with it.
-    const errs = await catalogAdmin.listErrors();
+    const [errs, props, models] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
+      catalogAdmin.listModels().catch(() => [])]);
     const open = errs.ok ? errs.groups.filter(g => g.open).length : 0;
     const show = async () => {
       body.innerHTML = '';
-      body.appendChild(adminTabs([{ id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
+      body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : 0 },
+        { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
         id => { adminTab = id; show(); }));
-      try { body.appendChild(adminTab === 'errors' ? adminErrors(errs, () => renderAdminBody(body)) : await adminList()); }
+      try {
+        body.appendChild(adminTab === 'proposals' ? adminProposals(props, models, () => renderAdminBody(body))
+          : adminTab === 'errors' ? adminErrors(errs, () => renderAdminBody(body)) : await adminList());
+      }
       catch (e) { adminReport('admin: render failed', e); body.appendChild(el('div', 'card', html`<p style="padding:16px">${t('Could not load the catalogue.')}</p>`)); }
     };
     await show();

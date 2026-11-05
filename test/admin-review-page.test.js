@@ -36,6 +36,10 @@ const open = async (state) => {
   const app = await bootApp({ protocol: 'https:', supabaseStub: stub(state) });
   app.api.account.setUserForTest({ id: 'u1' });
   app.api.go('admin');
+  // Proposals is the default tab since Phase 2; these tests exercise the legacy queue.
+  const tab = () => [...app.document.querySelectorAll('#view [role=tab]')].find(b => b.textContent === 'Review queue');
+  await until(tab);
+  tab().onclick();
   return app;
 };
 const mk = o => Object.assign({ drafts: [], recalls: [], rpc: [], invoked: [], recallUpdates: [] }, o);
