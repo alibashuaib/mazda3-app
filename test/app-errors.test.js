@@ -50,3 +50,9 @@ test('logEdgeError tolerates null and undefined client', async () => {
   await logEdgeError(null, 'read-bill', new Error('x'));
   await logEdgeError(undefined, 'read-bill', new Error('x'));
 });
+
+test('empty/scrubbed-empty message and long route still satisfy the table CHECKs', async () => {
+  const { normaliseEdgeError } = await load();
+  assert.strictEqual(normaliseEdgeError('read-bill', new Error('')).message, 'unknown error');
+  assert.strictEqual(normaliseEdgeError('read-bill', new Error('x'), 'r'.repeat(300)).route.length, 120);
+});
