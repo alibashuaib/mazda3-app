@@ -25,6 +25,12 @@ test('RLS: every supabase/tests/*.sql is named in the CI workflow', () => {
   }
 });
 
+test('app_errors guard keys off the DB role, not JWT claims', () => {
+  const fn = schema.slice(schema.indexOf('function public.app_errors_before_insert'), schema.indexOf('drop trigger if exists app_errors_before_insert'));
+  assert.match(fn, /current_setting\('role', true\)/);
+  assert.doesNotMatch(fn, /auth\.role\(\)/);
+});
+
 test('RLS: every create table has enable row level security', () => {
   for (const name of tables) {
     const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
