@@ -658,6 +658,11 @@ create table if not exists public.dealer_plan_items (
   sort int not null default 0,
   unique (car_model_id, service)
 );
+-- Severe-condition interval (Phase 3, D-09). Null = none known; no backfill possible.
+-- The gate hash key set grew with these columns, so pending proposals made before
+-- this change get a different after_hash on resubmit (they re-queue once; harmless).
+alter table public.dealer_plan_items add column if not exists severe_km int;
+alter table public.dealer_plan_items add column if not exists severe_months int;
 
 create table if not exists public.dealer_plan_changes (
   id bigint generated always as identity primary key,
@@ -1029,8 +1034,15 @@ create or replace function public.proposal_live(p_kind text, p_car text, p_targe
 language plpgsql security definer set search_path = public as $$
 declare r jsonb;
 begin
+  if p_kind = 'recall' then
+    select jsonb_build_object('component', x.component, 'summary', x.summary, 'remedy', x.remedy,
+                              'years', to_jsonb(x.years), 'status', x.status)
+      into r from public.recalls x where x.car_model_id = p_car and x.campaign = p_target;
+    return r;
+  end if;
   if p_kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
   select jsonb_build_object('interval_km', i.interval_km, 'interval_months', i.interval_months,
+                            'severe_km', i.severe_km, 'severe_months', i.severe_months,
                             'note', i.note, 'parts', i.parts)
     into r from public.dealer_plan_items i where i.car_model_id = p_car and i.service = p_target;
   return r;
@@ -1054,7 +1066,7 @@ begin
   select count(distinct substring(x->>'url' from '^https://([^/:]+)')) into doms
     from jsonb_array_elements(p_evidence) x;
   if p_before is not null then
-    foreach k in array array['interval_km', 'interval_months'] loop
+    foreach k in array array['interval_km', 'interval_months', 'severe_km', 'severe_months'] loop
       if jsonb_typeof(p_before->k) = 'number' and jsonb_typeof(p_after->k) = 'number'
          and (p_before->>k)::numeric > 0 then
         b := (p_before->>k)::numeric; a := (p_after->>k)::numeric;
@@ -1078,11 +1090,18 @@ create or replace function public.submit_proposal(
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare car public.car_models; ev jsonb; before_v jsonb; conf jsonb; new_id bigint; ah text; sh text; ex bigint;
 begin
-  if p_kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
+  if p_kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
   select * into car from public.car_models where id = p_car_model_id;
   if not found then raise exception 'unknown car'; end if;
   if p_after is null or jsonb_typeof(p_after) <> 'object' then raise exception 'after must be an object'; end if;
   if octet_length(p_after::text) > 8192 then raise exception 'after too large'; end if;
+  if p_kind = 'recall' then
+    if char_length(btrim(coalesce(p_after->>'component', ''))) not between 1 and 200 then raise exception 'bad recall component'; end if;
+    if char_length(btrim(coalesce(p_after->>'summary', ''))) not between 1 and 1000 then raise exception 'bad recall summary'; end if;
+    if char_length(coalesce(p_after->>'remedy', '')) > 1000 then raise exception 'recall remedy too long'; end if;
+    if p_after ? 'years' and (jsonb_typeof(p_after->'years') <> 'array' or jsonb_array_length(p_after->'years') > 40) then
+      raise exception 'bad recall years'; end if;
+  end if;
   -- CORE-07: canonical units only; conversion happens in code, never here.
   if p_after ? 'distance_unit' and p_after->>'distance_unit' is distinct from 'km' then
     raise exception 'non-canonical unit'; end if;
@@ -1102,13 +1121,26 @@ begin
   perform pg_advisory_xact_lock(hashtext('proposal:' || p_kind || ':' || coalesce(p_car_model_id, '') || ':' || p_target_key));
   before_v := public.proposal_live(p_kind, p_car_model_id, p_target_key);
   conf := public.proposal_confidence(before_v, p_after, p_evidence);
-  ah := md5(jsonb_build_object('interval_km', p_after->'interval_km', 'interval_months', p_after->'interval_months',
-                               'note', p_after->'note', 'parts', p_after->'parts')::text);
+  -- Same key set as proposal_live. A schedule proposal without severe keys keeps the
+  -- live severe values (D-10), so hash them from live or a severe-less proposal never
+  -- equals live and could not be a noop.
+  if p_kind = 'recall' then
+    ah := md5(jsonb_build_object('component', p_after->'component', 'summary', p_after->'summary',
+                                 'remedy', p_after->'remedy', 'years', p_after->'years')::text);
+  else
+    ah := md5(jsonb_build_object('interval_km', p_after->'interval_km', 'interval_months', p_after->'interval_months',
+                                 'severe_km', case when p_after ? 'severe_km' then p_after->'severe_km' else before_v->'severe_km' end,
+                                 'severe_months', case when p_after ? 'severe_months' then p_after->'severe_months' else before_v->'severe_months' end,
+                                 'note', p_after->'note', 'parts', p_after->'parts')::text);
+  end if;
   sh := (select md5(string_agg((x->>'url') || '|' || coalesce(x->>'content_hash', ''), ',' order by x->>'url'))
            from jsonb_array_elements(p_evidence) x);
   -- Queue hygiene (CORE-03, CORE-04): equal to live -> noop; same pending value -> duplicate;
   -- rejected with the same value AND sources -> suppressed (changed sources re-queue).
-  if before_v is not null and md5(before_v::text) = ah then
+  -- A recall is only a noop when already approved (status is not part of the hash).
+  if before_v is not null and case when p_kind = 'recall'
+       then before_v->>'status' = 'approved' and md5((before_v - 'status')::text) = ah
+       else md5(before_v::text) = ah end then
     return jsonb_build_object('id', null, 'action', 'noop'); end if;
   select id into ex from public.proposals where status = 'pending' and kind = p_kind
     and coalesce(car_model_id, '') = coalesce(p_car_model_id, '') and target_key = p_target_key and after_hash = ah;
@@ -1140,13 +1172,18 @@ grant execute on function public.submit_proposal(text, text, text, jsonb, jsonb,
 create or replace function public.apply_proposal(p_id bigint, p_edit jsonb default null, p_seen_hash text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare p public.proposals; live jsonb; live_hash text; expected text; v jsonb; pj jsonb; el jsonb;
-        nm text; parts jsonb := '[]'; change_id bigint; src text;
+        nm text; parts jsonb := '[]'; change_id bigint; src text; sk int; sm int;
+        comp text; summ text; tbl text;
 begin
   if not public.is_admin() then raise exception 'admin only'; end if;
   select * into p from public.proposals where id = p_id and status = 'pending' for update;
   if not found then raise exception 'no pending proposal'; end if;
-  if p.kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
-  perform 1 from public.dealer_plan_items where car_model_id = p.car_model_id and service = p.target_key for update;
+  if p.kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
+  if p.kind = 'recall' then
+    perform 1 from public.recalls where car_model_id = p.car_model_id and campaign = p.target_key for update;
+  else
+    perform 1 from public.dealer_plan_items where car_model_id = p.car_model_id and service = p.target_key for update;
+  end if;
   live := public.proposal_live(p.kind, p.car_model_id, p.target_key);
   live_hash := md5(coalesce(live::text, 'null'));
   if p_seen_hash is not null and p_edit is not null then expected := p_seen_hash;
@@ -1157,6 +1194,21 @@ begin
   end if;
 
   v := coalesce(p_edit, p.after);
+  if p.kind = 'recall' then
+    comp := left(btrim(coalesce(v->>'component', '')), 200);
+    summ := left(btrim(coalesce(v->>'summary', '')), 1000);
+    if comp = '' or summ = '' then raise exception 'recall needs component and summary'; end if;
+    pj := coalesce(v->'years', live->'years', '[]'::jsonb);
+    if jsonb_typeof(pj) <> 'array' or jsonb_array_length(pj) > 40 then raise exception 'bad recall years'; end if;
+    insert into public.recalls (campaign, car_model_id, years, component, summary, remedy, status, fetched_at)
+    values (p.target_key, p.car_model_id,
+            coalesce((select array_agg(least(greatest(y::int, 1900), 2100)) from jsonb_array_elements_text(pj) y), '{}'),
+            comp, summ, nullif(left(btrim(coalesce(v->>'remedy', '')), 1000), ''), 'approved', now())
+    on conflict (campaign, car_model_id) do update set
+      years = excluded.years, component = excluded.component, summary = excluded.summary,
+      remedy = excluded.remedy, status = 'approved', fetched_at = now();
+    tbl := 'recalls';
+  else
   pj := coalesce(v->'parts', '[]'::jsonb);
   if jsonb_typeof(pj) <> 'array' then raise exception 'parts must be an array'; end if;
   if jsonb_array_length(pj) > 50 then raise exception 'too many parts'; end if;
@@ -1169,18 +1221,26 @@ begin
     end if;
   end loop;
 
+  -- Severe (D-10): a missing key keeps the live value; only an explicit key writes.
+  sk := case when v ? 'severe_km' then (v->>'severe_km')::int else (live->>'severe_km')::int end;
+  sm := case when v ? 'severe_months' then (v->>'severe_months')::int else (live->>'severe_months')::int end;
   src := p.evidence->0->>'url';
-  insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, note, parts, source_url)
+  insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, severe_km, severe_months, note, parts, source_url)
   values (p.car_model_id, p.target_key,
           nullif(least(greatest((v->>'interval_km')::int, 0), 1000000), 0),
           nullif(least(greatest((v->>'interval_months')::int, 0), 240), 0),
+          nullif(least(greatest(sk, 0), 1000000), 0),
+          nullif(least(greatest(sm, 0), 240), 0),
           left(coalesce(v->>'note', ''), 300), parts, src)
   on conflict (car_model_id, service) do update set
     interval_km = excluded.interval_km, interval_months = excluded.interval_months,
+    severe_km = excluded.severe_km, severe_months = excluded.severe_months,
     note = excluded.note, parts = excluded.parts, source_url = excluded.source_url;
+  tbl := 'dealer_plan_items';
+  end if;
 
   insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id)
-  values (p.kind, p.car_model_id, 'dealer_plan_items', p.target_key,
+  values (p.kind, p.car_model_id, tbl, p.target_key,
           case when live is null then 'insert' else 'update' end, live,
           public.proposal_live(p.kind, p.car_model_id, p.target_key), p.id)
   returning id into change_id;
@@ -1247,25 +1307,43 @@ begin
   if not public.is_admin() then raise exception 'admin only'; end if;
   select * into c from public.change_log where id = p_change_id for update;
   if not found then raise exception 'no change'; end if;
-  if c.kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
-  perform 1 from public.dealer_plan_items where car_model_id = c.car_model_id and service = c.row_key for update;
+  if c.kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
+  if c.kind = 'recall' then
+    perform 1 from public.recalls where car_model_id = c.car_model_id and campaign = c.row_key for update;
+  else
+    perform 1 from public.dealer_plan_items where car_model_id = c.car_model_id and service = c.row_key for update;
+  end if;
   live := public.proposal_live(c.kind, c.car_model_id, c.row_key);
   if live is distinct from c.after then
     return jsonb_build_object('ok', false, 'error', 'drifted', 'live', live);
   end if;
   b := c.before;
-  if b is null then
+  if c.kind = 'recall' then
+    if b is null then
+      delete from public.recalls where car_model_id = c.car_model_id and campaign = c.row_key;
+    else
+      insert into public.recalls (campaign, car_model_id, years, component, summary, remedy, status)
+      values (c.row_key, c.car_model_id,
+              coalesce((select array_agg(y::int) from jsonb_array_elements_text(b->'years') y), '{}'),
+              b->>'component', b->>'summary', b->>'remedy', b->>'status')
+      on conflict (campaign, car_model_id) do update set
+        years = excluded.years, component = excluded.component, summary = excluded.summary,
+        remedy = excluded.remedy, status = excluded.status;
+    end if;
+  elsif b is null then
     delete from public.dealer_plan_items where car_model_id = c.car_model_id and service = c.row_key;
   else
-    insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, note, parts)
+    insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, severe_km, severe_months, note, parts)
     values (c.car_model_id, c.row_key, (b->>'interval_km')::int, (b->>'interval_months')::int,
+            (b->>'severe_km')::int, (b->>'severe_months')::int,
             coalesce(b->>'note', ''), coalesce(b->'parts', '[]'::jsonb))
     on conflict (car_model_id, service) do update set
       interval_km = excluded.interval_km, interval_months = excluded.interval_months,
+      severe_km = excluded.severe_km, severe_months = excluded.severe_months,
       note = excluded.note, parts = excluded.parts;
   end if;
   insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id, reverts_id)
-  values (c.kind, c.car_model_id, 'dealer_plan_items', c.row_key,
+  values (c.kind, c.car_model_id, case c.kind when 'recall' then 'recalls' else 'dealer_plan_items' end, c.row_key,
           case when b is null then 'delete' when live is null then 'insert' else 'update' end,
           live, public.proposal_live(c.kind, c.car_model_id, c.row_key), c.proposal_id, p_change_id)
   returning id into new_id;

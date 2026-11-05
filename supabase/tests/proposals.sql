@@ -382,4 +382,64 @@ do $$ begin
 end $$;
 reset role;
 
+-- v) severe intervals (Phase 3, D-09/D-10)
+insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, severe_km, severe_months, note)
+values ('test:gate', 'Severe Item', 10000, 12, 5000, 6, '');
+do $$ declare ev constant jsonb := '[{"url":"https://a.example/x","tier":"official","quote":"q"}]'; r jsonb; pid bigint; begin
+  -- severe-only change is queued, not a noop
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Severe Item',
+    '{"interval_km":10000,"interval_months":12,"severe_km":4000,"severe_months":6,"note":"","parts":[]}'::jsonb, ev);
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: v) severe-only change: %', r; end if;
+  -- same values with severe absent: nothing changes, so noop
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Severe Item',
+    '{"interval_km":10000,"interval_months":12,"note":"","parts":[]}'::jsonb, ev);
+  if r->>'action' <> 'noop' then raise exception 'FAIL: v) severe-absent equal expected noop: %', r; end if;
+  -- severe-absent change supersedes the pending one and must keep live severe
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Severe Item',
+    '{"interval_km":12000,"interval_months":12,"note":"","parts":[]}'::jsonb, ev);
+  pid := (r->>'id')::bigint;
+end $$;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare pid bigint; r jsonb; begin
+  select id into pid from public.proposals where car_model_id = 'test:gate' and target_key = 'Severe Item' and status = 'pending';
+  r := public.apply_proposal(pid);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: v) apply: %', r; end if;
+  if not exists (select 1 from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Severe Item'
+                 and interval_km = 12000 and severe_km = 5000 and severe_months = 6) then
+    raise exception 'FAIL: v) severe changed or interval not applied'; end if;
+  -- revert restores severe too
+  r := public.revert_change((r->>'change_id')::bigint);
+  if not exists (select 1 from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Severe Item'
+                 and interval_km = 10000 and severe_km = 5000 and severe_months = 6) then
+    raise exception 'FAIL: v) revert severe'; end if;
+end $$;
+reset role;
+
+-- w) recall kind: submit, duplicate, apply (upsert approved), revert (delete)
+do $$ declare ev constant jsonb := '[{"url":"https://a.example/x","tier":"official","quote":"q"}]';
+  aft constant jsonb := '{"component":"AIR BAGS","summary":"Inflator may rupture","remedy":"Replace inflator","years":[2019,2020]}'; r1 jsonb; r2 jsonb; begin
+  r1 := public.submit_proposal('recall', 'test:gate', 'TESTCAMP1', aft, ev);
+  if r1->>'action' <> 'inserted' then raise exception 'FAIL: w) recall submit: %', r1; end if;
+  r2 := public.submit_proposal('recall', 'test:gate', 'TESTCAMP1', aft, ev);
+  if r2->>'action' <> 'duplicate' then raise exception 'FAIL: w) recall duplicate: %', r2; end if;
+end $$;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare pid bigint; r jsonb; begin
+  select id into pid from public.proposals where kind = 'recall' and target_key = 'TESTCAMP1' and status = 'pending';
+  r := public.apply_proposal(pid);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: w) recall apply: %', r; end if;
+  if not exists (select 1 from public.recalls where campaign = 'TESTCAMP1' and car_model_id = 'test:gate'
+                 and status = 'approved' and years = '{2019,2020}'::int[]) then
+    raise exception 'FAIL: w) recall row not upserted as approved'; end if;
+  if (select table_name from public.change_log where id = (r->>'change_id')::bigint) <> 'recalls' then
+    raise exception 'FAIL: w) change_log table_name'; end if;
+  r := public.revert_change((r->>'change_id')::bigint);
+  if (r->>'ok') is distinct from 'true'
+     or exists (select 1 from public.recalls where campaign = 'TESTCAMP1' and car_model_id = 'test:gate') then
+    raise exception 'FAIL: w) recall revert: %', r; end if;
+end $$;
+reset role;
+
 rollback;
