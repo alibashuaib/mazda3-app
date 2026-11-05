@@ -74,3 +74,9 @@ test('recalls: one upsert with ignoreDuplicates and campaign,car_model_id', asyn
   assert.match(src, /onConflict: 'campaign,car_model_id', ignoreDuplicates: true/);
   assert.doesNotMatch(src, /plan_drafts[^\n]*onConflict/);
 });
+
+test('service names that could break the PostgREST in() filter produce no draft (security review)', async () => {
+  const { planCarWrites } = require('../supabase/functions/plan-intake/logic.mjs');
+  const plan = planCarWrites('c1', 's1', [{ service: 'Oil),(x', interval_km: 10000, interval_months: null, note: '', parts: [] }, { service: 'Filter', interval_km: 20000, interval_months: null, note: '', parts: [] }], []);
+  assert.deepStrictEqual(plan.deleteServices, ['Filter']);
+});

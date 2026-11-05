@@ -78,6 +78,7 @@ export function planCarWrites(carId, sourceId, items, liveRows) {
     const proposed = { interval_km: it.interval_km, interval_months: it.interval_months, note: it.note, parts: it.parts };
     if (!diffDraft(cur, proposed)) continue;
     const service = cur ? cur.service : it.service;
+    if (/[,()"\\]/.test(service)) continue;   // PostgREST in() filter: these would widen the delete (security review)
     const key = service.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
