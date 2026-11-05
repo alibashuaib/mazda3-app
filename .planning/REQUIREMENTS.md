@@ -23,8 +23,8 @@
 
 - [x] **CORE-01**: All autopilot output is stored as pending rows in one generic `proposals` table (kind, maker, car, target, before, after, evidence, status); autopilot cannot write live catalogue tables
 - [x] **CORE-02**: Only an admin-run `apply_proposal` path can write approved proposals to live tables, inside a transaction, and it refuses if the live row changed since the proposal was made
-- [ ] **CORE-03**: The same finding is never queued twice, and a value the owner rejected is not re-proposed in later runs unless its sources change
-- [ ] **CORE-04**: A newer proposal for the same target supersedes an older pending one
+- [x] **CORE-03**: The same finding is never queued twice, and a value the owner rejected is not re-proposed in later runs unless its sources change
+- [x] **CORE-04**: A newer proposal for the same target supersedes an older pending one
 - [x] **CORE-05**: Every approved change is recorded in a change log (who, when, before, after)
 - [x] **CORE-06**: Data model has a `makers` table and contains no Mazda-specific literals in pipeline logic, so other brands can be added later without schema changes
 - [x] **CORE-07**: Distances and prices are stored with explicit units/currency (km vs miles, SAR, VAT, pack quantity) and converted in code, never by the LLM
@@ -35,7 +35,7 @@
 - [ ] **REV-02**: Owner can approve all filtered high-confidence proposals in one action; one failure does not abort the rest
 - [x] **REV-03**: Each proposal shows before/after diff, source links with the verbatim quoted evidence, and a rule-based confidence badge (source tier, number of agreeing sources, size of change)
 - [x] **REV-04**: Owner can edit a proposed value before approving it
-- [ ] **REV-05**: Owner can reject a proposal with a reason
+- [x] **REV-05**: Owner can reject a proposal with a reason
 - [ ] **REV-06**: Owner can revert an approved change in one click (recorded as a new audited change)
 - [ ] **REV-07**: Owner sees a report per monthly run: proposals found per kind, cost, errors, skipped sources
 - [ ] **REV-08**: `#admin` shows a banner when the monthly run is overdue or failed
@@ -123,8 +123,8 @@
 | FND-11 | Phase 1 | Pending |
 | CORE-01 | Phase 2 | Complete |
 | CORE-02 | Phase 2 | Complete |
-| CORE-03 | Phase 2 | Pending |
-| CORE-04 | Phase 2 | Pending |
+| CORE-03 | Phase 2 | Complete |
+| CORE-04 | Phase 2 | Complete |
 | CORE-05 | Phase 2 | Complete |
 | CORE-06 | Phase 2 | Complete |
 | CORE-07 | Phase 2 | Complete |
@@ -132,7 +132,7 @@
 | REV-02 | Phase 2 | Pending |
 | REV-03 | Phase 2 | Complete |
 | REV-04 | Phase 2 | Complete |
-| REV-05 | Phase 2 | Pending |
+| REV-05 | Phase 2 | Complete |
 | REV-06 | Phase 2 | Pending |
 | REV-09 | Phase 2 | Complete |
 | ENG-01 | Phase 3 | Pending |
