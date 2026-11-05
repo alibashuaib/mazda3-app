@@ -7,6 +7,12 @@
 'use strict';
 
 let adminModelId = null;   // the car being edited, or null for the list
+let adminTab = 'queue';    // 'queue' | 'errors'
+
+/* Failures go to the error log (plan 01-10), not the browser console */
+function adminReport(message, e) {
+  if (typeof errorLog !== 'undefined') errorLog.report({ source: 'client', message, stack: e && e.stack });
+}
 
 function renderAdmin() {
   const v = el('div', 'admin-view');
@@ -27,13 +33,77 @@ async function renderAdminBody(body) {
   if (!account.user()) { body.innerHTML = ''; body.appendChild(adminSignIn()); return; }
   if (!(await catalogAdmin.isAdmin())) return adminNotice(body, 'This account is not an admin.');
   try {
-    const node = adminModelId ? await adminEditor(adminModelId) : await adminList();
-    body.innerHTML = '';
-    body.appendChild(node);
+    if (adminModelId) { const node = await adminEditor(adminModelId); body.innerHTML = ''; body.appendChild(node); return; }
+    // One fetch feeds both the badge and the Errors tab. A failure here must
+    // not take the review queue down with it.
+    const errs = await catalogAdmin.listErrors();
+    const open = errs.ok ? errs.groups.filter(g => g.open).length : 0;
+    const show = async () => {
+      body.innerHTML = '';
+      body.appendChild(adminTabs([{ id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
+        id => { adminTab = id; show(); }));
+      try { body.appendChild(adminTab === 'errors' ? adminErrors(errs, () => renderAdminBody(body)) : await adminList()); }
+      catch (e) { adminReport('admin: render failed', e); body.appendChild(el('div', 'card', html`<p style="padding:16px">${t('Could not load the catalogue.')}</p>`)); }
+    };
+    await show();
   } catch (e) {
-    console.error(e);
+    adminReport('admin: body load failed', e);
     adminNotice(body, 'Could not load the catalogue.');
   }
+}
+
+/* Small tab bar. Phases 2 and 3 add their tabs by extending the list passed
+   here ({ id, label, badge }); nothing else in the bar needs to change. */
+function adminTabs(tabs, active, onPick) {
+  const bar = el('div', 'field-row');
+  bar.setAttribute('role', 'tablist');
+  tabs.forEach(tab => {
+    const b = el('button', 'btn ' + (tab.id === active ? 'primary' : 'ghost'));
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', tab.id === active ? 'true' : 'false');
+    b.textContent = t(tab.label) + (tab.badge ? ' (' + tab.badge + ')' : '');
+    b.onclick = () => onPick(tab.id);
+    bar.appendChild(b);
+  });
+  return bar;
+}
+
+/* Errors tab. message and stack are untrusted: textContent only, no raw markup. */
+function adminErrors(res, refresh) {
+  const card = el('div', 'card');
+  card.style.padding = '16px';
+  const note = txt => { const p = el('p', 'muted'); p.textContent = t(txt); card.appendChild(p); };
+  if (!res.ok) { note('Could not load errors.'); return card; }
+  if (!res.groups.length) { note('No errors logged'); return card; }
+  res.groups.forEach(g => {
+    const box = el('div', 'admin-item');
+    const title = el('h4'); title.textContent = g.message;
+    const meta = el('p', 'muted');
+    meta.textContent = [t('Count') + ': ' + g.count, t('First seen') + ': ' + new Date(g.firstSeen).toLocaleString(),
+      t('Last seen') + ': ' + new Date(g.lastSeen).toLocaleString(), t('Source') + ': ' + g.source].join(' · ');
+    box.append(title, meta);
+    if (g.stacks.length) {
+      const d = el('details');
+      const sm = el('summary'); sm.textContent = t('Show stacks');
+      d.appendChild(sm);
+      g.stacks.forEach(st => { const pre = el('pre'); pre.style.whiteSpace = 'pre-wrap'; pre.textContent = st; d.appendChild(pre); });
+      box.appendChild(d);
+    }
+    if (g.open) {
+      const b = el('button', 'btn ghost'); b.type = 'button'; b.textContent = t('Resolve');
+      onAsyncClick(b, async () => {
+        const r = await catalogAdmin.resolveGroup(g.key);
+        if (r.ok) return refresh();
+        const p = el('p', 'muted'); p.textContent = t('Could not save'); box.appendChild(p);
+      });
+      box.appendChild(b);
+    } else {
+      const p = el('p', 'muted'); p.textContent = t('Resolved'); box.appendChild(p);
+    }
+    card.appendChild(box);
+  });
+  return card;
 }
 
 function adminSignIn() {
@@ -65,7 +135,7 @@ const DIFF_LABELS = { interval_km: 'Dealer interval (km)', interval_months: 'Dea
 async function adminQueue() {
   let drafts = [], recalls = [];
   try { [drafts, recalls] = await Promise.all([catalogAdmin.listDrafts(), catalogAdmin.listPendingRecalls()]); }
-  catch (e) { console.error(e); }
+  catch (e) { adminReport('admin: queue load failed', e); }
   const card = el('div', 'card');
   card.style.padding = '16px';
   const h = el('h3'); h.textContent = t('Review queue');
@@ -77,7 +147,7 @@ async function adminQueue() {
   const decide = (box, approve, run) => {
     const mkBtn = (label, cls, ok) => {
       const b = el('button', cls); b.type = 'button'; b.textContent = t(label);
-      onAsyncClick(b, async () => { try { await run(ok); go('admin'); } catch (e) { console.error(e); toast('Could not save'); } });
+      onAsyncClick(b, async () => { try { await run(ok); go('admin'); } catch (e) { adminReport('admin: save failed', e); toast('Could not save'); } });
       return b;
     };
     const row = el('div', 'field-row');
@@ -113,7 +183,7 @@ async function adminQueue() {
   const run = el('button', 'btn ghost block'); run.type = 'button'; run.textContent = t('Check Mazda sources now');
   onAsyncClick(run, async () => {
     try { const r = await catalogAdmin.runIntake(); toast(`${r ? r.drafts : 0} ${t('new drafts')}`); go('admin'); }
-    catch (e) { console.error(e); toast('Could not check sources'); }
+    catch (e) { adminReport('admin: check sources failed', e); toast('Could not check sources'); }
   });
   card.appendChild(run);
   return card;
@@ -185,7 +255,7 @@ async function adminEditor(id) {
       toast('Catalogue saved');
       go('admin');
     } catch (e) {
-      console.error(e);
+      adminReport('admin: render failed', e);
       toast('Could not save. Check your connection.', 'warn');
     }
   });
