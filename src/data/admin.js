@@ -141,7 +141,49 @@
     return Promise.resolve(env.client.functions.invoke('plan-intake', { body: carModelId ? { car_model_id: carModelId } : {} })).then(data);
   }
 
+  /* ---- Errors tab: app_errors rows grouped for the owner (D-06, D-07) ---- */
+  const ERR_COLS = 'id,created_at,source,message,stack,route,app_version,user_id,group_key,resolved_at';
+  const ERR_LIMIT = 500;   // DoS cap: grouping happens in memory
+  // Same idea as the DB group_key: case and digits do not split a group.
+  const errKey = r => r.group_key || (r.source + '|' + String(r.message || '').toLowerCase().replace(/[0-9]+/g, '#'));
+
+  /* Pure. A group is open when it was never resolved, or a row arrived after
+     the newest resolve (reopen on new occurrence). Newest-seen first. */
+  function groupErrors(rows) {
+    const by = new Map();
+    (rows || []).forEach(r => {
+      const k = errKey(r);
+      let g = by.get(k);
+      if (!g) { g = { key: k, message: r.message, source: r.source, count: 0, firstSeen: r.created_at, lastSeen: r.created_at, resolvedAt: null, stacks: [] }; by.set(k, g); }
+      g.count++;
+      if (r.created_at < g.firstSeen) g.firstSeen = r.created_at;
+      if (r.created_at > g.lastSeen) { g.lastSeen = r.created_at; g.message = r.message; }
+      if (r.resolved_at && (!g.resolvedAt || r.resolved_at > g.resolvedAt)) g.resolvedAt = r.resolved_at;
+      if (r.stack) g.stacks.push({ at: r.created_at, stack: r.stack });
+    });
+    return [...by.values()].map(g => {
+      g.stacks = g.stacks.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 5).map(s => s.stack);
+      g.open = !g.resolvedAt || g.lastSeen > g.resolvedAt;
+      return g;
+    }).sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : -1));
+  }
+
+  /* Never rejects. */
+  function listErrors() {
+    return Promise.resolve().then(() => env.client.from('app_errors').select(ERR_COLS)
+      .order('created_at', { ascending: false }).limit(ERR_LIMIT))
+      .then(res => (res && !res.error ? { ok: true, groups: groupErrors(res.data || []) } : { ok: false, error: 'failed' }))
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+  function resolveGroup(groupKey) {
+    return Promise.resolve().then(() => env.client.from('app_errors')
+      .update({ resolved_at: new Date().toISOString() }).eq('group_key', groupKey))
+      .then(res => (res && !res.error ? { ok: true } : { ok: false, error: 'failed' }))
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+
   return {
+    listErrors, resolveGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount,
     listModels, loadModel, saveWarranty, saveItem, approve,
     num, parseParts, formatParts, itemPatch, describeChange,

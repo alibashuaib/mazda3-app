@@ -12,7 +12,7 @@
 
 const AR = {
   // nav
-  'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Parts': 'القطع', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
+  'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
   // account menu — language switch item names the *other* language; 'العربية'
   // is shown raw (own script, no translation needed), but 'English' needs
   // this entry so it reads in Arabic script once Arabic is active.
@@ -32,7 +32,7 @@ const AR = {
   'Budget & Spending': 'الميزانية والمصروفات', 'Track what your Mazda costs to run and keep it in top shape.': 'تابع تكلفة تشغيل سيارتك وحافظ عليها بأفضل حال.',
   'Generate a clean, printable A4 report — then Print or Save as PDF.': 'أنشئ تقرير A4 واضح للطباعة — ثم اطبعه أو احفظه PDF.',
   // section titles + links
-  'Next up': 'التالي', 'Recommendations': 'التوصيات', 'Documents & renewals': 'الوثائق والتجديدات', 'Monthly spending': 'المصروف الشهري',
+  'Recommendations': 'التوصيات', 'Documents & renewals': 'الوثائق والتجديدات', 'Monthly spending': 'المصروف الشهري',
   'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
   // schedule basis (severe vs dealer)
@@ -71,7 +71,7 @@ const AR = {
   /* Year-free: callers append the live year, so this phrase never goes stale. */
   'Spent in': 'المصروف في',
   // filters / segments
-  'All': 'الكل', 'OK': 'سليمة',
+  'All': 'الكل',
   // buttons
   'Log a service': 'تسجيل صيانة', 'Add spending': 'إضافة مصروف', 'Add fill-up': 'إضافة تعبئة', 'Mark done now': 'تحديد كمنجز',
   'A single service, or a whole milestone at once.': 'صيانة واحدة، أو صيانة دورية كاملة دفعة واحدة.',
@@ -91,7 +91,7 @@ const AR = {
   'Log ›': 'تسجيل ›',
   'Edit': 'تعديل', 'Save': 'حفظ', 'Add a part': 'إضافة قطعة', 'Add a custom service': 'إضافة خدمة مخصصة', 'Print / Save PDF': 'طباعة / حفظ PDF',
   'Update mileage': 'تحديث العداد', 'Set annual budget': 'تعيين الميزانية السنوية', 'Add a vehicle': 'إضافة مركبة', 'Add option': 'إضافة خيار',
-  'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save changes': 'حفظ التغييرات', 'Save profile': 'حفظ الملف',
+  'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save profile': 'حفظ الملف',
   'Save part': 'حفظ القطعة', 'Remove': 'إزالة', 'Remove this vehicle': 'إزالة هذه المركبة', 'Delete': 'حذف',
   // crowdsourced price averages
   'Community price': 'سعر المجتمع', 'reports': 'تقييم', 'No reports yet': 'لا توجد تقييمات بعد', 'Report your price': 'شارك سعرك', 'Search or add an item…': 'ابحث أو أضف عنصراً…', 'Add "%s" as a new item': 'أضف "%s" كعنصر جديد', 'Your price (SAR)': 'سعرك (ريال)', 'Submit price': 'إرسال السعر', 'Price submitted ✓': 'تم إرسال السعر ✓', 'Sign in to see or share community prices.': 'سجّل الدخول لعرض أو مشاركة أسعار المجتمع.', 'Price required': 'السعر مطلوب', 'Search shared item': 'ابحث عن عنصر مشترك', 'e.g. Car paint job': 'مثال: دهان السيارة',
@@ -114,7 +114,7 @@ const AR = {
   'Driving License': 'رخصة القيادة', 'Warranty': 'الضمان', 'Other': 'أخرى',
   // modal titles / subs
   'Your garage': 'مرآبك', 'Switch between your vehicles or add another.': 'بدّل بين مركباتك أو أضف أخرى.',
-  'Car profile': 'ملف السيارة', 'Add fill-up ': 'إضافة تعبئة', 'Edit fill-up': 'تعديل التعبئة', 'Add document': 'إضافة وثيقة', 'Edit document': 'تعديل الوثيقة',
+  'Add fill-up ': 'إضافة تعبئة', 'Edit fill-up': 'تعديل التعبئة', 'Add document': 'إضافة وثيقة', 'Edit document': 'تعديل الوثيقة',
   'Add spending ': 'إضافة مصروف', 'Edit expense': 'تعديل المصروف', 'Log a service ': 'تسجيل صيانة', 'Annual budget': 'الميزانية السنوية',
   // common field labels
   'Date': 'التاريخ', 'Odometer (km)': 'العداد (كم)', 'Litres': 'اللترات', 'Cost (SAR)': 'التكلفة (ريال)', 'Category': 'الفئة',
@@ -130,12 +130,12 @@ const AR = {
   // budget ring
   'over budget': 'فوق الميزانية', 'SAR remaining of': 'ريال متبقية من',
   // report internals
-  'Total spent (SAR)': 'إجمالي المصروف (ريال)', 'Total': 'الإجمالي', 'Service': 'الخدمة', 'Odometer': 'العداد',
+  'Total spent (SAR)': 'إجمالي المصروف (ريال)', 'Total': 'الإجمالي', 'Service': 'الخدمة',
   'Cost': 'التكلفة', 'Notes': 'ملاحظات', 'Everything is up to date 🎉': 'كل شيء محدّث 🎉',
   'Generated': 'أُنشئ في', 'Odometer ': 'العداد ', 'Current odometer (km)': 'العداد الحالي (كم)', 'No service history recorded yet.': 'لا يوجد سجل صيانة بعد.',
   'Service History Report': 'تقرير سجل الصيانة', 'No purchases or spending recorded yet.': 'لا توجد مشتريات أو مصروفات بعد.', 'Entries': 'إدخالات', 'Categories': 'الفئات',
   'By category': 'حسب الفئة', 'Amount': 'المبلغ', 'Share': 'النسبة', 'All purchases': 'كل المشتريات', 'Item': 'البند', 'Purchases & Spending Report': 'تقرير المشتريات والمصروفات',
-  'Health score': 'درجة الحالة', 'Lifetime service cost': 'تكلفة الصيانة الإجمالية', 'Upcoming &amp; overdue services': 'الخدمات القادمة والمتأخرة',
+  'Lifetime service cost': 'تكلفة الصيانة الإجمالية', 'Upcoming &amp; overdue services': 'الخدمات القادمة والمتأخرة',
   'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
   'Car Care · Mazda care app': 'Car Care · تطبيق العناية بمازدا', 'Report generated': 'صدر التقرير',
   // part names
@@ -431,7 +431,6 @@ const AR = {
   'Due, and past the typical life other owners see': 'حان موعدها وتجاوزت العمر المعتاد لدى الملاك الآخرين',
   'Due by the Mazda schedule': 'حان موعدها حسب جدول مازدا',
   'of owners who inspected this found a problem': 'من الملاك الذين فحصوها وجدوا مشكلة',
-  'of owners repaired this instead of replacing it': 'من الملاك أصلحوها بدل استبدالها',
   'Mazda schedule only': 'حسب جدول مازدا فقط',
   'recall': 'استدعاء',
   'recalls': 'استدعاءات',
@@ -473,7 +472,10 @@ const AR = {
   'Result: not stated': 'النتيجة: غير محددة', 'Looked fine': 'سليمة', 'Needs attention': 'تحتاج إلى انتباه', 'General guidance': 'إرشاد عام',
   'of owners repaired this instead of replacing it': 'من المالكين أصلحوها بدل تبديلها', 'median SAR': 'الوسيط ريال', 'repaired vs': 'للإصلاح مقابل', 'replaced': 'للتبديل',
   'a repaired one lasts about': 'القطعة المُصلَحة تدوم نحو', 'before replacement': 'قبل تبديلها',
-  'Inspections found a problem': 'الفحص وجد مشكلة في', 'of the time': 'من الحالات'
+  'Inspections found a problem': 'الفحص وجد مشكلة في', 'of the time': 'من الحالات',
+  'Errors': 'الأخطاء', 'Could not load errors.': 'تعذّر تحميل الأخطاء.', 'No errors logged': 'لا توجد أخطاء مسجّلة',
+  'Count': 'العدد', 'First seen': 'أول ظهور', 'Last seen': 'آخر ظهور', 'Source': 'المصدر',
+  'Resolve': 'تعيين كمحلول', 'Resolved': 'تم الحل', 'Show stacks': 'عرض التفاصيل', 'Hide stacks': 'إخفاء التفاصيل'
 };
 
   return { AR };
