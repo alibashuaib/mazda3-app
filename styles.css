@@ -1053,6 +1053,9 @@ html { scroll-behavior: smooth; }
 .proposal-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .proposal-filters select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 
+/* Proposal rows: one line each, long car and target names truncate instead of wrapping */
+.proposal-main h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* Admin tab strip: all tabs on one line; labels truncate rather than wrap */
 .admin-tabs { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 12px; }
 .admin-tabs .btn { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -86,7 +86,7 @@ function proposalRow(p, models, refresh) {
   sum.tabIndex = 0;
   sum.setAttribute('aria-expanded', 'false');
   sum.setAttribute('aria-controls', panelId);
-  const main = el('div', 'item-main');
+  const main = el('div', 'item-main proposal-main');
   const h = el('h3'); h.setAttribute('dir', 'auto');
   h.textContent = `${proposalCarLabel(models, p.car_model_id)} · ${p.target_key}`;
   const sub = el('p');
