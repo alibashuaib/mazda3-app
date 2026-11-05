@@ -15,6 +15,7 @@ function stub(state) {
     },
     functions: { invoke: () => Promise.resolve({ data: {}, error: null }) },
     from: table => {
+      (state.fromCalls = state.fromCalls || []).push(table);
       const p = () => {
         if (table === 'proposals') return state.propFail ? Promise.resolve({ data: null, error: {} }) : Promise.resolve({ data: state.proposals, error: null });
         const rows = ({ profiles: { role: 'admin' }, car_models: [{ id: 'm1', model: 'CX-5', generation: 'KF', engine: '2.5L', status: 'approved' }],
@@ -152,5 +153,29 @@ test('Review queue tab still renders the legacy queue', async () => {
     assert.ok(await until(() => tab(app, 'Review queue')));
     tab(app, 'Review queue').onclick();
     assert.ok(await until(() => /Nothing waiting for review/.test(text(app.document))), text(app.document));
+  } finally { app.cleanup(); }
+});
+
+test('filters narrow the list in memory, Clear restores, empty match message', async () => {
+  const { app, s } = await open({ proposals: [prop(), prop({ id: 8, target_key: 'Cabin Filter', confidence_tier: 'low', run_id: 102 })] });
+  const fetches = () => s.fromCalls.filter(x => x === 'proposals').length;
+  try {
+    assert.ok(await until(() => row(app)));
+    const n = fetches();
+    const sels = [...app.document.querySelectorAll('#view select[data-f]')];
+    assert.strictEqual(sels.length, 4);
+    assert.strictEqual(sels[0].options[0].textContent, 'All');
+    assert.strictEqual(btn(app, 'Clear filters'), undefined);
+    const tier = app.document.querySelector('select[data-f=tier]');
+    tier.value = 'high'; tier.onchange();
+    assert.ok(/Engine Oil/.test(text(app.document)) && !/Cabin Filter/.test(text(app.document)));
+    assert.ok(btn(app, 'Clear filters'));
+    const run = app.document.querySelector('select[data-f=run]');
+    run.value = '102'; run.onchange();
+    assert.match(text(app.document), /No proposals match these filters/);
+    btn(app, 'Clear filters').onclick();
+    assert.ok(/Engine Oil/.test(text(app.document)) && /Cabin Filter/.test(text(app.document)));
+    assert.strictEqual(btn(app, 'Clear filters'), undefined);
+    assert.strictEqual(fetches(), n, 'no refetch');
   } finally { app.cleanup(); }
 });

@@ -41,3 +41,22 @@ test('confidenceLabel maps tiers, unknown is Low', () => {
   assert.deepStrictEqual(admin.confidenceLabel('low'), { text: 'Low', cls: 'danger' });
   assert.deepStrictEqual(admin.confidenceLabel(undefined), { text: 'Low', cls: 'danger' });
 });
+
+const FR = [
+  { id: 1, car_model_id: 'm2', kind: 'schedule_item', confidence_tier: 'low', run_id: 102 },
+  { id: 2, car_model_id: 'm1', kind: 'schedule_item', confidence_tier: 'high', run_id: 101 },
+  { id: 3, car_model_id: 'm1', kind: 'part', confidence_tier: 'high', run_id: 102 },
+  { id: 4, car_model_id: 'm2', kind: 'schedule_item', confidence_tier: 'low', run_id: null }
+];
+test('filterProposals: intersects, empty = all, no mutation', () => {
+  const copy = JSON.stringify(FR);
+  assert.deepStrictEqual(admin.filterProposals(FR, { car: 'm1' }).map(r => r.id), [2, 3]);
+  assert.deepStrictEqual(admin.filterProposals(FR, { tier: 'high', run: '101' }).map(r => r.id), [2]);
+  assert.strictEqual(admin.filterProposals(FR, {}).length, 4);
+  assert.strictEqual(admin.filterProposals(FR).length, 4);
+  assert.strictEqual(JSON.stringify(FR), copy);
+});
+test('proposalFilterOptions: unique, sorted, tiers ordered, null run dropped', () => {
+  assert.deepStrictEqual(admin.proposalFilterOptions(FR),
+    { cars: ['m1', 'm2'], kinds: ['part', 'schedule_item'], tiers: ['high', 'low'], runs: ['101', '102'] });
+});

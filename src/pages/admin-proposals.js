@@ -10,6 +10,9 @@
 
 const PROPOSAL_TIER_LABEL = { official: 'Official', secondary: 'Secondary', community: 'Community' };
 
+/* Survives refresh() after an approve, like adminTab. */
+let proposalFilter = { car: '', kind: '', tier: '', run: '' };
+
 function proposalCarLabel(models, id) {
   const m = (models || []).find(x => x.id === id);
   return m ? `${m.model} ${m.generation}` : String(id || '');
@@ -149,9 +152,50 @@ function adminProposals(res, models, refresh) {
     return card;
   }
   const wrap = el('div');
-  const list = el('div', 'list');
-  res.rows.forEach(p => list.appendChild(proposalRow(p, models, () => { try { refresh(); } catch (e) { adminReport('admin: proposals refresh failed', e); } })));
-  wrap.appendChild(list);
+  const opts = catalogAdmin.proposalFilterOptions(res.rows);
+  const fcard = el('div', 'card');
+  fcard.style.cssText = 'padding:16px;margin-bottom:12px';
+  const frow = el('div', 'field-row');
+  const sel = (key, label, values, labelOf) => {
+    const f = field(label, html`<select data-f="${key}"></select>`);
+    const s = f.querySelector('select');
+    [['', t('All')]].concat(values.map(v => [v, labelOf(v)])).forEach(([v, text]) => {
+      const o = el('option'); o.value = v; o.textContent = text; s.appendChild(o);
+    });
+    s.value = proposalFilter[key];
+    s.onchange = () => { proposalFilter[key] = s.value; draw(); };
+    return f;
+  };
+  frow.append(
+    sel('car', 'Car', opts.cars, v => proposalCarLabel(models, v)),
+    sel('kind', 'Kind', opts.kinds, v => t(v === 'schedule_item' ? 'Schedule item' : v)),
+    sel('tier', 'Confidence', opts.tiers, v => t(catalogAdmin.confidenceLabel(v).text)),
+    sel('run', 'Run', opts.runs, v => t('Run {n}').replace('{n}', v)));
+  fcard.appendChild(frow);
+  const clear = el('button', 'btn ghost'); clear.type = 'button'; clear.textContent = t('Clear filters');
+  clear.onclick = () => {
+    proposalFilter = { car: '', kind: '', tier: '', run: '' };
+    fcard.querySelectorAll('select').forEach(s => { s.value = ''; });
+    draw();
+  };
+  const body = el('div');
+  wrap.append(fcard, body);
+  const safeRefresh = () => { try { refresh(); } catch (e) { adminReport('admin: proposals refresh failed', e); } };
+  function draw() {
+    body.textContent = '';
+    const active = Object.values(proposalFilter).some(Boolean);
+    if (active) fcard.appendChild(clear); else clear.remove();
+    const rows = catalogAdmin.filterProposals(res.rows, proposalFilter);
+    if (!rows.length) {
+      const m = el('p', 'muted'); m.textContent = t('No proposals match these filters');
+      body.appendChild(m);
+      return;
+    }
+    const list = el('div', 'list');
+    rows.forEach(p => list.appendChild(proposalRow(p, models, safeRefresh)));
+    body.appendChild(list);
+  }
+  draw();
   if (res.capped) {
     const m = el('p', 'muted');
     m.textContent = t('Showing the newest 500. Approve or reject some to see more.');

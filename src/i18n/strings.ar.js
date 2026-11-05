@@ -484,7 +484,9 @@ const AR = {
   'Best source: {tier}': 'أفضل مصدر: {tier}', 'Agreeing sources: {n}': 'المصادر المتفقة: {n}', 'Change size: {n}%': 'حجم التغيير: {n}%',
   'Official': 'رسمي', 'Secondary': 'ثانوي', 'Invalid source link': 'رابط المصدر غير صالح', 'Sources': 'المصادر',
   'Showing the newest 500. Approve or reject some to see more.': 'عرض أحدث 500. اعتمد بعضها أو ارفضه لعرض المزيد.',
-  'Approve {target}': 'اعتماد {target}', 'Schedule item': 'بند جدول الصيانة'
+  'Approve {target}': 'اعتماد {target}', 'Schedule item': 'بند جدول الصيانة',
+  'Car': 'السيارة', 'Kind': 'النوع', 'Confidence': 'الثقة', 'Run': 'التشغيل', 'Clear filters': 'مسح المرشحات',
+  'No proposals match these filters': 'لا توجد مقترحات تطابق هذه المرشحات'
 };
 
   return { AR };

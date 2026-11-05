@@ -212,12 +212,24 @@
       .catch(() => ({ ok: false, error: 'failed' }));
   }
 
+  /* Pure, in-memory filters over the one bounded fetch. Empty criterion = no filter. */
+  function filterProposals(rows, f) {
+    f = f || {};
+    return (rows || []).filter(r => (!f.car || r.car_model_id === f.car) && (!f.kind || r.kind === f.kind) &&
+      (!f.tier || r.confidence_tier === f.tier) && (!f.run || String(r.run_id) === String(f.run)));
+  }
+  function proposalFilterOptions(rows) {
+    const uniq = k => [...new Set((rows || []).map(r => r[k]).filter(v => v != null && v !== '').map(String))].sort();
+    const tiers = uniq('confidence_tier');
+    return { cars: uniq('car_model_id'), kinds: uniq('kind'), tiers: ['high', 'medium', 'low'].filter(x => tiers.includes(x)), runs: uniq('run_id') };
+  }
+
   function confidenceLabel(tier) {
     return tier === 'high' ? { text: 'High', cls: 'ok' } : tier === 'medium' ? { text: 'Medium', cls: 'warn' } : { text: 'Low', cls: 'danger' };
   }
 
   return {
-    listProposals, applyProposal, confidenceLabel, PROPOSAL_LIMIT,
+    listProposals, applyProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
     listErrors, resolveGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount,
     listModels, loadModel, saveWarranty, saveItem, approve,
