@@ -31,10 +31,10 @@
 
 ### Review Queue
 
-- [ ] **REV-01**: Owner can filter the queue by car, data kind, confidence and run
+- [x] **REV-01**: Owner can filter the queue by car, data kind, confidence and run
 - [ ] **REV-02**: Owner can approve all filtered high-confidence proposals in one action; one failure does not abort the rest
 - [x] **REV-03**: Each proposal shows before/after diff, source links with the verbatim quoted evidence, and a rule-based confidence badge (source tier, number of agreeing sources, size of change)
-- [ ] **REV-04**: Owner can edit a proposed value before approving it
+- [x] **REV-04**: Owner can edit a proposed value before approving it
 - [ ] **REV-05**: Owner can reject a proposal with a reason
 - [ ] **REV-06**: Owner can revert an approved change in one click (recorded as a new audited change)
 - [ ] **REV-07**: Owner sees a report per monthly run: proposals found per kind, cost, errors, skipped sources
@@ -128,10 +128,10 @@
 | CORE-05 | Phase 2 | Complete |
 | CORE-06 | Phase 2 | Complete |
 | CORE-07 | Phase 2 | Complete |
-| REV-01 | Phase 2 | Pending |
+| REV-01 | Phase 2 | Complete |
 | REV-02 | Phase 2 | Pending |
 | REV-03 | Phase 2 | Complete |
-| REV-04 | Phase 2 | Pending |
+| REV-04 | Phase 2 | Complete |
 | REV-05 | Phase 2 | Pending |
 | REV-06 | Phase 2 | Pending |
 | REV-09 | Phase 2 | Complete |
