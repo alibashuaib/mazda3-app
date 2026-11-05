@@ -179,6 +179,14 @@ function openHealthBreakdown() {
    ROUTER
    ============================================================ */
 const routes = { dashboard: renderDashboard, maintenance: renderMaintenance, parts: renderParts, fuel: renderFuel, budget: renderBudget, reports: renderReports, admin: renderAdmin };
+/* The Advanced tab is for admin accounts only. The server enforces admin on every RPC; this just shows the way in. */
+function syncAdminTab() {
+  const tabs = $('#tabbar'), b = tabs && tabs.querySelector('[data-route="admin"]');
+  if (!b) return;
+  const on = !!catalogAdmin.knownAdmin();
+  b.hidden = !on;
+  tabs.classList.toggle('has-admin', on);
+}
 let current = 'dashboard';
 let navIntent = null; // cross-page link target, consumed by the destination page's render
 /* Hides the car badge/title, the topbar icon buttons, and the bottom nav —
@@ -665,6 +673,7 @@ session.load()
         });
       })
       .then(() => catalogAdmin.isAdmin())
+      .then(syncAdminTab)
       .catch(err => console.error('account.start() failed:', err));
     // Same rule as account.start(): after first paint, and never fatal.
     remoteCatalog.load()

@@ -412,6 +412,7 @@ const AR = {
   'Typical replacement': 'الاستبدال المعتاد',
   'km since the last one': 'كم منذ آخر مرة',
   'Admin': 'الإدارة',
+  'Advanced': 'متقدم',
   'Review and correct the shared car catalogue.': 'راجع دليل السيارات المشترك وصحّحه.',
   'Loading…': 'جارٍ التحميل…',
   'Admin needs an internet connection.': 'تحتاج الإدارة إلى اتصال بالإنترنت.',

@@ -129,6 +129,8 @@ function adminSignIn() {
     err.hidden = true;
     try {
       await account.signIn($('#adm_email').value.trim(), $('#adm_pw').value);
+      await catalogAdmin.isAdmin().catch(() => {});
+      if (typeof syncAdminTab === 'function') syncAdminTab();   // show the Advanced tab without a reload
       go('admin');
     } catch (e) {
       err.textContent = t('Sign-in failed. Check your email and password.');

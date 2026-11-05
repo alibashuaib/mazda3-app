@@ -566,6 +566,8 @@ body {
 .detail-row .v { font-weight: 650; }
 
 /* ---- Tab bar ---- */
+/* admin accounts see one extra tab (Advanced); the phone grid needs a seventh column for it */
+.tabbar.has-admin { grid-template-columns: repeat(7, 1fr); }
 .tabbar {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px;
   width: min(calc(100% - 28px), calc(var(--maxw) - 4px));
