@@ -1,6 +1,6 @@
 # plan-intake Edge Function
 
-Drafts Mazda's published maintenance schedule from admin-registered source URLs and fetches NHTSA recalls. It never writes live plan data: only `plan_drafts` and `pending` rows in `recalls`. The admin approves in the app's Review queue.
+Drafts Mazda's published maintenance schedule from admin-registered source URLs only. Recalls are handled by the `autopilot` function (they go through proposals and the approval gate). It never writes live plan data: only `plan_drafts`. The admin approves in the app's Review queue.
 
 ## Deploy
 
@@ -30,7 +30,7 @@ One model call per source whose content hash changed. Kill switch: `supabase sec
 
 ## Safety
 
-Source URLs must be https and pass `isSafeUrl` (no IP literals, localhost, `.local`/`.internal`, odd ports); one redirect is followed and re-checked. Model output is whitelisted and clamped; an unparseable result writes no draft. A source's hash is stored only after its drafts were written. A source whose output cannot be parsed is not retried until its content changes (set its `content_hash` to null to force a retry). Each source host must resolve to public addresses only. Recalls already in the table (any status) are never overwritten.
+Source URLs must be https and pass `isSafeUrl` (no IP literals, localhost, `.local`/`.internal`, odd ports); one redirect is followed and re-checked. Model output is whitelisted and clamped; an unparseable result writes no draft. A source's hash is stored only after its drafts were written. A source whose output cannot be parsed is not retried until its content changes (set its `content_hash` to null to force a retry). Each source host must resolve to public addresses only.
 
 ## Not executed
 
