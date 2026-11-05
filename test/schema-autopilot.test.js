@@ -96,3 +96,12 @@ test('autopilot: cron is guarded by pg_available_extensions and commits no secre
   assert.match(section, /'x-cron-secret', current_setting\('app\.autopilot_secret', true\)/);
   assert.doesNotMatch(section, /x-cron-secret":"/);
 });
+
+test('autopilot: publish re-checks banned hosts; ban uses the same parser and drops staged findings', () => {
+  assert.match(fn('autopilot_publish_run'), /public\.host_banned\(e->>'url'\)/);
+  assert.match(fn('autopilot_publish_run'), /act not in \('error', 'banned'\)/);
+  const b = fn('ban_source_domain');
+  assert.match(b, /public\.evidence_host\(e->>'url'\) = h/);
+  assert.match(b, /delete from public\.autopilot_findings f using public\.autopilot_runs r/);
+  assert.match(fn('host_banned'), /strpos\(p_url, chr\(92\)\) > 0/);
+});

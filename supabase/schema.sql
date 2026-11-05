@@ -1739,7 +1739,29 @@ begin
   return st;
 end $$;
 
--- Permanent (D-08). Rejects pending proposals with any evidence url on the host or a subdomain.
+-- Host of an evidence url, parsed the way the fetch parses it: no userinfo, no port, no trailing dot.
+create or replace function public.evidence_host(p_url text) returns text
+language sql immutable as $$
+  select nullif(rtrim(lower(regexp_replace(
+           regexp_replace(substring(p_url from '^https://([^/?#]+)'), '^.*@', ''),
+           ':[0-9]*$', '')), '.'), '')
+$$;
+
+-- Fail closed: unparseable, backslashed or userinfo urls count as banned.
+-- Otherwise banned when the host or any parent domain is banned.
+create or replace function public.host_banned(p_url text) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare h text := public.evidence_host(p_url);
+begin
+  if h is null or strpos(p_url, chr(92)) > 0 or substring(p_url from '^https://([^/?#]+)') like '%@%' then
+    return true; end if;
+  return exists (select 1 from public.source_domains d
+                  where d.status = 'banned' and (h = d.host or h like '%.' || d.host));
+end $$;
+revoke execute on function public.host_banned(text) from public, anon, authenticated;
+
+-- Permanent (D-08). Rejects pending proposals with any evidence url on the host or a subdomain,
+-- and drops staged findings of running runs that cite it (publish would otherwise re-submit them).
 create or replace function public.ban_source_domain(p_host text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare h text := lower(btrim(coalesce(p_host, ''))); n int;
@@ -1752,9 +1774,14 @@ begin
          decided_by = auth.uid(), decided_at = now()
    where p.status = 'pending' and exists (
      select 1 from jsonb_array_elements(p.evidence) e
-      where lower(substring(e->>'url' from '^https://([^/:?#]+)')) = h
-         or lower(substring(e->>'url' from '^https://([^/:?#]+)')) like '%.' || h);
+      where public.evidence_host(e->>'url') = h
+         or public.evidence_host(e->>'url') like '%.' || h);
   get diagnostics n = row_count;
+  delete from public.autopilot_findings f using public.autopilot_runs r
+   where f.run_id = r.id and r.status = 'running' and exists (
+     select 1 from jsonb_array_elements(f.evidence) e
+      where public.evidence_host(e->>'url') = h
+         or public.evidence_host(e->>'url') like '%.' || h);
   return jsonb_build_object('ok', true, 'rejected', n);
 end $$;
 revoke execute on function public.ban_source_domain(text) from public, anon;
@@ -1815,15 +1842,20 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'jobs_pending'); end if;
 
   for f in select * from public.autopilot_findings where run_id = p_run order by id loop
-    begin
-      act := public.submit_proposal(f.kind, f.car_model_id, f.target_key, f.after, f.evidence, p_run, f.reason)->>'action';
-    exception when others then
-      act := 'error';   -- the block is a savepoint: only this finding rolls back
-    end;
+    -- a source banned after staging must not reach the queue (TOCTOU with ban_source_domain)
+    if exists (select 1 from jsonb_array_elements(f.evidence) e where public.host_banned(e->>'url')) then
+      act := 'banned';
+    else
+      begin
+        act := public.submit_proposal(f.kind, f.car_model_id, f.target_key, f.after, f.evidence, p_run, f.reason)->>'action';
+      exception when others then
+        act := 'error';   -- the block is a savepoint: only this finding rolls back
+      end;
+    end if;
     counts := counts || jsonb_build_object(f.kind, coalesce(counts->f.kind, '{}'::jsonb));
     counts := jsonb_set(counts, array[f.kind, act], to_jsonb(coalesce((counts #>> array[f.kind, act])::int, 0) + 1));
     -- noop / duplicate / suppressed all mean the source value was seen and checked: verified.
-    if r.kind = 'monthly' and f.kind = 'schedule_item' and f.verified and act <> 'error' then
+    if r.kind = 'monthly' and f.kind = 'schedule_item' and f.verified and act not in ('error', 'banned') then
       insert into public.autopilot_item_status (car_model_id, kind, target_key, last_verified_at, last_verified_run, missed_runs)
         values (f.car_model_id, f.kind, f.target_key, now(), p_run, 0)
       on conflict (car_model_id, kind, target_key) do update
