@@ -10,10 +10,12 @@ const MAX_BODY = 2_200_000;
 
 Deno.serve(async (req) => {
   let admin: any = null;   // hoisted so the outer catch can log; logEdgeError tolerates null
+  let corsHeaders: Record<string, string> = {};   // hoisted so the 500 response keeps CORS (json() is scoped to the try)
   try {
     // Origin gate first: foreign/null Origin never reaches OPTIONS, auth or the paid model (D-13/D-14/D-16).
     const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
     if (!cors.ok) return new Response('forbidden', { status: 403 });
+    corsHeaders = cors.headers;
     const json = (status: number, body: unknown) =>
       new Response(JSON.stringify(body), { status, headers: { ...cors.headers, 'Content-Type': 'application/json' } });
     if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: cors.headers });
@@ -112,6 +114,6 @@ Deno.serve(async (req) => {
     return json(200, { bill: clean, billReadId });
   } catch (e) {
     await logEdgeError(admin, 'read-bill', e, 'read-bill');
-    return new Response(JSON.stringify({ error: 'server' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'server' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
