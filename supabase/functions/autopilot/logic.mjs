@@ -6,29 +6,44 @@ const M = 1e6;
 const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
 const isBanned = (host, banned) => (banned || []).some(b => { b = String(b).toLowerCase(); return host === b || host.endsWith('.' + b); });
 
-// D-04: cost from stored counts x price table. Haiku prompts over tier_over input tokens use the higher tier.
+// A token or search class with no configured rate throws instead of billing NaN or 0 (fail closed).
+const need = (rate, key) => { if (rate == null) throw new Error(`unpriced token class: ${key}`); return rate; };
+const billed = (n, rate, key) => (n ? n * need(rate, key) : 0);
+
+// D-04: cost from stored counts x price table. Haiku prompts over tier_over use the higher tier.
+// The tier is picked from TOTAL prompt tokens (input + cache read + cache write), not input alone.
 export function costUsd(model, usage, prices) {
   const p = prices && prices.models && prices.models[model];
   if (!p) throw new Error('unpriced model');
   const u = usage || {};
-  const inTok = u.input_tokens || 0;
-  const hi = p.tier_over && inTok > p.tier_over;
+  const inTok = u.input_tokens || 0, outTok = u.output_tokens || 0;
+  const cacheRead = u.cache_read_input_tokens || 0, cacheWrite = u.cache_creation_input_tokens || 0;
+  const searches = (u.server_tool_use && u.server_tool_use.web_search_requests) || 0;
+  const hi = p.tier_over && (inTok + cacheRead + cacheWrite) > p.tier_over;
   const pin = hi ? p.in_hi : p.in, pout = hi ? p.out_hi : p.out;
-  return (inTok * pin + (u.output_tokens || 0) * pout + (u.cache_read_input_tokens || 0) * (p.cache_read || 0)) / M
-    + ((u.server_tool_use && u.server_tool_use.web_search_requests) || 0) * prices.search_per_call;
+  return (billed(inTok, pin, 'input') + billed(outTok, pout, 'output')
+    + billed(cacheRead, p.cache_read, 'cache_read') + billed(cacheWrite, p.cache_write, 'cache_write')) / M
+    + billed(searches, prices.search_per_call, 'web_search');
 }
 
 export const costSar = (model, usage, prices) => costUsd(model, usage, prices) * prices.usd_sar;
 
-// D-01/ENG-03: reservation is a ceiling: chars/3 input tokens, full max_tokens out, full max_uses searches.
+// D-01/ENG-03: reservation is a ceiling: 1 token per input char (no tokenizer assumption), full max_tokens out,
+// full max_uses searches. Assumes no prompt caching in the run; cache writes are not reserved.
 export function worstCaseEstimate({ model, inputChars, maxTokens, maxSearches }, prices) {
   const usage = {
-    input_tokens: Math.ceil((inputChars || 0) / 3),
+    input_tokens: Math.ceil(inputChars || 0),
     output_tokens: maxTokens || 0,
     server_tool_use: { web_search_requests: maxSearches || 0 },
   };
   const usd = costUsd(model, usage, prices);
   return { usd, sar: usd * prices.usd_sar };
+}
+
+// Post-call check: actual spend against the reservation made before the call. over=true => stop the run.
+export function reconcile(reservation, model, usage, prices) {
+  const sar = costSar(model, usage, prices);
+  return { sar, over: sar > reservation.sar };
 }
 
 // D-05/D-06. Pass 1 = GCC allowed_domains only (null when none: go to pass 2). Pass 2 = blocked_domains only.

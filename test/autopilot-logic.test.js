@@ -10,7 +10,7 @@ const fx = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/autopi
 const prices = {
   usd_sar: 3.75, search_per_call: 0.01,
   models: {
-    'claude-haiku-5-5': { in: 0.10, out: 0.50, cache_read: 0.01, tier_over: 100000, in_hi: 0.50, out_hi: 2.50 },
+    'claude-haiku-5-5': { in: 0.10, out: 0.50, cache_read: 0.01, cache_write: 0.125, tier_over: 100000, in_hi: 0.50, out_hi: 2.50 },
     'claude-sonnet-5-5': { in: 2, out: 10, cache_read: 0.10 },
   },
 };
@@ -95,4 +95,25 @@ test('estimatePreview: unchanged sources skipped and not billed', async () => {
 test('logic.mjs has no Mazda hostname literals', () => {
   const src = fs.readFileSync(path.join(__dirname, '../supabase/functions/autopilot/logic.mjs'), 'utf8');
   assert.ok(!/mazda[a-z.-]*\.(com|sa|ae|net)/i.test(src));
+});
+
+test('costUsd: cache writes billed and counted toward the tier', async () => {
+  const { costUsd } = await load();
+  // 50k input + 60k cache write = 110k prompt tokens -> high tier for input; cache write at its own rate
+  const got = costUsd('claude-haiku-5-5', { input_tokens: 50000, cache_creation_input_tokens: 60000 }, prices);
+  assert.ok(Math.abs(got - (50000 * 0.50 + 60000 * 0.125) / 1e6) < 1e-12);
+});
+
+test('costUsd: token class with no rate throws instead of billing NaN or 0', async () => {
+  const { costUsd } = await load();
+  assert.throws(() => costUsd('claude-sonnet-5-5', { cache_creation_input_tokens: 1 }, prices), /unpriced token class: cache_write/);
+  assert.throws(() => costUsd('claude-sonnet-5-5', { input_tokens: 1, server_tool_use: { web_search_requests: 1 } }, { ...prices, search_per_call: undefined }), /unpriced token class: web_search/);
+});
+
+test('worstCaseEstimate reserves 1 token per input char; reconcile flags an over-run', async () => {
+  const { worstCaseEstimate, reconcile } = await load();
+  const res = worstCaseEstimate({ model: 'claude-sonnet-5-5', inputChars: 60000, maxTokens: 0, maxSearches: 0 }, prices);
+  assert.ok(Math.abs(res.usd - 60000 * 2 / 1e6) < 1e-12);
+  assert.strictEqual(reconcile(res, 'claude-sonnet-5-5', { input_tokens: 20000 }, prices).over, false);
+  assert.strictEqual(reconcile(res, 'claude-sonnet-5-5', { input_tokens: 70000 }, prices).over, true);
 });
