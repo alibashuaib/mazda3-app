@@ -5,7 +5,8 @@
   "description": "Car Care — a vanilla-JS PWA for tracking Mazda service, fuel and spending. No build step; this manifest exists only so the tests have a documented entry point.",
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "sw:version": "node tools/sw-version.js"
   },
   "engines": {
     "node": ">=22"
