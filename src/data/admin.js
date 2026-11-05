@@ -94,7 +94,7 @@
     return Object.keys(patch).length ? patch : null;
   }
 
-  const LOGGED = ['interval_km', 'interval_months', 'note', 'parts', 'warranty_years', 'warranty_km', 'status'];
+  const LOGGED = ['interval_km', 'interval_months', 'severe_km', 'severe_months', 'note', 'parts', 'warranty_years', 'warranty_km', 'status'];
   function describeChange(c) {
     const b = c.before || {}, a = c.after || {};
     const name = a.service || b.service || (c.item_id == null ? 'Car details' : 'Item');
@@ -108,7 +108,7 @@
   /* ---- Review queue: drafts the intake function wrote, awaiting a decision ---- */
   function draftDiff(live, proposed) {
     const fmt = (k, o) => !o ? '' : k === 'parts' ? formatParts(o.parts) : o[k] == null ? '' : String(o[k]);
-    return ['interval_km', 'interval_months', 'note', 'parts']
+    return ['interval_km', 'interval_months', 'severe_km', 'severe_months', 'note', 'parts']
       .map(k => ({ field: k, before: fmt(k, live), after: fmt(k, proposed) }))
       .filter(r => r.before !== r.after);
   }
@@ -123,7 +123,7 @@
   function listDrafts() {
     return Promise.all([
       env.client.from('plan_drafts').select('id,car_model_id,service,proposed,reason,source_id').eq('status', 'pending').order('created_at'),
-      env.client.from('dealer_plan_items').select('car_model_id,service,interval_km,interval_months,note,parts'),
+      env.client.from('dealer_plan_items').select('car_model_id,service,interval_km,interval_months,severe_km,severe_months,note,parts'),
       env.client.from('schedule_sources').select('id,url')
     ]).then(([d, items, srcs]) => (data(d) || []).map(x => ({
       ...x,
@@ -265,7 +265,97 @@
     return tier === 'high' ? { text: 'High', cls: 'ok' } : tier === 'medium' ? { text: 'Medium', cls: 'warn' } : { text: 'Low', cls: 'danger' };
   }
 
+  /* ---- Autopilot (Phase 3): config, runs, domains, unverified items. Every
+     function here resolves {ok:false, error:<short code>} instead of rejecting;
+     raw server text is never surfaced (T-03-25). is_admin() inside the RPCs and
+     RLS are the real control, not anything in this file. ---- */
+  const fail = () => ({ ok: false, error: 'failed' });
+  const q = fn => Promise.resolve().then(fn);
+  const RUN_COLS = 'id,kind,car_model_id,status,started_at,finished_at,report';
+  const DAY = 86400000, OVERDUE_DAYS = 35;
+
+  /* Never rejects. Latest 12 runs, newest first. */
+  function listRuns() {
+    return q(() => env.client.from('autopilot_runs').select(RUN_COLS).order('started_at', { ascending: false }).limit(12))
+      .then(res => (!res || res.error) ? fail() : { ok: true, rows: res.data || [] })
+      .catch(fail);
+  }
+
+  /* Never rejects. spendSar is month-to-date, or null when spend is not readable. */
+  function autopilotStatus() {
+    const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
+    return q(() => Promise.all([
+      env.client.from('autopilot_config').select('enabled,monthly_cap_sar').eq('id', 1).maybeSingle(),
+      env.client.from('autopilot_spend').select('cost_sar').gte('created_at', monthStart.toISOString()),
+      listRuns()
+    ])).then(([cfg, spend, runs]) => {
+      if (!cfg || cfg.error || !cfg.data) return fail();
+      const spendSar = (!spend || spend.error || !Array.isArray(spend.data)) ? null
+        : spend.data.reduce((a, r) => a + (Number(r.cost_sar) || 0), 0);
+      return { ok: true, enabled: !!cfg.data.enabled, capSar: Number(cfg.data.monthly_cap_sar) || 0, spendSar, runs: runs.ok ? runs.rows : [] };
+    }).catch(fail);
+  }
+
+  function listDomains() {
+    return q(() => env.client.from('source_domains').select('host,status,first_seen').order('first_seen', { ascending: false }).limit(200))
+      .then(res => (!res || res.error) ? fail() : { ok: true, rows: res.data || [] })
+      .catch(fail);
+  }
+
+  /* Items the autopilot could not re-verify for 2+ monthly runs (D-16). */
+  function listUnverified() {
+    return q(() => env.client.from('autopilot_item_status').select('car_model_id,kind,target_key,last_verified_at,missed_runs')
+      .gte('missed_runs', 2).order('missed_runs', { ascending: false }).limit(200))
+      .then(res => (!res || res.error) ? fail() : { ok: true, rows: res.data || [] })
+      .catch(fail);
+  }
+
+  function rpcOk(name, args) {
+    return q(() => env.client.rpc(name, args))
+      .then(res => (!res || res.error) ? fail() : { ok: true })
+      .catch(fail);
+  }
+  function setKillSwitch(enabled) { return rpcOk('autopilot_set_enabled', { p_enabled: !!enabled }); }
+
+  /* Bare lowercase hostname only: no scheme, path, port or spaces (V5, T-03-24). */
+  const HOST_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+  function hostRpc(name, host) {
+    const h = String(host || '').trim().toLowerCase();
+    return HOST_RE.test(h) ? rpcOk(name, { p_host: h }) : Promise.resolve({ ok: false, error: 'invalid' });
+  }
+  function banDomain(host) { return hostRpc('ban_source_domain', host); }
+  function approveDomain(host) { return hostRpc('approve_source_domain', host); }
+
+  /* Never rejects. mode: 'preview' -> {ok, estimate}; 'run' -> {ok, run_id}. */
+  function checkCar(carId, mode) {
+    const action = mode === 'run' ? 'run' : 'preview';
+    return q(() => env.client.functions.invoke('autopilot', { body: { action, car_model_id: carId } }))
+      .then(res => {
+        if (res && res.error) {
+          const s = res.error.context && res.error.context.status;
+          return { ok: false, error: s === 401 ? 'unauthorized' : s === 403 ? 'forbidden' : s === 429 ? 'limit' : s ? 'failed' : 'offline' };
+        }
+        return (!res || !res.data || res.data.ok === false) ? fail() : Object.assign({ ok: true }, res.data);
+      })
+      .catch(() => ({ ok: false, error: 'offline' }));
+  }
+
+  /* Pure (D-15, D-16). Only kind='monthly' runs count: a manual single-car run
+     neither clears nor triggers the banner. Overdue = newest finished monthly
+     run older than 35 days (exactly 35 is still fine). */
+  function bannerState(runs, now) {
+    const t = now == null ? Date.now() : +new Date(now);
+    const monthly = (runs || []).filter(r => r && r.kind === 'monthly')
+      .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
+    if (!monthly.length) return { show: true, reason: 'never' };
+    if (monthly[0].status === 'failed') return { show: true, reason: 'failed' };
+    const done = monthly.map(r => Date.parse(r.finished_at)).filter(Number.isFinite);
+    if (!done.length) return { show: true, reason: 'never' };
+    return t - Math.max(...done) > OVERDUE_DAYS * DAY ? { show: true, reason: 'overdue' } : { show: false, reason: null };
+  }
+
   return {
+    autopilotStatus, listRuns, listDomains, listUnverified, setKillSwitch, banDomain, approveDomain, checkCar, bannerState,
     listProposals, listRecentChanges, revertChange, applyProposal, applyProposals, bulkSummary, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
     listErrors, resolveGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount,

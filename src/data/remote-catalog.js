@@ -49,7 +49,7 @@
     from = from || 0; acc = acc || [];
     const size = env.pageSize;
     return Promise.resolve(env.client.from('dealer_plan_items')
-      .select('car_model_id,service,icon,category,interval_km,interval_months,note,parts,sort')
+      .select('car_model_id,service,icon,category,interval_km,interval_months,severe_km,severe_months,note,parts,sort')
       .order('id').range(from, from + size - 1)).then(r => {
       if (!r || r.error) return null;
       const rows = acc.concat(r.data || []);
@@ -102,6 +102,10 @@
       const def = NORMAL_SCHED[s.name] || [];
       put(s, 'normalKm', item.interval_km, def[0]);
       put(s, 'normalMonths', item.interval_months, def[1]);
+      // Severe-use interval (D-09, SCH-02): no built-in default, so null skips and
+      // a hand-edited value is protected on first sight.
+      put(s, 'severeKm', item.severe_km);
+      put(s, 'severeMonths', item.severe_months);
     });
     car.planVersion = m.plan_updated_at;
     return changed ? 'changed' : 'stamped';
