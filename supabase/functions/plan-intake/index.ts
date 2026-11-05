@@ -1,12 +1,13 @@
-// Supabase Edge Function: draft the maker's schedule and fetch recalls for admin review.
+// Supabase Edge Function: draft the maker's schedule for admin review.
+// Recalls are NOT handled here: the autopilot function owns them (proposals, approval gate).
 // Secrets: ANTHROPIC_API_KEY, INTAKE_CRON_SECRET (required); INTAKE_MODEL (optional).
-// Never writes dealer_plan_items: only plan_drafts and pending recalls.
+// Never writes dealer_plan_items: only plan_drafts.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { allowedOrigins, corsDecision } from '../_shared/cors.mjs';
-import { DEFAULT_POLICY, NHTSA_POLICY, safeFetch } from '../_shared/safe-fetch.mjs';
+import { DEFAULT_POLICY, safeFetch } from '../_shared/safe-fetch.mjs';
 import { resolveHostAddresses } from '../_shared/dns.ts';
 import { logEdgeError } from '../_shared/app-errors.mjs';
-import { SYSTEM_PROMPT, applyCarWrites, htmlToText, parseRecalls, parseSchedule, planCarWrites, recallRows, safeEqual, sha256Hex } from './logic.mjs';
+import { SYSTEM_PROMPT, applyCarWrites, htmlToText, parseSchedule, planCarWrites, safeEqual, sha256Hex } from './logic.mjs';
 
 // External fetches go through safeFetch (scheme/host/DNS re-checked per hop, caps, type allowlist, robots).
 // DNS rebinding between check and connect is a residual risk; sources are admin-registered.
@@ -45,7 +46,7 @@ Deno.serve(async (req) => {
     const { data: cars, error: carErr } = await q;
     if (carErr || !cars) return json(503, { error: 'unavailable' });
 
-    let drafts = 0, recalls = 0, skipped = 0;
+    let drafts = 0, skipped = 0;
     for (const car of cars) {
       // ---- schedule drafts: only when a source's content hash changed ----
       const { data: srcs } = await admin.from('schedule_sources').select('*').eq('car_model_id', car.id);
@@ -80,28 +81,8 @@ Deno.serve(async (req) => {
           if (ok) await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // only after the write succeeded, so a failed write is retried
         } catch (e) { skipped++; await logEdgeError(admin, 'plan-intake', e, 'plan-intake'); }
       }
-
-      // ---- recalls: NHTSA, model-year range of the generation ----
-      const years = yearsOf(car.generation);
-      if (years.length) {
-        const found: any[] = [];
-        for (const y of years) {
-          const res = await safeFetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(car.make)}&model=${encodeURIComponent(/^\d+$/.test(car.model) ? 'mazda' + car.model : car.model)}&modelYear=${y}`, NHTSA_POLICY, { fetch, resolve: resolveHostAddresses });
-          if (res.ok) { let j = null; try { j = JSON.parse(res.body); } catch (_) { /* unparseable NHTSA body: treated as no recalls */ } found.push(...parseRecalls(j, [y])); }
-        }
-        const merged = new Map<string, any>();
-        for (const f of found) { const m = merged.get(f.campaign); if (m) m.years = [...new Set([...m.years, ...f.years])]; else merged.set(f.campaign, f); }
-        if (merged.size) {
-          // One upsert per car; ignoreDuplicates never resets an approved/rejected row (Pitfall 20).
-          // select() returns only the rows actually inserted, so the count excludes ignored duplicates.
-          const { data: ins, error } = await admin.from('recalls')
-            .upsert(recallRows(car.id, merged.values()), { onConflict: 'campaign,car_model_id', ignoreDuplicates: true }).select('campaign');
-          if (error) await logEdgeError(admin, 'plan-intake', new Error('plan-intake: recalls upsert failed'), 'plan-intake');
-          else recalls += ins?.length ?? 0;
-        }
-      }
     }
-    return json(200, { drafts, recalls, skipped });
+    return json(200, { drafts, skipped });
   } catch (e) {
     await logEdgeError(admin, 'plan-intake', e, 'plan-intake');
     return new Response(JSON.stringify({ error: 'server' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -111,14 +92,4 @@ Deno.serve(async (req) => {
 async function loadLive(admin: any, carId: string) {
   const { data } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,note,parts').eq('car_model_id', carId);
   return data ?? [];
-}
-
-// "BM/BN · 2014–18", "BP · 2019+" -> model years (open-ended capped at the current year).
-function yearsOf(gen: string): number[] {
-  const m = String(gen ?? '').match(/(\d{4})\s*([-–]\s*(\d{2,4})|\+)/);
-  if (!m) return [];
-  const a = Number(m[1]);
-  let b = new Date().getFullYear();
-  if (m[3]) b = m[3].length === 2 ? Number(String(a).slice(0, 2) + m[3]) : Number(m[3]);
-  return Array.from({ length: Math.max(0, Math.min(b - a + 1, 15)) }, (_, i) => a + i);
 }

@@ -67,12 +67,10 @@ test('write errors are reported with a fixed message and not counted', async () 
   assert.deepStrictEqual(errs, ['plan-intake: plan_drafts delete failed']);
 });
 
-test('recalls: one upsert with ignoreDuplicates and campaign,car_model_id', async () => {
-  const { recallRows } = await load();
-  const rows = recallRows('c', new Map([['A', { campaign: 'A', years: [2020] }]]).values());
-  assert.strictEqual(rows[0].car_model_id, 'c');
+test('plan-intake has no recall path (autopilot owns recalls, SCH-04)', () => {
   const src = fs.readFileSync(path.join(__dirname, '../supabase/functions/plan-intake/index.ts'), 'utf8');
-  assert.match(src, /onConflict: 'campaign,car_model_id', ignoreDuplicates: true/);
+  const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  assert.doesNotMatch(code, /recalls|nhtsa/i);
   assert.doesNotMatch(src, /plan_drafts[^\n]*onConflict/);
 });
 
