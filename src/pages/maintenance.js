@@ -557,6 +557,7 @@ function openServiceDetail(s) {
     box.innerHTML = html`
       <div style="margin:2px 0 14px"><span class="pill ${st.level}">${pillTxt}</span></div>
       <div class="detail-row"><span class="k">${t('Interval')}</span><span class="v">${fmt(svKm(s))} km / ${svMo(s)} mo${s.normalKm && s.normalKm !== s.intervalKm ? html` <span class="muted" style="font-size:11px">· ${t(session.current().severity === 'severe' ? 'Dealer' : 'Community')} ${fmt(session.current().severity === 'severe' ? s.normalKm : s.intervalKm)}</span>` : ''}</span></div>
+      ${s.severeKm || s.severeMonths ? html`<div class="detail-row"><span class="k">${t('Severe')}</span><span class="v">${s.severeKm ? fmt(s.severeKm) + ' km' : '—'} / ${s.severeMonths ? s.severeMonths + ' mo' : '—'}</span></div>` : ''}
       <div class="detail-row"><span class="k">${t('Last done')}</span><span class="v">${fmt(s.lastKm)} km · ${fmtDate(s.lastDate, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Next due')}</span><span class="v">${fmt(st.dueKm)} km · ${fmtDate(st.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
       <div class="detail-row"><span class="k">${t('Distance left')}</span><span class="v">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' km'}</span></div>

@@ -1,5 +1,5 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-3c87c8b97406';
+const CACHE = 'garage-6673c1af9888';
 /* Only the default car photo is precached. The others are ~600 KB each and a
    user drives one or two of them; the fetch handler below caches whichever
    one the dashboard actually shows, so it is still there offline. */
@@ -12,7 +12,7 @@ const ASSETS = [
   './src/data/error-log.js', './src/data/session.js','./src/data/status.js', './vendor/supabase.js', './src/data/account.js',
   './src/data/pricing.js', './src/data/insights.js', './src/data/shops.js', './src/data/bills.js', './src/data/repairable.js', './src/data/guidance.js', './src/data/recalls.js', './src/data/remote-catalog.js', './src/data/admin.js', './src/core/async-click.js', './src/data/car-photos.js', './src/pages/dashboard.js',
   './src/pages/maintenance.js', './src/pages/parts.js', './src/pages/fuel.js',
-  './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js', './src/pages/admin.js', './src/pages/admin-proposals.js',
+  './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js', './src/pages/admin.js', './src/pages/admin-autopilot.js', './src/pages/admin-proposals.js',
   './main.js', './manifest.webmanifest', './icon.svg'
 ];
 /* The photo cache holds a handful of recently shown car photos (D-19); meta

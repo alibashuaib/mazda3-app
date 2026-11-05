@@ -48,7 +48,19 @@ function proposalSource(ev) {
   return box;
 }
 
+/* Severe km/months are separate rows via draftDiff + DIFF_LABELS (D-09). A recall
+   proposal has no plan fields: show its campaign, component and summary instead. */
+const RECALL_LABELS = { campaign: 'Campaign', component: 'Component', summary: 'Summary' };
 function proposalDiffLines(p, arrow) {
+  if (p.kind === 'recall') {
+    const a = p.after || {};
+    return Object.keys(RECALL_LABELS).filter(k => a[k] != null && a[k] !== '').map(k => {
+      const line = el('div');
+      const v = el('strong'); v.setAttribute('dir', 'auto'); v.textContent = String(a[k]);
+      line.append(document.createTextNode(t(RECALL_LABELS[k]) + ': '), v);
+      return line;
+    });
+  }
   return catalogAdmin.draftDiff(p.before, p.after).map(r => {
     const line = el('div');
     const lab = document.createTextNode(t(DIFF_LABELS[r.field]) + ': ');
