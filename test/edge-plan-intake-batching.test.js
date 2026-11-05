@@ -26,7 +26,8 @@ for (const n of [1, 40]) {
     const plan = planCarWrites('car1', 'src1', items(n), []);
     assert.strictEqual(plan.drafts.length, n);
     const admin = fake();
-    const written = await applyCarWrites(admin, 'car1', plan, async () => {});
+    const { ok, written } = await applyCarWrites(admin, 'car1', plan, async () => {});
+    assert.strictEqual(ok, true);
     assert.strictEqual(written, n);
     assert.strictEqual(admin.calls.filter(c => c[1] === 'delete').length, 1);
     const inserts = admin.calls.filter(c => c[1] === 'insert');
@@ -62,7 +63,7 @@ test('write errors are reported with a fixed message and not counted', async () 
   const plan = planCarWrites('c', 's', items(3), []);
   const errs = [];
   const admin = { from: () => { const q = { delete: () => q, eq: () => q, in: () => q, insert: () => q, then: r => r({ error: { message: 'secret payload' } }) }; return q; } };
-  assert.strictEqual(await applyCarWrites(admin, 'c', plan, async e => errs.push(e.message)), 0);
+  assert.deepStrictEqual(await applyCarWrites(admin, 'c', plan, async e => errs.push(e.message)), { ok: false, written: 0 });
   assert.deepStrictEqual(errs, ['plan-intake: plan_drafts delete failed']);
 });
 
