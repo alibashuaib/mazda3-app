@@ -26,16 +26,38 @@ export function normaliseForQuote(text) {
   return westernDigits(String(text ?? '').normalize('NFKC')).replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+/* Unit words per interval kind. The unit must sit directly beside its number
+ * (no other digit in between), so "10,000 km or 12 months" cannot prove 12 as km
+ * or 10,000 as months. Arabic forms included. */
+const UNIT_WORD = {
+  km: 'km|kms|kilomet(?:er|re)s?|كم|كيلومتر(?:ات)?',
+  miles: 'miles?|mi|أميال|ميل',
+  months: 'months?|mos?|أشهر|شهور|شهر',
+};
+const UNIT_RE = Object.fromEntries(Object.entries(UNIT_WORD).map(([k, w]) => [k, {
+  after: new RegExp(`^\\s*(?:${w})(?![a-z])`),
+  before: new RegExp(`(?<![a-z])(?:${w})\\s*$`),
+}]));
+
 /* fetchedText MUST be the same truncated htmlToText output (limit 60000) the
- * LLM saw, otherwise a quote from the cut-off tail would fail (Pitfall 1). */
-export function quoteHasNumber(fetchedText, quote, number) {
+ * LLM saw, otherwise a quote from the cut-off tail would fail (Pitfall 1).
+ * unit is 'km' | 'miles' | 'months'; a quote without that unit beside the number fails. */
+export function quoteHasNumber(fetchedText, quote, number, unit) {
   if (typeof quote !== 'string' || !quote.trim() || number == null) return false;
+  const re = UNIT_RE[unit];
+  if (!re) return false;
   const q = normaliseForQuote(quote);
+  if (q.split(' ').length < 3) return false; // too short to be a real schedule sentence
   if (!normaliseForQuote(fetchedText).includes(q)) return false;
   const n = String(Number(number));
   if (n === 'NaN') return false;
   // whole-token match; "5,000" counts as 5000
-  return new RegExp(`(?<![\\d.])${n}(?![\\d]|\\.\\d)`).test(q.replace(/(\d),(?=\d{3}\b)/g, '$1'));
+  const c = q.replace(/(\d),(?=\d{3}\b)/g, '$1');
+  const m = new RegExp(`(?<![\\d.])${n}(?![\\d]|\\.\\d)`).exec(c);
+  if (!m) return false;
+  const after = c.slice(m.index + n.length).split(/\d/)[0];
+  const before = c.slice(0, m.index).split(/\d/).pop();
+  return re.after.test(after) || re.before.test(before);
 }
 
 const num = (x, max) => {
@@ -67,18 +89,20 @@ function checkInterval(iv, fetchedText, dropped, label) {
   const out = { km: null, months: null };
   if (!iv) return out;
   const km = iv.km ?? (iv.miles != null ? milesToKm(iv.miles) : null);
+  // the proof number and its unit come from the same source: km value → km, else miles value → miles
   const kmProof = iv.km != null ? iv.km : iv.miles;
-  const field = (v, proof, key) => {
+  const kmUnit = iv.km != null ? 'km' : 'miles';
+  const field = (v, proof, key, unit) => {
     if (v == null) return;
     if (!iv.quote) return void dropped.push(`${label}_${key}:quote_missing`);
-    if (!quoteHasNumber(fetchedText, iv.quote, proof)) {
+    if (!quoteHasNumber(fetchedText, iv.quote, proof, unit)) {
       const inText = normaliseForQuote(fetchedText).includes(normaliseForQuote(iv.quote));
       return void dropped.push(`${label}_${key}:${inText ? 'number_not_in_quote' : 'quote_not_in_text'}`);
     }
     out[key] = v;
   };
-  field(km, kmProof, 'km');
-  field(iv.months, iv.months, 'months');
+  field(km, kmProof, 'km', kmUnit);
+  field(iv.months, iv.months, 'months', 'months');
   return out;
 }
 
