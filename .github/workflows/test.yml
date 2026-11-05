@@ -64,4 +64,5 @@ jobs:
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/repair-stats.sql
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/shops-rls.sql
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/catalogue-rls.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/proposals.sql
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -v fixture="$(cat test/fixtures/shop-norm.json)" -f supabase/tests/shop-norm.sql

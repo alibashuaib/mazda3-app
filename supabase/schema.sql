@@ -921,3 +921,258 @@ do $$ begin
       $job$delete from public.app_errors where created_at < now() - interval '90 days'$job$);
   end if;
 end $$;
+
+-- ============================================================================
+-- Proposal gate (Phase 2, CORE-01..CORE-07)
+-- The autopilot (service_role / owner) can only call submit_proposal, which
+-- writes pending rows. The one live writer is apply_proposal, admin only.
+-- Browsers can read proposals and change_log (admin) and nothing else:
+-- RPC-only writes, so there are deliberately no write policies or table
+-- privileges below. Re-runnable.
+-- ============================================================================
+
+-- Makers (CORE-06): pipeline code reads the maker from data, never a literal.
+create table if not exists public.makers (
+  id   text primary key,
+  name text not null unique
+);
+-- Data row, the only place the brand name is allowed to appear in this section.
+insert into public.makers (id, name) values ('mazda', 'Mazda') on conflict do nothing;
+
+alter table public.makers enable row level security;
+drop policy if exists read_makers on public.makers;
+create policy read_makers on public.makers for select to anon, authenticated using (true);
+drop policy if exists admin_write_makers on public.makers;
+create policy admin_write_makers on public.makers for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+grant select on public.makers to anon, authenticated;
+grant insert, update, delete on public.makers to authenticated;
+
+alter table public.car_models add column if not exists maker_id text references public.makers;
+insert into public.makers (id, name)
+  select distinct on (lower(make)) lower(make), make from public.car_models on conflict do nothing;
+update public.car_models set maker_id = lower(make) where maker_id is null;
+
+-- Fills maker_id on insert so seed-catalogue.sql stays unchanged.
+create or replace function public.car_models_set_maker() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.maker_id is null then
+    insert into public.makers (id, name) values (lower(new.make), new.make) on conflict do nothing;
+    new.maker_id := lower(new.make);
+  end if;
+  return new;
+end $$;
+drop trigger if exists car_models_set_maker on public.car_models;
+create trigger car_models_set_maker before insert on public.car_models
+  for each row execute function public.car_models_set_maker();
+
+create table if not exists public.proposals (
+  id                 bigint generated always as identity primary key,
+  run_id             bigint,   -- no FK until Phase 3 adds autopilot_runs
+  kind               text not null,
+  maker_id           text not null references public.makers,
+  car_model_id       text references public.car_models on delete cascade,
+  target_key         text not null check (char_length(target_key) between 1 and 120),
+  op                 text not null check (op in ('insert', 'update', 'delete')),
+  before             jsonb,
+  base_hash          text not null,
+  after              jsonb not null check (octet_length(after::text) <= 8192),
+  after_hash         text not null,
+  evidence           jsonb not null,
+  sources_hash       text not null,
+  confidence_tier    text not null check (confidence_tier in ('high', 'medium', 'low')),
+  confidence_factors jsonb not null default '{}',
+  reason             text not null default '' check (char_length(reason) <= 300),
+  -- A stale refusal never changes status: the owner must still edit or reject it.
+  status             text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'superseded')),
+  created_at         timestamptz not null default now(),
+  decided_by         uuid,
+  decided_at         timestamptz,
+  edited_after       jsonb,
+  reject_reason      text check (char_length(reject_reason) <= 300)
+);
+create unique index if not exists proposals_one_pending
+  on public.proposals (kind, coalesce(car_model_id, ''), target_key) where status = 'pending';
+
+-- Supplements (does not replace) dealer_plan_changes, which still fires and
+-- bumps car_models.plan_updated_at so devices refetch.
+create table if not exists public.change_log (
+  id           bigint generated always as identity primary key,
+  made_at      timestamptz not null default now(),
+  made_by      uuid default auth.uid(),
+  kind         text not null,
+  car_model_id text references public.car_models on delete cascade,
+  table_name   text not null,
+  row_key      text not null,
+  op           text not null check (op in ('insert', 'update', 'delete')),
+  before       jsonb,
+  after        jsonb,
+  proposal_id  bigint references public.proposals on delete set null,
+  reverts_id   bigint references public.change_log on delete set null
+);
+
+alter table public.proposals enable row level security;
+revoke all on public.proposals from anon, authenticated;
+grant select on public.proposals to authenticated;
+drop policy if exists admin_read_proposals on public.proposals;
+create policy admin_read_proposals on public.proposals for select to authenticated using (public.is_admin());
+
+alter table public.change_log enable row level security;
+revoke all on public.change_log from anon, authenticated;
+grant select on public.change_log to authenticated;
+drop policy if exists admin_read_change_log on public.change_log;
+create policy admin_read_change_log on public.change_log for select to authenticated using (public.is_admin());
+
+-- Live value a proposal of this kind compares against; null when no row.
+create or replace function public.proposal_live(p_kind text, p_car text, p_target text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r jsonb;
+begin
+  if p_kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
+  select jsonb_build_object('interval_km', i.interval_km, 'interval_months', i.interval_months,
+                            'note', i.note, 'parts', i.parts)
+    into r from public.dealer_plan_items i where i.car_model_id = p_car and i.service = p_target;
+  return r;
+end $$;
+revoke execute on function public.proposal_live(text, text, text) from public, anon, authenticated;
+
+-- Rule-based confidence (tunable weights): best source tier official 2 /
+-- secondary 1 / community 0; +1 for two or more distinct hosts; +1 when the
+-- change is small (<= 25%), -1 when large (> 50%). high >= 3, medium 2, else low.
+create or replace function public.proposal_confidence(p_before jsonb, p_after jsonb, p_evidence jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare e jsonb; k text; pts int; best int := 0; best_tier text := 'community'; doms int;
+        b numeric; a numeric; pct numeric; score int; tier text;
+begin
+  for e in select value from jsonb_array_elements(p_evidence) loop
+    pts := case e->>'tier' when 'official' then 2 when 'secondary' then 1 else 0 end;
+    if pts > best then
+      best := pts; best_tier := case pts when 2 then 'official' else 'secondary' end;
+    end if;
+  end loop;
+  select count(distinct substring(x->>'url' from '^https://([^/:]+)')) into doms
+    from jsonb_array_elements(p_evidence) x;
+  if p_before is not null then
+    foreach k in array array['interval_km', 'interval_months'] loop
+      if jsonb_typeof(p_before->k) = 'number' and jsonb_typeof(p_after->k) = 'number'
+         and (p_before->>k)::numeric > 0 then
+        b := (p_before->>k)::numeric; a := (p_after->>k)::numeric;
+        pct := greatest(coalesce(pct, 0), abs(a - b) / b * 100);
+      end if;
+    end loop;
+  end if;
+  score := best + case when doms >= 2 then 1 else 0 end
+         + case when pct is null then 0 when pct <= 25 then 1 when pct > 50 then -1 else 0 end;
+  tier := case when score >= 3 then 'high' when score = 2 then 'medium' else 'low' end;
+  return jsonb_build_object('tier', tier, 'factors', jsonb_build_object(
+    'best_tier', best_tier, 'domains', doms, 'change_pct', round(pct, 1), 'score', score));
+end $$;
+revoke execute on function public.proposal_confidence(jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+-- The only way a proposal is created. No is_admin guard: the caller is the
+-- service role or the table owner (seed script), never a browser.
+create or replace function public.submit_proposal(
+  p_kind text, p_car_model_id text, p_target_key text, p_after jsonb, p_evidence jsonb,
+  p_run_id bigint default null, p_reason text default '', p_maker_id text default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare car public.car_models; ev jsonb; before_v jsonb; conf jsonb; new_id bigint;
+begin
+  if p_kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
+  select * into car from public.car_models where id = p_car_model_id;
+  if not found then raise exception 'unknown car'; end if;
+  if p_after is null or jsonb_typeof(p_after) <> 'object' then raise exception 'after must be an object'; end if;
+  if octet_length(p_after::text) > 8192 then raise exception 'after too large'; end if;
+  -- CORE-07: canonical units only; conversion happens in code, never here.
+  if p_after ? 'distance_unit' and p_after->>'distance_unit' is distinct from 'km' then
+    raise exception 'non-canonical unit'; end if;
+  if p_after ? 'currency' and p_after->>'currency' is distinct from 'SAR' then
+    raise exception 'non-canonical unit'; end if;
+  if p_evidence is null or jsonb_typeof(p_evidence) <> 'array'
+     or jsonb_array_length(p_evidence) not between 1 and 10 then
+    raise exception 'evidence must have 1 to 10 items'; end if;
+  for ev in select value from jsonb_array_elements(p_evidence) loop
+    if jsonb_typeof(ev) <> 'object' or coalesce(ev->>'url', '') !~ '^https://' then
+      raise exception 'evidence url must be https'; end if;
+    if char_length(coalesce(ev->>'quote', '')) > 500 then raise exception 'quote too long'; end if;
+    if coalesce(ev->>'tier', '') not in ('official', 'secondary', 'community') then
+      raise exception 'bad evidence tier'; end if;
+  end loop;
+
+  perform pg_advisory_xact_lock(hashtext('proposal:' || p_kind || ':' || coalesce(p_car_model_id, '') || ':' || p_target_key));
+  before_v := public.proposal_live(p_kind, p_car_model_id, p_target_key);
+  conf := public.proposal_confidence(before_v, p_after, p_evidence);
+  insert into public.proposals (run_id, kind, maker_id, car_model_id, target_key, op, before, base_hash,
+                                after, after_hash, evidence, sources_hash, confidence_tier, confidence_factors, reason)
+  values (p_run_id, p_kind, coalesce(p_maker_id, car.maker_id), p_car_model_id, p_target_key,
+          case when before_v is null then 'insert' else 'update' end, before_v,
+          md5(coalesce(before_v::text, 'null')), p_after,
+          md5(jsonb_build_object('interval_km', p_after->'interval_km', 'interval_months', p_after->'interval_months',
+                                 'note', p_after->'note', 'parts', p_after->'parts')::text),
+          p_evidence,
+          (select md5(string_agg((x->>'url') || '|' || coalesce(x->>'content_hash', ''), ',' order by x->>'url'))
+             from jsonb_array_elements(p_evidence) x),
+          conf->>'tier', conf->'factors', left(coalesce(p_reason, ''), 300))
+  returning id into new_id;
+  return jsonb_build_object('id', new_id, 'action', 'inserted');
+end $$;
+revoke execute on function public.submit_proposal(text, text, text, jsonb, jsonb, bigint, text, text) from public, anon, authenticated;
+grant execute on function public.submit_proposal(text, text, text, jsonb, jsonb, bigint, text, text) to service_role;
+
+-- The only live writer for proposals. Refuses (and writes nothing) when the live
+-- row changed since the proposal was made; the proposal then stays pending.
+-- p_seen_hash lets the owner rebase an edit onto the live value the stale
+-- message showed: it must still equal the live hash now, checked under lock.
+create or replace function public.apply_proposal(p_id bigint, p_edit jsonb default null, p_seen_hash text default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare p public.proposals; live jsonb; live_hash text; expected text; v jsonb; pj jsonb; el jsonb;
+        nm text; parts jsonb := '[]'; change_id bigint; src text;
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  select * into p from public.proposals where id = p_id and status = 'pending' for update;
+  if not found then raise exception 'no pending proposal'; end if;
+  if p.kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
+  perform 1 from public.dealer_plan_items where car_model_id = p.car_model_id and service = p.target_key for update;
+  live := public.proposal_live(p.kind, p.car_model_id, p.target_key);
+  live_hash := md5(coalesce(live::text, 'null'));
+  if p_seen_hash is not null and p_edit is not null then expected := p_seen_hash;
+  elsif p_seen_hash is not null then expected := null;   -- a rebase without an edit makes no sense
+  else expected := p.base_hash; end if;
+  if live_hash is distinct from expected then
+    return jsonb_build_object('ok', false, 'error', 'stale', 'live', live, 'live_hash', live_hash);
+  end if;
+
+  v := coalesce(p_edit, p.after);
+  pj := coalesce(v->'parts', '[]'::jsonb);
+  if jsonb_typeof(pj) <> 'array' then raise exception 'parts must be an array'; end if;
+  if jsonb_array_length(pj) > 50 then raise exception 'too many parts'; end if;
+  for el in select value from jsonb_array_elements(pj) loop
+    nm := btrim(left(coalesce(el->>'name', ''), 120));
+    if nm <> '' then
+      parts := parts || jsonb_build_array(jsonb_build_object('name', nm,
+        'part_no', left(coalesce(el->>'part_no', ''), 60),
+        'qty', least(greatest(coalesce((el->>'qty')::int, 1), 1), 99)));
+    end if;
+  end loop;
+
+  src := p.evidence->0->>'url';
+  insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, note, parts, source_url)
+  values (p.car_model_id, p.target_key,
+          nullif(least(greatest((v->>'interval_km')::int, 0), 1000000), 0),
+          nullif(least(greatest((v->>'interval_months')::int, 0), 240), 0),
+          left(coalesce(v->>'note', ''), 300), parts, src)
+  on conflict (car_model_id, service) do update set
+    interval_km = excluded.interval_km, interval_months = excluded.interval_months,
+    note = excluded.note, parts = excluded.parts, source_url = excluded.source_url;
+
+  insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id)
+  values (p.kind, p.car_model_id, 'dealer_plan_items', p.target_key,
+          case when live is null then 'insert' else 'update' end, live,
+          public.proposal_live(p.kind, p.car_model_id, p.target_key), p.id)
+  returning id into change_id;
+  update public.proposals set status = 'approved', decided_by = auth.uid(), decided_at = now(),
+         edited_after = p_edit where id = p.id;
+  return jsonb_build_object('ok', true, 'change_id', change_id);
+end $$;
+revoke execute on function public.apply_proposal(bigint, jsonb, text) from public, anon;
+grant execute on function public.apply_proposal(bigint, jsonb, text) to authenticated;
