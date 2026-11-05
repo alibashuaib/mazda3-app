@@ -177,6 +177,7 @@
   }
   function resolveGroup(groupKey) {
     return Promise.resolve().then(() => env.client.from('app_errors')
+      // Placeholder value: the app_errors_before_update trigger replaces it with server now().
       .update({ resolved_at: new Date().toISOString() }).eq('group_key', groupKey))
       .then(res => (res && !res.error ? { ok: true } : { ok: false, error: 'failed' }))
       .catch(() => ({ ok: false, error: 'failed' }));

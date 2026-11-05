@@ -891,6 +891,20 @@ drop policy if exists admin_resolve_app_errors on public.app_errors;
 create policy admin_resolve_app_errors on public.app_errors for update to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
+-- resolved_at is compared with server-authored created_at, so it must be server time too:
+-- whatever non-null value the admin client sends is replaced by now().
+create or replace function public.app_errors_before_update() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.resolved_at is not null and new.resolved_at is distinct from old.resolved_at then
+    new.resolved_at := now();
+  end if;
+  return new;
+end $$;
+drop trigger if exists app_errors_before_update on public.app_errors;
+create trigger app_errors_before_update before update on public.app_errors
+  for each row execute function public.app_errors_before_update();
+
 -- 90-day retention (D-04). Skipped where pg_cron is unavailable (e.g. CI).
 do $$ begin
   if exists (select 1 from pg_available_extensions where name = 'pg_cron') then

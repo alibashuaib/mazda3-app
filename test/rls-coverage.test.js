@@ -32,6 +32,11 @@ test('app_errors guard keys off the DB role, not JWT claims', () => {
   assert.match(fn, /user_id is not distinct from auth\.uid\(\)/);   // per-identity cap budget (WR-03)
 });
 
+test('app_errors resolved_at is stamped by a server-side trigger', () => {
+  assert.match(schema, /create trigger app_errors_before_update before update on public\.app_errors/);
+  assert.match(schema, /new\.resolved_at := now\(\)/);
+});
+
 test('RLS: every create table has enable row level security', () => {
   for (const name of tables) {
     const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
