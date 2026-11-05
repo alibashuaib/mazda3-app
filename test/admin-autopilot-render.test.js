@@ -63,7 +63,7 @@ test('healthy run: no banner; report, domains, unverified render; hostile text i
     const t = text(app);
     assert.match(t, /schedule_item: 3 new, 1 unchanged/);
     assert.match(t, /4\.5 SAR/);
-    assert.match(t, /Engine Oil · missed runs: 3/);
+    assert.match(t, /Engine Oil\s*missed runs: 3/);
     assert.ok(t.includes('evil<b>.example'));
     assert.strictEqual(app.document.querySelector('#view img'), null);
     assert.strictEqual(app.document.querySelector('#view b'), null);
@@ -102,7 +102,10 @@ test('Check now previews first; Confirm run only appears after the estimate', as
     assert.strictEqual(btn(app, 'Confirm run'), undefined);
     btn(app, 'Preview').onclick();
     assert.ok(await until(() => btn(app, 'Confirm run')), text(app));
-    assert.match(text(app), /Estimated cost: 1\.23 SAR · Searches: 3 · LLM calls: 4 · Skipped as unchanged: 2/);
+    assert.match(text(app), /1\.23 SAR\s*Estimated cost/);
+    assert.match(text(app), /3\s*Searches/);
+    assert.match(text(app), /4\s*LLM calls/);
+    assert.match(text(app), /2\s*Skipped as unchanged/);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(s.invoke)), [{ action: 'preview', car_model_id: 'm1' }]);
     btn(app, 'Confirm run').onclick();
     assert.ok(await until(() => s.invoke.length === 2));

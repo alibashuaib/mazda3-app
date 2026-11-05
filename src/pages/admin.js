@@ -66,7 +66,7 @@ async function renderAdminBody(body) {
 /* Small tab bar. Phases 2 and 3 add their tabs by extending the list passed
    here ({ id, label, badge }); nothing else in the bar needs to change. */
 function adminTabs(tabs, active, onPick) {
-  const bar = el('div', 'field-row');
+  const bar = el('div', 'admin-tabs');
   bar.setAttribute('role', 'tablist');
   tabs.forEach(tab => {
     const b = el('button', 'btn ' + (tab.id === active ? 'primary' : 'ghost'));
