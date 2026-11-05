@@ -111,7 +111,7 @@ function apCheckNow(models, refresh) {
   const box = el('div');
   const h = el('h4'); h.textContent = t('Check now'); box.appendChild(h);
   const sel = el('select'); sel.setAttribute('aria-label', t('Car'));
-  (models || []).forEach(m => { const o = el('option'); o.value = m.id; o.textContent = `${m.model} ${m.generation}`; sel.appendChild(o); });
+  (models || []).forEach(m => { const o = el('option'); o.value = m.id; o.textContent = `${m.model} ${m.generation} · ${m.engine}`; sel.appendChild(o); });
   if (models && models.length) sel.value = models[0].id;
   const out = el('div');
   const note = msg => { out.textContent = ''; apLine(out, msg); };
