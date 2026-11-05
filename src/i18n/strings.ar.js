@@ -496,7 +496,25 @@ const AR = {
   'Could not apply': 'تعذّر التطبيق', 'Approving…': 'جارٍ الاعتماد…',
   'Recent approvals': 'آخر الاعتمادات', 'No approvals yet': 'لا توجد اعتمادات بعد', 'Revert': 'تراجع', 'Revert {target}': 'تراجع عن {target}',
   'Reverted:': 'تم التراجع:', 'Reverted': 'تم التراجع', 'Newer change exists. Revert that one first.': 'يوجد تغيير أحدث. تراجع عنه أولًا.',
-  'The live value is now {live}. Reject this proposal or edit it against the live value.': 'القيمة الحالية الآن {live}. ارفض هذا المقترح أو عدّله بناءً على القيمة الحالية.'
+  'The live value is now {live}. Reject this proposal or edit it against the live value.': 'القيمة الحالية الآن {live}. ارفض هذا المقترح أو عدّله بناءً على القيمة الحالية.',
+  // Phase 3 — autopilot card
+  'The last monthly autopilot run failed.': 'فشل آخر تشغيل شهري للطيار الآلي.',
+  'The monthly autopilot has not finished a run in over 35 days.': 'لم يُكمل الطيار الآلي الشهري أي تشغيل منذ أكثر من 35 يومًا.',
+  'The monthly autopilot has not completed a run yet.': 'لم يُكمل الطيار الآلي الشهري أي تشغيل بعد.',
+  'Monthly autopilot': 'الطيار الآلي الشهري', 'Autopilot is on': 'الطيار الآلي يعمل', 'Autopilot is paused': 'الطيار الآلي متوقف',
+  'Turn off': 'إيقاف', 'Turn on': 'تشغيل',
+  'Turning it off stops the run at the next paid call.': 'الإيقاف يوقف التشغيل عند أول استدعاء مدفوع تالٍ.',
+  'Spend this month': 'الإنفاق هذا الشهر',
+  'Last run report': 'تقرير آخر تشغيل', 'No run report yet': 'لا يوجد تقرير تشغيل بعد', 'new': 'جديد', 'unchanged': 'دون تغيير',
+  'Searches': 'عمليات البحث', 'LLM calls': 'استدعاءات النموذج', 'Error': 'خطأ', 'Skipped sources': 'المصادر المتخطاة',
+  'Ban domain': 'حظر النطاق', 'Ban': 'حظر', 'Banned': 'محظور', 'Pending': 'قيد الانتظار', 'Ban {host}': 'حظر {host}',
+  'Ban {host}? This is permanent and automatically rejects its pending proposals.': 'حظر {host}؟ الحظر دائم ويرفض تلقائيًا مقترحاته المعلّقة.',
+  'Source domains': 'نطاقات المصادر', 'No domains yet': 'لا توجد نطاقات بعد', 'Could not load.': 'تعذّر التحميل.',
+  'Unverified items': 'عناصر غير مؤكدة', 'Everything was re-verified recently': 'تم التحقق من كل شيء مؤخرًا', 'missed runs': 'تشغيلات فائتة',
+  'Check now': 'افحص الآن', 'Preview': 'معاينة', 'Could not preview. Try again.': 'تعذّرت المعاينة. حاول مرة أخرى.',
+  'Estimated cost': 'التكلفة المقدّرة', 'Skipped as unchanged': 'متخطى لعدم التغيير', 'Confirm run': 'تأكيد التشغيل',
+  'Run started': 'بدأ التشغيل', 'Monthly cost cap reached.': 'بلغت التكلفة الحد الشهري.', 'Could not start the run.': 'تعذّر بدء التشغيل.',
+  'Campaign': 'الحملة', 'Component': 'المكوّن', 'Summary': 'الملخص', 'Severe km': 'الاستخدام الشاق (كم)', 'Severe months': 'الاستخدام الشاق (أشهر)'
 };
 
   return { AR };

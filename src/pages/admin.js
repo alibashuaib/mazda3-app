@@ -36,16 +36,22 @@ async function renderAdminBody(body) {
     if (adminModelId) { const node = await adminEditor(adminModelId); body.innerHTML = ''; body.appendChild(node); return; }
     // One fetch feeds both the badge and the Errors tab. A failure here must
     // not take the review queue down with it.
-    const [errs, props, changes, models] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
-      catalogAdmin.listRecentChanges(), catalogAdmin.listModels().catch(() => [])]);
+    const [errs, props, changes, models, status, domains, unverified] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
+      catalogAdmin.listRecentChanges(), catalogAdmin.listModels().catch(() => []),
+      catalogAdmin.autopilotStatus(), catalogAdmin.listDomains(), catalogAdmin.listUnverified()]);
+    const refresh = () => renderAdminBody(body);
     const open = errs.ok ? errs.groups.filter(g => g.open).length : 0;
     const show = async () => {
       body.innerHTML = '';
+      // Banner sits above the tab strip so a failed or overdue run is visible on every tab (REV-08).
+      const banner = status.ok ? adminBanner(status.runs) : null;
+      if (banner) body.appendChild(banner);
       body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : 0 },
         { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
         id => { adminTab = id; show(); }));
       try {
-        body.appendChild(adminTab === 'proposals' ? adminProposals(props, models, () => renderAdminBody(body), changes)
+        if (adminTab === 'proposals') body.appendChild(adminAutopilot({ status, domains, unverified, models }, refresh));
+        body.appendChild(adminTab === 'proposals' ? adminProposals(props, models, refresh, changes)
           : adminTab === 'errors' ? adminErrors(errs, () => renderAdminBody(body)) : await adminList());
       }
       catch (e) { adminReport('admin: render failed', e); body.appendChild(el('div', 'card', html`<p style="padding:16px">${t('Could not load the catalogue.')}</p>`)); }
@@ -133,7 +139,7 @@ function adminSignIn() {
   return card;
 }
 
-const DIFF_LABELS = { interval_km: 'Dealer interval (km)', interval_months: 'Dealer interval (mo)', note: 'Note', parts: 'Parts' };
+const DIFF_LABELS = { interval_km: 'Dealer interval (km)', interval_months: 'Dealer interval (mo)', severe_km: 'Severe km', severe_months: 'Severe months', note: 'Note', parts: 'Parts' };
 
 /* Drafts and recalls the intake function wrote, waiting for a decision. Every
    dynamic string is textContent; a load failure just hides the queue. */
