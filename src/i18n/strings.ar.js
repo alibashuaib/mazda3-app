@@ -349,6 +349,9 @@ const AR = {
   // storage errors
   'Storage is full — your change was NOT saved. Remove some receipt photos.': 'مساحة التخزين ممتلئة — لم يتم حفظ التغيير. احذف بعض صور الإيصالات.',
   'Could not save your change.': 'تعذّر حفظ التغيير.',
+  "Couldn't save. Your changes are still on screen.": 'تعذّر الحفظ. تغييراتك ما زالت على الشاشة.',
+  'Retry': 'إعادة المحاولة',
+  'Saved on this device, but sync failed. Your changes are still on screen.': 'تم الحفظ على هذا الجهاز، لكن فشلت المزامنة. تغييراتك ما زالت على الشاشة.',
 
   // odometer staleness
   'Mileage is {n} days old — due dates may be off': 'مضى {n} يوماً على تحديث العداد — قد تكون مواعيد الاستحقاق غير دقيقة',

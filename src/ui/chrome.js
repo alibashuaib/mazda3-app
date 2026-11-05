@@ -172,7 +172,7 @@ function retryToast(msg, onRetry) {
   const node = toastNode(msg, 'warn');
   node.dataset.persistent = '1';
   node.classList.add('toast-action', 'toast-retry');
-  const btn = el('button', 'toast-undo toast-retry-btn', html`${t('Retry')}`);
+  const btn = el('button', 'toast-retry-btn', html`${t('Retry')}`);
   node.appendChild(btn);
   node.onclick = () => fadeToast(node);
   btn.onclick = async ev => {
