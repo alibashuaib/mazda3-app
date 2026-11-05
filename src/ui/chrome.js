@@ -37,8 +37,8 @@ function renderTopbar() {
   /* Ahead of the early return below: the account menu's trigger is present and
      reachable even with an empty garage, so its name has to be translated on
      every language change, not only when there is a car to describe. */
-  $('#accountBtn').setAttribute('aria-label', t('My account'));
-  $('#accountBtn').setAttribute('title', t('My account'));
+  $('#accountBtn').setAttribute('aria-label', t('Settings'));
+  $('#accountBtn').setAttribute('title', t('Settings'));
   // An empty garage (no vehicle added yet) has no car to describe — go()
   // routes that case to the onboarding screen instead, which hides this
   // row entirely, so there is nothing here to keep in sync with.
@@ -412,12 +412,10 @@ function buildAccountMenu(menu) {
   }
 
   menu.appendChild(menuItem('Switch vehicle', 'menuitem', () => { closeAccountMenu(false); openGarage(); }, '🚗'));
-  if (catalogAdmin.knownAdmin()) {
-    const n = catalogAdmin.draftCount();
-    menu.appendChild(menuItem(t('Admin') + (n ? ` (${n})` : ''), 'menuitem', () => {
-      closeAccountMenu(false);
-      go('admin');
-    }, '🛠️', true));
+  /* Every signed-in user gets their own account dialog. The catalogue admin
+     page is no longer in this menu; admins reach it from the Advanced tab. */
+  if (account.user()) {
+    menu.appendChild(menuItem(t('Account'), 'menuitem', () => { closeAccountMenu(false); openAccountDialog(); }, '👤', true));
   }
 
   /* Binary, so it maps onto menuitemcheckbox — which means the old button's
@@ -460,6 +458,38 @@ function buildAccountMenu(menu) {
   /* No "Settings"/"Car profile" entry here on purpose: the topbar's own car
      button (#openProfile) already opens this same dialog, and having it in
      both places was redundant. */
+}
+
+/* The signed-in user's own details: email (read-only here), password change, sign out.
+   Passwords are checked for length and match before the server call; the server is the authority. */
+function openAccountDialog() {
+  const u = account.user();
+  if (!u) return;
+  openModal(t('Account'), null, card => {
+    const em = el('p', 'muted'); em.setAttribute('dir', 'ltr');
+    em.textContent = `${t('Email')}: ${u.email || ''}`;
+    const err = el('p', 'muted'); err.hidden = true;
+    const showErr = msg => { err.textContent = t(msg); err.hidden = false; };
+    const h = el('h4'); h.textContent = t('Change password');
+    const pw = el('input'); pw.type = 'password'; pw.autocomplete = 'new-password'; pw.setAttribute('aria-label', t('New password')); pw.placeholder = t('New password');
+    const pw2 = el('input'); pw2.type = 'password'; pw2.autocomplete = 'new-password'; pw2.setAttribute('aria-label', t('Confirm new password')); pw2.placeholder = t('Confirm new password');
+    const save = el('button', 'btn primary block'); save.type = 'button'; save.textContent = t('Save');
+    onAsyncClick(save, async () => {
+      err.hidden = true;
+      if (pw.value.length < 8) return showErr('Password must be at least 8 characters.');
+      if (pw.value !== pw2.value) return showErr('Passwords do not match.');
+      const r = await account.changePassword(pw.value);
+      if (r.ok) { pw.value = ''; pw2.value = ''; closeModal(); return toast(t('Password updated')); }
+      showErr('Could not update password.');
+    });
+    const out = el('button', 'btn ghost block reject'); out.type = 'button'; out.textContent = t('Sign out');
+    out.onclick = async () => {
+      closeModal();
+      await account.signOut();
+      go('dashboard');
+    };
+    card.append(em, h, pw, pw2, err, save, out);
+  });
 }
 
 function openAccountMenu() {

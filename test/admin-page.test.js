@@ -66,16 +66,17 @@ test('no backend explains that admin needs a connection', async () => {
   } finally { app.cleanup(); }
 });
 
-test('the account menu shows Admin only to an admin', async () => {
+test('the account menu offers Account to a signed-in user; Admin lives in the Advanced tab', async () => {
   const app = await bootApp({ protocol: 'https:', supabaseStub: stub('admin') });
   try {
     const items = () => [...app.document.querySelectorAll('#accountMenu .menu-item')].map(b => b.textContent);
     app.document.querySelector('#accountBtn').onclick();
-    assert.ok(!items().some(s => /Admin/.test(s)), 'shown before the role is known');
+    assert.ok(!items().some(s => /Account/.test(s)), 'shown when signed out');
     app.document.querySelector('#accountBtn').onclick();          // close
     app.api.account.setUserForTest({ id: 'u1' });
     await app.api.catalogAdmin.isAdmin();
     app.document.querySelector('#accountBtn').onclick();
-    assert.ok(items().some(s => /Admin \(1\)/.test(s)), items().join(' | '));
+    assert.ok(items().some(s => /Account/.test(s)), items().join(' | '));
+    assert.ok(!items().some(s => /Admin/.test(s)), 'no Admin entry in the menu any more');
   } finally { app.cleanup(); }
 });

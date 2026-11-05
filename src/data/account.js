@@ -707,8 +707,16 @@
     }).catch(() => { _user = null; return false; });
   }
 
+  /* Self-service: the signed-in user changes their own password. Never rejects. */
+  function changePassword(password) {
+    if (!env.client || !_user) return Promise.resolve({ ok: false, error: 'signed_out' });
+    return Promise.resolve(env.client.auth.updateUser({ password }))
+      .then(res => (res && res.error ? { ok: false, error: 'failed' } : { ok: true }))
+      .catch(() => ({ ok: false, error: 'offline' }));
+  }
+
   return {
-    configure, reset, available, user, setUserForTest,
+    configure, reset, available, user, setUserForTest, changePassword,
     stripPhotos, pushVehicle, pushGarage,
     enqueueVehicle, enqueueGarage, enqueueTombstone, enqueuePhoto, enqueueContribution, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
