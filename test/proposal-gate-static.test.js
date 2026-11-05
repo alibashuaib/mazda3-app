@@ -29,7 +29,7 @@ test('browser roles get no write grants on proposals or change_log', () => {
 });
 
 test('gate function bodies carry no maker literal (CORE-06)', () => {
-  for (const n of ['proposal_live', 'proposal_confidence', 'submit_proposal', 'apply_proposal', 'reject_proposal']) {
+  for (const n of ['proposal_live', 'proposal_confidence', 'submit_proposal', 'apply_proposal', 'reject_proposal', 'apply_proposals']) {
     assert.doesNotMatch(body(n), /mazda/i, n);
   }
   assert.doesNotMatch(page, /mazda/i);
@@ -45,6 +45,13 @@ test('reject_proposal is admin-guarded; submit_proposal suppresses and supersede
   const b = body('submit_proposal');
   assert.ok(b.includes("'suppressed'"));
   assert.ok(b.indexOf("set status = 'superseded'") > 0 && b.indexOf("set status = 'superseded'") < b.indexOf('insert into public.proposals'));
+});
+
+test('apply_proposals is admin-guarded, high-only and isolates each item', () => {
+  const b = body('apply_proposals');
+  assert.match(b, /if not public\.is_admin\(\) then raise exception 'admin only'/);
+  assert.ok(b.includes('exception when others'));
+  assert.ok(b.includes('high tier only'));
 });
 
 test('admin-proposals.js never uses raw()', () => {

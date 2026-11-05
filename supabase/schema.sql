@@ -1206,3 +1206,31 @@ begin
 end $$;
 revoke execute on function public.reject_proposal(bigint, text) from public, anon;
 grant execute on function public.reject_proposal(bigint, text) to authenticated;
+
+-- Owner approves many proposals at once (REV-02). Top tier only; the server
+-- re-checks pending + tier per id (the id list may come from an old view). The
+-- plpgsql exception block is a savepoint, so one failing item rolls back alone.
+create or replace function public.apply_proposals(p_ids bigint[], p_tier text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare pid bigint; st text; tr text; res jsonb; out jsonb := '[]';
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  if p_tier is distinct from 'high' then raise exception 'high tier only'; end if;
+  if coalesce(array_length(p_ids, 1), 0) > 200 then raise exception 'too many'; end if;
+  foreach pid in array coalesce(p_ids, '{}') loop
+    select status, confidence_tier into st, tr from public.proposals where id = pid;
+    if st is distinct from 'pending' or tr is distinct from p_tier then
+      res := jsonb_build_object('ok', false, 'error', 'not_high');
+    else
+      begin
+        res := public.apply_proposal(pid, null, null);
+      exception when others then
+        res := jsonb_build_object('ok', false, 'error', 'failed', 'detail', left(sqlerrm, 200));
+      end;
+    end if;
+    out := out || jsonb_build_array(res || jsonb_build_object('id', pid));
+  end loop;
+  return out;
+end $$;
+revoke execute on function public.apply_proposals(bigint[], text) from public, anon;
+grant execute on function public.apply_proposals(bigint[], text) to authenticated;

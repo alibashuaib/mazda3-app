@@ -261,4 +261,48 @@ do $$ begin
 end $$;
 reset role;
 
+-- o, p, q) bulk approve
+insert into public.proposals (kind, maker_id, car_model_id, target_key, op, base_hash, after, after_hash, evidence, sources_hash, confidence_tier)
+select 'schedule_item', 'mazda', 'test:gate', k, 'insert', md5('null'),
+       case when k = 'Bulk E' then '{"interval_km":1,"interval_months":1,"note":"","parts":{}}'::jsonb
+            else '{"interval_km":1000,"interval_months":6,"note":"","parts":[]}'::jsonb end,
+       'h-' || k, '[]', 's-' || k, case when k = 'Bulk D' then 'medium' else 'high' end
+from unnest(array['Bulk A','Bulk B','Bulk C','Bulk D','Bulk E']) k;
+-- make B stale: a live row appears after the proposal was made
+insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, note) values ('test:gate', 'Bulk B', 5, 5, '');
+select set_config('t.bulk', (select jsonb_object_agg(target_key, id)::text from public.proposals where target_key like 'Bulk %'), true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare m jsonb := current_setting('t.bulk')::jsonb; r jsonb; x jsonb; begin
+  r := public.apply_proposals(array[(m->>'Bulk A')::bigint, (m->>'Bulk B')::bigint, (m->>'Bulk C')::bigint, (m->>'Bulk D')::bigint, (m->>'Bulk E')::bigint], 'high');
+  if jsonb_array_length(r) <> 5 then raise exception 'FAIL: expected 5 results, got %', r; end if;
+  for x in select value from jsonb_array_elements(r) loop
+    if (x->>'id')::bigint in ((m->>'Bulk A')::bigint, (m->>'Bulk C')::bigint) and (x->>'ok') <> 'true' then raise exception 'FAIL: o) % not ok', x; end if;
+    if (x->>'id')::bigint = (m->>'Bulk B')::bigint and x->>'error' is distinct from 'stale' then raise exception 'FAIL: o) B not stale: %', x; end if;
+    if (x->>'id')::bigint = (m->>'Bulk D')::bigint and x->>'error' is distinct from 'not_high' then raise exception 'FAIL: o) D not not_high: %', x; end if;
+    if (x->>'id')::bigint = (m->>'Bulk E')::bigint and x->>'error' is distinct from 'failed' then raise exception 'FAIL: p) E not failed: %', x; end if;
+  end loop;
+  if (select count(*) from public.dealer_plan_items where car_model_id = 'test:gate' and service in ('Bulk A','Bulk C') and interval_km = 1000) <> 2 then
+    raise exception 'FAIL: o) A and C not applied'; end if;
+  if (select count(*) from public.proposals where id in ((m->>'Bulk B')::bigint, (m->>'Bulk D')::bigint, (m->>'Bulk E')::bigint) and status = 'pending') <> 3 then
+    raise exception 'FAIL: o/p) B, D, E must stay pending'; end if;
+  -- q) tier and size limits
+  begin perform public.apply_proposals(array[1]::bigint[], 'medium'); raise exception 'FAIL: medium accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.apply_proposals((select array_agg(g::bigint) from generate_series(1, 201) g), 'high'); raise exception 'FAIL: 201 ids accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$ begin
+  begin perform public.apply_proposals(array[1]::bigint[], 'high'); raise exception 'FAIL: non-admin bulk';
+  exception when raise_exception then if sqlerrm <> 'admin only' then raise exception 'FAIL: expected admin only, got %', sqlerrm; end if; end;
+end $$;
+set local role anon;
+do $$ begin
+  begin perform public.apply_proposals(array[1]::bigint[], 'high'); raise exception 'FAIL: anon bulk';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 rollback;
