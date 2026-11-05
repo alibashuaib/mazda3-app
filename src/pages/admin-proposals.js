@@ -295,7 +295,7 @@ function adminProposalsQueue(res, models, refresh) {
   const opts = catalogAdmin.proposalFilterOptions(res.rows);
   const fcard = el('div', 'card');
   fcard.style.cssText = 'padding:16px;margin-bottom:12px';
-  const frow = el('div', 'field-row');
+  const frow = el('div', 'field-row proposal-filters');
   const sel = (key, label, values, labelOf) => {
     const f = field(label, html`<select data-f="${key}"></select>`);
     const s = f.querySelector('select');
