@@ -87,3 +87,7 @@ No orphaned IDs: all 16 ROADMAP IDs appear in plan frontmatter and REQUIREMENTS.
 ## Gaps
 
 None found.
+
+## Owner waiver (live smoke)
+
+Owner chose to bypass the live smoke call (03-01 Task 3) to avoid paid usage. Research assumption A4 (web_search_20250305 on this org) remains UNVERIFIED. Re-run `ANTHROPIC_API_KEY=... node supabase/functions/autopilot/smoke.mjs` before relying on live discovery.

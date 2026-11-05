@@ -38,3 +38,7 @@ Tasks 1 and 2 done and committed (250b2e2, 7acc7b1). Task 3 (checkpoint:human-ve
 None. `npm test`: 880 pass.
 
 ## Self-Check: PASSED
+
+## Owner waiver
+
+Live smoke call (Task 3) waived by owner. A4 unverified; see 03-VERIFICATION.md.
