@@ -159,9 +159,13 @@
     return Promise.resolve().then(() => doSave(v.id, data, _garage.activeId, dep.uid)).then(res => {
       if (gen !== _generation) return false;   // a clear() happened mid-save — stale write, no side effects
       if (res.ok) {
-        dep.applyPhotoIds(data, res.data);
-        cacheNewPhotos(data, res.photoIds);
-        prunePhotoBlobs();
+        /* Bookkeeping after a landed save: a throw here must not read as a failed save
+           (that would toast "Couldn't save" and offer a Retry of work already persisted). */
+        try {
+          dep.applyPhotoIds(data, res.data);
+          cacheNewPhotos(data, res.photoIds);
+          prunePhotoBlobs();
+        } catch (e) { report('post-save bookkeeping failed: ' + (e && e.message), e); }
         /* Inside the ok branch and behind the generation check above, so a
            write started before a sign-out can never push into the account
            that signed in after it. Throwing here must not turn a successful

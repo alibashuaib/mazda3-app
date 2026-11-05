@@ -27,6 +27,18 @@ test('afterSave throw: one warn notify with no retry, one report, save still tru
   } finally { done(); }
 });
 
+test('post-save bookkeeping throw: save still true, no Retry toast, one report', async () => {
+  // photoIds without indexOf makes cacheNewPhotos throw after the write landed.
+  const { reports, notes } = setup({ saveVehicle: async () => ({ ok: true, data: {}, photoIds: { length: 1 } }) });
+  try {
+    session.current().car.photoId = 'p1';
+    assert.strictEqual(await session.save(), true);
+    assert.strictEqual(notes.length, 0, 'no failure toast');
+    assert.strictEqual(reports.length, 1);
+    assert.match(reports[0].message, /^post-save bookkeeping failed: /);
+  } finally { done(); }
+});
+
 test('res.ok false: one report, Retry notify whose closure re-runs save', async () => {
   let calls = 0;
   const { reports, notes } = setup({ saveVehicle: async () => { calls++; return { ok: false, error: new Error('nope') }; } });
