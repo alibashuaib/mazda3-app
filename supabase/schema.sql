@@ -1076,7 +1076,7 @@ create or replace function public.submit_proposal(
   p_kind text, p_car_model_id text, p_target_key text, p_after jsonb, p_evidence jsonb,
   p_run_id bigint default null, p_reason text default '', p_maker_id text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare car public.car_models; ev jsonb; before_v jsonb; conf jsonb; new_id bigint;
+declare car public.car_models; ev jsonb; before_v jsonb; conf jsonb; new_id bigint; ah text; sh text; ex bigint;
 begin
   if p_kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
   select * into car from public.car_models where id = p_car_model_id;
@@ -1102,16 +1102,30 @@ begin
   perform pg_advisory_xact_lock(hashtext('proposal:' || p_kind || ':' || coalesce(p_car_model_id, '') || ':' || p_target_key));
   before_v := public.proposal_live(p_kind, p_car_model_id, p_target_key);
   conf := public.proposal_confidence(before_v, p_after, p_evidence);
+  ah := md5(jsonb_build_object('interval_km', p_after->'interval_km', 'interval_months', p_after->'interval_months',
+                               'note', p_after->'note', 'parts', p_after->'parts')::text);
+  sh := (select md5(string_agg((x->>'url') || '|' || coalesce(x->>'content_hash', ''), ',' order by x->>'url'))
+           from jsonb_array_elements(p_evidence) x);
+  -- Queue hygiene (CORE-03, CORE-04): equal to live -> noop; same pending value -> duplicate;
+  -- rejected with the same value AND sources -> suppressed (changed sources re-queue).
+  if before_v is not null and md5(before_v::text) = ah then
+    return jsonb_build_object('id', null, 'action', 'noop'); end if;
+  select id into ex from public.proposals where status = 'pending' and kind = p_kind
+    and coalesce(car_model_id, '') = coalesce(p_car_model_id, '') and target_key = p_target_key and after_hash = ah;
+  if found then return jsonb_build_object('id', ex, 'action', 'duplicate'); end if;
+  select id into ex from public.proposals where status = 'rejected' and kind = p_kind
+    and coalesce(car_model_id, '') = coalesce(p_car_model_id, '') and target_key = p_target_key
+    and after_hash = ah and sources_hash = sh order by id desc limit 1;
+  if found then return jsonb_build_object('id', ex, 'action', 'suppressed'); end if;
+  -- Supersede before insert: the partial unique index allows one pending per target.
+  update public.proposals set status = 'superseded', decided_at = now()
+    where status = 'pending' and kind = p_kind
+      and coalesce(car_model_id, '') = coalesce(p_car_model_id, '') and target_key = p_target_key;
   insert into public.proposals (run_id, kind, maker_id, car_model_id, target_key, op, before, base_hash,
                                 after, after_hash, evidence, sources_hash, confidence_tier, confidence_factors, reason)
   values (p_run_id, p_kind, coalesce(p_maker_id, car.maker_id), p_car_model_id, p_target_key,
           case when before_v is null then 'insert' else 'update' end, before_v,
-          md5(coalesce(before_v::text, 'null')), p_after,
-          md5(jsonb_build_object('interval_km', p_after->'interval_km', 'interval_months', p_after->'interval_months',
-                                 'note', p_after->'note', 'parts', p_after->'parts')::text),
-          p_evidence,
-          (select md5(string_agg((x->>'url') || '|' || coalesce(x->>'content_hash', ''), ',' order by x->>'url'))
-             from jsonb_array_elements(p_evidence) x),
+          md5(coalesce(before_v::text, 'null')), p_after, ah, p_evidence, sh,
           conf->>'tier', conf->'factors', left(coalesce(p_reason, ''), 300))
   returning id into new_id;
   return jsonb_build_object('id', new_id, 'action', 'inserted');
@@ -1176,3 +1190,19 @@ begin
 end $$;
 revoke execute on function public.apply_proposal(bigint, jsonb, text) from public, anon;
 grant execute on function public.apply_proposal(bigint, jsonb, text) to authenticated;
+
+-- Owner rejects a pending proposal (REV-05). after_hash and sources_hash stay
+-- as stored: submit_proposal uses them to keep the same value out of the queue.
+create or replace function public.reject_proposal(p_id bigint, p_reason text default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  perform 1 from public.proposals where id = p_id and status = 'pending' for update;
+  if not found then raise exception 'no pending proposal'; end if;
+  update public.proposals set status = 'rejected',
+         reject_reason = nullif(left(coalesce(p_reason, ''), 300), ''),
+         decided_by = auth.uid(), decided_at = now() where id = p_id;
+  return jsonb_build_object('ok', true);
+end $$;
+revoke execute on function public.reject_proposal(bigint, text) from public, anon;
+grant execute on function public.reject_proposal(bigint, text) to authenticated;

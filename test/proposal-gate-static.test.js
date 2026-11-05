@@ -29,7 +29,7 @@ test('browser roles get no write grants on proposals or change_log', () => {
 });
 
 test('gate function bodies carry no maker literal (CORE-06)', () => {
-  for (const n of ['proposal_live', 'proposal_confidence', 'submit_proposal', 'apply_proposal']) {
+  for (const n of ['proposal_live', 'proposal_confidence', 'submit_proposal', 'apply_proposal', 'reject_proposal']) {
     assert.doesNotMatch(body(n), /mazda/i, n);
   }
   assert.doesNotMatch(page, /mazda/i);
@@ -38,6 +38,13 @@ test('gate function bodies carry no maker literal (CORE-06)', () => {
 test('apply_proposal is admin-guarded; submit_proposal is closed to browser roles', () => {
   assert.match(body('apply_proposal'), /if not public\.is_admin\(\) then raise exception 'admin only'/);
   assert.match(schema, /revoke execute on function public\.submit_proposal\([^;]*from public, anon, authenticated/);
+});
+
+test('reject_proposal is admin-guarded; submit_proposal suppresses and supersedes before insert', () => {
+  assert.match(body('reject_proposal'), /if not public\.is_admin\(\) then raise exception 'admin only'/);
+  const b = body('submit_proposal');
+  assert.ok(b.includes("'suppressed'"));
+  assert.ok(b.indexOf("set status = 'superseded'") > 0 && b.indexOf("set status = 'superseded'") < b.indexOf('insert into public.proposals'));
 });
 
 test('admin-proposals.js never uses raw()', () => {

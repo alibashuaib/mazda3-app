@@ -201,4 +201,64 @@ do $$ declare pid bigint; begin
 end $$;
 reset role;
 
+-- i-l) queue hygiene on a fresh target (Brake Fluid has no live row)
+do $$ declare r1 jsonb; r2 jsonb; a bigint; b bigint; r jsonb; n int; ev jsonb; ev2 jsonb; begin
+  ev := '[{"url":"https://a.example/x","tier":"official","quote":"q","content_hash":"h1"}]';
+  ev2 := '[{"url":"https://a.example/x","tier":"official","quote":"q","content_hash":"h2"}]';
+  -- i) duplicate
+  r1 := public.submit_proposal('schedule_item', 'test:gate', 'Brake Fluid', '{"interval_km":40000,"interval_months":24,"note":"","parts":[]}'::jsonb, ev);
+  r2 := public.submit_proposal('schedule_item', 'test:gate', 'Brake Fluid', '{"interval_km":40000,"interval_months":24,"note":"","parts":[]}'::jsonb, ev);
+  if r2->>'action' <> 'duplicate' or r2->>'id' <> r1->>'id' then raise exception 'FAIL: expected duplicate, got %', r2; end if;
+  select count(*) into n from public.proposals where car_model_id = 'test:gate' and target_key = 'Brake Fluid' and status = 'pending';
+  if n <> 1 then raise exception 'FAIL: duplicate made % pending rows', n; end if;
+  -- j) supersede
+  a := (r1->>'id')::bigint;
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Brake Fluid', '{"interval_km":30000,"interval_months":24,"note":"","parts":[]}'::jsonb, ev);
+  b := (r->>'id')::bigint;
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: expected inserted, got %', r; end if;
+  if (select status from public.proposals where id = a) <> 'superseded' then raise exception 'FAIL: older not superseded'; end if;
+  select count(*) into n from public.proposals where car_model_id = 'test:gate' and target_key = 'Brake Fluid' and status = 'pending';
+  if n <> 1 then raise exception 'FAIL: % pending after supersede', n; end if;
+  -- l) noop: equal to the live Engine Oil row
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Engine Oil', '{"interval_km":10000,"interval_months":12,"note":"old","parts":[]}'::jsonb, ev);
+  if r->>'action' <> 'noop' then raise exception 'FAIL: expected noop, got %', r; end if;
+  perform set_config('t.b', b::text, true);
+end $$;
+
+-- k, m, n) reject
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$ begin
+  begin perform public.reject_proposal(current_setting('t.b')::bigint);
+    raise exception 'FAIL: non-admin rejected';
+  exception when raise_exception then
+    if sqlerrm <> 'admin only' then raise exception 'FAIL: expected admin only, got %', sqlerrm; end if;
+  end;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare b bigint := current_setting('t.b')::bigint; begin
+  perform public.reject_proposal(b, repeat('x', 400));
+  if (select char_length(reject_reason) from public.proposals where id = b) <> 300 then
+    raise exception 'FAIL: reason not truncated to 300'; end if;
+  if (select status from public.proposals where id = b) <> 'rejected' then raise exception 'FAIL: not rejected'; end if;
+end $$;
+reset role;
+do $$ declare b bigint := current_setting('t.b')::bigint; r jsonb; n0 int; ev jsonb; begin
+  select count(*) into n0 from public.proposals;
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Brake Fluid', '{"interval_km":30000,"interval_months":24,"note":"","parts":[]}'::jsonb,
+    '[{"url":"https://a.example/x","tier":"official","quote":"q","content_hash":"h1"}]');
+  if r->>'action' <> 'suppressed' or (select count(*) from public.proposals) <> n0 then
+    raise exception 'FAIL: expected suppressed, got %', r; end if;
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Brake Fluid', '{"interval_km":30000,"interval_months":24,"note":"","parts":[]}'::jsonb,
+    '[{"url":"https://a.example/x","tier":"official","quote":"q","content_hash":"h2"}]');
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: changed sources not re-queued: %', r; end if;
+end $$;
+-- m) anon
+set local role anon;
+do $$ begin
+  begin perform public.reject_proposal(1); raise exception 'FAIL: anon calls reject_proposal';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 rollback;
