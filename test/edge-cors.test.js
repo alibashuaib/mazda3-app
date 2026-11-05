@@ -57,3 +57,10 @@ test('CORS: edge sources have no wildcard ACAO and gate before OPTIONS/auth', ()
     assert.ok(gate < src.indexOf('getUser'), f + ' gate after auth');
   }
 });
+
+test('CORS: the outer-catch 500 response carries the CORS headers (both functions)', () => {
+  for (const f of ['read-bill', 'plan-intake']) {
+    const src = fs.readFileSync(path.join(fnDir, f, 'index.ts'), 'utf8');
+    assert.match(src, /status: 500, headers: \{ \.\.\.corsHeaders,/, f);
+  }
+});

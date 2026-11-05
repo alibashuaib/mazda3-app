@@ -88,15 +88,15 @@ export function planCarWrites(carId, sourceId, items, liveRows) {
   return { deleteServices: drafts.map(d => d.service), drafts, reasons: drafts.map(d => d.reason) };
 }
 
-/* Runs the plan: exactly one delete and one insert, whatever the item count. Returns drafts written.
+/* Runs the plan: exactly one delete and one insert, whatever the item count. Returns { ok, written }: ok is false only when a write failed.
    onError gets a fixed-message Error (never the Supabase error payload). */
 export async function applyCarWrites(admin, carId, plan, onError) {
-  if (!plan.drafts.length) return 0;
+  if (!plan.drafts.length) return { ok: true, written: 0 };
   const del = await admin.from('plan_drafts').delete().eq('car_model_id', carId).eq('status', 'pending').in('service', plan.deleteServices);
-  if (del && del.error) { await onError(new Error('plan-intake: plan_drafts delete failed')); return 0; }
+  if (del && del.error) { await onError(new Error('plan-intake: plan_drafts delete failed')); return { ok: false, written: 0 }; }
   const ins = await admin.from('plan_drafts').insert(plan.drafts);
-  if (ins && ins.error) { await onError(new Error('plan-intake: plan_drafts insert failed')); return 0; }
-  return plan.drafts.length;
+  if (ins && ins.error) { await onError(new Error('plan-intake: plan_drafts insert failed')); return { ok: false, written: 0 }; }
+  return { ok: true, written: plan.drafts.length };
 }
 
 /* Rows for a car's single recalls upsert (options live in index.ts: ignoreDuplicates keeps approved/rejected rows). */

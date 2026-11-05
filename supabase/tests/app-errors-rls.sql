@@ -76,4 +76,26 @@ do $$ declare n int; g text; begin
 end $$;
 reset role;
 
+-- 10: hard global ceiling (2000 client rows/h) rejects every client role
+insert into public.app_errors (source, message) select 'client', 'flood ' || g from generate_series(1, 2000) g;
+set local role anon;
+do $$ begin
+  begin insert into public.app_errors (source, message) values ('client', 'over the ceiling');
+    raise exception 'FAIL: anon insert accepted past the global ceiling';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL:%' then raise; end if;
+  end;
+end $$;
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated"}', true);
+do $$ begin
+  begin insert into public.app_errors (source, message) values ('client', 'over the ceiling');
+    raise exception 'FAIL: signed-in insert accepted past the global ceiling';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL:%' then raise; end if;
+  end;
+end $$;
+reset role;
+
 rollback;

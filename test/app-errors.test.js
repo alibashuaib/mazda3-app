@@ -50,3 +50,15 @@ test('logEdgeError tolerates null and undefined client', async () => {
   await logEdgeError(null, 'read-bill', new Error('x'));
   await logEdgeError(undefined, 'read-bill', new Error('x'));
 });
+
+test('empty/scrubbed-empty message and long route still satisfy the table CHECKs', async () => {
+  const { normaliseEdgeError } = await load();
+  assert.strictEqual(normaliseEdgeError('read-bill', new Error('')).message, 'unknown error');
+  assert.strictEqual(normaliseEdgeError('read-bill', new Error('x'), 'r'.repeat(300)).route.length, 120);
+});
+
+test('scrub redacts sb_ keys and emails', async () => {
+  const { scrub } = await load();
+  const out = scrub('key sb_secret_abcDEF123456 user a.b@example.com failed');
+  assert.ok(!/sb_secret|example\.com/.test(out), out);
+});

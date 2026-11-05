@@ -74,10 +74,10 @@ Deno.serve(async (req) => {
           }
           // One delete + one insert per source, whatever the item count (FND-10); live rows come from the per-car select above.
           const plan = planCarWrites(car.id, s.id, items, live);
-          const written = await applyCarWrites(admin, car.id, plan, (e: Error) => logEdgeError(admin, 'plan-intake', e, 'plan-intake'));
+          const { ok, written } = await applyCarWrites(admin, car.id, plan, (e: Error) => logEdgeError(admin, 'plan-intake', e, 'plan-intake'));
           drafts += written;
           if (written) live = await loadLive(admin, car.id);   // refresh only after a write
-          await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // only after drafts were written
+          if (ok) await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // only after the write succeeded, so a failed write is retried
         } catch (e) { skipped++; await logEdgeError(admin, 'plan-intake', e, 'plan-intake'); }
       }
 

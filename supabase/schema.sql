@@ -853,14 +853,23 @@ create index if not exists app_errors_group_idx on public.app_errors (group_key)
 create or replace function public.app_errors_before_insert() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if auth.role() in ('anon', 'authenticated') then
+  -- Keyed on the DB role (set by PostgREST and by SET ROLE), not JWT claims.
+  if coalesce(current_setting('role', true), '') in ('anon', 'authenticated') then
     -- Clients cannot pick a source: forcing 'client' keeps the cap below
     -- un-bypassable and stops spoofed edge-function rows. Only service_role
     -- may write other sources.
     new.source := 'client';
     perform pg_advisory_xact_lock(hashtext('app_errors_client_cap'));
+    -- Hard global ceiling (2000 client rows/h) first, whatever the identity.
     if (select count(*) from public.app_errors
-         where source = 'client' and created_at > now() - interval '1 hour') >= 500 then
+         where source = 'client' and created_at > now() - interval '1 hour') >= 2000 then
+      raise exception 'rate limited';
+    end if;
+    -- Separate budgets: anonymous callers share one pool (500/h); a signed-in
+    -- user has their own (100/h), so anon spam cannot starve their reports.
+    if (select count(*) from public.app_errors
+         where source = 'client' and created_at > now() - interval '1 hour'
+           and user_id is not distinct from auth.uid()) >= case when auth.uid() is null then 500 else 100 end then
       raise exception 'rate limited';
     end if;
   end if;
@@ -886,6 +895,20 @@ grant update (resolved_at) on public.app_errors to authenticated;
 drop policy if exists admin_resolve_app_errors on public.app_errors;
 create policy admin_resolve_app_errors on public.app_errors for update to authenticated
   using (public.is_admin()) with check (public.is_admin());
+
+-- resolved_at is compared with server-authored created_at, so it must be server time too:
+-- whatever non-null value the admin client sends is replaced by now().
+create or replace function public.app_errors_before_update() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.resolved_at is not null and new.resolved_at is distinct from old.resolved_at then
+    new.resolved_at := now();
+  end if;
+  return new;
+end $$;
+drop trigger if exists app_errors_before_update on public.app_errors;
+create trigger app_errors_before_update before update on public.app_errors
+  for each row execute function public.app_errors_before_update();
 
 -- 90-day retention (D-04). Skipped where pg_cron is unavailable (e.g. CI).
 do $$ begin
