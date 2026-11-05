@@ -293,7 +293,7 @@ function openCarColor() {
         if (name === sel) { closeModal(); return; }
         session.current().car.color = name;
         let ok = false;
-        try { ok = await save(); } catch (e) {}
+        ok = await save();
         // Accent, badge and the studio render all derive from the paint.
         applyAccent(); renderTopbar(); closeModal(); go(current);
         if (ok) toast('Colour updated');
@@ -480,7 +480,7 @@ function openSettings() {
       });
       session.current().severity = selectedSeverity;
       let ok = false;
-      try { ok = await save(); } catch (e) {}
+      ok = await save();
       // photo may exceed quota — verify it stuck
       applyAccent(); renderTopbar(); closeModal(); go(current); if (ok) toast('Profile saved');
     });
@@ -569,7 +569,7 @@ function relayPrecacheReport() {
 /* session.js emits its failure messages untranslated; t() here is what keeps
    the Arabic save-failure toasts working. */
 session.configure({
-  notify: (msg, kind) => toast(msg, kind),
+  notify: (msg, kind, opts) => (opts && opts.retry ? retryToast(msg, opts.retry) : toast(msg, kind)),
   afterSave: (id, data, photoIds) => { account.enqueueVehicle(id, data); (photoIds || []).forEach(pid => account.enqueuePhoto(pid)); kickSync(); }
 });
 

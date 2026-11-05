@@ -125,7 +125,11 @@ function toastNode(msg, kind) {
   host.appendChild(node);
   // Cap stacked toasts so a burst of quick actions doesn't pile up
   // unboundedly — drop the oldest once the cap is exceeded.
-  while (host.children.length > TOAST_CAP) host.firstElementChild.remove();
+  // Persistent toasts (a failed save's Retry) are exempt: evicting one would
+  // silently lose the only way back to the unsaved change.
+  const evictable = () => Array.from(host.children).filter(c => c.dataset.persistent !== '1');
+  let list = evictable();
+  while (list.length > TOAST_CAP) { list.shift().remove(); }
   return node;
 }
 function fadeToast(node) {
@@ -158,6 +162,29 @@ function undoToast(msg, onUndo) {
      Escape-free keyboard use lands on the one control that matters. */
   if (typeof btn.focus === 'function') btn.focus();
   setTimeout(() => fadeToast(node), UNDO_TOAST_MS);
+}
+/* A failed save. Stays until dismissed or a Retry succeeds (no timer, exempt
+   from TOAST_CAP). onRetry resolves true when the save landed. Only one at a
+   time: a failed Retry re-notifies with a fresh closure, which replaces this. */
+function retryToast(msg, onRetry) {
+  const host = $('#toastHost');
+  Array.from(host.querySelectorAll('.toast-retry')).forEach(n => n.remove());
+  const node = toastNode(msg, 'warn');
+  node.dataset.persistent = '1';
+  node.classList.add('toast-action', 'toast-retry');
+  const btn = el('button', 'toast-retry-btn', html`${t('Retry')}`);
+  node.appendChild(btn);
+  node.onclick = () => fadeToast(node);
+  btn.onclick = async ev => {
+    ev.stopPropagation();
+    if (btn.disabled) return;
+    btn.disabled = true;
+    let ok = false;
+    try { ok = await onRetry(); } catch (e) {}
+    if (ok) fadeToast(node); else btn.disabled = false;
+  };
+  if (typeof btn.focus === 'function') btn.focus();
+  return node;
 }
 
 /* ============================================================
