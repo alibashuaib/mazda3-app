@@ -305,4 +305,81 @@ do $$ begin
 end $$;
 reset role;
 
+-- r, s, t, u) revert_change
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare ev constant jsonb := '[{"url":"https://a.example/x","tier":"official","quote":"q"}]';
+  pa bigint; pb bigint; ca bigint; cb bigint; r jsonb; r1 bigint; r2 bigint; n int; begin
+  -- Engine Oil is 15000 after case f. A: 15000 -> 16000, B: 16000 -> 17000.
+  reset role;
+  pa := (public.submit_proposal('schedule_item', 'test:gate', 'Engine Oil', '{"interval_km":16000,"interval_months":12,"note":"old","parts":[]}'::jsonb, ev)->>'id')::bigint;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+  perform public.apply_proposal(pa);
+  select id into ca from public.change_log where proposal_id = pa;
+  reset role;
+  pb := (public.submit_proposal('schedule_item', 'test:gate', 'Engine Oil', '{"interval_km":17000,"interval_months":12,"note":"old","parts":[]}'::jsonb, ev)->>'id')::bigint;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+  perform public.apply_proposal(pb);
+  select id into cb from public.change_log where proposal_id = pb;
+
+  -- r) reverting A while B is live is refused
+  r := public.revert_change(ca);
+  if r->>'error' is distinct from 'drifted' or r->'live'->>'interval_km' <> '17000' then raise exception 'FAIL: r) expected drifted, got %', r; end if;
+  if (select interval_km from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Engine Oil') <> 17000 then
+    raise exception 'FAIL: r) drift refusal wrote the row'; end if;
+  r := public.revert_change(cb);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: r) revert B: %', r; end if;
+  r1 := (r->>'change_id')::bigint;
+  if (select interval_km from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Engine Oil') <> 16000 then
+    raise exception 'FAIL: r) B not reverted'; end if;
+  if (select reverts_id from public.change_log where id = r1) is distinct from cb
+     or (select made_by from public.change_log where id = r1) is distinct from '00000000-0000-0000-0000-0000000000f2'::uuid then
+    raise exception 'FAIL: r) revert row reverts_id/made_by'; end if;
+  r := public.revert_change(ca);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: r) revert A: %', r; end if;
+  r2 := (r->>'change_id')::bigint;
+  if (select interval_km from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Engine Oil') <> 15000 then
+    raise exception 'FAIL: r) A not reverted'; end if;
+
+  -- s) revert of a revert: R1 is stale now, R2 reverts cleanly
+  r := public.revert_change(r1);
+  if r->>'error' is distinct from 'drifted' then raise exception 'FAIL: s) expected drifted, got %', r; end if;
+  r := public.revert_change(r2);
+  if (r->>'ok') is distinct from 'true' or
+     (select interval_km from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Engine Oil') <> 16000 then
+    raise exception 'FAIL: s) revert of revert: %', r; end if;
+
+  -- t) insert proposal: revert deletes, revert of that re-inserts by car + service
+  reset role;
+  pa := (public.submit_proposal('schedule_item', 'test:gate', 'Revert New', '{"interval_km":9000,"interval_months":9,"note":"n","parts":[]}'::jsonb, ev)->>'id')::bigint;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+  perform public.apply_proposal(pa);
+  select id into ca from public.change_log where proposal_id = pa;
+  r := public.revert_change(ca);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: t) revert insert: %', r; end if;
+  select count(*) into n from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Revert New';
+  if n <> 0 then raise exception 'FAIL: t) row not deleted'; end if;
+  if (select op from public.change_log where id = (r->>'change_id')::bigint) <> 'delete' then raise exception 'FAIL: t) op not delete'; end if;
+  r := public.revert_change((r->>'change_id')::bigint);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: t) re-insert: %', r; end if;
+  if (select interval_km from public.dealer_plan_items where car_model_id = 'test:gate' and service = 'Revert New') is distinct from 9000 then
+    raise exception 'FAIL: t) row not re-inserted'; end if;
+end $$;
+
+-- u) non-admin and anon
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$ begin
+  begin perform public.revert_change(1); raise exception 'FAIL: non-admin revert';
+  exception when raise_exception then if sqlerrm <> 'admin only' then raise exception 'FAIL: expected admin only, got %', sqlerrm; end if; end;
+end $$;
+set local role anon;
+do $$ begin
+  begin perform public.revert_change(1); raise exception 'FAIL: anon revert';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 rollback;

@@ -29,7 +29,7 @@ test('browser roles get no write grants on proposals or change_log', () => {
 });
 
 test('gate function bodies carry no maker literal (CORE-06)', () => {
-  for (const n of ['proposal_live', 'proposal_confidence', 'submit_proposal', 'apply_proposal', 'reject_proposal', 'apply_proposals']) {
+  for (const n of ['proposal_live', 'proposal_confidence', 'submit_proposal', 'apply_proposal', 'reject_proposal', 'apply_proposals', 'revert_change']) {
     assert.doesNotMatch(body(n), /mazda/i, n);
   }
   assert.doesNotMatch(page, /mazda/i);
@@ -52,6 +52,13 @@ test('apply_proposals is admin-guarded, high-only and isolates each item', () =>
   assert.match(b, /if not public\.is_admin\(\) then raise exception 'admin only'/);
   assert.ok(b.includes('exception when others'));
   assert.ok(b.includes('high tier only'));
+});
+
+test('revert_change is admin-guarded, refuses drift and never matches by dealer_plan_items.id', () => {
+  const b = body('revert_change');
+  assert.match(b, /if not public\.is_admin\(\) then raise exception 'admin only'/);
+  assert.ok(b.includes("'drifted'") && b.includes('reverts_id'));
+  assert.doesNotMatch(b, /dealer_plan_items[^;]*where\s+id\s*=/);
 });
 
 test('admin-proposals.js never uses raw()', () => {

@@ -1234,3 +1234,42 @@ begin
 end $$;
 revoke execute on function public.apply_proposals(bigint[], text) from public, anon;
 grant execute on function public.apply_proposals(bigint[], text) to authenticated;
+
+-- Owner undoes one change_log row (REV-06, CORE-05). Refuses with 'drifted' when
+-- the live row no longer equals the change's after value (a newer change exists:
+-- revert that first), so newer data is never clobbered. Rows are matched by
+-- car + service, never by dealer_plan_items.id, so a delete can be re-inserted.
+-- The revert is itself a change_log row (reverts_id), so it can be reverted too.
+create or replace function public.revert_change(p_change_id bigint)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare c public.change_log; live jsonb; b jsonb; new_id bigint;
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  select * into c from public.change_log where id = p_change_id for update;
+  if not found then raise exception 'no change'; end if;
+  if c.kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
+  perform 1 from public.dealer_plan_items where car_model_id = c.car_model_id and service = c.row_key for update;
+  live := public.proposal_live(c.kind, c.car_model_id, c.row_key);
+  if live is distinct from c.after then
+    return jsonb_build_object('ok', false, 'error', 'drifted', 'live', live);
+  end if;
+  b := c.before;
+  if b is null then
+    delete from public.dealer_plan_items where car_model_id = c.car_model_id and service = c.row_key;
+  else
+    insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, note, parts)
+    values (c.car_model_id, c.row_key, (b->>'interval_km')::int, (b->>'interval_months')::int,
+            coalesce(b->>'note', ''), coalesce(b->'parts', '[]'::jsonb))
+    on conflict (car_model_id, service) do update set
+      interval_km = excluded.interval_km, interval_months = excluded.interval_months,
+      note = excluded.note, parts = excluded.parts;
+  end if;
+  insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id, reverts_id)
+  values (c.kind, c.car_model_id, 'dealer_plan_items', c.row_key,
+          case when b is null then 'delete' when live is null then 'insert' else 'update' end,
+          live, public.proposal_live(c.kind, c.car_model_id, c.row_key), c.proposal_id, p_change_id)
+  returning id into new_id;
+  return jsonb_build_object('ok', true, 'change_id', new_id);
+end $$;
+revoke execute on function public.revert_change(bigint) from public, anon;
+grant execute on function public.revert_change(bigint) to authenticated;
