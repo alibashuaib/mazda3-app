@@ -38,7 +38,15 @@ Harden the app first (autopilot adds server code and renders scraped content), t
   3. Owner can reject with a reason, and the same value is not re-queued; a newer proposal for the same target supersedes the older pending one.
   4. Owner can bulk-approve filtered high-confidence proposals; one failing item does not abort the rest.
   5. Owner can revert any approved change in one click, recorded in the change log; scraped text with injection payloads renders as inert escaped text.
-**Plans**: TBD
+**Plans:** 6 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Gate tables + submit/apply RPCs, Proposals tab with expand and approve
+- [ ] 02-02-PLAN.md — Filters, edit before approve, stale alert with edit-against-live, demo seed
+- [ ] 02-03-PLAN.md — Reject with reason, dedupe/suppression/supersede in submit, units.mjs
+- [ ] 02-04-PLAN.md — Bulk approve high-confidence with per-item isolation
+- [ ] 02-05-PLAN.md — One-click audited revert and Recent approvals card
+- [ ] 02-06-PLAN.md — CI rls proof and owner walkthrough (checkpoint)
 **UI hint**: yes
 
 ### Phase 3: Monthly Autopilot for Schedules & Recalls
