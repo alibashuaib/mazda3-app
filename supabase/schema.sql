@@ -869,7 +869,7 @@ begin
     -- user has their own (100/h), so anon spam cannot starve their reports.
     if (select count(*) from public.app_errors
          where source = 'client' and created_at > now() - interval '1 hour'
-           and user_id is not distinct from auth.uid()) >= case when auth.uid() is null then 500 else 100 end then
+           and user_id is not distinct from auth.uid()) >= (case when auth.uid() is null then 500 else 100 end) then
       raise exception 'rate limited';
     end if;
   end if;
