@@ -219,8 +219,8 @@ do $$ declare r1 jsonb; r2 jsonb; a bigint; b bigint; r jsonb; n int; ev jsonb; 
   if (select status from public.proposals where id = a) <> 'superseded' then raise exception 'FAIL: older not superseded'; end if;
   select count(*) into n from public.proposals where car_model_id = 'test:gate' and target_key = 'Brake Fluid' and status = 'pending';
   if n <> 1 then raise exception 'FAIL: % pending after supersede', n; end if;
-  -- l) noop: equal to the live Engine Oil row
-  r := public.submit_proposal('schedule_item', 'test:gate', 'Engine Oil', '{"interval_km":10000,"interval_months":12,"note":"old","parts":[]}'::jsonb, ev);
+  -- l) noop: equal to the live Engine Oil row (approved to 15000/12/"new" in case f)
+  r := public.submit_proposal('schedule_item', 'test:gate', 'Engine Oil', '{"interval_km":15000,"interval_months":12,"note":"new","parts":[]}'::jsonb, ev);
   if r->>'action' <> 'noop' then raise exception 'FAIL: expected noop, got %', r; end if;
   perform set_config('t.b', b::text, true);
 end $$;
