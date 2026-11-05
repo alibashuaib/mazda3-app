@@ -111,5 +111,5 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Reliable & Safe Foundation | 11/11 | Complete   | 2026-11-05 |
 | 2. Proposal Gate & Review Queue | 6/6 | Complete   | 2026-11-05 |
-| 3. Monthly Autopilot for Schedules & Recalls | 6/8 | In Progress|  |
+| 3. Monthly Autopilot for Schedules & Recalls | 7/8 | In Progress|  |
 | 4. Parts, Prices, Community & New Models | 0/? | Not started | - |
