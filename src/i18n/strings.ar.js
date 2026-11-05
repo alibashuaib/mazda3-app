@@ -490,6 +490,10 @@ const AR = {
   'Edit {target}': 'تعديل {target}', 'Approve edited value': 'اعتماد القيمة المعدّلة', 'Reject {target}': 'رفض {target}', 'Reason (optional)': 'السبب (اختياري)',
   'Why is this wrong or not useful?': 'لماذا هذا خاطئ أو غير مفيد؟', 'Reject proposal': 'رفض المقترح', 'Rejected': 'تم الرفض',
   'Live value changed': 'تغيّرت القيمة الحالية',
+  'Approve {n} high-confidence': 'اعتماد {n} عالية الثقة', 'Approve high-confidence proposals': 'اعتماد المقترحات عالية الثقة',
+  'Approve {n} high-confidence proposals? Each one changes the live catalogue for all users.': 'اعتماد {n} مقترحات عالية الثقة؟ كل واحد منها يغيّر الكتالوج الحالي لجميع المستخدمين.',
+  'Approve {n}': 'اعتماد {n}', '{x} approved, {y} failed': 'تم اعتماد {x}، وفشل {y}', 'No longer high confidence': 'لم يعد عالي الثقة',
+  'Could not apply': 'تعذّر التطبيق', 'Approving…': 'جارٍ الاعتماد…',
   'The live value is now {live}. Reject this proposal or edit it against the live value.': 'القيمة الحالية الآن {live}. ارفض هذا المقترح أو عدّله بناءً على القيمة الحالية.'
 };
 

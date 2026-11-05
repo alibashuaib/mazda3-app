@@ -254,3 +254,49 @@ test('Reject failure keeps the row; reason and submitter note stay inert text', 
     assert.strictEqual(app.document.querySelector('#view img'), null);
   } finally { app.cleanup(); }
 });
+
+const bulk = app => [...app.document.querySelectorAll('#view button')].find(b => /^Approve \d+ high-confidence$/.test(b.textContent));
+const three = () => [prop({ id: 1 }), prop({ id: 2, target_key: 'Cabin Filter' }), prop({ id: 3, target_key: 'Spark Plug', confidence_tier: 'low' })];
+
+test('bulk bar counts filtered high rows, hides at zero, modal defaults to Cancel', async () => {
+  const { app, s } = await open({ proposals: three() });
+  try {
+    assert.ok(await until(() => bulk(app)));
+    assert.strictEqual(bulk(app).textContent, 'Approve 2 high-confidence');
+    const sel = app.document.querySelector('#view select[data-f=tier]');
+    sel.value = 'low'; sel.onchange();
+    assert.strictEqual(bulk(app), undefined);
+    sel.value = ''; sel.onchange();
+    bulk(app).onclick();
+    const card = app.document.querySelector('#modalCard');
+    assert.strictEqual(card.querySelector('h2').textContent, 'Approve high-confidence proposals');
+    assert.match(card.textContent, /Approve 2 high-confidence proposals\? Each one changes the live catalogue for all users\./);
+    assert.strictEqual(card.querySelector('button').textContent, 'Cancel');
+    card.querySelector('button').onclick();
+    assert.strictEqual(s.rpc.length, 0);
+  } finally { app.cleanup(); }
+});
+
+test('bulk confirm sends only high ids and reports per-item failures', async () => {
+  const { app, s } = await open({ proposals: three(), rpcResult: { apply_proposals: { data: [{ id: 1, ok: true }, { id: 2, ok: false, error: 'stale' }], error: null } } });
+  try {
+    assert.ok(await until(() => bulk(app)));
+    bulk(app).onclick();
+    [...app.document.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Approve 2').onclick();
+    assert.ok(await until(() => /1 approved, 1 failed/.test(text(app.document))), text(app.document));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(s.rpc[0])), ['apply_proposals', { p_ids: [1, 2], p_tier: 'high' }]);
+    const al = app.document.querySelector('#view [role=alert]');
+    assert.match(al.textContent, /CX-5 KF · Cabin Filter: Live value changed/);
+  } finally { app.cleanup(); }
+});
+
+test('bulk rpc failure shows the connection message and no counts', async () => {
+  const { app } = await open({ proposals: three(), rpcResult: { apply_proposals: { data: null, error: { message: 'x' } } } });
+  try {
+    assert.ok(await until(() => bulk(app)));
+    bulk(app).onclick();
+    [...app.document.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Approve 2').onclick();
+    assert.ok(await until(() => /Could not save\. Check your connection\./.test(app.document.body.textContent)));
+    assert.doesNotMatch(text(app.document), /approved,/);
+  } finally { app.cleanup(); }
+});

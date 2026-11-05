@@ -13,6 +13,9 @@ const PROPOSAL_TIER_LABEL = { official: 'Official', secondary: 'Secondary', comm
 /* Survives refresh() after an approve, like adminTab. */
 let proposalFilter = { car: '', kind: '', tier: '', run: '' };
 
+/* Result of the last bulk approve, shown once above the list after the refetch. */
+let lastBulk = null;
+
 function proposalCarLabel(models, id) {
   const m = (models || []).find(x => x.id === id);
   return m ? `${m.model} ${m.generation}` : String(id || '');
@@ -248,11 +251,50 @@ function adminProposals(res, models, refresh) {
     fcard.querySelectorAll('select').forEach(s => { s.value = ''; });
     paint();
   };
+  const bulkBox = el('div');
   const body = el('div');
-  wrap.append(fcard, body);
+  wrap.append(fcard, bulkBox, body);
+  if (lastBulk) {
+    const b = lastBulk; lastBulk = null;
+    const al = el('div', 'proposal-alert' + (b.failed.length ? ' fail' : '')); al.setAttribute('role', 'alert');
+    const ah = el('strong'); ah.textContent = t('{x} approved, {y} failed').replace('{x}', String(b.approved)).replace('{y}', String(b.failed.length));
+    al.appendChild(ah);
+    b.failed.forEach(f => { const l = el('p', 'muted'); l.setAttribute('dir', 'auto'); l.textContent = f.line; al.appendChild(l); });
+    wrap.insertBefore(al, bulkBox);
+  }
   const safeRefresh = () => { try { refresh(); } catch (e) { adminReport('admin: proposals refresh failed', e); } };
+  const bulkAsk = rows => {
+    const ids = rows.map(p => p.id), n = ids.length;
+    const labels = {};
+    rows.forEach(p => { labels[p.id] = `${proposalCarLabel(models, p.car_model_id)} · ${p.target_key}`; });
+    openModal(t('Approve high-confidence proposals'), null, card => {
+      const msg = el('p'); msg.textContent = t('Approve {n} high-confidence proposals? Each one changes the live catalogue for all users.').replace('{n}', String(n));
+      const cancel = el('button', 'btn ghost'); cancel.type = 'button'; cancel.textContent = t('Cancel');
+      cancel.onclick = () => closeModal();
+      const go = el('button', 'btn primary'); go.type = 'button'; go.textContent = t('Approve {n}').replace('{n}', String(n));
+      onAsyncClick(go, async () => {
+        go.textContent = t('Approving…');
+        const r = await catalogAdmin.applyProposals(ids, 'high');
+        closeModal();
+        if (!r.ok) { toast(t('Could not save. Check your connection.'), 'warn'); return; }
+        const sum = catalogAdmin.bulkSummary(r.results);
+        const why = { stale: 'Live value changed', not_high: 'No longer high confidence' };
+        lastBulk = { approved: sum.approved, failed: sum.failed.map(f => ({ line: `${labels[f.id] || f.id}: ${t(why[f.error] || 'Could not apply')}` })) };
+        safeRefresh();
+      });
+      card.append(msg, cancel, go);
+    });
+  };
   function paint() {
     body.textContent = '';
+    bulkBox.textContent = '';
+    const high = catalogAdmin.filterProposals(res.rows, proposalFilter).filter(p => p.confidence_tier === 'high');
+    if (high.length) {
+      const bb = el('button', 'btn primary block'); bb.type = 'button';
+      bb.textContent = t('Approve {n} high-confidence').replace('{n}', String(high.length));
+      bb.onclick = () => bulkAsk(high);
+      bulkBox.appendChild(bb);
+    }
     const active = Object.values(proposalFilter).some(Boolean);
     if (active) fcard.appendChild(clear); else clear.remove();
     const rows = catalogAdmin.filterProposals(res.rows, proposalFilter);

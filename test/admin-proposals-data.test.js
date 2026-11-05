@@ -72,3 +72,14 @@ test('proposalFilterOptions: unique, sorted, tiers ordered, null run dropped', (
   assert.deepStrictEqual(admin.proposalFilterOptions(FR),
     { cars: ['m1', 'm2'], kinds: ['part', 'schedule_item'], tiers: ['high', 'low'], runs: ['101', '102'] });
 });
+
+test('applyProposals sends ids and tier; bulkSummary counts and lists failures', async () => {
+  const calls = [];
+  const results = [{ id: 1, ok: true }, { id: 2, ok: false, error: 'stale' }];
+  withClient({ rpc: (n, a) => { calls.push([n, a]); return Promise.resolve({ data: results, error: null }); } });
+  assert.deepStrictEqual(await admin.applyProposals([1, 2], 'high'), { ok: true, results });
+  assert.deepStrictEqual(calls, [['apply_proposals', { p_ids: [1, 2], p_tier: 'high' }]]);
+  withClient({ rpc: () => Promise.resolve({ data: null, error: { message: 'x' } }) });
+  assert.deepStrictEqual(await admin.applyProposals([1], 'high'), { ok: false, error: 'failed' });
+  assert.deepStrictEqual(admin.bulkSummary(results), { approved: 1, failed: [{ id: 2, error: 'stale' }] });
+});

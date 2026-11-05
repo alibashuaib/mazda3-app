@@ -212,6 +212,19 @@
       .catch(() => ({ ok: false, error: 'failed' }));
   }
 
+  /* Never rejects. results: one {id, ok, error?} per requested id. */
+  function applyProposals(ids, tier) {
+    return Promise.resolve().then(() => env.client.rpc('apply_proposals', { p_ids: ids, p_tier: tier }))
+      .then(res => (!res || res.error || !Array.isArray(res.data)) ? { ok: false, error: 'failed' } : { ok: true, results: res.data })
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+
+  /* Pure: {approved, failed:[{id, error}]}. */
+  function bulkSummary(results) {
+    const rs = Array.isArray(results) ? results : [];
+    return { approved: rs.filter(r => r && r.ok).length, failed: rs.filter(r => r && !r.ok).map(r => ({ id: r.id, error: r.error })) };
+  }
+
   /* Never rejects. Empty reason is sent as null. */
   function rejectProposal(id, reason) {
     const r = String(reason || '').trim();
@@ -237,7 +250,7 @@
   }
 
   return {
-    listProposals, applyProposal, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
+    listProposals, applyProposal, applyProposals, bulkSummary, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
     listErrors, resolveGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount,
     listModels, loadModel, saveWarranty, saveItem, approve,
