@@ -974,7 +974,7 @@ create trigger car_models_set_maker before insert on public.car_models
 
 create table if not exists public.proposals (
   id                 bigint generated always as identity primary key,
-  run_id             bigint,   -- no FK until Phase 3 adds autopilot_runs
+  run_id             bigint,   -- FK proposals_run_fk -> autopilot_runs added in the autopilot section below
   kind               text not null,
   maker_id           text not null references public.makers,
   car_model_id       text references public.car_models on delete cascade,
@@ -1351,3 +1351,554 @@ begin
 end $$;
 revoke execute on function public.revert_change(bigint) from public, anon;
 grant execute on function public.revert_change(bigint) to authenticated;
+
+-- ============================================================================
+-- Monthly autopilot (Phase 3, ENG-01..ENG-08, REV-07, SCH-05)
+-- Server-side state and rules for the autopilot: job queue, atomic spend cap and
+-- kill switch, staged findings, publish, source domains, item status, monthly
+-- cron. Cap, kill switch and no-partial-publish live here as race-free SQL, not
+-- in worker code. Every table: RLS on, admin select, no write policy and no
+-- table privilege beyond select (writes go through the RPCs below). Worker
+-- functions are service_role only; admin RPCs check is_admin() inside.
+-- Re-runnable.
+-- ============================================================================
+
+-- One-row settings (id is pinned to 1). Prices follow the shape logic.mjs costUsd reads:
+-- models.<id> {in,out,cache_read,cache_write, optional tier_over/in_hi/out_hi} in USD per MTok.
+-- cache_write rates are 1.25x input (assumed, not in the research table; owner-editable).
+-- gcc_domains starts empty on purpose: the owner supplies hostnames (CORE-06, plan 03-08).
+create table if not exists public.autopilot_config (
+  id             int primary key default 1 check (id = 1),
+  enabled        boolean not null default true,                          -- kill switch (D-14)
+  monthly_cap_sar numeric not null default 40 check (monthly_cap_sar > 0), -- hard cap (D-01)
+  usd_sar        numeric not null default 3.75 check (usd_sar > 0),
+  prices         jsonb not null default '{}',
+  gcc_domains    text[] not null default '{}',
+  search_max_uses int not null default 3 check (search_max_uses between 0 and 10)
+);
+insert into public.autopilot_config (id, prices) values (1, jsonb_build_object(
+  'search_per_call', 0.01,
+  'models', jsonb_build_object(
+    'claude-sonnet-5-5', jsonb_build_object('in', 2, 'out', 10, 'cache_read', 0.10, 'cache_write', 2.5),
+    'claude-haiku-5-5', jsonb_build_object('in', 0.10, 'out', 0.50, 'cache_read', 0.01, 'cache_write', 0.125,
+                                           'tier_over', 100000, 'in_hi', 0.50, 'out_hi', 2.50))))
+  on conflict do nothing;
+
+create table if not exists public.autopilot_runs (
+  id           bigint generated always as identity primary key,
+  kind         text not null check (kind in ('monthly', 'manual')),
+  car_model_id text references public.car_models on delete set null,
+  status       text not null default 'running' check (status in ('running', 'done', 'failed', 'capped', 'stopped')),
+  started_at   timestamptz not null default now(),
+  finished_at  timestamptz,
+  month        date not null default (date_trunc('month', now())::date),
+  report       jsonb not null default '{}'
+);
+
+-- Proposals made by a run point back at it; deleting a run keeps the proposals.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'proposals_run_fk') then
+    alter table public.proposals add constraint proposals_run_fk
+      foreign key (run_id) references public.autopilot_runs (id) on delete set null;
+  end if;
+end $$;
+
+create table if not exists public.autopilot_jobs (
+  id           bigint generated always as identity primary key,
+  run_id       bigint not null references public.autopilot_runs on delete cascade,
+  car_model_id text references public.car_models on delete cascade,   -- null for the publish job
+  stage        text not null check (stage in ('discover', 'extract', 'recalls', 'publish')),
+  status       text not null default 'queued' check (status in ('queued', 'running', 'done', 'failed')),
+  attempts     int not null default 0,
+  last_error   text,
+  run_after    timestamptz not null default now(),
+  claimed_at   timestamptz,
+  notes        jsonb       -- worker report input: {dropped:{reason:n}, skipped:[...], unchanged:bool}
+);
+create index if not exists autopilot_jobs_open on public.autopilot_jobs (run_id, status);
+
+-- Ledger. A row is a reservation (cost_sar = the worst-case estimate) until
+-- autopilot_settle replaces it with the actual cost. Month-to-date counts both.
+create table if not exists public.autopilot_spend (
+  id            bigint generated always as identity primary key,
+  run_id        bigint references public.autopilot_runs on delete set null,
+  status        text not null default 'reserved' check (status in ('reserved', 'settled')),
+  model         text,
+  input_tokens  bigint not null default 0,
+  output_tokens bigint not null default 0,
+  cache_read_tokens bigint not null default 0,
+  searches      int not null default 0,
+  reserved_sar  numeric not null default 0,
+  cost_usd      numeric not null default 0,
+  cost_sar      numeric not null default 0,
+  created_at    timestamptz not null default now()
+);
+create index if not exists autopilot_spend_created on public.autopilot_spend (created_at);
+
+-- Staging only (D-02): published by autopilot_publish_run or discarded with the run.
+create table if not exists public.autopilot_findings (
+  id           bigint generated always as identity primary key,
+  run_id       bigint not null references public.autopilot_runs on delete cascade,
+  car_model_id text not null references public.car_models on delete cascade,
+  kind         text not null check (kind in ('schedule_item', 'recall')),
+  target_key   text not null check (char_length(target_key) between 1 and 120),
+  after        jsonb not null,
+  evidence     jsonb not null,
+  reason       text not null default '',
+  verified     boolean not null default true   -- quote-checked against the fetched source (SCH-05)
+);
+create unique index if not exists autopilot_findings_key
+  on public.autopilot_findings (run_id, car_model_id, kind, target_key);
+
+create table if not exists public.source_domains (
+  host       text primary key check (host = lower(host) and char_length(host) between 1 and 253),
+  status     text not null default 'pending' check (status in ('pending', 'approved', 'banned')),
+  first_seen timestamptz not null default now(),
+  decided_at timestamptz
+);
+
+-- Separate from legacy schedule_sources so plan-intake is untouched. Read and
+-- written only through autopilot_get/set_source_hash.
+create table if not exists public.autopilot_sources (
+  car_model_id    text not null references public.car_models on delete cascade,
+  url             text not null,
+  host            text not null,
+  content_hash    text not null,
+  last_fetched_at timestamptz not null default now(),
+  primary key (car_model_id, url)
+);
+
+create table if not exists public.autopilot_item_status (
+  car_model_id     text not null references public.car_models on delete cascade,
+  kind             text not null default 'schedule_item',
+  target_key       text not null,
+  last_verified_at timestamptz,
+  last_verified_run bigint references public.autopilot_runs on delete set null,
+  missed_runs      int not null default 0,
+  unverified       boolean generated always as (missed_runs >= 2) stored,   -- D-16
+  primary key (car_model_id, kind, target_key)
+);
+
+alter table public.autopilot_config enable row level security;
+alter table public.autopilot_runs enable row level security;
+alter table public.autopilot_jobs enable row level security;
+alter table public.autopilot_spend enable row level security;
+alter table public.autopilot_findings enable row level security;
+alter table public.source_domains enable row level security;
+alter table public.autopilot_sources enable row level security;
+alter table public.autopilot_item_status enable row level security;
+revoke all on public.autopilot_config, public.autopilot_runs, public.autopilot_jobs, public.autopilot_spend,
+  public.autopilot_findings, public.source_domains, public.autopilot_sources, public.autopilot_item_status
+  from anon, authenticated;
+grant select on public.autopilot_config, public.autopilot_runs, public.autopilot_jobs, public.autopilot_spend,
+  public.autopilot_findings, public.source_domains, public.autopilot_sources, public.autopilot_item_status
+  to authenticated;
+drop policy if exists admin_read_autopilot_config on public.autopilot_config;
+create policy admin_read_autopilot_config on public.autopilot_config for select to authenticated using (public.is_admin());
+drop policy if exists admin_read_autopilot_runs on public.autopilot_runs;
+create policy admin_read_autopilot_runs on public.autopilot_runs for select to authenticated using (public.is_admin());
+drop policy if exists admin_read_autopilot_jobs on public.autopilot_jobs;
+create policy admin_read_autopilot_jobs on public.autopilot_jobs for select to authenticated using (public.is_admin());
+drop policy if exists admin_read_autopilot_spend on public.autopilot_spend;
+create policy admin_read_autopilot_spend on public.autopilot_spend for select to authenticated using (public.is_admin());
+drop policy if exists admin_read_autopilot_findings on public.autopilot_findings;
+create policy admin_read_autopilot_findings on public.autopilot_findings for select to authenticated using (public.is_admin());
+drop policy if exists admin_read_source_domains on public.source_domains;
+create policy admin_read_source_domains on public.source_domains for select to authenticated using (public.is_admin());
+drop policy if exists admin_read_autopilot_sources on public.autopilot_sources;
+create policy admin_read_autopilot_sources on public.autopilot_sources for select to authenticated using (public.is_admin());
+drop policy if exists admin_read_autopilot_item_status on public.autopilot_item_status;
+create policy admin_read_autopilot_item_status on public.autopilot_item_status for select to authenticated using (public.is_admin());
+
+-- ---- cost math (mirrors costUsd in functions/autopilot/logic.mjs; unknown model or class => raise) ----
+create or replace function public.autopilot_bill(n numeric, rate text, cls text) returns numeric
+language plpgsql immutable as $$
+begin
+  if n > 0 and rate is null then raise exception 'unpriced token class: %', cls; end if;
+  return case when n > 0 then n * rate::numeric else 0 end;
+end $$;
+
+create or replace function public.autopilot_cost_usd(p_model text, p_usage jsonb, p_prices jsonb) returns numeric
+language plpgsql immutable as $$
+declare p jsonb := p_prices->'models'->p_model; i numeric := coalesce((p_usage->>'input_tokens')::numeric, 0);
+        o numeric := coalesce((p_usage->>'output_tokens')::numeric, 0);
+        cr numeric := coalesce((p_usage->>'cache_read_input_tokens')::numeric, 0);
+        cw numeric := coalesce((p_usage->>'cache_creation_input_tokens')::numeric, 0);
+        s numeric := coalesce((p_usage->'server_tool_use'->>'web_search_requests')::numeric, 0); hi boolean;
+begin
+  if p is null then raise exception 'unpriced model'; end if;
+  hi := p ? 'tier_over' and (i + cr + cw) > (p->>'tier_over')::numeric;
+  return (public.autopilot_bill(i, case when hi then p->>'in_hi' else p->>'in' end, 'input')
+        + public.autopilot_bill(o, case when hi then p->>'out_hi' else p->>'out' end, 'output')
+        + public.autopilot_bill(cr, p->>'cache_read', 'cache_read')
+        + public.autopilot_bill(cw, p->>'cache_write', 'cache_write')) / 1000000
+        + public.autopilot_bill(s, p_prices->>'search_per_call', 'web_search');
+end $$;
+revoke execute on function public.autopilot_bill(numeric, text, text) from public, anon, authenticated;
+revoke execute on function public.autopilot_cost_usd(text, jsonb, jsonb) from public, anon, authenticated;
+
+-- ---- cap + kill switch (ENG-03, ENG-04, D-14) ----
+-- Called before every paid call. The advisory lock makes check-and-reserve atomic
+-- across workers; the kill switch is read inside the same call.
+create or replace function public.autopilot_reserve(p_run bigint, p_est_sar numeric) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare c public.autopilot_config; used numeric; rid bigint;
+begin
+  if p_est_sar is null or p_est_sar < 0 then raise exception 'bad estimate'; end if;
+  perform pg_advisory_xact_lock(hashtext('autopilot:spend'));
+  select * into c from public.autopilot_config where id = 1;
+  if not c.enabled then return jsonb_build_object('ok', false, 'reason', 'killed'); end if;
+  if not exists (select 1 from public.autopilot_runs where id = p_run and status = 'running') then
+    return jsonb_build_object('ok', false, 'reason', 'run_ended'); end if;
+  select coalesce(sum(cost_sar), 0) into used from public.autopilot_spend
+    where created_at >= date_trunc('month', now());
+  if used + p_est_sar > c.monthly_cap_sar then
+    return jsonb_build_object('ok', false, 'reason', 'cap', 'used_sar', used); end if;
+  insert into public.autopilot_spend (run_id, status, reserved_sar, cost_sar)
+    values (p_run, 'reserved', p_est_sar, p_est_sar) returning id into rid;
+  return jsonb_build_object('ok', true, 'reservation_id', rid);
+end $$;
+
+-- Replaces the estimate with the actual cost. over=true means the call cost more than
+-- reserved: the worker must stop the run. Unknown model raises (fail closed).
+create or replace function public.autopilot_settle(p_reservation bigint, p_model text, p_usage jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare c public.autopilot_config; r public.autopilot_spend; usd numeric; sar numeric;
+begin
+  perform pg_advisory_xact_lock(hashtext('autopilot:spend'));
+  select * into c from public.autopilot_config where id = 1;
+  select * into r from public.autopilot_spend where id = p_reservation for update;
+  if not found or r.status <> 'reserved' then raise exception 'no open reservation'; end if;
+  usd := public.autopilot_cost_usd(p_model, p_usage, c.prices);
+  sar := usd * c.usd_sar;
+  update public.autopilot_spend set status = 'settled', model = p_model,
+    input_tokens = coalesce((p_usage->>'input_tokens')::bigint, 0),
+    output_tokens = coalesce((p_usage->>'output_tokens')::bigint, 0),
+    cache_read_tokens = coalesce((p_usage->>'cache_read_input_tokens')::bigint, 0),
+    searches = coalesce((p_usage->'server_tool_use'->>'web_search_requests')::int, 0),
+    cost_usd = usd, cost_sar = sar where id = p_reservation;
+  return jsonb_build_object('ok', true, 'sar', sar, 'over', sar > r.reserved_sar);
+end $$;
+
+create or replace function public.autopilot_set_enabled(p_enabled boolean) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  update public.autopilot_config set enabled = coalesce(p_enabled, false) where id = 1;
+  return coalesce(p_enabled, false);
+end $$;
+revoke execute on function public.autopilot_set_enabled(boolean) from public, anon;
+grant execute on function public.autopilot_set_enabled(boolean) to authenticated;
+
+-- ---- run / job queue (ENG-01, ENG-02, D-13) ----
+-- One discover/extract/recalls job per approved car (or the one car) plus one publish job.
+-- A monthly run refuses to start while one is still running this month.
+create or replace function public.autopilot_start_run(p_kind text, p_car text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare rid bigint; n int;
+begin
+  if p_kind not in ('monthly', 'manual') then raise exception 'bad kind'; end if;
+  if p_kind = 'monthly' and p_car is not null then raise exception 'monthly runs cover every car'; end if;
+  if p_kind = 'manual' and not exists (select 1 from public.car_models where id = p_car and status = 'approved') then
+    raise exception 'unknown car'; end if;
+  perform pg_advisory_xact_lock(hashtext('autopilot:start'));
+  if p_kind = 'monthly' and exists (select 1 from public.autopilot_runs
+       where kind = 'monthly' and status = 'running' and month = date_trunc('month', now())::date) then
+    return jsonb_build_object('ok', false, 'reason', 'running'); end if;
+  insert into public.autopilot_runs (kind, car_model_id) values (p_kind, p_car) returning id into rid;
+  insert into public.autopilot_jobs (run_id, car_model_id, stage)
+    select rid, c.id, s.stage from public.car_models c
+      cross join (values ('discover', 1), ('extract', 2), ('recalls', 3)) s(stage, ord)
+     where c.status = 'approved' and (p_car is null or c.id = p_car)
+     order by c.id, s.ord;
+  get diagnostics n = row_count;
+  insert into public.autopilot_jobs (run_id, stage) values (rid, 'publish');
+  return jsonb_build_object('ok', true, 'run_id', rid, 'jobs', n + 1);
+end $$;
+
+-- Internal: a publish job that cannot finish ends the run failed with nothing published.
+create or replace function public.autopilot_abort_run(p_run bigint) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.autopilot_runs set status = 'failed', finished_at = now(),
+    report = public.autopilot_build_report(p_run, '{}'::jsonb) where id = p_run and status = 'running';
+  delete from public.autopilot_findings where run_id = p_run;
+end $$;
+
+-- Returns the claimed job row (json) or null. publish waits for every other job of its
+-- run; extract waits for its car's discover (so a discover retry is not overtaken).
+create or replace function public.autopilot_claim_job() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare j public.autopilot_jobs; dead bigint[]; rid bigint;
+begin
+  -- Reclaim jobs whose worker died. A reclaim counts as a failed attempt so a job that
+  -- keeps killing its worker still ends failed after 3.
+  with u as (
+    update public.autopilot_jobs set attempts = attempts + 1,
+      status = case when attempts + 1 >= 3 then 'failed' else 'queued' end,
+      last_error = 'stale: worker lost', claimed_at = null
+     where status = 'running' and claimed_at < now() - interval '3 minutes'
+    returning run_id, stage, status)
+  select array_agg(run_id) into dead from u where stage = 'publish' and status = 'failed';
+  foreach rid in array coalesce(dead, '{}') loop perform public.autopilot_abort_run(rid); end loop;
+
+  select q.* into j from public.autopilot_jobs q
+   where q.status = 'queued' and q.run_after <= now()
+     and exists (select 1 from public.autopilot_runs r where r.id = q.run_id and r.status = 'running')
+     and (q.stage <> 'publish' or not exists (select 1 from public.autopilot_jobs o
+            where o.run_id = q.run_id and o.id <> q.id and o.status in ('queued', 'running')))
+     and (q.stage <> 'extract' or not exists (select 1 from public.autopilot_jobs d
+            where d.run_id = q.run_id and d.car_model_id = q.car_model_id and d.stage = 'discover'
+              and d.status in ('queued', 'running')))
+   order by q.id for update of q skip locked limit 1;
+  if not found then return null; end if;
+  update public.autopilot_jobs set status = 'running', claimed_at = now() where id = j.id returning * into j;
+  return to_jsonb(j);
+end $$;
+
+-- ok -> done. Failure -> attempts + 1; under 3 requeue with backoff (2, 4 min), at 3 failed (D-13).
+create or replace function public.autopilot_finish_job(p_id bigint, p_ok boolean, p_err text default null, p_notes jsonb default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare j public.autopilot_jobs; att int;
+begin
+  select * into j from public.autopilot_jobs where id = p_id for update;
+  if not found then raise exception 'unknown job'; end if;
+  if j.status <> 'running' then return jsonb_build_object('ok', false, 'reason', 'not_running'); end if;
+  if p_ok then
+    update public.autopilot_jobs set status = 'done', last_error = null, claimed_at = null,
+      notes = coalesce(p_notes, notes) where id = p_id;
+    return jsonb_build_object('ok', true, 'status', 'done');
+  end if;
+  att := j.attempts + 1;
+  update public.autopilot_jobs set attempts = att, claimed_at = null, last_error = left(coalesce(p_err, ''), 500),
+    notes = coalesce(p_notes, notes),
+    status = case when att >= 3 then 'failed' else 'queued' end,
+    run_after = case when att >= 3 then run_after else now() + interval '1 minute' * power(2, att) end
+   where id = p_id;
+  if att >= 3 and j.stage = 'publish' then perform public.autopilot_abort_run(j.run_id); end if;
+  return jsonb_build_object('ok', true, 'status', case when att >= 3 then 'failed' else 'queued' end, 'attempts', att);
+end $$;
+
+-- Cap or kill switch hit (D-02): drop the run's staged findings, skip what is left, publish nothing.
+create or replace function public.autopilot_end_run(p_run bigint, p_status text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_status not in ('capped', 'stopped') then raise exception 'bad status'; end if;
+  update public.autopilot_runs set status = p_status, finished_at = now() where id = p_run and status = 'running';
+  if not found then return jsonb_build_object('ok', false, 'reason', 'not_running'); end if;
+  delete from public.autopilot_findings where run_id = p_run;
+  update public.autopilot_jobs set status = 'failed', claimed_at = null, last_error = 'skipped: run ' || p_status
+   where run_id = p_run and status in ('queued', 'running');
+  update public.autopilot_runs set report = public.autopilot_build_report(p_run, '{}'::jsonb) where id = p_run;
+  return jsonb_build_object('ok', true);
+end $$;
+
+-- Idempotent stage: replaces this (run, car, kind)'s findings with the batch.
+-- rows: [{target_key, after, evidence, reason?, verified?}]
+create or replace function public.autopilot_stage_findings(p_run bigint, p_car text, p_kind text, p_rows jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if p_kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' then raise exception 'rows must be an array'; end if;
+  if not exists (select 1 from public.autopilot_runs where id = p_run and status = 'running') then
+    raise exception 'run not running'; end if;
+  delete from public.autopilot_findings where run_id = p_run and car_model_id = p_car and kind = p_kind;
+  insert into public.autopilot_findings (run_id, car_model_id, kind, target_key, after, evidence, reason, verified)
+    select p_run, p_car, p_kind, x.target_key, x.after, x.evidence, left(coalesce(x.reason, ''), 300), coalesce(x.verified, true)
+      from jsonb_to_recordset(p_rows) as x(target_key text, after jsonb, evidence jsonb, reason text, verified boolean);
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- ---- change detection hashes (ENG-08) ----
+create or replace function public.autopilot_get_source_hash(p_car text, p_url text) returns text
+language sql security definer set search_path = public as $$
+  select content_hash from public.autopilot_sources where car_model_id = p_car and url = p_url
+$$;
+create or replace function public.autopilot_set_source_hash(p_car text, p_url text, p_hash text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_url !~ '^https://[^/]+' or coalesce(p_hash, '') = '' then raise exception 'bad source'; end if;
+  insert into public.autopilot_sources (car_model_id, url, host, content_hash)
+    values (p_car, p_url, lower(substring(p_url from '^https://([^/:?#]+)')), p_hash)
+  on conflict (car_model_id, url) do update set content_hash = excluded.content_hash, last_fetched_at = now();
+end $$;
+
+-- ---- source domains (ENG-06, D-07, D-08) ----
+-- Unseen host -> stored pending (held for the owner). A subdomain of a banned host is banned.
+create or replace function public.autopilot_see_domain(p_host text) returns text
+language plpgsql security definer set search_path = public as $$
+declare h text := lower(btrim(coalesce(p_host, ''))); st text;
+begin
+  if h !~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$' or char_length(h) > 253 then raise exception 'bad host'; end if;
+  if exists (select 1 from public.source_domains where status = 'banned' and (h = host or h like '%.' || host)) then
+    return 'banned'; end if;
+  insert into public.source_domains (host) values (h) on conflict do nothing;
+  select status into st from public.source_domains where host = h;
+  return st;
+end $$;
+
+-- Permanent (D-08). Rejects pending proposals with any evidence url on the host or a subdomain.
+create or replace function public.ban_source_domain(p_host text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare h text := lower(btrim(coalesce(p_host, ''))); n int;
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  if h !~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$' or char_length(h) > 253 then raise exception 'bad host'; end if;
+  insert into public.source_domains (host, status, decided_at) values (h, 'banned', now())
+    on conflict (host) do update set status = 'banned', decided_at = now();
+  update public.proposals p set status = 'rejected', reject_reason = 'banned source',
+         decided_by = auth.uid(), decided_at = now()
+   where p.status = 'pending' and exists (
+     select 1 from jsonb_array_elements(p.evidence) e
+      where lower(substring(e->>'url' from '^https://([^/:?#]+)')) = h
+         or lower(substring(e->>'url' from '^https://([^/:?#]+)')) like '%.' || h);
+  get diagnostics n = row_count;
+  return jsonb_build_object('ok', true, 'rejected', n);
+end $$;
+revoke execute on function public.ban_source_domain(text) from public, anon;
+grant execute on function public.ban_source_domain(text) to authenticated;
+
+create or replace function public.approve_source_domain(p_host text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare h text := lower(btrim(coalesce(p_host, '')));
+begin
+  if not public.is_admin() then raise exception 'admin only'; end if;
+  if h !~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$' or char_length(h) > 253 then raise exception 'bad host'; end if;
+  if exists (select 1 from public.source_domains where host = h and status = 'banned') then
+    raise exception 'banned is permanent'; end if;
+  insert into public.source_domains (host, status, decided_at) values (h, 'approved', now())
+    on conflict (host) do update set status = 'approved', decided_at = now();
+  return jsonb_build_object('ok', true);
+end $$;
+revoke execute on function public.approve_source_domain(text) from public, anon;
+grant execute on function public.approve_source_domain(text) to authenticated;
+
+-- ---- report (REV-07) + publish (ENG-03, D-02) ----
+create or replace function public.autopilot_build_report(p_run bigint, p_counts jsonb) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'proposals', p_counts,
+    'cost_sar', coalesce((select round(sum(cost_sar), 4) from public.autopilot_spend where run_id = p_run), 0),
+    'searches', coalesce((select sum(searches) from public.autopilot_spend where run_id = p_run), 0),
+    'llm_calls', (select count(*) from public.autopilot_spend where run_id = p_run and status = 'settled'),
+    'dropped', coalesce((select jsonb_object_agg(k, s) from (
+        select e.key k, sum((e.value #>> '{}')::numeric) s
+          from public.autopilot_jobs j,
+               jsonb_each(case when jsonb_typeof(j.notes->'dropped') = 'object' then j.notes->'dropped' else '{}'::jsonb end) e
+         where j.run_id = p_run group by e.key) d), '{}'::jsonb),
+    'skipped_sources', coalesce((select jsonb_agg(v) from public.autopilot_jobs j,
+        jsonb_array_elements(case when jsonb_typeof(j.notes->'skipped') = 'array' then j.notes->'skipped' else '[]'::jsonb end) v
+        where j.run_id = p_run), '[]'::jsonb),
+    'failed_jobs', coalesce((select jsonb_agg(jsonb_build_object('car', car_model_id, 'stage', stage,
+        'error', left(coalesce(last_error, ''), 200))) from public.autopilot_jobs
+        where run_id = p_run and status = 'failed'), '[]'::jsonb))
+$$;
+revoke execute on function public.autopilot_build_report(bigint, jsonb) from public, anon, authenticated;
+revoke execute on function public.autopilot_abort_run(bigint) from public, anon, authenticated;
+
+-- Publishes only a run that is still running (a capped or killed run was ended and its
+-- findings deleted) and has no open job besides this one. One submit_proposal per
+-- finding; a finding that raises is counted as 'error' and skipped, the rest go on.
+-- Item status (SCH-05) moves only for monthly runs (D-15, D-16); manual runs leave it alone.
+-- A car whose extract job reported notes.unchanged (every source hash matched) is neither
+-- verified nor missed this month.
+create or replace function public.autopilot_publish_run(p_run bigint) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r public.autopilot_runs; f public.autopilot_findings; act text; counts jsonb := '{}'; st text; rep jsonb;
+begin
+  select * into r from public.autopilot_runs where id = p_run for update;
+  if not found then raise exception 'unknown run'; end if;
+  if r.status <> 'running' then return jsonb_build_object('ok', false, 'reason', 'not_running'); end if;
+  if exists (select 1 from public.autopilot_jobs where run_id = p_run and stage <> 'publish' and status in ('queued', 'running')) then
+    return jsonb_build_object('ok', false, 'reason', 'jobs_pending'); end if;
+
+  for f in select * from public.autopilot_findings where run_id = p_run order by id loop
+    begin
+      act := public.submit_proposal(f.kind, f.car_model_id, f.target_key, f.after, f.evidence, p_run, f.reason)->>'action';
+    exception when others then
+      act := 'error';   -- the block is a savepoint: only this finding rolls back
+    end;
+    counts := counts || jsonb_build_object(f.kind, coalesce(counts->f.kind, '{}'::jsonb));
+    counts := jsonb_set(counts, array[f.kind, act], to_jsonb(coalesce((counts #>> array[f.kind, act])::int, 0) + 1));
+    -- noop / duplicate / suppressed all mean the source value was seen and checked: verified.
+    if r.kind = 'monthly' and f.kind = 'schedule_item' and f.verified and act <> 'error' then
+      insert into public.autopilot_item_status (car_model_id, kind, target_key, last_verified_at, last_verified_run, missed_runs)
+        values (f.car_model_id, f.kind, f.target_key, now(), p_run, 0)
+      on conflict (car_model_id, kind, target_key) do update
+        set last_verified_at = now(), last_verified_run = p_run, missed_runs = 0;
+    end if;
+  end loop;
+
+  if r.kind = 'monthly' then
+    insert into public.autopilot_item_status (car_model_id, kind, target_key, missed_runs)
+      select i.car_model_id, 'schedule_item', i.service, 1 from public.dealer_plan_items i
+       where exists (select 1 from public.autopilot_jobs j where j.run_id = p_run and j.car_model_id = i.car_model_id
+                       and j.stage = 'extract' and j.status = 'done' and coalesce(j.notes->>'unchanged', 'false') <> 'true')
+         and not exists (select 1 from public.autopilot_item_status s where s.car_model_id = i.car_model_id
+                           and s.kind = 'schedule_item' and s.target_key = i.service and s.last_verified_run = p_run)
+    on conflict (car_model_id, kind, target_key) do update
+      set missed_runs = public.autopilot_item_status.missed_runs + 1;
+  end if;
+
+  st := case when exists (select 1 from public.autopilot_jobs where run_id = p_run and stage <> 'publish' and status = 'failed')
+             then 'failed' else 'done' end;
+  rep := public.autopilot_build_report(p_run, counts);
+  update public.autopilot_runs set status = st, finished_at = now(), report = rep where id = p_run;
+  delete from public.autopilot_findings where run_id = p_run;
+  return jsonb_build_object('ok', true, 'status', st, 'report', rep);
+end $$;
+
+-- Worker functions: service_role only (V4).
+revoke execute on function public.autopilot_reserve(bigint, numeric) from public, anon, authenticated;
+grant execute on function public.autopilot_reserve(bigint, numeric) to service_role;
+revoke execute on function public.autopilot_settle(bigint, text, jsonb) from public, anon, authenticated;
+grant execute on function public.autopilot_settle(bigint, text, jsonb) to service_role;
+revoke execute on function public.autopilot_start_run(text, text) from public, anon, authenticated;
+grant execute on function public.autopilot_start_run(text, text) to service_role;
+revoke execute on function public.autopilot_claim_job() from public, anon, authenticated;
+grant execute on function public.autopilot_claim_job() to service_role;
+revoke execute on function public.autopilot_finish_job(bigint, boolean, text, jsonb) from public, anon, authenticated;
+grant execute on function public.autopilot_finish_job(bigint, boolean, text, jsonb) to service_role;
+revoke execute on function public.autopilot_end_run(bigint, text) from public, anon, authenticated;
+grant execute on function public.autopilot_end_run(bigint, text) to service_role;
+revoke execute on function public.autopilot_stage_findings(bigint, text, text, jsonb) from public, anon, authenticated;
+grant execute on function public.autopilot_stage_findings(bigint, text, text, jsonb) to service_role;
+revoke execute on function public.autopilot_get_source_hash(text, text) from public, anon, authenticated;
+grant execute on function public.autopilot_get_source_hash(text, text) to service_role;
+revoke execute on function public.autopilot_set_source_hash(text, text, text) from public, anon, authenticated;
+grant execute on function public.autopilot_set_source_hash(text, text, text) to service_role;
+revoke execute on function public.autopilot_see_domain(text) from public, anon, authenticated;
+grant execute on function public.autopilot_see_domain(text) to service_role;
+revoke execute on function public.autopilot_publish_run(bigint) from public, anon, authenticated;
+grant execute on function public.autopilot_publish_run(bigint) to service_role;
+
+-- ---- schedules (ENG-01, ENG-02) ----
+-- Monthly run at 03:00 on the 1st; the work poke every 5 minutes only fires while jobs
+-- are open. Skipped where pg_cron / pg_net are unavailable (e.g. CI), like app-errors-retention.
+-- No secret is committed: set the target once per project, outside git:
+--   alter database postgres set app.autopilot_url = 'https://<ref>.functions.supabase.co/autopilot';
+--   alter database postgres set app.autopilot_secret = '<same value as the INTAKE_CRON_SECRET function secret>';
+-- (Supabase Vault is the upgrade path; same exposure class as the plan-intake cron.)
+do $$ begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+    if exists (select 1 from cron.job where jobname = 'autopilot-monthly') then
+      perform cron.unschedule('autopilot-monthly');
+    end if;
+    perform cron.schedule('autopilot-monthly', '0 3 1 * *', $job$select public.autopilot_start_run('monthly', null)$job$);
+    if exists (select 1 from pg_available_extensions where name = 'pg_net') then
+      create extension if not exists pg_net;
+      if exists (select 1 from cron.job where jobname = 'autopilot-work') then
+        perform cron.unschedule('autopilot-work');
+      end if;
+      perform cron.schedule('autopilot-work', '*/5 * * * *', $job$
+        select net.http_post(url := current_setting('app.autopilot_url', true),
+          headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', current_setting('app.autopilot_secret', true)),
+          body := '{"action":"work"}'::jsonb)
+         where coalesce(current_setting('app.autopilot_url', true), '') <> ''
+           and exists (select 1 from public.autopilot_jobs where status in ('queued', 'running'))$job$);
+    end if;
+  end if;
+end $$;
