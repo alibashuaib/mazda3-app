@@ -1,0 +1,5 @@
+{"id":"msg_02","type":"message","role":"assistant","model":"claude-haiku-5-5","stop_reason":"end_turn",
+ "content":[
+  {"type":"server_tool_use","id":"srvtoolu_02","name":"web_search","input":{"query":"x"}},
+  {"type":"web_search_tool_result","tool_use_id":"srvtoolu_02","content":{"type":"web_search_tool_result_error","error_code":"max_uses_exceeded"}}],
+ "usage":{"input_tokens":900,"output_tokens":50}}
