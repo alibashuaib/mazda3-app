@@ -233,6 +233,22 @@
       .catch(() => ({ ok: false, error: 'failed' }));
   }
 
+  /* Never rejects. Last 30 audited changes, newest first. */
+  function listRecentChanges() {
+    return Promise.resolve().then(() => env.client.from('change_log')
+      .select('id,made_at,kind,car_model_id,row_key,op,before,after,proposal_id,reverts_id')
+      .order('made_at', { ascending: false }).limit(30))
+      .then(res => (!res || res.error) ? { ok: false, error: 'failed' } : { ok: true, rows: res.data || [] })
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+
+  /* Never rejects. A {ok:false,error:'drifted',live} answer is passed through. */
+  function revertChange(id) {
+    return Promise.resolve().then(() => env.client.rpc('revert_change', { p_change_id: id }))
+      .then(res => (!res || res.error || !res.data) ? { ok: false, error: 'failed' } : res.data)
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+
   /* Pure, in-memory filters over the one bounded fetch. Empty criterion = no filter. */
   function filterProposals(rows, f) {
     f = f || {};
@@ -250,7 +266,7 @@
   }
 
   return {
-    listProposals, applyProposal, applyProposals, bulkSummary, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
+    listProposals, listRecentChanges, revertChange, applyProposal, applyProposals, bulkSummary, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
     listErrors, resolveGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount,
     listModels, loadModel, saveWarranty, saveItem, approve,

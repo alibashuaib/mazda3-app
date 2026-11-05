@@ -83,3 +83,22 @@ test('applyProposals sends ids and tier; bulkSummary counts and lists failures',
   assert.deepStrictEqual(await admin.applyProposals([1], 'high'), { ok: false, error: 'failed' });
   assert.deepStrictEqual(admin.bulkSummary(results), { approved: 1, failed: [{ id: 2, error: 'stale' }] });
 });
+
+test('listRecentChanges: ok, empty, error; revertChange passes drifted through', async () => {
+  withClient({ from: () => chain({ data: [{ id: 1 }], error: null }) });
+  assert.deepStrictEqual(await admin.listRecentChanges(), { ok: true, rows: [{ id: 1 }] });
+  withClient({ from: () => chain({ data: undefined, error: null }) });
+  assert.deepStrictEqual(await admin.listRecentChanges(), { ok: true, rows: [] });
+  withClient({ from: () => chain({ data: null, error: {} }) });
+  assert.deepStrictEqual(await admin.listRecentChanges(), { ok: false, error: 'failed' });
+  withClient({ from: () => { throw new Error('boom'); } });
+  assert.deepStrictEqual(await admin.listRecentChanges(), { ok: false, error: 'failed' });
+
+  const calls = [];
+  const d = { ok: false, error: 'drifted', live: { interval_km: 1 } };
+  withClient({ rpc: (n, a) => { calls.push([n, a]); return Promise.resolve({ data: d, error: null }); } });
+  assert.deepStrictEqual(await admin.revertChange(9), d);
+  assert.deepStrictEqual(calls, [['revert_change', { p_change_id: 9 }]]);
+  withClient({ rpc: () => Promise.resolve({ data: null, error: { message: 'x' } }) });
+  assert.deepStrictEqual(await admin.revertChange(9), { ok: false, error: 'failed' });
+});

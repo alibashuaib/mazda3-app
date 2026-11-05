@@ -17,6 +17,7 @@ function stub(state) {
     from: table => {
       (state.fromCalls = state.fromCalls || []).push(table);
       const p = () => {
+        if (table === 'change_log') return state.changeFail ? Promise.resolve({ data: null, error: {} }) : Promise.resolve({ data: state.changes || [], error: null });
         if (table === 'proposals') return state.propFail ? Promise.resolve({ data: null, error: {} }) : Promise.resolve({ data: state.proposals, error: null });
         const rows = ({ profiles: { role: 'admin' }, car_models: [{ id: 'm1', model: 'CX-5', generation: 'KF', engine: '2.5L', status: 'approved' }],
           dealer_plan_items: [], plan_drafts: [], schedule_sources: [], recalls: [], app_errors: [] })[table];
@@ -298,5 +299,55 @@ test('bulk rpc failure shows the connection message and no counts', async () => 
     [...app.document.querySelectorAll('#modalCard button')].find(b => b.textContent === 'Approve 2').onclick();
     assert.ok(await until(() => /Could not save\. Check your connection\./.test(app.document.body.textContent)));
     assert.doesNotMatch(text(app.document), /approved,/);
+  } finally { app.cleanup(); }
+});
+
+const chg = o => Object.assign({
+  id: 20, made_at: '2026-11-03T10:00:00Z', kind: 'schedule_item', car_model_id: 'm1', row_key: 'Engine Oil', op: 'update',
+  before: { interval_km: 10000, interval_months: 12, note: '', parts: [] },
+  after: { interval_km: 15000, interval_months: 12, note: '', parts: [] }, proposal_id: 7, reverts_id: null
+}, o);
+const revertBtn = app => [...app.document.querySelectorAll('#view button')].find(b => b.textContent === 'Revert');
+
+test('recent approvals: empty list, load failure keeps the queue', async () => {
+  let { app } = await open({ proposals: [prop()] });
+  try {
+    assert.ok(await until(() => /Recent approvals/.test(text(app.document))), text(app.document));
+    assert.match(text(app.document), /No approvals yet/);
+  } finally { app.cleanup(); }
+  ({ app } = await open({ proposals: [prop()], changeFail: true }));
+  try {
+    assert.ok(await until(() => /Recent approvals/.test(text(app.document))));
+    assert.match(text(app.document), /Engine Oil/);
+    assert.match(text(app.document), /Could not load proposals/);
+  } finally { app.cleanup(); }
+});
+
+test('revert is one click, no modal; refetch shows the revert row with its own Revert', async () => {
+  const { app, s } = await open({ changes: [chg()] });
+  try {
+    assert.ok(await until(() => revertBtn(app)), text(app.document));
+    assert.match(text(app.document), /2026-11-03 · CX-5 KF · Engine Oil/);
+    assert.match(text(app.document), /10000 → 15000/);
+    assert.strictEqual(revertBtn(app).getAttribute('aria-label'), 'Revert Engine Oil');
+    s.changes = [chg({ id: 21, reverts_id: 20, before: chg().after, after: chg().before }), chg()];
+    revertBtn(app).onclick();
+    assert.ok(await until(() => /Reverted: 2026-11-03/.test(text(app.document))), text(app.document));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(s.rpc[0])), ['revert_change', { p_change_id: 20 }]);
+    const m = app.document.querySelector('.modal');
+    assert.ok(!m || m.hidden || !m.textContent.trim());
+    assert.strictEqual([...app.document.querySelectorAll('#view button')].filter(b => b.textContent === 'Revert').length, 2);
+  } finally { app.cleanup(); }
+});
+
+test('drifted revert shows the message, no toast; row_key is escaped', async () => {
+  const { app } = await open({ changes: [chg({ row_key: '<img src=x onerror=1>' })],
+    rpcResult: { revert_change: { data: { ok: false, error: 'drifted', live: {} }, error: null } } });
+  try {
+    assert.ok(await until(() => revertBtn(app)));
+    revertBtn(app).onclick();
+    assert.ok(await until(() => /Newer change exists\. Revert that one first\./.test(text(app.document))), text(app.document));
+    assert.strictEqual(app.document.querySelectorAll('#view img').length, 0);
+    assert.doesNotMatch(app.document.body.textContent, /Reverted(?!:)/);
   } finally { app.cleanup(); }
 });

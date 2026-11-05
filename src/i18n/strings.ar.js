@@ -494,6 +494,8 @@ const AR = {
   'Approve {n} high-confidence proposals? Each one changes the live catalogue for all users.': 'اعتماد {n} مقترحات عالية الثقة؟ كل واحد منها يغيّر الكتالوج الحالي لجميع المستخدمين.',
   'Approve {n}': 'اعتماد {n}', '{x} approved, {y} failed': 'تم اعتماد {x}، وفشل {y}', 'No longer high confidence': 'لم يعد عالي الثقة',
   'Could not apply': 'تعذّر التطبيق', 'Approving…': 'جارٍ الاعتماد…',
+  'Recent approvals': 'آخر الاعتمادات', 'No approvals yet': 'لا توجد اعتمادات بعد', 'Revert': 'تراجع', 'Revert {target}': 'تراجع عن {target}',
+  'Reverted:': 'تم التراجع:', 'Reverted': 'تم التراجع', 'Newer change exists. Revert that one first.': 'يوجد تغيير أحدث. تراجع عنه أولًا.',
   'The live value is now {live}. Reject this proposal or edit it against the live value.': 'القيمة الحالية الآن {live}. ارفض هذا المقترح أو عدّله بناءً على القيمة الحالية.'
 };
 

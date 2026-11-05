@@ -206,8 +206,62 @@ function proposalRow(p, models, refresh) {
   return row;
 }
 
-/* res is listProposals() output; models is listModels() or []. */
-function adminProposals(res, models, refresh) {
+/* Recent approvals: last 30 audited changes, one-click revert (no confirmation,
+   CONTEXT: a revert is itself an audited change and can be reverted). */
+function recentChangesCard(changes, models, refresh) {
+  const card = el('div', 'card');
+  card.style.cssText = 'padding:16px;margin-top:12px';
+  const h = el('h3'); h.textContent = t('Recent approvals');
+  card.appendChild(h);
+  if (!changes.ok) {
+    const p = el('p', 'muted'); p.textContent = t('Could not load proposals. Check your connection and try again.');
+    card.appendChild(p);
+    return card;
+  }
+  if (!changes.rows.length) {
+    const p = el('p', 'muted'); p.textContent = t('No approvals yet');
+    card.appendChild(p);
+    return card;
+  }
+  const arrow = document.documentElement.getAttribute('dir') === 'rtl' ? '←' : '→';
+  const list = el('div', 'list');
+  changes.rows.forEach(c => {
+    const row = el('div', 'item');
+    const main = el('div', 'item-main');
+    const title = el('h3'); title.setAttribute('dir', 'auto');
+    title.textContent = `${c.reverts_id ? t('Reverted:') + ' ' : ''}${String(c.made_at || '').slice(0, 10)} · ${proposalCarLabel(models, c.car_model_id)} · ${c.row_key}`;
+    const first = c.before && c.after ? catalogAdmin.draftDiff(c.before, c.after)[0] : null;
+    const sub = el('p', 'muted'); sub.setAttribute('dir', 'ltr');
+    sub.textContent = first ? `${first.before || '—'} ${arrow} ${first.after || '—'}` : '—';
+    main.append(title, sub);
+    const side = el('div', 'item-side');
+    const b = el('button', 'btn ghost'); b.type = 'button';
+    b.textContent = t('Revert');
+    b.setAttribute('aria-label', t('Revert {target}').replace('{target}', c.row_key));
+    onAsyncClick(b, async () => {
+      row.querySelectorAll('.save-error').forEach(x => x.remove());
+      const r = await catalogAdmin.revertChange(c.id);
+      if (r.ok) { toast(t('Reverted')); return refresh(); }
+      const err = el('p', 'muted save-error'); err.setAttribute('role', 'alert');
+      err.textContent = t(r.error === 'drifted' ? 'Newer change exists. Revert that one first.' : 'Could not save. Check your connection.');
+      row.appendChild(err);
+    });
+    side.appendChild(b);
+    row.append(main, side);
+    list.appendChild(row);
+  });
+  card.appendChild(list);
+  return card;
+}
+
+/* res is listProposals() output; models is listModels() or []; changes is listRecentChanges(). */
+function adminProposals(res, models, refresh, changes) {
+  const box = el('div');
+  box.append(adminProposalsQueue(res, models, refresh), recentChangesCard(changes || { ok: true, rows: [] }, models, refresh));
+  return box;
+}
+
+function adminProposalsQueue(res, models, refresh) {
   const card = el('div', 'card');
   card.style.padding = '16px';
   if (!res.ok) {

@@ -36,8 +36,8 @@ async function renderAdminBody(body) {
     if (adminModelId) { const node = await adminEditor(adminModelId); body.innerHTML = ''; body.appendChild(node); return; }
     // One fetch feeds both the badge and the Errors tab. A failure here must
     // not take the review queue down with it.
-    const [errs, props, models] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
-      catalogAdmin.listModels().catch(() => [])]);
+    const [errs, props, changes, models] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
+      catalogAdmin.listRecentChanges(), catalogAdmin.listModels().catch(() => [])]);
     const open = errs.ok ? errs.groups.filter(g => g.open).length : 0;
     const show = async () => {
       body.innerHTML = '';
@@ -45,7 +45,7 @@ async function renderAdminBody(body) {
         { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
         id => { adminTab = id; show(); }));
       try {
-        body.appendChild(adminTab === 'proposals' ? adminProposals(props, models, () => renderAdminBody(body))
+        body.appendChild(adminTab === 'proposals' ? adminProposals(props, models, () => renderAdminBody(body), changes)
           : adminTab === 'errors' ? adminErrors(errs, () => renderAdminBody(body)) : await adminList());
       }
       catch (e) { adminReport('admin: render failed', e); body.appendChild(el('div', 'card', html`<p style="padding:16px">${t('Could not load the catalogue.')}</p>`)); }
