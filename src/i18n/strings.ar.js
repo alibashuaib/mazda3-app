@@ -486,7 +486,9 @@ const AR = {
   'Showing the newest 500. Approve or reject some to see more.': 'عرض أحدث 500. اعتمد بعضها أو ارفضه لعرض المزيد.',
   'Approve {target}': 'اعتماد {target}', 'Schedule item': 'بند جدول الصيانة',
   'Car': 'السيارة', 'Kind': 'النوع', 'Confidence': 'الثقة', 'Run': 'التشغيل', 'Clear filters': 'مسح المرشحات',
-  'No proposals match these filters': 'لا توجد مقترحات تطابق هذه المرشحات'
+  'No proposals match these filters': 'لا توجد مقترحات تطابق هذه المرشحات',
+  'Edit {target}': 'تعديل {target}', 'Approve edited value': 'اعتماد القيمة المعدّلة', 'Live value changed': 'تغيّرت القيمة الحالية',
+  'The live value is now {live}. Reject this proposal or edit it against the live value.': 'القيمة الحالية الآن {live}. ارفض هذا المقترح أو عدّله بناءً على القيمة الحالية.'
 };
 
   return { AR };

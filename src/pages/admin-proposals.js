@@ -113,22 +113,68 @@ function proposalRow(p, models, refresh) {
   src.appendChild(sh);
   (Array.isArray(p.evidence) ? p.evidence : []).slice(0, 10).forEach(ev => src.appendChild(proposalSource(ev || {})));
 
+  // seenHash is the live hash the owner was shown in a stale alert; prefill is what Edit starts from.
+  const state = { seenHash: null, prefill: p.after };
+  const clearMsgs = () => panel.querySelectorAll('.save-error, .proposal-alert').forEach(x => x.remove());
+  const stale = r => {
+    state.seenHash = r.live_hash || null;
+    state.prefill = r.live || {};
+    const live = catalogAdmin.draftDiff(null, r.live).map(d => t(DIFF_LABELS[d.field]) + ' ' + d.after).join(', ') || '—';
+    const al = el('div', 'proposal-alert save-error'); al.setAttribute('role', 'alert');
+    const ah = el('strong'); ah.textContent = t('Live value changed');
+    const ap = el('p', 'muted'); ap.setAttribute('dir', 'auto');
+    ap.textContent = t('The live value is now {live}. Reject this proposal or edit it against the live value.').replace('{live}', live);
+    al.append(ah, ap);
+    panel.appendChild(al);
+  };
+  // One result handler for plain and edited approve; the row stays pending on stale (CONTEXT A3).
+  const settle = r => {
+    if (r.ok) { toast(t('Approved')); return refresh(); }
+    clearMsgs();
+    if (r.error === 'stale') return stale(r);
+    const err = el('p', 'muted save-error'); err.setAttribute('role', 'alert');
+    err.textContent = t('Could not save. Check your connection.');
+    panel.appendChild(err);
+  };
+
   const actions = el('div', 'field-row');
   const approve = el('button', 'btn primary'); approve.type = 'button';
   approve.textContent = t('Approve');
   approve.setAttribute('aria-label', t('Approve {target}').replace('{target}', p.target_key));
-  onAsyncClick(approve, async () => {
-    const old = panel.querySelector('.save-error'); if (old) old.remove();
-    const r = await catalogAdmin.applyProposal(p.id, null, null);
-    if (r.ok) { toast(t('Approved')); return refresh(); }
-    // ponytail: stale gets the generic message here; plan 02-02 adds the live-value alert.
-    const err = el('p', 'muted save-error'); err.setAttribute('role', 'alert');
-    err.textContent = t('Could not save. Check your connection.');
-    panel.appendChild(err);
-  });
-  actions.appendChild(approve);
+  onAsyncClick(approve, async () => { clearMsgs(); settle(await catalogAdmin.applyProposal(p.id, null, null)); });
+  const edit = el('button', 'btn ghost'); edit.type = 'button';
+  edit.textContent = t('Edit');
+  edit.setAttribute('aria-label', t('Edit {target}').replace('{target}', p.target_key));
+  actions.append(approve, edit);
 
-  panel.append(diff, why, src, actions);
+  const form = el('div', 'proposal-edit');
+  form.hidden = true;
+  edit.onclick = () => {
+    const v = state.prefill || {};
+    form.textContent = '';
+    const r = el('div', 'field-row');
+    r.append(
+      field('Dealer interval (km)', html`<input data-k="interval_km" type="number" min="0" value="${v.interval_km ?? ''}">`),
+      field('Dealer interval (mo)', html`<input data-k="interval_months" type="number" min="0" value="${v.interval_months ?? ''}">`));
+    const go = el('button', 'btn primary'); go.type = 'button'; go.textContent = t('Approve edited value');
+    const cancel = el('button', 'btn ghost'); cancel.type = 'button'; cancel.textContent = t('Cancel');
+    cancel.onclick = () => { form.hidden = true; };
+    onAsyncClick(go, async () => {
+      clearMsgs();
+      const f = {};
+      form.querySelectorAll('[data-k]').forEach(i => { f[i.dataset.k] = i.value; });
+      const val = { interval_km: catalogAdmin.num(f.interval_km), interval_months: catalogAdmin.num(f.interval_months),
+        note: String(f.note || '').trim(), parts: catalogAdmin.parseParts(f.parts) };
+      settle(await catalogAdmin.applyProposal(p.id, val, state.seenHash));
+    });
+    form.append(r,
+      field('Note', html`<textarea data-k="note" rows="2">${v.note || ''}</textarea>`),
+      field('Parts (name | part number | qty, one per line)', html`<textarea data-k="parts" rows="2">${catalogAdmin.formatParts(v.parts)}</textarea>`),
+      go, cancel);
+    form.hidden = false;
+  };
+
+  panel.append(diff, why, src, actions, form);
   row.append(sum, panel);
   return row;
 }
@@ -163,7 +209,7 @@ function adminProposals(res, models, refresh) {
       const o = el('option'); o.value = v; o.textContent = text; s.appendChild(o);
     });
     s.value = proposalFilter[key];
-    s.onchange = () => { proposalFilter[key] = s.value; draw(); };
+    s.onchange = () => { proposalFilter[key] = s.value; paint(); };
     return f;
   };
   frow.append(
@@ -176,12 +222,12 @@ function adminProposals(res, models, refresh) {
   clear.onclick = () => {
     proposalFilter = { car: '', kind: '', tier: '', run: '' };
     fcard.querySelectorAll('select').forEach(s => { s.value = ''; });
-    draw();
+    paint();
   };
   const body = el('div');
   wrap.append(fcard, body);
   const safeRefresh = () => { try { refresh(); } catch (e) { adminReport('admin: proposals refresh failed', e); } };
-  function draw() {
+  function paint() {
     body.textContent = '';
     const active = Object.values(proposalFilter).some(Boolean);
     if (active) fcard.appendChild(clear); else clear.remove();
@@ -195,7 +241,7 @@ function adminProposals(res, models, refresh) {
     rows.forEach(p => list.appendChild(proposalRow(p, models, safeRefresh)));
     body.appendChild(list);
   }
-  draw();
+  paint();
   if (res.capped) {
     const m = el('p', 'muted');
     m.textContent = t('Showing the newest 500. Approve or reject some to see more.');

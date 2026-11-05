@@ -179,3 +179,42 @@ test('filters narrow the list in memory, Clear restores, empty match message', a
     assert.strictEqual(fetches(), n, 'no refetch');
   } finally { app.cleanup(); }
 });
+
+const setK = (app, k, v) => { app.document.querySelector(`#view [data-k=${k}]`).value = v; };
+test('Edit approves the edited value with a null seen hash', async () => {
+  const { app, s } = await open({ proposals: [prop()] });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick();
+    const e = btn(app, 'Edit'); assert.strictEqual(e.getAttribute('aria-label'), 'Edit Engine Oil');
+    e.onclick();
+    assert.strictEqual(app.document.querySelector('#view [data-k=interval_km]').value, '15000');
+    setK(app, 'interval_km', '9000'); setK(app, 'note', 'x'); setK(app, 'parts', 'Filter | F1 | 2');
+    btn(app, 'Approve edited value').onclick();
+    assert.ok(await until(() => s.rpc.length === 1));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(s.rpc[0])), ['apply_proposal', { p_id: 7,
+      p_edit: { interval_km: 9000, interval_months: 12, note: 'x', parts: [{ name: 'Filter', part_no: 'F1', qty: 2 }] }, p_seen_hash: null }]);
+  } finally { app.cleanup(); }
+});
+
+test('stale approve shows the live value, keeps the row, edit uses the live hash; live text is inert', async () => {
+  const live = { interval_km: 25000, interval_months: 12, note: EVIL, parts: [] };
+  const { app, s } = await open({ proposals: [prop()], rpcResult: { apply_proposal: { data: { ok: false, error: 'stale', live, live_hash: 'h1' }, error: null } } });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick();
+    btn(app, 'Approve').onclick();
+    assert.ok(await until(() => app.document.querySelector('#view .proposal-alert')));
+    const al = app.document.querySelector('#view .proposal-alert');
+    assert.strictEqual(al.getAttribute('role'), 'alert');
+    assert.match(al.textContent, /Live value changed/);
+    assert.match(al.textContent, /25000/);
+    assert.strictEqual(al.querySelector('img'), null);
+    assert.ok(row(app));
+    btn(app, 'Edit').onclick();
+    assert.strictEqual(app.document.querySelector('#view [data-k=interval_km]').value, '25000');
+    btn(app, 'Approve edited value').onclick();
+    assert.ok(await until(() => s.rpc.length === 2));
+    assert.strictEqual(s.rpc[1][1].p_seen_hash, 'h1');
+  } finally { app.cleanup(); }
+});
