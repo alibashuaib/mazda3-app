@@ -7,7 +7,7 @@ Harden the app first (autopilot adds server code and renders scraped content), t
 ## Phases
 
 - [x] **Phase 1: Reliable & Safe Foundation** - Errors visible, CORS locked, shared safeFetch, resilient service worker, RLS tests in CI (completed 2026-11-05)
-- [ ] **Phase 2: Proposal Gate & Review Queue** - Owner reviews, edits, approves, rejects and reverts seeded proposals in `#admin`
+- [x] **Phase 2: Proposal Gate & Review Queue** - Owner reviews, edits, approves, rejects and reverts seeded proposals in `#admin` (completed 2026-11-05)
 - [ ] **Phase 3: Monthly Autopilot for Schedules & Recalls** - Cost-capped monthly run reviews all 16 cars and queues schedule and recall proposals
 - [ ] **Phase 4: Parts, Prices, Community & New Models** - Autopilot proposes OEM parts, indicative SAR prices, failures, alternatives and new models
 
@@ -44,7 +44,7 @@ Harden the app first (autopilot adds server code and renders scraped content), t
   4. Owner can bulk-approve filtered high-confidence proposals; one failing item does not abort the rest.
   5. Owner can revert any approved change in one click, recorded in the change log; scraped text with injection payloads renders as inert escaped text.
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 **Wave 1**
@@ -69,7 +69,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 02-06-PLAN.md — CI rls proof and owner walkthrough (checkpoint)
+- [x] 02-06-PLAN.md — CI rls proof and owner walkthrough (checkpoint)
 
 **UI hint**: yes
 
@@ -110,6 +110,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Reliable & Safe Foundation | 11/11 | Complete   | 2026-11-05 |
-| 2. Proposal Gate & Review Queue | 5/6 | In Progress|  |
+| 2. Proposal Gate & Review Queue | 6/6 | Complete   | 2026-11-05 |
 | 3. Monthly Autopilot for Schedules & Recalls | 0/? | Not started | - |
 | 4. Parts, Prices, Community & New Models | 0/? | Not started | - |
