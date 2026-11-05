@@ -1053,9 +1053,6 @@ html { scroll-behavior: smooth; }
 .proposal-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .proposal-filters select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 
-/* Admin page: cap the content width on desktop so cards and rows do not run across the whole 1200px shell */
-.view.admin { max-width: 760px; }
-
 /* Proposal rows: one line each, long car and target names truncate instead of wrapping */
 .proposal-main h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
