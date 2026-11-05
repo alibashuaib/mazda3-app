@@ -6,7 +6,7 @@ Harden the app first (autopilot adds server code and renders scraped content), t
 
 ## Phases
 
-- [ ] **Phase 1: Reliable & Safe Foundation** - Errors visible, CORS locked, shared safeFetch, resilient service worker, RLS tests in CI
+- [x] **Phase 1: Reliable & Safe Foundation** - Errors visible, CORS locked, shared safeFetch, resilient service worker, RLS tests in CI (completed 2026-11-05)
 - [ ] **Phase 2: Proposal Gate & Review Queue** - Owner reviews, edits, approves, rejects and reverts seeded proposals in `#admin`
 - [ ] **Phase 3: Monthly Autopilot for Schedules & Recalls** - Cost-capped monthly run reviews all 16 cars and queues schedule and recall proposals
 - [ ] **Phase 4: Parts, Prices, Community & New Models** - Autopilot proposes OEM parts, indicative SAR prices, failures, alternatives and new models
@@ -71,7 +71,7 @@ Harden the app first (autopilot adds server code and renders scraped content), t
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Reliable & Safe Foundation | 10/11 | In Progress|  |
+| 1. Reliable & Safe Foundation | 11/11 | Complete   | 2026-11-05 |
 | 2. Proposal Gate & Review Queue | 0/? | Not started | - |
 | 3. Monthly Autopilot for Schedules & Recalls | 0/? | Not started | - |
 | 4. Parts, Prices, Community & New Models | 0/? | Not started | - |
