@@ -860,6 +860,11 @@ begin
     -- may write other sources.
     new.source := 'client';
     perform pg_advisory_xact_lock(hashtext('app_errors_client_cap'));
+    -- Hard global ceiling (2000 client rows/h) first, whatever the identity.
+    if (select count(*) from public.app_errors
+         where source = 'client' and created_at > now() - interval '1 hour') >= 2000 then
+      raise exception 'rate limited';
+    end if;
     -- Separate budgets: anonymous callers share one pool (500/h); a signed-in
     -- user has their own (100/h), so anon spam cannot starve their reports.
     if (select count(*) from public.app_errors
