@@ -3,48 +3,12 @@
 // Never writes dealer_plan_items: only plan_drafts and pending recalls.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { allowedOrigins, corsDecision } from '../_shared/cors.mjs';
-import { SYSTEM_PROMPT, diffDraft, htmlToText, isPrivateIp, isSafeUrl, parseRecalls, parseSchedule, safeEqual, sha256Hex } from './logic.mjs';
+import { DEFAULT_POLICY, NHTSA_POLICY, safeFetch } from '../_shared/safe-fetch.mjs';
+import { resolveHostAddresses } from '../_shared/dns.ts';
+import { SYSTEM_PROMPT, diffDraft, htmlToText, parseRecalls, parseSchedule, safeEqual, sha256Hex } from './logic.mjs';
 
-const MAX_PDF = 8_000_000;
-
-// A public-looking hostname must not resolve to a private address (DNS rebinding). Not airtight
-// (the fetch resolves again), but sources are admin-registered, so this closes the easy hole.
-async function resolvesPublic(url: string): Promise<boolean> {
-  try {
-    const host = new URL(url).hostname;
-    const ips = [...await Deno.resolveDns(host, 'A').catch(() => []), ...await Deno.resolveDns(host, 'AAAA').catch(() => [])];
-    return ips.length > 0 && !ips.some(isPrivateIp);
-  } catch { return false; }
-}
-
-async function fetchSource(url: string): Promise<{ kind: 'text' | 'pdf'; body: string } | null> {
-  if (!isSafeUrl(url) || !(await resolvesPublic(url))) return null;
-  const r = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(20000) });
-  if (r.status >= 300 && r.status < 400) {                 // follow one redirect, re-checked
-    const loc = r.headers.get('location');
-    if (!loc) return null;
-    const next = new URL(loc, url).toString();
-    if (!isSafeUrl(next) || !(await resolvesPublic(next))) return null;
-    return fetchSource1(next);
-  }
-  return readBody(r);
-}
-async function fetchSource1(url: string) {
-  const r = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20000) });
-  return readBody(r);
-}
-async function readBody(r: Response) {
-  if (!r.ok) return null;
-  const type = r.headers.get('content-type') ?? '';
-  if (Number(r.headers.get('content-length') ?? 0) > MAX_PDF) return null;   // refuse before reading a huge body
-  const buf = new Uint8Array(await r.arrayBuffer());
-  if (buf.length > MAX_PDF) return null;
-  if (/pdf/i.test(type)) {
-    let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-    return { kind: 'pdf' as const, body: btoa(bin) };
-  }
-  return { kind: 'text' as const, body: htmlToText(new TextDecoder().decode(buf)) };
-}
+// External fetches go through safeFetch (scheme/host/DNS re-checked per hop, caps, type allowlist, robots).
+// DNS rebinding between check and connect is a residual risk; sources are admin-registered.
 
 Deno.serve(async (req) => {
   try {
@@ -82,7 +46,8 @@ Deno.serve(async (req) => {
       const { data: srcs } = await admin.from('schedule_sources').select('*').eq('car_model_id', car.id);
       for (const s of srcs ?? []) {
         try {
-          const doc = await fetchSource(s.url);
+          const res = await safeFetch(s.url, DEFAULT_POLICY, { fetch, resolve: resolveHostAddresses });
+          const doc = res.ok ? { kind: res.kind, body: res.kind === 'text' ? htmlToText(res.body) : res.body } : null;
           if (!doc) { skipped++; continue; }
           const hash = await sha256Hex(doc.body);
           await admin.from('schedule_sources').update({ last_checked_at: new Date().toISOString() }).eq('id', s.id);
@@ -122,8 +87,8 @@ Deno.serve(async (req) => {
       if (years.length) {
         const found: any[] = [];
         for (const y of years) {
-          const r = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(car.make)}&model=${encodeURIComponent(/^\d+$/.test(car.model) ? 'mazda' + car.model : car.model)}&modelYear=${y}`, { signal: AbortSignal.timeout(15000) }).catch(() => null);
-          if (r?.ok) found.push(...parseRecalls(await r.json().catch(() => null), [y]));
+          const res = await safeFetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(car.make)}&model=${encodeURIComponent(/^\d+$/.test(car.model) ? 'mazda' + car.model : car.model)}&modelYear=${y}`, NHTSA_POLICY, { fetch, resolve: resolveHostAddresses });
+          if (res.ok) { let j = null; try { j = JSON.parse(res.body); } catch {} found.push(...parseRecalls(j, [y])); }
         }
         const merged = new Map<string, any>();
         for (const f of found) { const m = merged.get(f.campaign); if (m) m.years = [...new Set([...m.years, ...f.years])]; else merged.set(f.campaign, f); }
