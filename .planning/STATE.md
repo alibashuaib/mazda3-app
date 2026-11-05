@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 2 UI-SPEC approved
-last_updated: "2026-11-05T04:38:11.989Z"
+last_updated: "2026-11-05T04:40:53.304Z"
 last_activity: 2026-11-05
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 15
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-11-05)
 ## Current Position
 
 Phase: 01 (reliable-safe-foundation) — EXECUTING
-Plan: 4 of 11
+Plan: 5 of 11
 Status: Ready to execute
 Last activity: 2026-11-05
 
@@ -48,6 +48,7 @@ Progress: [████████░░] 82%
 - Plain `autopilot_jobs` table, not pgmq; two-call search then extract design.
 - [Phase 02]: Rejected values suppressed only while after_hash and sources_hash match; supersede runs before insert under advisory lock
 - [Phase 02]: 02-02: filter state is module-level and filtering in memory; stale refusal keeps row pending and Edit rebases on live_hash
+- [Phase 02]: apply_proposals: server re-checks pending+tier per id, per-item savepoint, high only, max 200
 
 ### Pending Todos
 
