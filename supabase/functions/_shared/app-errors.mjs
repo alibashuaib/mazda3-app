@@ -9,6 +9,8 @@ export function scrub(text) {
   return String(text ?? '')
     .replace(/Bearer\s+[A-Za-z0-9._~+\/=-]+/gi, 'Bearer [redacted]')
     .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g, '[redacted-jwt]')
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/g, '[redacted-email]')
+    .replace(/\bsb_[A-Za-z0-9_-]{8,}/g, '[redacted-key]')
     .replace(/sk-[A-Za-z0-9_-]{8,}/g, '[redacted-key]');
 }
 
