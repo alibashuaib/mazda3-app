@@ -38,6 +38,20 @@ test('app_errors resolved_at is stamped by a server-side trigger', () => {
   assert.match(schema, /new\.resolved_at := now\(\)/);
 });
 
+// Phase 3 autopilot tables: admin-only select policy, and no write policy at all (RPC-only writes).
+const AUTOPILOT_TABLES = ['autopilot_config', 'autopilot_runs', 'autopilot_jobs', 'autopilot_spend',
+  'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status'];
+test('RLS: autopilot tables have RLS, an admin select policy and no write policy', () => {
+  for (const name of AUTOPILOT_TABLES) {
+    assert.ok(tables.includes(name), name + ' not created');
+    assert.match(schema, new RegExp('alter\\s+table\\s+public\\.' + name + '\\s+enable\\s+row\\s+level\\s+security'), name);
+    assert.match(schema, new RegExp('create policy admin_read_' + name + ' on public\\.' + name +
+      ' for select to authenticated using \\(public\\.is_admin\\(\\)\\)'), name + ' lacks admin select policy');
+    assert.doesNotMatch(schema, new RegExp('create policy \\w+ on public\\.' + name + ' for (insert|update|delete|all)'), name + ' has a write policy');
+    assert.match(schema, new RegExp('revoke all on [^;]*public\\.' + name + '[^;]* from anon, authenticated'), name + ' not revoked');
+  }
+});
+
 test('RLS: every create table has enable row level security', () => {
   for (const name of tables) {
     const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
