@@ -20,9 +20,11 @@ Deno.serve(async (req) => {
     // Origin gate first, same shape as plan-intake.
     const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
     if (!cors.ok) return new Response('forbidden', { status: 403 });
-    corsHeaders = cors.headers;
-    const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...cors.headers, 'Content-Type': 'application/json' } });
-    if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: cors.headers });
+    // corsDecision types its header values as possibly undefined; drop them, the Response API wants strings
+    const ch = Object.fromEntries(Object.entries(cors.headers).filter(([, v]) => v !== undefined)) as Record<string, string>;
+    corsHeaders = ch;
+    const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...ch, 'Content-Type': 'application/json' } });
+    if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: ch });
     if (req.method !== 'POST') return json(405, { error: 'method' });
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY'), url = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY'), serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -81,7 +83,8 @@ async function work(admin: any, deps: any) {
       if (job.stage === 'publish') await rpc(admin, 'autopilot_publish_run', { p_run: job.run_id });
       else {
         const run = job.stage === 'discover' ? runDiscover : job.stage === 'extract' ? runExtract : runRecalls;
-        const out = await run(job, deps);
+        // the flow returns { stop } when the run ended, else { ok, notes }; the union is not narrowed by TS here
+        const out = (await run(job, deps)) as { stop?: string; notes?: unknown };
         if (out.stop) continue;                                // run ended (capped / stopped): queue already closed in SQL
         notes = out.notes;
       }

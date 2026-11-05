@@ -1138,9 +1138,10 @@ begin
   -- Queue hygiene (CORE-03, CORE-04): equal to live -> noop; same pending value -> duplicate;
   -- rejected with the same value AND sources -> suppressed (changed sources re-queue).
   -- A recall is only a noop when already approved (status is not part of the hash).
-  if before_v is not null and case when p_kind = 'recall'
+  -- parentheses: plpgsql ends an IF condition at the first THEN token, which would be the CASE's own THEN
+  if before_v is not null and (case when p_kind = 'recall'
        then before_v->>'status' = 'approved' and md5((before_v - 'status')::text) = ah
-       else md5(before_v::text) = ah end then
+       else md5(before_v::text) = ah end) then
     return jsonb_build_object('id', null, 'action', 'noop'); end if;
   select id into ex from public.proposals where status = 'pending' and kind = p_kind
     and coalesce(car_model_id, '') = coalesce(p_car_model_id, '') and target_key = p_target_key and after_hash = ah;
