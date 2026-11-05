@@ -44,7 +44,7 @@ Harden the app first (autopilot adds server code and renders scraped content), t
   4. Owner can bulk-approve filtered high-confidence proposals; one failing item does not abort the rest.
   5. Owner can revert any approved change in one click, recorded in the change log; scraped text with injection payloads renders as inert escaped text.
 
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 **Wave 1**
@@ -65,7 +65,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 02-05-PLAN.md — One-click audited revert and Recent approvals card
+- [x] 02-05-PLAN.md — One-click audited revert and Recent approvals card
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -110,6 +110,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Reliable & Safe Foundation | 11/11 | Complete   | 2026-11-05 |
-| 2. Proposal Gate & Review Queue | 4/6 | In Progress|  |
+| 2. Proposal Gate & Review Queue | 5/6 | In Progress|  |
 | 3. Monthly Autopilot for Schedules & Recalls | 0/? | Not started | - |
 | 4. Parts, Prices, Community & New Models | 0/? | Not started | - |
