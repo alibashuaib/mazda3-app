@@ -104,4 +104,5 @@ test('autopilot: publish re-checks banned hosts; ban uses the same parser and dr
   assert.match(b, /public\.evidence_host\(e->>'url'\) = h/);
   assert.match(b, /delete from public\.autopilot_findings f using public\.autopilot_runs r/);
   assert.match(fn('host_banned'), /strpos\(p_url, chr\(92\)\) > 0/);
+  assert.match(fn('host_banned'), /h !~ '\^\[a-z0-9\]/);   // non-ASCII hosts fail closed
 });

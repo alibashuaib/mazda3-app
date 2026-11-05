@@ -1753,7 +1753,10 @@ create or replace function public.host_banned(p_url text) returns boolean
 language plpgsql stable security definer set search_path = public as $$
 declare h text := public.evidence_host(p_url);
 begin
-  if h is null or strpos(p_url, chr(92)) > 0 or substring(p_url from '^https://([^/?#]+)') like '%@%' then
+  -- strict ASCII host grammar: fullwidth or otherwise non-canonical hosts are fetched as their
+  -- IDNA form but would not string-match a ban, so they fail closed
+  if h is null or h !~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$' or char_length(h) > 253
+     or strpos(p_url, chr(92)) > 0 or substring(p_url from '^https://([^/?#]+)') like '%@%' then
     return true; end if;
   return exists (select 1 from public.source_domains d
                   where d.status = 'banned' and (h = d.host or h like '%.' || d.host));

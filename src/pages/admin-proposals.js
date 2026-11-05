@@ -53,7 +53,8 @@ function proposalSource(ev) {
 const RECALL_LABELS = { campaign: 'Campaign', component: 'Component', summary: 'Summary' };
 function proposalDiffLines(p, arrow) {
   if (p.kind === 'recall') {
-    const a = p.after || {};
+    // the campaign id is the proposal's target_key (apply_proposal writes it there), not a field of after
+    const a = Object.assign({}, p.after, p.target_key ? { campaign: p.target_key } : {});
     return Object.keys(RECALL_LABELS).filter(k => a[k] != null && a[k] !== '').map(k => {
       const line = el('div');
       const v = el('strong'); v.setAttribute('dir', 'auto'); v.textContent = String(a[k]);
