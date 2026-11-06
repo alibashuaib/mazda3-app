@@ -112,8 +112,8 @@ const AR = {
   'Driving License': 'رخصة القيادة', 'Warranty': 'الضمان', 'Other': 'أخرى',
   // modal titles / subs
   'Your garage': 'مرآبك', 'Switch between your vehicles or add another.': 'بدّل بين مركباتك أو أضف أخرى.',
-  'Add fill-up ': 'إضافة تعبئة', 'Edit fill-up': 'تعديل التعبئة', 'Add document': 'إضافة وثيقة', 'Edit document': 'تعديل الوثيقة',
-  'Add spending ': 'إضافة مصروف', 'Edit expense': 'تعديل المصروف', 'Log a service ': 'تسجيل صيانة', 'Annual budget': 'الميزانية السنوية',
+  'Edit fill-up': 'تعديل التعبئة', 'Add document': 'إضافة وثيقة', 'Edit document': 'تعديل الوثيقة',
+  'Edit expense': 'تعديل المصروف', 'Annual budget': 'الميزانية السنوية',
   // common field labels
   'Date': 'التاريخ', 'Odometer (km)': 'العداد (كم)', 'Litres': 'اللترات', 'Cost (SAR)': 'التكلفة (ريال)', 'Category': 'الفئة',
   'Note': 'ملاحظة', 'Description': 'الوصف', 'Amount (SAR)': 'المبلغ (ريال)', 'Make': 'الصنع', 'Model': 'الطراز', 'Year': 'السنة',
