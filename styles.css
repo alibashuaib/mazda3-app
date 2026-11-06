@@ -1103,7 +1103,11 @@ html { scroll-behavior: smooth; }
 .proposal-row .item-side { text-align: end; }
 .proposal-row .item-main p { white-space: normal; }
 .proposal-panel { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--stroke); display: grid; gap: 16px; }
-.proposal-row blockquote { margin: 0; padding-inline-start: 8px; border-inline-start: 3px solid var(--stroke-strong); }
+/* the global reset zeroes list padding, which pushed the bullets outside the card */
+.proposal-panel ul { padding-inline-start: 20px; }
+.proposal-panel a { color: var(--text); text-decoration: underline; text-decoration-color: var(--stroke-strong); text-underline-offset: 3px; }
+.proposal-panel a:hover { text-decoration-color: currentColor; }
+.proposal-row blockquote { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--stroke); }
 .proposal-alert { padding: 16px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn); }
 .proposal-alert.fail { background: var(--danger-soft); border-color: var(--danger); }
 

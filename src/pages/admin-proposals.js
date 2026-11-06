@@ -34,7 +34,8 @@ function proposalSource(ev) {
   q.textContent = String(ev.quote || '').slice(0, 500);
   const meta = el('p', 'muted');
   const u = proposalSafeUrl(ev.url);
-  const tail = ' · ' + t(PROPOSAL_TIER_LABEL[ev.tier] || 'Community') + ' · ' + String(ev.fetched_at || '').slice(0, 10);
+  // A missing fetch date drops its part rather than leaving a dangling " · "
+  const tail = ['', t(PROPOSAL_TIER_LABEL[ev.tier] || 'Community'), String(ev.fetched_at || '').slice(0, 10)].filter((s, i) => !i || s).join(' · ');
   if (u) {
     const a = el('a');
     a.href = u.href; a.rel = 'noopener noreferrer'; a.target = '_blank';
@@ -90,7 +91,8 @@ function proposalRow(p, models, refresh) {
   const h = el('h3'); h.setAttribute('dir', 'auto');
   h.textContent = `${proposalCarLabel(models, p.car_model_id)} · ${p.target_key}`;
   const sub = el('p');
-  sub.textContent = `${t(p.kind === 'schedule_item' ? 'Schedule item' : p.kind)} · ${first ? (first.before || '—') + ' ' + arrow + ' ' + (first.after || '—') : ''}`;
+  // FSI…PDI isolates the kind: an untranslated Latin kind ("part") otherwise turns the whole line LTR in Arabic and flips before/after.
+  sub.textContent = `⁨${t(p.kind === 'schedule_item' ? 'Schedule item' : p.kind)}⁩ · ${first ? (first.before || '—') + ' ' + arrow + ' ' + (first.after || '—') : ''}`;
   main.append(h, sub);
   const side = el('div', 'item-side');
   const conf = catalogAdmin.confidenceLabel(p.confidence_tier);
