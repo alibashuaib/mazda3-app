@@ -561,9 +561,18 @@
      surfaces as an unhandled rejection). true covers BOTH "ran clean with
      nothing new" and "ran clean and applied changes" — callers that need to
      tell those apart cannot do so from this return value alone. */
+  /* Garage changes still in the outbox after a drain — the pull would replace
+     them with older server copies (or delete an offline-added vehicle and its
+     photo). Contributions are left out: they never touch the garage.
+     ponytail: a push the server keeps rejecting holds every pull back; skip
+     per vehicle id if that ever happens in practice. */
+  function unpushed() {
+    return deps.outboxAll().then(entries => entries.some(e => e.kind !== 'contribution'));
+  }
+
   function sync() {
     if (!_user || !env.client) return Promise.resolve(false);
-    return drain().then(() => pullIncremental()).then(changed => {
+    return drain().then(() => unpushed()).then(stuck => (stuck ? false : pullIncremental())).then(changed => {
       if (!changed) return true;
       return deps.session.load().then(() => { env.rerender(); return true; });
     }).catch(() => false);
@@ -626,7 +635,14 @@
            sign-in refuses rather than leaving a half-signed-in state, and a
            rejected reconcile/upload used to escape with _user still set —
            the UI said "wrong password" while Settings said "signed in as". */
-        .catch(err => { _user = null; throw err; });
+        /* The Supabase session must end too. Left stored, the next boot's
+           start() finds it and adopts the server garage with no merge prompt,
+           wiping a local garage this failed sign-in never reconciled. Local
+           data stays: this is endSession(), not signOut(). */
+        .catch(err => {
+          _user = null;
+          return Promise.resolve().then(() => env.client.auth.signOut()).catch(() => {}).then(() => { throw err; });
+        });
     });
   }
 
@@ -722,8 +738,8 @@
          newer than anything the server holds, and pulling first would adopt a
          garage that is missing them. */
       return drain()
-        .then(() => pull())
-        .then(pulled => adopt(pulled))
+        .then(() => unpushed())
+        .then(stuck => (stuck ? null : pull().then(pulled => adopt(pulled))))
         .then(() => { env.rerender(); return true; })
         .catch(() => false);   // offline boot: stay signed in, keep rendering from local
     }).catch(() => { _user = null; markRestored(); return false; });

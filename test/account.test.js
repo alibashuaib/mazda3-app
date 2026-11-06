@@ -649,6 +649,18 @@ test('signIn refuses and stays anonymous when the pull fails', async () => {
   assert.strictEqual(account.user(), null, 'a half-signed-in state is worse than none');
 });
 
+test('a failed post-auth sign-in also ends the Supabase session', async () => {
+  account.reset();
+  const client = fullClient({ failSelect: true });
+  let signedOut = 0;
+  client.auth.signInWithPassword = () => Promise.resolve({ data: { session: { user: { id: 'u1' } }, user: { id: 'u1' } }, error: null });
+  client.auth.signOut = () => { signedOut++; return Promise.resolve({ error: null }); };
+  account.configure({ client, protocol: 'https:' });
+
+  await assert.rejects(() => account.signIn('a@b.c', 'pw'), /PULL_FAILED/);
+  assert.strictEqual(signedOut, 1, 'a stored token would let the next boot adopt over the local garage');
+});
+
 test('signIn surfaces the provider error and stays anonymous', async () => {
   account.reset();
   const client = fullClient({});
@@ -724,6 +736,38 @@ test('start() pushes queued outbox entries before pulling', async () => {
   assert.strictEqual(ok, true);
   assert.strictEqual(client.calls.vehicles.length, 1, 'the queued vehicle was pushed');
   assert.strictEqual(await account.outboxSize(), 0, 'and removed from the outbox');
+});
+
+/* A push that fails leaves the vehicle in the outbox; adopting the server's
+   garage then would delete a car added offline, or revert local edits. */
+test('start() does not adopt over a vehicle the drain failed to push', async () => {
+  await freshStorage();
+  account.reset();
+  await storage.outboxAdd({ id: 'o1', kind: 'vehicle', vehicleId: 'local1', data: { car: { nickname: 'Local' } }, createdAt: new Date().toISOString() });
+  const client = fullClient({ rows: [], failUpsert: true });
+  client.auth.getSession = () => Promise.resolve({ data: { session: { user: { id: 'u1' } } }, error: null });
+  const removed = [];
+  account.configure({ client, protocol: 'https:', removeVehicle: id => { removed.push(id); return Promise.resolve(true); } });
+  session.clear();
+  session.setVehicles([{ id: 'local1', data: { car: { nickname: 'Local' }, history: [], fuel: [], spending: [], docs: [] } }], 'local1');
+
+  assert.strictEqual(await account.start(), true);
+  assert.deepStrictEqual(removed, [], 'the unpushed vehicle must survive');
+  assert.deepStrictEqual(session.garage().vehicles.map(v => v.id), ['local1']);
+  assert.strictEqual(await account.outboxSize(), 1, 'still queued for the next drain');
+});
+
+test('sync() skips the pull while a garage push is still queued', async () => {
+  await freshStorage();
+  session.clear();
+  session.setVehicles([{ id: 'local1', data: { car: {}, history: [], fuel: [], spending: [], docs: [] } }], 'local1');
+  const client = fullClient({ failUpsert: true, since: { '1970-01-01T00:00:00.000Z': [{ id: 'local1', data: { car: { nickname: 'Server' } }, updated_at: '2026-08-22T00:00:00.000Z', deleted_at: null }] } });
+  signInAs(client, { getPhotoBlob: () => Promise.resolve(null), metaGet: storage.metaGet, metaSet: storage.metaSet });
+  await account.enqueueVehicle('local1', { car: { nickname: 'Local' } });
+
+  assert.strictEqual(await account.sync(), true);
+  assert.notStrictEqual(session.garage().vehicles[0].data.car.nickname, 'Server', 'the older server copy must not overwrite the queued edit');
+  assert.strictEqual(await account.outboxSize(), 1);
 });
 
 test('start() with no stored session stays anonymous', async () => {

@@ -449,7 +449,13 @@ declare n int;
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
   delete from shop_feedback where user_id = auth.uid();
-  delete from bill_reads where user_id = auth.uid();
+  /* read-bill's daily caps count the last 24h of bill_reads rows. Deleting
+     those let a user reset their own cap by toggling sharing off and on, so
+     rows inside the window keep user_id + created_at (the count) and lose
+     only what describes the bill. Older rows no longer count and go. */
+  update bill_reads set store_key = null, city = null, fingerprint = null
+    where user_id = auth.uid() and created_at > now() - interval '1 day';
+  delete from bill_reads where user_id = auth.uid() and created_at <= now() - interval '1 day';
   with gone as (
     delete from contributions where id in
       (select contribution_id from contribution_links where user_id = auth.uid())
