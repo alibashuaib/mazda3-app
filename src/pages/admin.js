@@ -74,11 +74,12 @@ async function renderAdminBody(body) {
       body.innerHTML = '';
       // Banner sits above the tab strip so a failed or overdue run is visible on every tab (REV-08).
       const banner = status.ok ? adminBanner(status.runs) : null;
-      if (banner) body.appendChild(banner);
       const toolbar = el('div', 'admin-toolbar');
       const refreshBtn = el('button', 'btn ghost'); refreshBtn.type = 'button'; refreshBtn.textContent = t('Refresh');
       refreshBtn.onclick = () => adminReload();   // the only way to re-fetch without a write
       toolbar.appendChild(refreshBtn);
+      // With a banner, Refresh sits beside it on the same row; without one it keeps its own row.
+      if (banner) { toolbar.classList.add('with-banner'); toolbar.insertBefore(banner, refreshBtn); }
       body.appendChild(toolbar);
       body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : 0 },
         { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
