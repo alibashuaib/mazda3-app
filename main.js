@@ -538,7 +538,7 @@ function openSettings() {
       });
     })();
 
-    const ENGINES = ['1.6L SkyActiv-G', '2.0L SkyActiv-G'];
+    const ENGINES = ['1.6L MZR', '2.0L SkyActiv-G'];
     let engOpts = ENGINES.slice();
     let engSel = ENGINES.find(e => c.engine && ((c.engine.includes('1.6') && e.includes('1.6')) || (c.engine.includes('2.0') && e.includes('2.0'))));
     if (c.engine && !engSel) { engOpts = [c.engine, ...ENGINES]; engSel = c.engine; }

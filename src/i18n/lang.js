@@ -9,7 +9,15 @@
 'use strict';
 
 let lang = 'en';
-function t(s) { return (lang === 'ar' && s != null && AR[s]) ? AR[s] : s; }
+/* The tire part's name carries its OEM size ("Tires (205/60R16, each)", see
+   catalog.js tiresPart), so one dictionary key can't cover every model. */
+const AR_TIRES = /^Tires \((.+), each\)$/;
+function t(s) {
+  if (lang !== 'ar' || s == null) return s;
+  if (AR[s]) return AR[s];
+  const m = AR_TIRES.exec(s);
+  return m ? `إطار (${m[1]}، للحبة)` : s;
+}
 const relDate = d => {
   const days = Math.round((d - today()) / 86400000);
   const ar = lang === 'ar';

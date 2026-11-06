@@ -62,7 +62,7 @@ const paints = (...names) => names;
 // { id, markets, model, generation, engines: [[code, oilLitresWithFilter], …] }
 const CAR_MODELS = [
   { id: 'mazda2', markets: ['OM'], model: '2', gen: 'DJ · 2015+', engines: [['1.5L SkyActiv-G', 3.6]], colors: paints('Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Machine Gray Metallic (Code 46G)', 'Ceramic Metallic (Code 47A)', 'Platinum Quartz Metallic (Code 47S)') },
-  { id: 'mazda3bm', markets: ['KSA','UAE'], model: '3', gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L SkyActiv-G', 3.9]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Liquid Silver Metallic (Code 38P)', 'Titanium Flash Mica (Code 42S)') },
+  { id: 'mazda3bm', markets: ['KSA','UAE'], model: '3', gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L MZR', 3.9]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Liquid Silver Metallic (Code 38P)', 'Titanium Flash Mica (Code 42S)') },
   { id: 'mazda3bp', markets: ['KSA','UAE','KW','QA','BH','OM'], model: '3', gen: 'BP · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['1.5L SkyActiv-G', 3.6], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)') },
   { id: 'mazda6', markets: ['KSA', 'UAE', 'KW', 'QA', 'BH', 'OM'], model: '6', gen: 'GJ/GL · 2013+', engines: [['2.5L SkyActiv-G', 4.5], ['2.0L SkyActiv-G', 4.3]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Metallic (Code 41V)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)') },
   { id: 'cx3', markets: ['QA','BH','OM'], model: 'CX-3', gen: 'DK · 2015+', engines: [['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Ceramic Metallic (Code 47A)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
@@ -358,6 +358,65 @@ function isLegacyUnverifiedPart(part, modelId) {
    separate hardcoded catalogue — now gets the same full 15-part starter
    list this comment always said was the intent, with placeholder ("verify
    for your model") brand/part numbers until real OEM data is filled in. */
+/* OEM numbers confirmed against the PartSouq catalogue and price-checked against
+   miata-mazda.com (SAR incl. VAT, rounded) — [partNo, price, enginePrefix?], keyed by model
+   then part name. The price is always the miata-mazda.com one; where PartSouq's price was
+   more than 30% lower (cx5 cabin, cx5ke belt, cx9 air/belt) the owner chose miata anyway.
+   An optional engine prefix limits the entry to engines whose name starts with it; a part
+   can carry a list of such entries when each engine takes a different number.
+   cx3 / cx9 plugs, cx5 2.5L belt and cx9tb cabin / front pads were found by part-number search
+   on PartSouq (plus Mazda's CX-3 owner's manual for the plug), not a VIN diagram. */
+const OEM_CHECKED = {
+  // 1.6L is the Z-family MZR engine (as in the Mazda 2 DE), which takes B6Y1-14-302A; PartSouq
+  // lists PE01-14-302 as its substitute. Not checked on a BM 1.6 VIN diagram.
+  mazda3bm: { 'Oil Filter': [['PE01-14-302B', 29, '2.0L'], ['B6Y1-14-302A', 15, '1.6L', 'PartSouq']] },
+  // miata-mazda.com has no Mazda 2 DJ, so the air filter and belt carry PartSouq's price.
+  mazda2: { 'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['P501-13-3A0', 56, null, 'PartSouq'], 'Serpentine Belt': ['P51D-15-909', 67, null, 'PartSouq'] },
+  mazda6: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 60],
+    'Front Brake Pads': ['G4YA-33-28ZA', 378], 'Rear Brake Pads': ['GMY0-26-43ZB', 411]
+  },
+  cx3: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PEHH-13-3A0', 85], 'Cabin A/C Filter': ['D09W-61-J6X', 97], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['B6YS-33-28ZA', 374], 'Rear Brake Pads': ['DAY3-26-48ZA', 229]
+  },
+  cx5ke: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242],
+    'Cabin A/C Filter': ['KD45-61-J6X', 103], 'Serpentine Belt': [['PE08-15-909C', 115, '2.0L'], ['PY01-15-909A', 144, '2.5L']]
+  },
+  cx5kf: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242],
+    'Cabin A/C Filter': ['KD45-61-J6X', 103], 'Serpentine Belt': ['PY01-15-909A', 144, '2.5L'] // 2.0L not checked
+  },
+  // Checked on the 3.7L catalogue. CA02-14-302 supersedes YF09-14-302A (CX-9 from 2007);
+  // CY01-13-Z40B supersedes Z40A and CY01-15-908D is listed for 3.5L and 3.7L (mazdapartsnow).
+  cx9tb: {
+    'Oil Filter': ['CA02-14-302', 26], 'Engine Air Filter': ['CY01-13-Z40B', 97], 'Serpentine Belt': ['CY01-15-908D', 121],
+    'Cabin A/C Filter': ['L2Y6-61-P11', 97], 'Front Brake Pads': ['L2Y6-33-28ZB', 374], 'Rear Brake Pads': ['L2Y8-26-43ZA', 302]
+  },
+  cx9: {
+    'Oil Filter': ['PY8W-14-302', 29], 'Cabin A/C Filter': ['TK48-61-J6X', 103], 'Front Brake Pads': ['TKY8-33-28Z', 374], 'Rear Brake Pads': ['TKY8-26-48ZA', 374],
+    'Spark Plugs (each)': ['PY8V-18-110', 91],
+    'Engine Air Filter': ['PY8W-13-3A0', 103], 'Serpentine Belt': ['PY01-15-909A', 144]
+  }
+};
+/* Front wiper lengths in inches [driver, passenger] (left-hand drive), from aftermarket
+   size charts (wipersizechart.com, UK wiper retailers). No OEM wiper price could be
+   checked, so the aftermarket option carries the size instead. cx5gen3 is from one source
+   (oximo.pl, CX-5 2025-09+).
+   Mazda 2 DJ: 2022+ facelift is 24" + 16"; some charts list a 16" passenger blade earlier too,
+   but oximo.pl and windscreenwipers.co.uk both give 17" for 2015-21. */
+const WIPER_IN = {
+  mazda2: [22, 17], mazda3bm: [24, 18], mazda3bp: [26, 17], mazda6: [24, 18], cx3: [22, 19], cx30: [26, 16],
+  cx5ke: [24, 18], cx5kf: [24, 18], cx5gen3: [26, 17], cx9tb: [26, 17], cx9: [24, 18], cx50: [26, 15], cx60: [26, 16],
+  cx70: [26, 17], cx80: [26, 16], cx90: [26, 17]
+};
+/* Cheapest Amazon.sa price (SAR, 2026-11-07) for a single Bosch Aerotwin hook-fit (AP/AR…U)
+   front blade, by inches; a pair is priced as two singles. No 15" listing, so cx50 keeps 95. */
+const BOSCH_SINGLE_SAR = { 16: 87, 17: 84, 18: 83, 19: 103, 22: 96, 24: 150, 26: 89 };
+
 function sharedParts(modelId, engineCode) {
   const P = (name, icon, cat, options) => ({ id: dep.uid(), name, icon, cat, options });
   const D = 'Mazda Dealer (Alireza)', A = 'Amazon.sa';
@@ -368,7 +427,8 @@ function sharedParts(modelId, engineCode) {
   const m = CAR_MODELS.find(x => x.id === modelId);
   const code = engineCode || (m && m.engines[0] && m.engines[0][0]) || '';
   const oilL = engineInfo(modelId, code).oilL || 4.2;
-  return stampPartsFitment([
+  const checked = OEM_CHECKED[modelId] || {};
+  const parts = [
     P('Oil Filter', '🧽', 'Engine', [
       { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G — commonly shared)', partNo: 'PE01-14-302B', price: 45, store: D, note: 'One filter fits most SkyActiv-G engines — verify' },
       { tag: 'ALT', brand: 'Denso 150-2010', partNo: '150-2010', price: 28, store: A }]),
@@ -400,7 +460,18 @@ function sharedParts(modelId, engineCode) {
       { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
     P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
-  ], modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
+  ];
+  parts.forEach(p => {
+    const e = checked[p.name], c = e && (Array.isArray(e[0]) ? e : [e]).find(x => !x[2] || code.startsWith(x[2]));
+    const o = c && p.options.find(x => x.tag === 'OEM');
+    if (o) Object.assign(o, { brand: 'Mazda Genuine', partNo: c[0], price: c[1], note: c[3] === 'PartSouq'
+      ? 'OEM no. and price from PartSouq (USD converted to SAR)'
+      : 'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)' });
+  });
+  const w = WIPER_IN[modelId];
+  const wPrice = w && BOSCH_SINGLE_SAR[w[0]] && BOSCH_SINGLE_SAR[w[1]] ? BOSCH_SINGLE_SAR[w[0]] + BOSCH_SINGLE_SAR[w[1]] : 95;
+  if (w) Object.assign(parts.find(p => p.name === 'Wiper Blades (pair)').options[0], { brand: `Bosch Aerotwin ${w[0]}" + ${w[1]}"`, price: wPrice, note: `Driver ${w[0]}" (${Math.round(w[0] * 25.4)} mm) + passenger ${w[1]}" (${Math.round(w[1] * 25.4)} mm), from aftermarket size charts — check your blades before buying` });
+  return stampPartsFitment(parts, modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
 }
 
 /* Every hatch/sedan takes a passenger-car tire the same way; only the

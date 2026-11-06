@@ -234,25 +234,28 @@ function adminList(bundle) {
   both.append(adminQueue(bundle.drafts, bundle.recalls));
   if (ordered.length) both.appendChild(wrap);
 
-  const toggle = el('button', 'btn ghost admin-cars-toggle');
+  // The toggle is the header of its own card; expanding opens the car list inside that same card.
+  const cars = el('div', 'card admin-cars');
+  const toggle = el('button', 'admin-cars-toggle');
   toggle.type = 'button';
   toggle.textContent = t(adminShowCars ? 'Hide all cars' : 'Show all cars');
   toggle.setAttribute('aria-expanded', adminShowCars ? 'true' : 'false');
   toggle.onclick = () => { adminShowCars = !adminShowCars; go('admin'); };
-  both.appendChild(toggle);
+  cars.appendChild(toggle);
+  both.appendChild(cars);
   if (adminShowCars) {
-    // One card per model (Mazda3, CX-5, ...), in catalogue order.
+    // One panel per model (Mazda3, CX-5, ...), in catalogue order.
     const byModel = new Map();
     models.forEach(m => { if (!byModel.has(m.model)) byModel.set(m.model, []); byModel.get(m.model).push(m); });
     const groups = el('div', 'admin-car-groups');
     byModel.forEach((list, name) => {
-      const g = el('div', 'card');
+      const g = el('div', 'admin-car-panel');
       // Model names already carry the brand for some (Mazda3), not for others (CX-5).
       g.innerHTML = html`<h4 class="admin-car-group">${/^mazda/i.test(name) ? name : 'Mazda ' + name}</h4>`;
       list.forEach(m => g.appendChild(adminCarItem(m, true)));
       groups.appendChild(g);
     });
-    both.appendChild(groups);
+    cars.appendChild(groups);
   }
   return both;
 }
