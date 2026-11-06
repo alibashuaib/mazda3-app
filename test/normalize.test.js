@@ -346,3 +346,13 @@ test('normalizeData keeps planVersion when catalogId already matches', () => {
   s.car.planVersion = '2026-10-15T10:00:00+00:00';
   assert.strictEqual(normalizeData(s).car.planVersion, '2026-10-15T10:00:00+00:00');
 });
+
+test('a saved garage with the old oil filter number is updated to PE01-14-302B', () => {
+  const data = buildProfile('cx5kf', 0, {});
+  const filter = data.parts.find(p => p.name === 'Oil Filter');
+  filter.options[0].partNo = 'PE01-14-302A';
+  const healed = normalizeData(data);
+  const nos = healed.parts.find(p => p.name === 'Oil Filter').options.map(o => o.partNo);
+  assert.ok(nos.includes('PE01-14-302B'), 'new number present');
+  assert.ok(!nos.includes('PE01-14-302A'), 'old number gone');
+});

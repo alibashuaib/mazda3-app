@@ -32,6 +32,42 @@ test('isAdmin reads the profile role and caches it', async () => {
   assert.strictEqual(admin.knownAdmin(), true);
 });
 
+test('a remembered admin shows before the server answers, only for that user', async () => {
+  const mem = new Map();
+  globalThis.localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
+  try {
+    account.setUserForTest({ id: 'u1' });
+    admin.configure({ client: fake({ data: { role: 'admin' }, error: null }).client });
+    await admin.isAdmin();
+    admin.reset();                                   // new page load: nothing in memory
+    account.setUserForTest({ id: 'u1' });
+    assert.strictEqual(admin.knownAdmin(), true);    // from the remembered flag
+    account.setUserForTest({ id: 'u2' });
+    assert.strictEqual(admin.knownAdmin(), false);   // another user on this device
+    account.setUserForTest({ id: 'u1' });
+    admin.configure({ client: fake({ data: { role: 'user' }, error: null }).client });
+    await admin.isAdmin();                           // demoted: server answer clears the flag
+    admin.reset();
+    account.setUserForTest({ id: 'u1' });
+    assert.strictEqual(admin.knownAdmin(), false);
+  } finally { delete globalThis.localStorage; }
+});
+
+test('an admin session older than the limit ends in sign-out, not a wipe', async () => {
+  const mem = new Map();
+  globalThis.localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
+  let signedOut = 0;
+  try {
+    account.setUserForTest({ id: 'u1' });
+    account.configure({ client: { auth: { signOut: () => { signedOut++; return Promise.resolve({ error: null }); } } } });
+    mem.set('garage.adminSince', JSON.stringify({ uid: 'u1', at: Date.now() - 13 * 60 * 60 * 1000 }));
+    admin.configure({ client: fake({ data: { role: 'admin' }, error: null }).client });
+    assert.strictEqual(await admin.isAdmin(), false);
+    assert.strictEqual(signedOut, 1);
+    assert.strictEqual(account.user(), null);
+  } finally { delete globalThis.localStorage; account.reset(); }
+});
+
 test('isAdmin is false for a user role or an error', async () => {
   account.setUserForTest({ id: 'u1' });
   admin.configure({ client: fake({ data: { role: 'user' }, error: null }).client });

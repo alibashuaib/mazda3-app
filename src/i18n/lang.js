@@ -107,7 +107,7 @@ function fmtDate(d, opts) {
   return greg();
 }
 
-const NAV_KEYS = { dashboard: 'Dashboard', maintenance: 'Maintenance', parts: 'Parts', fuel: 'Fuel', budget: 'Budget', reports: 'Reports' };
+const NAV_KEYS = { dashboard: 'Dashboard', maintenance: 'Maintenance', parts: 'Parts', fuel: 'Fuel', budget: 'Budget', reports: 'Reports', admin: 'Advanced' };
 function applyNavLabels() {
   document.querySelectorAll('.tab').forEach(tab => {
     const span = tab.querySelector('span'); const k = NAV_KEYS[tab.dataset.route];

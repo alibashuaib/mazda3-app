@@ -61,27 +61,27 @@ function renderFuel() {
   // economy-drop early warning → points to culprits already in the app
   if (last != null && avg != null && last > avg * 1.15) {
     const warn = el('div', 'card rec');
-    warn.style.borderLeftColor = 'var(--warn)';
+    warn.classList.add('warn-edge');
     warn.innerHTML = html`<div class="r-ic">⚠️</div><div><h3>${t('Fuel economy has dropped')}</h3><p>${t('Last fill-up was')} ${last.toFixed(1)} L/100km ${t('vs your')} ${avg.toFixed(1)} ${t('average.')} ${t('Common causes: low tire pressure (keep 36 PSI), dirty air filter, worn MAF/O2 sensor, tired spark plugs, or a dragging brake.')}</p></div>`;
     v.appendChild(warn);
   }
 
   const add = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add fill-up')}`);
-  add.style.margin = '14px 0 4px';
+  add.classList.add('add-row-fuel');
   add.onclick = () => openAddFuel(null);
   v.appendChild(add);
 
   if (withEcon.length) {
     v.appendChild(sectionTitle('Economy trend — L/100km (lower is better)', '', null));
     const card = el('div', 'card');
-    card.style.padding = '16px';
+    card.classList.add('pad-16');
     card.appendChild(fuelBars(withEcon.slice(-8)));
     v.appendChild(card);
   }
 
   const box = el('div', 'card');
   box.hidden = true;
-  box.style.padding = '16px';
+  box.classList.add('pad-16');
   v.appendChild(box);
   try {
     const cur = session.current();
@@ -107,7 +107,7 @@ function renderFuel() {
         <h3>${e.litres} L${e.full === false ? ' · ' + t('partial') : ''}${l100 != null ? ` · ${l100.toFixed(1)} L/100km` : ''}</h3>
         <p>${fmtDate(e.date, { day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(e.odometer)} km${km ? ` · +${fmt(km)} km` : ''}</p>
       </div>
-      <div class="e-amt">${sar(e.cost)} <span class="muted" style="font-size:10px">SAR</span></div>`;
+      <div class="e-amt">${sar(e.cost)} <span class="muted fs-11">SAR</span></div>`;
     it.onclick = () => openAddFuel(e);
     list.appendChild(it);
   });

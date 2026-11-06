@@ -55,24 +55,28 @@ const MAZDA_PAINTS = {
   'Sky Blue Mica (Code 41B)': '#6b9fc4'
 };
 const paints = (...names) => names;
-// { id, model, generation, engines: [[code, oilLitresWithFilter], …] }
+// Country codes (KSA, UAE, KW, QA, BH, OM) where the model is sold new or is a
+// relevant used car. Source: official Mazda GCC model pages (2026). UAE follows the
+// Saudi list. Old models (2015 and older) are Saudi-only, so they stay in the Saudi
+// and UAE lists. Empty = hidden everywhere.
+// { id, markets, model, generation, engines: [[code, oilLitresWithFilter], …] }
 const CAR_MODELS = [
-  { id: 'mazda2', model: '2', gen: 'DJ · 2015+', engines: [['1.5L SkyActiv-G', 3.6]], colors: paints('Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Machine Gray Metallic (Code 46G)', 'Ceramic Metallic (Code 47A)', 'Platinum Quartz Metallic (Code 47S)') },
-  { id: 'mazda3bm', model: '3', gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L SkyActiv-G', 3.9]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Liquid Silver Metallic (Code 38P)', 'Titanium Flash Mica (Code 42S)') },
-  { id: 'mazda3bp', model: '3', gen: 'BP · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['1.5L SkyActiv-G', 3.6], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)') },
-  { id: 'mazda6', model: '6', gen: 'GJ/GL · 2013+', engines: [['2.5L SkyActiv-G', 4.5], ['2.0L SkyActiv-G', 4.3]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Metallic (Code 41V)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)') },
-  { id: 'cx3', model: 'CX-3', gen: 'DK · 2015+', engines: [['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Ceramic Metallic (Code 47A)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
-  { id: 'cx30', model: 'CX-30', gen: 'DM · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)', 'Aero Gray Metallic (Code 52C)') },
-  { id: 'cx5ke', model: 'CX-5', gen: 'KE · 2012–16', engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.8]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Crystal White Pearl Mica (Code 34K)', 'Jet Black Mica (Code 41W)', 'Blue Reflex Mica (Code 42B)', 'Sky Blue Mica (Code 41B)', 'Stormy Blue Mica (Code 35J)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Zeal Red Mica (Code 41G)') },
-  { id: 'cx5kf', model: 'CX-5', gen: 'KF · 2017+', engines: [['2.5L SkyActiv-G', 4.8], ['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Eternal Blue Mica (Code 45B)', 'Sonic Silver Metallic (Code 45P)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
-  { id: 'cx5gen3', model: 'CX-5', gen: '3rd gen · 2026+', engines: [['2.5L e-SkyActiv-G M Hybrid', 4.8]], colors: paints('Navy Blue Mica', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Aero Gray Metallic (Code 52C)') },
-  { id: 'cx9tb', model: 'CX-9', gen: 'TB · 2007–15', engines: [['3.5L MZI V6', 5.2, 6], ['3.7L MZI V6', 5.2, 6]], colors: paints('Dolphin Gray Mica (Code 39T)', 'Brilliant Black Clearcoat (Code A3F)', 'Crystal White Pearl Mica (Code 34K)', 'Copper Red Mica (Code 32V)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Stormy Blue Mica (Code 35J)') },
-  { id: 'cx9', model: 'CX-9', gen: 'TC · 2016+', engines: [['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
-  { id: 'cx50', model: 'CX-50', gen: '2022+', engines: [['2.5L SkyActiv-G', 4.8], ['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Wind Chill Pearl (Code 48K)', 'Jet Black Mica (Code 41W)', 'Ingot Blue Metallic (Code 48B)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)', 'Cypress (Code 52T)') },
-  { id: 'cx60', model: 'CX-60', gen: '2022+', engines: [['2.5L e-SkyActiv-G PHEV', 4.8, 4], ['3.3L e-SkyActiv-G', 5.1, 6], ['3.3L e-SkyActiv-D', 5.1, 6]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Sonic Silver Metallic (Code 45P)', 'Artisan Red Premium (Code 51F)') },
-  { id: 'cx70', model: 'CX-70', gen: '2024+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Melting Copper Metallic (Code 52H)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
-  { id: 'cx80', model: 'CX-80', gen: '2024+', engines: [['3.3L e-SkyActiv-D', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Melting Copper Metallic (Code 52H)') },
-  { id: 'cx90', model: 'CX-90', gen: '2023+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Polymetal Gray Metallic (Code 47C)') }
+  { id: 'mazda2', markets: ['OM'], model: '2', gen: 'DJ · 2015+', engines: [['1.5L SkyActiv-G', 3.6]], colors: paints('Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Machine Gray Metallic (Code 46G)', 'Ceramic Metallic (Code 47A)', 'Platinum Quartz Metallic (Code 47S)') },
+  { id: 'mazda3bm', markets: ['KSA','UAE'], model: '3', gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L SkyActiv-G', 3.9]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Liquid Silver Metallic (Code 38P)', 'Titanium Flash Mica (Code 42S)') },
+  { id: 'mazda3bp', markets: ['KSA','UAE','KW','QA','BH','OM'], model: '3', gen: 'BP · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['1.5L SkyActiv-G', 3.6], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)') },
+  { id: 'mazda6', markets: ['KSA', 'UAE', 'KW', 'QA', 'BH', 'OM'], model: '6', gen: 'GJ/GL · 2013+', engines: [['2.5L SkyActiv-G', 4.5], ['2.0L SkyActiv-G', 4.3]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Metallic (Code 41V)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)') },
+  { id: 'cx3', markets: ['QA','BH','OM'], model: 'CX-3', gen: 'DK · 2015+', engines: [['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Ceramic Metallic (Code 47A)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
+  { id: 'cx30', markets: ['KSA','UAE','KW','QA','BH','OM'], model: 'CX-30', gen: 'DM · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)', 'Aero Gray Metallic (Code 52C)') },
+  { id: 'cx5ke', markets: ['KSA','UAE'], model: 'CX-5', gen: 'KE · 2012–16', engines: [['2.0L SkyActiv-G', 4.2], ['2.5L SkyActiv-G', 4.8]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Crystal White Pearl Mica (Code 34K)', 'Jet Black Mica (Code 41W)', 'Blue Reflex Mica (Code 42B)', 'Sky Blue Mica (Code 41B)', 'Stormy Blue Mica (Code 35J)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Zeal Red Mica (Code 41G)') },
+  { id: 'cx5kf', markets: ['KSA','UAE','KW','QA','BH','OM'], model: 'CX-5', gen: 'KF · 2017+', engines: [['2.5L SkyActiv-G', 4.8], ['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Eternal Blue Mica (Code 45B)', 'Sonic Silver Metallic (Code 45P)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
+  { id: 'cx5gen3', markets: ['KSA','UAE','KW','QA','BH','OM'], model: 'CX-5', gen: '3rd gen · 2026+', engines: [['2.5L e-SkyActiv-G M Hybrid', 4.8]], colors: paints('Navy Blue Mica', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Aero Gray Metallic (Code 52C)') },
+  { id: 'cx9tb', markets: ['KSA','UAE'], model: 'CX-9', gen: 'TB · 2007–15', engines: [['3.5L MZI V6', 5.2, 6], ['3.7L MZI V6', 5.2, 6]], colors: paints('Dolphin Gray Mica (Code 39T)', 'Brilliant Black Clearcoat (Code A3F)', 'Crystal White Pearl Mica (Code 34K)', 'Copper Red Mica (Code 32V)', 'Liquid Silver Metallic (Code 38P)', 'Metropolitan Gray Mica (Code 36C)', 'Stormy Blue Mica (Code 35J)') },
+  { id: 'cx9', markets: ['KSA','UAE','KW','QA','BH','OM'], model: 'CX-9', gen: 'TC · 2016+', engines: [['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
+  { id: 'cx50', markets: [], model: 'CX-50', gen: '2022+', engines: [['2.5L SkyActiv-G', 4.8], ['2.5L Turbo SkyActiv-G', 5.4]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Wind Chill Pearl (Code 48K)', 'Jet Black Mica (Code 41W)', 'Ingot Blue Metallic (Code 48B)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)', 'Cypress (Code 52T)') },
+  { id: 'cx60', markets: ['KSA','UAE','KW','QA','BH','OM'], model: 'CX-60', gen: '2022+', engines: [['2.5L e-SkyActiv-G PHEV', 4.8, 4], ['3.3L e-SkyActiv-G', 5.1, 6], ['3.3L e-SkyActiv-D', 5.1, 6]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Sonic Silver Metallic (Code 45P)', 'Artisan Red Premium (Code 51F)') },
+  { id: 'cx70', markets: [], model: 'CX-70', gen: '2024+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Melting Copper Metallic (Code 52H)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Jet Black Mica (Code 41W)', 'Polymetal Gray Metallic (Code 47C)', 'Zircon Sand Metallic (Code 48T)') },
+  { id: 'cx80', markets: [], model: 'CX-80', gen: '2024+', engines: [['3.3L e-SkyActiv-D', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Melting Copper Metallic (Code 52H)') },
+  { id: 'cx90', markets: ['KSA','UAE','KW','QA','BH','OM'], model: 'CX-90', gen: '2023+', engines: [['3.3L Turbo e-SkyActiv-G', 5.1, 6], ['2.5L e-SkyActiv-G PHEV', 4.8, 4]], colors: paints('Artisan Red Premium (Code 51F)', 'Soul Red Crystal Metallic (Code 46V)', 'Rhodium White Premium (Code 51K)', 'Machine Gray Metallic (Code 46G)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Platinum Quartz Metallic (Code 47S)', 'Polymetal Gray Metallic (Code 47C)') }
 ];
 
 /* Engine identity a service plan actually needs: the model's engine tuple is
@@ -366,7 +370,7 @@ function sharedParts(modelId, engineCode) {
   const oilL = engineInfo(modelId, code).oilL || 4.2;
   return stampPartsFitment([
     P('Oil Filter', '🧽', 'Engine', [
-      { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G — commonly shared)', partNo: 'PE01-14-302A', price: 45, store: D, note: 'One filter fits most SkyActiv-G engines — verify' },
+      { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G — commonly shared)', partNo: 'PE01-14-302B', price: 45, store: D, note: 'One filter fits most SkyActiv-G engines — verify' },
       { tag: 'ALT', brand: 'Denso 150-2010', partNo: '150-2010', price: 28, store: A }]),
     P('Fuel System Cleaner (additive)', '🧴', 'Engine', [
       { tag: 'ALT', brand: 'Liqui Moly / Techron DI cleaner', partNo: '', price: 45, store: A, note: 'Mandatory for direct-injection SkyActiv-G' }]),
@@ -401,6 +405,32 @@ function sharedParts(modelId, engineCode) {
 
 /* Every hatch/sedan takes a passenger-car tire the same way; only the
    CX-line's height and load actually change what fits. */
+/* How many catalogue models carry this same part (same name and same OEM part numbers).
+   Quantity is ignored on purpose: a part shared by two cars is shared even when each car needs a different amount. */
+let _sharedMap = null;
+function partSig(name, options) { return name + '|' + (options || []).map(o => o.partNo || '').sort().join(';'); }
+function sharedAcrossModels(part) {
+  if (!_sharedMap) {
+    _sharedMap = new Map();
+    CAR_MODELS.forEach(m => m.engines.forEach(e => {
+      partsForModel(m.id, e[0]).forEach(p => {
+        const k = partSig(p.name, p.options);
+        if (!_sharedMap.has(k)) _sharedMap.set(k, new Set());
+        _sharedMap.get(k).add(m.id);
+      });
+    }));
+  }
+  const s = _sharedMap.get(partSig(part.name, part.options));
+  return s ? s.size : 1;
+}
+/* Cold tire pressure [front, rear] in psi, for the models whose figure the
+   sources agree on (tirepressure.com, Firestone, dealer pages). Not in this table
+   (conflicting or no source): mazda2, cx5ke, cx5kf, cx5gen3, cx9tb, cx80, cx90 —
+   those keep the generic 36 psi tip until confirmed. Always confirm on the door-jamb sticker. */
+const TIRE_PSI = {
+  mazda3bm: ['36', '36'], mazda3bp: ['36', '36'], mazda6: ['35', '35'], cx3: ['36', '33'],
+  cx30: ['36–38', '36'], cx9: ['34', '34'], cx50: ['35–36', '35–36'], cx60: ['36', '36'], cx70: ['36', '36']
+};
 function tireShapeFor(modelId) { return /^cx/.test(modelId || '') ? 'suv' : 'sedan'; }
 
 /* OEM factory tire size per model (most common trim — a top trim on 1-2"
@@ -498,14 +528,19 @@ function fuelSystemCleanerPart(modelId) {
       .replace(/[^a-z0-9.]+/g, '-').replace(/^-|-$/g, '');
   }
 
+  // Models a buyer in this country can pick. Unknown country = every model.
+  function modelsForMarket(code) {
+    return code ? CAR_MODELS.filter(m => m.markets.includes(code)) : CAR_MODELS.slice();
+  }
+
   return {
-    DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, NORMAL_SCHED, ATF_NOTE, catalogId,
+    DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, modelsForMarket, NORMAL_SCHED, ATF_NOTE, catalogId,
     skyactivServices, sharedParts, partsForModel,
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
     atfFilterPart, atfSealantPart, fuelSystemCleanerPart,
-    tireShapeFor, tiresPart, OEM_TIRE_SIZE,
+    tireShapeFor, tiresPart, OEM_TIRE_SIZE, TIRE_PSI,
     engineInfo, sparkPlugService, engineOilNote,
     engineOilPart, coolantPart, coolantLitersFor,
-    batteryAhFor, battery12VPart, mildHybridEngine, mildHybridBatteryPart
+    sharedAcrossModels, batteryAhFor, battery12VPart, mildHybridEngine, mildHybridBatteryPart
   };
 });

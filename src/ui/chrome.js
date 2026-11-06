@@ -37,8 +37,8 @@ function renderTopbar() {
   /* Ahead of the early return below: the account menu's trigger is present and
      reachable even with an empty garage, so its name has to be translated on
      every language change, not only when there is a car to describe. */
-  $('#accountBtn').setAttribute('aria-label', t('Settings'));
-  $('#accountBtn').setAttribute('title', t('Settings'));
+  $('#accountBtn').setAttribute('aria-label', t('Account'));
+  $('#accountBtn').setAttribute('title', t('Account'));
   // An empty garage (no vehicle added yet) has no car to describe — go()
   // routes that case to the onboarding screen instead, which hides this
   // row entirely, so there is nothing here to keep in sync with.
@@ -79,9 +79,8 @@ function sectionTitle(title, linkTxt, onLink, badge) {
   return s;
 }
 function pageIntro(title, sub) {
-  const d = el('div');
-  d.style.margin = '6px 4px 8px';
-  d.innerHTML = html`<h2 style="font-size:22px;font-weight:800;letter-spacing:-.4px">${t(title)}</h2><p class="muted" style="font-size:13px;margin-top:4px;line-height:1.5">${t(sub)}</p>`;
+  const d = el('div', 'page-intro');
+  d.innerHTML = html`<h1>${t(title)}</h1><p class="muted">${t(sub)}</p>`;
   return d;
 }
 function emptyState(emoji, txt) {
@@ -113,7 +112,7 @@ const UNDO_TOAST_MS = 7000;
    forgot to call t() itself. */
 function toastNode(msg, kind) {
   const host = $('#toastHost');
-  const node = el('div', 'toast', html`<span class="dot" style="background:${kind === 'warn' ? 'var(--warn)' : 'var(--ok)'}"></span>${t(msg)}`);
+  const node = el('div', 'toast', html`<span class="dot dot-${kind === 'warn' ? 'warn' : 'ok'}"></span>${t(msg)}`);
   /* #toastHost itself carries aria-live="polite" (index.html) and is present
      from first paint, so the announcement never depends on the live region
      being inserted at the same moment as its content — the failure mode that
@@ -134,9 +133,7 @@ function toastNode(msg, kind) {
 }
 function fadeToast(node) {
   if (!node.parentNode) return;   // already capped out, or dismissed by hand
-  node.style.opacity = '0';
-  node.style.transform = 'translateY(10px)';
-  node.style.transition = '.3s';
+  node.classList.add('fading');
   setTimeout(() => node.remove(), 300);
 }
 function toast(msg, kind) {
@@ -223,7 +220,7 @@ const PHOTO_LISTS = ['history', 'spending'];
    there is nothing left to put back. */
 function deleteRow(label, listKey, record, route, msg) {
   const del = el('button', 'btn block ghost', html`${t(label)}`);
-  del.style.cssText = 'margin-top:8px;color:var(--danger)';
+  del.classList.add('danger-text', 'mt-8');
   onAsyncClick(del, async () => {
     const list = session.current()[listKey] || [];
     const index = list.indexOf(record);
@@ -331,7 +328,7 @@ function segGroup(label, options, current, onPick) {
    values that are already text (an email address has no translation). */
 function bannerRow(icon, title, sub, button) {
   const row = el('div', 'card plan-setup-banner');
-  row.innerHTML = html`<div class="r-ic">${icon}</div><div style="flex:1"><h3>${t(title)}</h3><p class="muted" style="font-size:12px;margin-top:2px">${t(sub)}</p></div>`;
+  row.innerHTML = html`<div class="r-ic">${icon}</div><div class="grow"><h3>${t(title)}</h3><p class="muted fs-12 mt-4">${t(sub)}</p></div>`;
   if (button) row.appendChild(button);
   return row;
 }
@@ -411,12 +408,17 @@ function buildAccountMenu(menu) {
     menu.appendChild(head);
   }
 
+  /* Three groups, split by hairline separators: vehicle and account, then
+     display and data, then the one destructive action on its own. */
+  const separator = () => { const s = el('div', 'menu-sep'); s.setAttribute('role', 'separator'); menu.appendChild(s); };
+
   menu.appendChild(menuItem('Switch vehicle', 'menuitem', () => { closeAccountMenu(false); openGarage(); }, '🚗'));
   /* Every signed-in user gets their own account dialog. The catalogue admin
      page is no longer in this menu; admins reach it from the Advanced tab. */
   if (account.user()) {
     menu.appendChild(menuItem(t('Account'), 'menuitem', () => { closeAccountMenu(false); openAccountDialog(); }, '👤', true));
   }
+  separator();
 
   /* Binary, so it maps onto menuitemcheckbox — which means the old button's
      third state ('system', follow the device) is no longer reachable from the
@@ -449,31 +451,100 @@ function buildAccountMenu(menu) {
     menu.appendChild(share);
   }
 
-  const nextLanguage = lang === 'ar' ? t('English') : 'العربية';
+  const nextLanguage = lang === 'ar' ? 'English' : 'العربية';   // each names itself in its own script, so never translated
   menu.appendChild(menuItem(nextLanguage, 'menuitem', () => {
     closeAccountMenu(false);
     applyLang(lang === 'ar' ? 'en' : 'ar');
   }, '🌐', true));
+
+  if (account.user()) {
+    separator();
+    const out = menuItem(t('Sign out'), 'menuitem', async () => {
+      closeAccountMenu(false);
+      await account.signOut();
+      go('dashboard');
+    }, '⏻');
+    out.classList.add('danger');
+    menu.appendChild(out);
+  }
 
   /* No "Settings"/"Car profile" entry here on purpose: the topbar's own car
      button (#openProfile) already opens this same dialog, and having it in
      both places was redundant. */
 }
 
-/* The signed-in user's own details: email (read-only here), password change, sign out.
+/* The signed-in user's own details: email (read-only here) and password change. Sign out is in the gear menu.
    Passwords are checked for length and match before the server call; the server is the authority. */
 function openAccountDialog() {
   const u = account.user();
   if (!u) return;
   openModal(t('Account'), null, card => {
-    const em = el('p', 'muted'); em.setAttribute('dir', 'ltr');
-    em.textContent = `${t('Email')}: ${u.email || ''}`;
-    const err = el('p', 'muted'); err.hidden = true;
+    card.classList.add('account-card');
+    /* Email is shown as a read-only row; the password form is the only input
+       here, so each field gets a visible label (not just a placeholder). */
+    const who = el('div', 'acct-email');
+    const whoLabel = el('span', 'acct-email-label'); whoLabel.textContent = t('Email');
+    const whoValue = el('span', 'acct-email-value'); whoValue.setAttribute('dir', 'ltr'); whoValue.textContent = u.email || '';
+    who.append(whoLabel, whoValue);
+
+    /* Market: the same device-local garage.market that Add a Mazda reads, so a
+       change here is the default the next time a car is added. */
+    const mSec = el('h4', 'acct-section'); mSec.textContent = t('Market');
+    const mSaved = readMarket();
+    const mCountry = el('div', 'field');
+    mCountry.innerHTML = html`<label for="acct_country">${t('Country')}</label><select id="acct_country">${MARKET_CODES.map(code => html`<option value="${code}" ${code === (mSaved.country || 'KSA') ? 'selected' : ''}>${t(MARKET_NAMES[code])}</option>`)}</select>`;
+    const mCity = el('div', 'field');
+    mCity.innerHTML = html`<label for="acct_city">${t('City')}</label><select id="acct_city"></select>`;
+    const mCitySel = mCity.querySelector('#acct_city');
+    fillCitySelect(mCitySel, mSaved.country || 'KSA', mSaved.city);
+    mCountry.querySelector('#acct_country').onchange = () => { fillCitySelect(mCitySel, card.querySelector('#acct_country').value, ''); syncPhone(); };
+    const mSave = el('button', 'btn ghost block acct-save'); mSave.type = 'button'; mSave.textContent = t('Save market');
+    mSave.onclick = () => {
+      saveMarket({ country: card.querySelector('#acct_country').value, city: card.querySelector('#acct_city').value });
+      toast(t('Market saved'));
+    };
+    /* Mobile number for users who do not sign in with email. Device-local for now, like
+       the market; it is not sent to the server, so it is not a login. The format and the
+       check follow the Country above, so a Saudi number is never checked as a Kuwaiti one. */
+    const pSec = el('h4', 'acct-section'); pSec.textContent = t('Contact');
+    const selCountry = () => mCountry.querySelector('#acct_country').value;
+    const pField = el('div', 'field');
+    pField.innerHTML = html`<label for="acct_phone">${t('Mobile number')}</label><input id="acct_phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" value="${formatPhone(readPhone(), selCountry())}" placeholder="${phonePlaceholder(selCountry())}">`;
+    const phoneIn = pField.querySelector('#acct_phone');
+    const pSave = el('button', 'btn ghost block acct-save'); pSave.type = 'button'; pSave.textContent = t('Save phone');
+    const pErr = el('p', 'acct-err'); pErr.hidden = true;
+    /* Country change: new placeholder, reformat a number that is already valid for it, clear the old error. */
+    function syncPhone() {
+      const code = selCountry();
+      phoneIn.placeholder = phonePlaceholder(code);
+      if (validPhone(phoneIn.value, code)) phoneIn.value = formatPhone(phoneIn.value, code);
+      pErr.hidden = true;
+    }
+    phoneIn.onblur = () => { if (validPhone(phoneIn.value, selCountry())) phoneIn.value = formatPhone(phoneIn.value, selCountry()); };
+    pSave.onclick = () => {
+      const code = selCountry();
+      const v = phoneIn.value.trim();
+      if (!validPhone(v, code)) { pErr.textContent = t('Enter a valid mobile number.') + ' ' + phonePlaceholder(code); pErr.hidden = false; return; }
+      pErr.hidden = true;
+      savePhone(v, code);
+      phoneIn.value = formatPhone(v, code);
+      toast(t('Phone saved'));
+    };
+    const sec = el('h4', 'acct-section'); sec.textContent = t('Change password');
+    const err = el('p', 'acct-err'); err.hidden = true;
     const showErr = msg => { err.textContent = t(msg); err.hidden = false; };
-    const h = el('h4'); h.textContent = t('Change password');
-    const pw = el('input'); pw.type = 'password'; pw.autocomplete = 'new-password'; pw.setAttribute('aria-label', t('New password')); pw.placeholder = t('New password');
-    const pw2 = el('input'); pw2.type = 'password'; pw2.autocomplete = 'new-password'; pw2.setAttribute('aria-label', t('Confirm new password')); pw2.placeholder = t('Confirm new password');
-    const save = el('button', 'btn primary block'); save.type = 'button'; save.textContent = t('Save');
+    const field = (id, label, placeholder) => {
+      const f = el('div', 'field');
+      const lb = el('label'); lb.htmlFor = id; lb.textContent = t(label);
+      const inp = el('input'); inp.id = id; inp.type = 'password'; inp.autocomplete = 'new-password'; inp.placeholder = t(placeholder);
+      f.append(lb, inp);
+      return { f, inp };
+    };
+    const a = field('acct_pw', 'New password', 'New password');
+    const b = field('acct_pw2', 'Confirm new password', 'Confirm new password');
+    const pw = a.inp, pw2 = b.inp;
+    const hint = el('p', 'acct-hint'); hint.textContent = t('At least 8 characters.');
+    const save = el('button', 'btn primary block acct-save'); save.type = 'button'; save.textContent = t('Save password');
     onAsyncClick(save, async () => {
       err.hidden = true;
       if (pw.value.length < 8) return showErr('Password must be at least 8 characters.');
@@ -482,13 +553,7 @@ function openAccountDialog() {
       if (r.ok) { pw.value = ''; pw2.value = ''; closeModal(); return toast(t('Password updated')); }
       showErr('Could not update password.');
     });
-    const out = el('button', 'btn ghost block reject'); out.type = 'button'; out.textContent = t('Sign out');
-    out.onclick = async () => {
-      closeModal();
-      await account.signOut();
-      go('dashboard');
-    };
-    card.append(em, h, pw, pw2, err, save, out);
+    card.append(who, mSec, mCountry, mCity, mSave, pSec, pField, pErr, pSave, sec, a.f, b.f, hint, err, save);
   });
 }
 

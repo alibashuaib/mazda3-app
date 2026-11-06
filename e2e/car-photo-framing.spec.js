@@ -1,6 +1,12 @@
 'use strict';
 const { test, expect } = require('@playwright/test');
 
+/* Blocks the Supabase client so the app-wide sign-in gate does not cover the
+   page; see smoke.spec.js. */
+test.beforeEach(async ({ page }) => {
+  await page.route('**/vendor/supabase.js', route => route.abort());
+});
+
 async function renderPaint(page, model, color, theme) {
   await page.evaluate(({ model, color, theme }) => {
     const data = normalizeData(buildProfile(model, 0, { color, odometer: 1000 }));

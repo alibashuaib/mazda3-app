@@ -40,9 +40,72 @@ function chooseVehicle(id) {
   applyAccent(); renderTopbar(); go('dashboard');
 }
 function addVehicle() { openAddVehicle(); }
+/* Market (country + city) for Add a Mazda. Device-local: a bad or blocked storage read
+   falls back to the default market, never to a blank dialog. */
+const MARKET_KEY = 'garage.market';
+const MARKET_CODES = ['KSA', 'UAE', 'KW', 'QA', 'BH', 'OM'];
+const MARKET_NAMES = { KSA: 'Saudi Arabia', UAE: 'United Arab Emirates', KW: 'Kuwait', QA: 'Qatar', BH: 'Bahrain', OM: 'Oman' };
+/* Cities per country, shown as a list. 'Other' stores as-is, so no city is ever lost. */
+const MARKET_CITIES = {
+  KSA: ['Riyadh', 'Jeddah', 'Makkah', 'Madinah', 'Dammam', 'Khobar', 'Dhahran', 'Jubail', 'Taif', 'Tabuk', 'Abha', 'Buraidah', 'Hail', 'Yanbu', 'Jazan', 'Najran', 'Hofuf', 'Qatif', 'Other'],
+  UAE: ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Al Ain', 'Ras Al Khaimah', 'Fujairah', 'Umm Al Quwain', 'Other'],
+  KW: ['Kuwait City', 'Hawalli', 'Salmiya', 'Farwaniya', 'Ahmadi', 'Jahra', 'Other'],
+  QA: ['Doha', 'Al Rayyan', 'Al Wakrah', 'Al Khor', 'Mesaieed', 'Other'],
+  BH: ['Manama', 'Muharraq', 'Riffa', 'Hamad Town', 'Isa Town', 'Sitra', 'Other'],
+  OM: ['Muscat', 'Seeb', 'Salalah', 'Sohar', 'Nizwa', 'Sur', 'Other']
+};
+function citiesFor(code) { return MARKET_CITIES[code] || ['Other']; }
+/* Fills a city <select>, keeping the saved city when it is in this country's list. */
+function fillCitySelect(sel, country, city) {
+  const list = citiesFor(country);
+  sel.innerHTML = html`${list.map(c => html`<option value="${c}" ${c === city ? 'selected' : ''}>${c}</option>`)}`;
+}
+function readMarket() { try { return JSON.parse(localStorage.getItem(MARKET_KEY)) || {}; } catch (e) { return {}; } }
+function saveMarket(m) { try { localStorage.setItem(MARKET_KEY, JSON.stringify(m)); } catch (e) {} }
+/* Mobile number (optional contact), stored as E.164 (+966512345678). Rules follow the market country:
+   calling code, national number pattern (mobile ranges) and digit grouping for display. Mobile ranges
+   are the common ones; a number outside them is rejected, so check the list if a valid one is refused. */
+const PHONE_KEY = 'garage.phone';
+const PHONE_RULES = {
+  KSA: { cc: '966', re: /^5\d{8}$/, groups: [2, 3, 4] },
+  UAE: { cc: '971', re: /^5\d{8}$/, groups: [2, 3, 4] },
+  KW: { cc: '965', re: /^[4569]\d{7}$/, groups: [4, 4] },
+  QA: { cc: '974', re: /^[3567]\d{7}$/, groups: [4, 4] },
+  BH: { cc: '973', re: /^[36]\d{7}$/, groups: [4, 4] },
+  OM: { cc: '968', re: /^[79]\d{7}$/, groups: [4, 4] },
+};
+function phoneRule(code) { return PHONE_RULES[code] || PHONE_RULES.KSA; }
+/* National digits for the market, or null when the number carries another country's code. */
+function phoneNational(v, code) {
+  const r = phoneRule(code);
+  const d = String(v).replace(/[\s\-().]/g, '');
+  if (/^(\+|00)/.test(d)) {
+    const rest = d.replace(/^(\+|00)/, '');
+    return rest.startsWith(r.cc) ? rest.slice(r.cc.length) : null;
+  }
+  /* No plus sign: a bare national number wins; otherwise a typed country code (966...) or a trunk 0. */
+  if (r.re.test(d)) return d;
+  if (d.startsWith(r.cc) && r.re.test(d.slice(r.cc.length))) return d.slice(r.cc.length);
+  return d.replace(/^0/, '');
+}
+function validPhone(v, code) { const n = phoneNational(v, code); return n !== null && phoneRule(code).re.test(n); }
+function formatPhone(v, code) {
+  const r = phoneRule(code);
+  const n = phoneNational(v, code);
+  if (n === null || !r.re.test(n)) return String(v);
+  const parts = []; let i = 0;
+  r.groups.forEach(g => { parts.push(n.slice(i, i + g)); i += g; });
+  return '+' + r.cc + ' ' + parts.join(' ');
+}
+function phonePlaceholder(code) { const r = phoneRule(code); return '+' + r.cc + ' ' + r.groups.map(g => 'X'.repeat(g)).join(' '); }
+function readPhone() { try { return localStorage.getItem(PHONE_KEY) || ''; } catch (e) { return ''; } }
+function savePhone(v, code) { const n = phoneNational(v, code); try { localStorage.setItem(PHONE_KEY, '+' + phoneRule(code).cc + n); } catch (e) {} }
 function openAddVehicle() {
   openModal(t('Add a Mazda'), t('Pick the model and engine — its SkyActiv service plan is set up for you.'), card => {
-    card.appendChild(field(t('Model'), html`<select id="av_model">${CAR_MODELS.map((m, i) => html`<option value="${i}">Mazda ${m.model} · ${m.gen}</option>`)}</select>`));
+    /* Models are filtered by the market saved on the account (garage.market); the country is set there, not here. */
+    const marketCode = readMarket().country || 'KSA';
+    card.appendChild(field(t('Model'), html`<select id="av_model"></select>`));
+    const modelSel = card.querySelector('#av_model');
     const engField = field(t('Engine'), html`<select id="av_eng"></select>`);
     card.appendChild(engField);
     const r = el('div', 'field-row');
@@ -51,15 +114,21 @@ function openAddVehicle() {
     card.appendChild(r);
     const colorField = field(t('Color'), html`<select id="av_color"></select>`);
     card.appendChild(colorField);
-    const modelSel = card.querySelector('#av_model'), engSel = card.querySelector('#av_eng'), colorSel = card.querySelector('#av_color');
+    const engSel = card.querySelector('#av_eng'), colorSel = card.querySelector('#av_color');
     const fillEngines = () => { engSel.innerHTML = html`${CAR_MODELS[+modelSel.value].engines.map((e, i) => html`<option value="${i}">${e[0]}</option>`)}`; };
     const fillColors = () => { colorSel.innerHTML = html`${CAR_MODELS[+modelSel.value].colors.map(x => html`<option value="${x}">${x}</option>`)}`; };
-    // Look the default up by id — a positional index silently defaults to the
-    // wrong car the next time CAR_MODELS is reordered or extended.
-    const defaultIdx = CAR_MODELS.findIndex(m => m.id === 'mazda3bm');
-    modelSel.value = String(defaultIdx < 0 ? 0 : defaultIdx);
-    fillEngines(); fillColors();
+    /* Only models sold in the account's country; option values stay CAR_MODELS indices. */
+    const fillModels = () => {
+      const list = modelsForMarket(marketCode);
+      modelSel.innerHTML = html`${list.map(m => html`<option value="${CAR_MODELS.indexOf(m)}">Mazda ${m.model} · ${m.gen}</option>`)}`;
+      // Look the default up by id — a positional index silently defaults to the
+      // wrong car the next time CAR_MODELS is reordered or extended.
+      const def = list.find(m => m.id === 'mazda3bm') || list[0];
+      if (def) modelSel.value = String(CAR_MODELS.indexOf(def));
+      fillEngines(); fillColors();
+    };
     modelSel.onchange = () => { fillEngines(); fillColors(); };
+    fillModels();
     const b = el('button', 'btn primary block', html`${t('Add a vehicle')}`);
     onAsyncClick(b, async () => {
       const m = CAR_MODELS[+modelSel.value];
@@ -223,17 +292,18 @@ function renderOnboarding() {
   view.className = 'view';
   view.innerHTML = '';
   const card = el('div', 'card');
-  card.style.cssText = 'text-align:center;padding:40px 24px;margin-top:10vh';
+  card.classList.add('welcome-card');
   card.innerHTML = html`
-    <div style="width:40px;height:40px;margin:0 auto 12px;color:var(--text-2)">${raw(BRAND_MARK)}</div>
-    <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">${t('Add your first vehicle')}</h2>
-    <p class="muted" style="margin-bottom:20px">${t('Pick your Mazda and its engine — its SkyActiv service plan is set up for you.')}</p>`;
+    <div class="welcome-mark">${raw(BRAND_MARK)}</div>
+    <h2 class="welcome-title">${t('Add your first vehicle')}</h2>
+    <p class="muted mb-20">${t('Pick your Mazda and its engine — its SkyActiv service plan is set up for you.')}</p>`;
   const btn = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add a vehicle')}`);
   btn.onclick = () => addVehicle();
   card.appendChild(btn);
   view.appendChild(card);
 }
 function go(route, intent) {
+  syncAdminTab();                     // sign-in, sign-out and expiry all re-render through go(), so the tab follows them without a reload
   if (!session.booted()) return;      // boot failed — leave the error card in place
   if (!session.garage() || !session.garage().vehicles.length) { renderOnboarding(); return; }
   // An unknown route name — a stale link, a typo in markup that drifted from
@@ -247,6 +317,12 @@ function go(route, intent) {
   renderTopbar();     // the topbar lives outside #view, so go() has to repaint
                        // it itself — nothing else will
   current = route;
+  // Keep the address in step with the page, so a refresh returns to the same tab.
+  // Otherwise a '#admin' left from an earlier visit reopens Advanced on every reload.
+  try {
+    const h = route === 'dashboard' ? '' : '#' + route;
+    if (location.hash !== h) history.replaceState(null, '', location.pathname + location.search + h);
+  } catch (e) { /* some embedded or file:// contexts refuse history writes; the page still works */ }
   navIntent = intent || null;
   const view = $('#view');
   view.className = 'view ' + route;
@@ -321,9 +397,9 @@ function openGarage() {
       const active = v.id === session.garage().activeId;
       const it = el('div', 'item');
       it.innerHTML = html`
-        <div class="item-ic" style="overflow:hidden">${c.photo ? html`<img src="${c.photo}" decoding="async" style="width:100%;height:100%;object-fit:cover">` : html`<span style="display:inline-flex;width:60%;height:60%;color:var(--text-3)">${raw(BRAND_MARK)}</span>`}</div>
+        <div class="item-ic clip">${c.photo ? html`<img src="${c.photo}" decoding="async" class="cover-img">` : html`<span class="brand-mark">${raw(BRAND_MARK)}</span>`}</div>
         <div class="item-main"><h3>${vehicleName(c)}</h3><p>${[c.engine, c.color].filter(Boolean).join(' · ')} · ${fmt(c.odometer)} km</p></div>
-        <div class="item-side">${active ? html`<span class="pill ok">${t('Active')}</span>` : html`<span style="color:var(--accent-soft);font-size:12px;font-weight:600">${t('Switch ›')}</span>`}</div>`;
+        <div class="item-side">${active ? html`<span class="pill ok">${t('Active')}</span>` : html`<span class="accent-text fs-12 fw-600">${t('Switch ›')}</span>`}</div>`;
       it.onclick = () => { if (active) { closeModal(); openSettings(); } else chooseVehicle(v.id); };
       list.appendChild(it);
     });
@@ -334,7 +410,7 @@ function openGarage() {
        a dialog about vehicles is one more thing to read past. Clicking the
        active row still opens it. */
     const add = el('button', 'btn primary block', html`${iconSvg('plus')}${t('Add a vehicle')}`);
-    add.style.marginTop = '14px';
+    add.classList.add('mt-16');
     add.onclick = () => addVehicle();
     card.appendChild(add);
   });
@@ -392,11 +468,11 @@ function openSettings() {
        local segment here also controlled it. */
     const calRow = el('div');
     calRow.hidden = lang !== 'ar';
-    const calField = field('Calendar / التقويم', '');
-    const calSeg = segGroup('Calendar / التقويم',
+    const calField = field('Calendar', '');
+    const calSeg = segGroup(t('Calendar'),
       [['gregory', t('Gregorian')], ['islamic', t('Hijri')], ['both', t('Both')]],
       calendar, applyCalendar);
-    calSeg.style.margin = '0 0 16px';
+    calSeg.classList.add('seg-margin');
     calRow.appendChild(calField);
     calRow.appendChild(calSeg);
     card.appendChild(calRow);
@@ -407,11 +483,11 @@ function openSettings() {
        the car's other fields, rather than applied on tap like the calendar:
        it isn't cosmetic, it changes due-date math throughout the app. */
     let selectedSeverity = session.current().severity === 'normal' ? 'normal' : 'severe';
-    const svField = field('Maintenance schedule / جدول الصيانة', '');
-    const svSeg = segGroup('Maintenance schedule / جدول الصيانة',
+    const svField = field('Maintenance schedule', '');
+    const svSeg = segGroup(t('Maintenance schedule'),
       [['severe', t('Severe')], ['normal', t('Dealer')]],
       selectedSeverity, v => { selectedSeverity = v; });
-    svSeg.style.margin = '0 0 16px';
+    svSeg.classList.add('seg-margin');
     card.appendChild(svField);
     card.appendChild(svSeg);
 
@@ -495,18 +571,24 @@ function openSettings() {
     card.appendChild(b);
     if (session.garage().vehicles.length > 1) {
       const del = el('button', 'btn block ghost', html`${t('Remove this vehicle')}`);
-      del.style.cssText = 'margin-top:8px;color:var(--danger)';
+      del.classList.add('danger-text', 'mt-8');
       /* Irreversible, and it takes the whole vehicle with it — history,
          spending, fuel, receipt photos, and a server tombstone. Confirm by
          name, and go through onAsyncClick: deleteVehicle drops the vehicle
          from the garage synchronously before its await, so a second click
          lands on the NEXT vehicle's id and removes that one too. */
-      onAsyncClick(del, async () => {
+      del.onclick = () => {
         const active = session.garage().vehicles.find(v => v.id === session.garage().activeId);
         if (!active) return;
-        if (!confirm(t('Remove this vehicle and everything logged against it? This cannot be undone.') + '\n\n' + vehicleName(active.data.car))) return;
-        await deleteVehicle(active.id);
-      });
+        openModal(t('Remove this vehicle?'), t('Everything logged against it goes too: history, spending, fuel and receipt photos. This cannot be undone.'), c => {
+          const name = el('p', 'muted'); name.textContent = vehicleName(active.data.car); c.appendChild(name);
+          const cancel = el('button', 'btn ghost', html`${t('Cancel')}`); cancel.type = 'button'; cancel.onclick = closeModal;
+          const yes = el('button', 'btn primary', html`${t('Remove')}`); yes.type = 'button';
+          // Captured id, not activeId: a second tap must never reach the next vehicle.
+          onAsyncClick(yes, async () => { await deleteVehicle(active.id); });
+          c.append(cancel, yes);
+        });
+      };
       card.appendChild(del);
     }
   });
@@ -624,7 +706,12 @@ account.configure({
      accent is an inline style on <html>, which outlives the garage it
      was set for, so without this the previous car's accent colour would
      stay painted across a sign-out that leaves no vehicle behind. */
-  rerender: () => { shops.clearCache(); insights.clearCache(); applyAccent(); renderTopbar(); go(current); },
+  rerender: () => {
+    shops.clearCache(); insights.clearCache(); applyAccent(); renderTopbar();
+    // Signed out (sign-out or expiry): cover the app with the sign-in gate instead of showing it.
+    if (account.available() && !account.user()) { if ($('#signinGate').hidden) showSignInGate(); return; }
+    go(current);
+  },
   choose: askWhichGarage,
   submitContributions: rows => insights.submit(rows),
   shareEnabled: () => insights.shareEnabled(),
@@ -651,7 +738,16 @@ session.load()
   .then(() => {
     applyAccent();
     renderTopbar();
-    go(location.hash === '#admin' ? 'admin' : 'dashboard');
+    const backend = loadBackend();
+    /* The app stays hidden until the stored session is read, then either the
+       app opens or the sign-in gate covers it. With no backend there is no one
+       to sign in as, so the app opens as before. Reading the stored session is
+       local, so this adds no network wait. */
+    // The address hash names the tab (#fuel, #admin, ...), so a refresh stays on the same tab.
+    const openRoute = () => { $('#app').hidden = false; const r = (location.hash || '').slice(1); go(routes[r] ? r : 'dashboard'); };
+    backend
+      .then(() => (account.available() ? account.whenRestored().then(() => !account.user()) : false), () => false)
+      .then(needsSignIn => (needsSignIn ? showSignInGate() : openRoute()));
     /* After the first paint, never before: a slow or absent network must not
        delay the app a user can already use offline. Caught right here, not by
        the .catch() below: the app is already painted and usable at this
@@ -660,10 +756,10 @@ session.load()
        the "could not open your garage" error card — that would hide a
        working, already-rendered app behind an error message about a sync
        feature that failed, for a garage that opened just fine. */
-    const backend = loadBackend();
     backend
       .then(() => { if (current === 'admin') go('admin'); })   // #admin painted before the client existed
       .then(() => account.start())
+      .then(() => { if (current === 'admin') go('admin'); })   // Advanced was waiting for the stored session
       .then(() => {
         if (!account.user()) return;
         return insights.syncPrefs().then(() => { insights.flushPendingDelete(); return insights.noticeSeen(); }).then(async seen => {
@@ -684,7 +780,7 @@ session.load()
   })
   .catch(err => {
     document.getElementById('view').innerHTML =
-      html`<div class="card" style="padding:20px"><h3>${t('Could not open your garage')}</h3><p style="color:var(--text-2);margin-top:8px">${t('Your data is safe. Please reload the page.')}</p></div>`;
+      html`<div class="card pad-20"><h3>${t('Could not open your garage')}</h3><p class="text-2 mt-8">${t('Your data is safe. Please reload the page.')}</p></div>`;
     console.error(err);
   });
 

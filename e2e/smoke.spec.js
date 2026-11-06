@@ -19,6 +19,14 @@ const fs = require('fs');
 const os = require('os');
 const { test, expect } = require('@playwright/test');
 
+/* With the Supabase client loaded, the app shows the app-wide sign-in gate
+   and these tests (which have no account) never reach the UI. Blocking the
+   vendored client keeps the app signed out with no backend, so it opens
+   directly, as it does for a user with no account configured. */
+test.beforeEach(async ({ page }) => {
+  await page.route('**/vendor/supabase.js', route => route.abort());
+});
+
 const ROUTES = ['dashboard', 'maintenance', 'parts', 'fuel', 'budget', 'reports'];
 
 /* The app boots asynchronously — open storage, hydrate, then render. Waiting
@@ -112,9 +120,9 @@ test('switches to Arabic and back, flipping direction both ways', async ({ page 
   await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
 
   // The item's own label is translated along with the rest of the menu, so
-  // once Arabic is active it reads "الإنجليزية", not "English".
+  // the language item stays "English" in Arabic, so each name reads in its own script.
   await page.click('#accountBtn');
-  await page.click('#accountMenu [role="menuitem"]:has-text("الإنجليزية")');
+  await page.click('#accountMenu [role="menuitem"]:has-text("English")');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
 });
 
@@ -226,13 +234,13 @@ test('fuel fields have accessible labels and invalid values do not save', async 
   await expect(page.locator('#modalTitle')).toHaveText('Edit fill-up');
 });
 
-test('the vendored client loads and does not break boot', async ({ page }, testInfo) => {
-  // vendor/supabase.js is injected after first paint, and only off file:,
-  // where no client can be built anyway.
+test('a missing vendored client does not break boot', async ({ page }, testInfo) => {
+  // vendor/supabase.js is injected after first paint. Here it is blocked (see
+  // beforeEach), so the app must still open with no backend and no errors.
   const errors = await open(page, testInfo);
 
-  if (testInfo.project.name === 'http') await page.waitForFunction(() => typeof window.supabase === 'object');
-  else expect(await page.evaluate(() => typeof window.supabase)).toBe('undefined');
+  expect(await page.evaluate(() => typeof window.supabase)).toBe('undefined');
+  await expect(page.locator('#signinGate')).toBeHidden();
   expect(errors, `uncaught page errors: ${errors.join(' | ')}`).toEqual([]);
 });
 

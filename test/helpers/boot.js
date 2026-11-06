@@ -100,6 +100,7 @@ const SCRIPTS = [
   'src/pages/admin.js',
   'src/pages/admin-autopilot.js',
   'src/pages/admin-proposals.js',
+  'src/pages/signin.js',
   'main.js'
 ];
 

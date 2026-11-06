@@ -134,33 +134,46 @@ function apUnverified(res, models) {
 /* Check now: free preview first, then an explicit Confirm run (T-03-28). */
 function apCheckNow(models, refresh) {
   const box = apSection(t('Check now'));
+  /* Two steps, cost first: Preview is free and only fills the panel below;
+     nothing starts until Confirm run, which is shown with the cost it will spend. */
+  const hint = el('p', 'muted ap-check-hint'); hint.textContent = t('Preview costs nothing. A run starts only when you confirm.');
   const bar = el('div', 'ap-check');
   const sel = el('select'); sel.setAttribute('aria-label', t('Car'));
   (models || []).forEach(m => { const o = el('option'); o.value = m.id; o.textContent = `${m.model} ${m.generation} · ${m.engine}`; sel.appendChild(o); });
   if (models && models.length) sel.value = models[0].id;
-  const out = el('div');
-  const note = msg => { out.textContent = ''; apLine(out, msg); };
+  const out = el('div', 'ap-estimate');
+  out.hidden = true;
+  const note = msg => { out.hidden = false; out.textContent = ''; const p = apLine(out, msg, 'ap-error'); p.setAttribute('role', 'status'); };
   const preview = apButton(t('Preview'), 'btn ghost', async () => {
     if (!sel.value) return;
     const r = await catalogAdmin.checkCar(sel.value, 'preview');
     if (!r.ok) return note(t('Could not preview. Try again.'));
     const e = r.estimate || r;
+    out.hidden = false;
     out.textContent = '';
-    const grid = el('div', 'ap-stats');
-    grid.append(
-      apStat(t('Estimated cost'), `${Math.round((Number(e.sar) || 0) * 100) / 100} SAR`),
-      apStat(t('Searches'), Number(e.searches) || 0),
-      apStat(t('LLM calls'), Number(e.llm_calls) || 0),
-      apStat(t('Skipped as unchanged'), (e.skipped || []).length));
-    out.appendChild(grid);
-    out.appendChild(apButton(t('Confirm run'), 'btn primary', async () => {
+    /* The cost is the headline; the rest is supporting detail in one divided row. */
+    const head = el('div', 'ap-est-head');
+    const cost = el('span', 'ap-est-cost'); cost.textContent = `${Math.round((Number(e.sar) || 0) * 100) / 100} SAR`;
+    const costLabel = el('span', 'ap-est-label'); costLabel.textContent = t('Estimated cost');
+    head.append(costLabel, cost);
+    const row = el('div', 'ap-est-row');
+    [[t('Searches'), Number(e.searches) || 0], [t('LLM calls'), Number(e.llm_calls) || 0], [t('Skipped as unchanged'), (e.skipped || []).length]]
+      .forEach(([label, value]) => {
+        const c = el('div', 'ap-est-cell');
+        const v = el('span', 'ap-est-value'); v.textContent = String(value);
+        const l = el('span', 'ap-est-label'); l.textContent = label;
+        c.append(v, l);
+        row.appendChild(c);
+      });
+    const confirm = apButton(t('Confirm run'), 'btn primary block ap-confirm', async () => {
       const g = await catalogAdmin.checkCar(sel.value, 'run');
       if (g.ok) { toast(t('Run started')); return refresh(); }
       note(t(g.error === 'limit' ? 'Monthly cost cap reached.' : 'Could not start the run.'));
-    }));
+    });
+    out.append(head, row, confirm);
   });
   bar.append(sel, preview);
-  box.append(bar, out);
+  box.append(hint, bar, out);
   return box;
 }
 

@@ -16,7 +16,7 @@ function adminReport(message, e) {
 
 function renderAdmin() {
   const v = el('div', 'admin-view');
-  v.appendChild(pageIntro('Admin', 'Review and correct the shared car catalogue.'));
+  v.appendChild(pageIntro('Advanced', 'Review and correct the shared car catalogue.'));
   const body = el('div');
   body.innerHTML = html`<p class="muted">${t('Loading…')}</p>`;
   v.appendChild(body);
@@ -24,37 +24,71 @@ function renderAdmin() {
   return v;
 }
 
+/* The Advanced page's data, loaded once per signed-in user and reused by every
+   tab switch and boot re-render. It is reloaded only by the Refresh button or
+   after a write (adminReload), not on every render. */
+let adminLoaded = null;   // { uid, p } — p resolves to the bundle
+function adminBundle() {
+  const uid = account.user().id;
+  if (!adminLoaded || adminLoaded.uid !== uid) {
+    const p = (async () => {
+      if (!(await catalogAdmin.isAdmin())) return { admin: false };
+      const [errs, props, changes, models, status, domains, unverified, drafts, recalls] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
+        catalogAdmin.listRecentChanges(), catalogAdmin.listModels().catch(() => []),
+        catalogAdmin.autopilotStatus(), catalogAdmin.listDomains(), catalogAdmin.listUnverified(),
+        // The review queue's own lists: a failure here only empties that part, never the whole page.
+        catalogAdmin.listDrafts().catch(e => { adminReport('admin: queue load failed', e); return []; }),
+        catalogAdmin.listPendingRecalls().catch(e => { adminReport('admin: queue load failed', e); return []; })]);
+      return { admin: true, errs, props, changes, models, status, domains, unverified, drafts, recalls };
+    })();
+    adminLoaded = { uid, p };
+    p.catch(() => { if (adminLoaded && adminLoaded.p === p) adminLoaded = null; });   // a failed load is retried next time
+  }
+  return adminLoaded.p;
+}
+/* Drops the cached data and redraws; used by Refresh and after every write. */
+function adminReload() {
+  adminLoaded = null;
+  go('admin');
+}
+
 function adminNotice(body, msg) {
-  body.innerHTML = html`<div class="card" style="padding:16px">${t(msg)}</div>`;
+  body.innerHTML = html`<div class="card pad-16">${t(msg)}</div>`;
 }
 
 async function renderAdminBody(body) {
   if (!catalogAdmin.available()) return adminNotice(body, 'Admin needs an internet connection.');
-  if (!account.user()) { body.innerHTML = ''; body.appendChild(adminSignIn()); return; }
-  if (!(await catalogAdmin.isAdmin())) return adminNotice(body, 'This account is not an admin.');
+  // The stored session is still being read: wait, rather than offer a sign-in form to someone already signed in.
+  if (!account.restored()) return;
+  if (!account.user()) return adminNotice(body, 'Sign in to use the app.');   // the app-wide sign-in gate normally catches this first
   try {
+    const bundle = await adminBundle();
+    if (!bundle.admin) return adminNotice(body, 'This account is not an admin.');
     if (adminModelId) { const node = await adminEditor(adminModelId); body.innerHTML = ''; body.appendChild(node); return; }
     // One fetch feeds both the badge and the Errors tab. A failure here must
     // not take the review queue down with it.
-    const [errs, props, changes, models, status, domains, unverified] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
-      catalogAdmin.listRecentChanges(), catalogAdmin.listModels().catch(() => []),
-      catalogAdmin.autopilotStatus(), catalogAdmin.listDomains(), catalogAdmin.listUnverified()]);
-    const refresh = () => renderAdminBody(body);
+    const { errs, props, changes, models, status, domains, unverified } = bundle;
+    const refresh = () => adminReload();
     const open = errs.ok ? errs.groups.filter(g => g.open).length : 0;
     const show = async () => {
       body.innerHTML = '';
       // Banner sits above the tab strip so a failed or overdue run is visible on every tab (REV-08).
       const banner = status.ok ? adminBanner(status.runs) : null;
       if (banner) body.appendChild(banner);
+      const toolbar = el('div', 'admin-toolbar');
+      const refreshBtn = el('button', 'btn ghost'); refreshBtn.type = 'button'; refreshBtn.textContent = t('Refresh');
+      refreshBtn.onclick = () => adminReload();   // the only way to re-fetch without a write
+      toolbar.appendChild(refreshBtn);
+      body.appendChild(toolbar);
       body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : 0 },
         { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
         id => { adminTab = id; show(); }));
       try {
         if (adminTab === 'proposals') body.appendChild(adminAutopilot({ status, domains, unverified, models }, refresh));
         body.appendChild(adminTab === 'proposals' ? adminProposals(props, models, refresh, changes)
-          : adminTab === 'errors' ? adminErrors(errs, () => renderAdminBody(body)) : await adminList());
+          : adminTab === 'errors' ? adminErrors(errs, () => adminReload()) : adminList(bundle));
       }
-      catch (e) { adminReport('admin: render failed', e); body.appendChild(el('div', 'card', html`<p style="padding:16px">${t('Could not load the catalogue.')}</p>`)); }
+      catch (e) { adminReport('admin: render failed', e); body.appendChild(el('div', 'card', html`<p class="pad-16">${t('Could not load the catalogue.')}</p>`)); }
     };
     await show();
   } catch (e) {
@@ -83,7 +117,7 @@ function adminTabs(tabs, active, onPick) {
 /* Errors tab. message and stack are untrusted: textContent only, no raw markup. */
 function adminErrors(res, refresh) {
   const card = el('div', 'card');
-  card.style.padding = '16px';
+  card.classList.add('pad-16');
   const note = txt => { const p = el('p', 'muted'); p.textContent = t(txt); card.appendChild(p); };
   if (!res.ok) { note('Could not load errors.'); return card; }
   if (!res.groups.length) { note('No errors logged'); return card; }
@@ -98,7 +132,7 @@ function adminErrors(res, refresh) {
       const d = el('details');
       const sm = el('summary'); sm.textContent = t('Show stacks');
       d.appendChild(sm);
-      g.stacks.forEach(st => { const pre = el('pre'); pre.style.whiteSpace = 'pre-wrap'; pre.textContent = st; d.appendChild(pre); });
+      g.stacks.forEach(st => { const pre = el('pre'); pre.classList.add('pre-wrap'); pre.textContent = st; d.appendChild(pre); });
       box.appendChild(d);
     }
     if (g.open) {
@@ -117,40 +151,14 @@ function adminErrors(res, refresh) {
   return card;
 }
 
-function adminSignIn() {
-  const card = el('div', 'card');
-  card.style.padding = '16px';
-  card.appendChild(field('Email', html`<input id="adm_email" type="email" autocomplete="username">`));
-  card.appendChild(field('Password', html`<input id="adm_pw" type="password" autocomplete="current-password">`));
-  const err = el('p', 'muted');
-  err.hidden = true;
-  const b = el('button', 'btn primary block', html`${t('Sign in')}`);
-  onAsyncClick(b, async () => {
-    err.hidden = true;
-    try {
-      await account.signIn($('#adm_email').value.trim(), $('#adm_pw').value);
-      await catalogAdmin.isAdmin().catch(() => {});
-      if (typeof syncAdminTab === 'function') syncAdminTab();   // show the Advanced tab without a reload
-      go('admin');
-    } catch (e) {
-      err.textContent = t('Sign-in failed. Check your email and password.');
-      err.hidden = false;
-    }
-  });
-  card.append(b, err);
-  return card;
-}
-
 const DIFF_LABELS = { interval_km: 'Dealer interval (km)', interval_months: 'Dealer interval (mo)', severe_km: 'Severe km', severe_months: 'Severe months', note: 'Note', parts: 'Parts' };
 
 /* Drafts and recalls the intake function wrote, waiting for a decision. Every
    dynamic string is textContent; a load failure just hides the queue. */
-async function adminQueue() {
-  let drafts = [], recalls = [];
-  try { [drafts, recalls] = await Promise.all([catalogAdmin.listDrafts(), catalogAdmin.listPendingRecalls()]); }
-  catch (e) { adminReport('admin: queue load failed', e); }
+/* drafts and recalls come from the page's cached bundle, so switching to this tab fetches nothing. */
+function adminQueue(drafts, recalls) {
   const card = el('div', 'card');
-  card.style.padding = '16px';
+  card.classList.add('pad-16');
   const h = el('h3'); h.textContent = t('Review queue');
   card.appendChild(h);
   if (!drafts.length && !recalls.length) {
@@ -160,7 +168,7 @@ async function adminQueue() {
   const decide = (box, approve, run) => {
     const mkBtn = (label, cls, ok) => {
       const b = el('button', cls); b.type = 'button'; b.textContent = t(label);
-      onAsyncClick(b, async () => { try { await run(ok); go('admin'); } catch (e) { adminReport('admin: save failed', e); toast('Could not save'); } });
+      onAsyncClick(b, async () => { try { await run(ok); adminReload(); } catch (e) { adminReport('admin: save failed', e); toast('Could not save'); } });
       return b;
     };
     const row = el('div', 'field-row');
@@ -195,15 +203,15 @@ async function adminQueue() {
   });
   const run = el('button', 'btn ghost block'); run.type = 'button'; run.textContent = t('Check Mazda sources now');
   onAsyncClick(run, async () => {
-    try { const r = await catalogAdmin.runIntake(); toast(`${r ? r.drafts : 0} ${t('new drafts')}`); go('admin'); }
+    try { const r = await catalogAdmin.runIntake(); toast(`${r ? r.drafts : 0} ${t('new drafts')}`); adminReload(); }
     catch (e) { adminReport('admin: check sources failed', e); toast('Could not check sources'); }
   });
   card.appendChild(run);
   return card;
 }
 
-async function adminList() {
-  const models = await catalogAdmin.listModels();
+function adminList(bundle) {
+  const models = bundle.models;
   const ordered = models.filter(m => m.status === 'draft').concat(models.filter(m => m.status !== 'draft'));
   const wrap = el('div', 'card');
   ordered.forEach(m => {
@@ -214,7 +222,7 @@ async function adminList() {
     wrap.appendChild(it);
   });
   const both = el('div');
-  both.append(await adminQueue(), wrap);
+  both.append(adminQueue(bundle.drafts, bundle.recalls), wrap);
   return both;
 }
 
@@ -226,7 +234,7 @@ async function adminEditor(id) {
   wrap.appendChild(back);
 
   const head = el('div', 'card');
-  head.style.padding = '16px';
+  head.classList.add('pad-16');
   head.innerHTML = html`<h3>Mazda ${model.model} · ${model.generation} · ${model.engine}</h3>`;
   const wr = el('div', 'field-row');
   wr.append(
@@ -236,7 +244,7 @@ async function adminEditor(id) {
   wrap.appendChild(head);
 
   const list = el('div', 'card');
-  list.style.padding = '16px';
+  list.classList.add('pad-16');
   items.forEach(it => {
     const box = el('div', 'admin-item');
     box.dataset.itemId = String(it.id);
@@ -266,7 +274,7 @@ async function adminEditor(id) {
       }
       if (model.status === 'draft') await catalogAdmin.approve(id);
       toast('Catalogue saved');
-      go('admin');
+      adminReload();
     } catch (e) {
       adminReport('admin: render failed', e);
       toast('Could not save. Check your connection.', 'warn');
@@ -276,9 +284,9 @@ async function adminEditor(id) {
 
   if (changes.length) {
     const h = el('div', 'card');
-    h.style.padding = '16px';
+    h.classList.add('pad-16');
     h.innerHTML = html`<h4>${t('Recent changes')}</h4>${changes.map(c =>
-      html`<p class="muted" style="font-size:12.5px;margin-top:6px">${String(c.changed_at).slice(0, 10)} · ${catalogAdmin.describeChange(c)}</p>`)}`;
+      html`<p class="muted fs-12 mt-8">${String(c.changed_at).slice(0, 10)} · ${catalogAdmin.describeChange(c)}</p>`)}`;
     wrap.appendChild(h);
   }
   return wrap;

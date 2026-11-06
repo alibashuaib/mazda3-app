@@ -102,7 +102,7 @@ test('Check now previews first; Confirm run only appears after the estimate', as
     assert.strictEqual(btn(app, 'Confirm run'), undefined);
     btn(app, 'Preview').onclick();
     assert.ok(await until(() => btn(app, 'Confirm run')), text(app));
-    assert.match(text(app), /1\.23 SAR\s*Estimated cost/);
+    assert.match(text(app), /Estimated cost\s*1\.23 SAR/);
     assert.match(text(app), /3\s*Searches/);
     assert.match(text(app), /4\s*LLM calls/);
     assert.match(text(app), /2\s*Skipped as unchanged/);

@@ -21,7 +21,30 @@
   function configure(next) { env = Object.assign({}, env, next || {}); }
   function reset() { env = { client: null }; _admin = false; _drafts = 0; }
   function available() { return !!env.client; }
-  function knownAdmin() { return _admin; }
+  /* The Advanced tab is remembered per device: once an admin signs in here, the
+     tab shows on the next load before the network answers. Only the user id is
+     stored, and only the tab depends on it; the server still checks every write. */
+  const ADMIN_KEY = 'garage.adminUid';
+  function rememberAdmin(uid, on) {
+    try { if (on) localStorage.setItem(ADMIN_KEY, uid); else localStorage.removeItem(ADMIN_KEY); } catch (e) { /* storage blocked: no cache */ }
+  }
+  function cachedAdmin(uid) {
+    try { return !!uid && localStorage.getItem(ADMIN_KEY) === uid; } catch (e) { return false; }
+  }
+  /* Admin sessions end after ADMIN_SESSION_MS from the admin's own sign-in, then the
+     device signs out (the garage stays on the device). Timed from the sign-in form,
+     or from the first check on this device if the form was never used. */
+  const ADMIN_SESSION_MS = 12 * 60 * 60 * 1000;
+  const SINCE_KEY = 'garage.adminSince';
+  function sinceRecord() { try { return JSON.parse(localStorage.getItem(SINCE_KEY) || 'null'); } catch (e) { return null; } }
+  function markAdminSince(uid) { try { localStorage.setItem(SINCE_KEY, JSON.stringify({ uid, at: Date.now() })); } catch (e) { /* no storage: no timer */ } }
+  function clearAdminSince() { try { localStorage.removeItem(SINCE_KEY); } catch (e) { /* ignore */ } }
+  function startAdminSession() { const u = account.user(); if (u) markAdminSince(u.id); }
+
+  function knownAdmin() {
+    const u = account.user();
+    return !!u && (_admin || cachedAdmin(u.id));
+  }
   function draftCount() { return _drafts; }
 
   function data(res) { if (res && res.error) throw res.error; return res ? res.data : null; }
@@ -32,8 +55,17 @@
     if (!env.client || !u) { _admin = false; return Promise.resolve(false); }
     return Promise.resolve(env.client.from('profiles').select('role').eq('user_id', u.id).maybeSingle())
       .then(res => {
-        _admin = !!(res && !res.error && res.data && res.data.role === 'admin');
-        if (!_admin) return false;
+        // A failed read says nothing about the role, so it leaves the remembered flag alone.
+        if (res && res.error) { _admin = false; return false; }
+        _admin = !!(res && res.data && res.data.role === 'admin');
+        rememberAdmin(u.id, _admin);
+        if (!_admin) { clearAdminSince(); return false; }
+        const rec = sinceRecord();
+        if (!rec || rec.uid !== u.id) markAdminSince(u.id);
+        else if (Date.now() - rec.at > ADMIN_SESSION_MS) {
+          clearAdminSince(); rememberAdmin(u.id, false); _admin = false;
+          return account.endSession().then(() => false);   // time is up: sign out, keep the garage
+        }
         return Promise.resolve(env.client.from('car_models').select('id').eq('status', 'draft'))
           .then(r => { _drafts = (r && !r.error && r.data) ? r.data.length : 0; return true; });
       })
@@ -358,7 +390,7 @@
     autopilotStatus, listRuns, listDomains, listUnverified, setKillSwitch, banDomain, approveDomain, checkCar, bannerState,
     listProposals, listRecentChanges, revertChange, applyProposal, applyProposals, bulkSummary, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
     listErrors, resolveGroup, groupErrors,
-    configure, reset, available, isAdmin, knownAdmin, draftCount,
+    configure, reset, available, isAdmin, knownAdmin, draftCount, startAdminSession,
     listModels, loadModel, saveWarranty, saveItem, approve,
     num, parseParts, formatParts, itemPatch, describeChange,
     draftDiff, addSource, decideDraft, listDrafts, listPendingRecalls, decideRecall, runIntake

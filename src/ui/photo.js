@@ -28,27 +28,27 @@ function readImageResized(file, cb, max = 900) {
 function photoPicker(current, onChange, label, onBig) {
   let photo = current || '';
   const wrap = el('div', 'photo-picker');
-  wrap.style.marginBottom = '14px';
+  wrap.classList.add('mb-16');
   wrap.innerHTML = html`
-    <div class="photo-preview" data-prev style="cursor:${photo ? 'zoom-in' : 'default'}">${photo ? html`<img src="${photo}">` : '🧾'}</div>
+    <div class="photo-preview${photo ? ' zoomable' : ''}" data-prev>${photo ? html`<img src="${photo}">` : '🧾'}</div>
     <div class="photo-actions">
       <button class="btn" type="button" data-pick>${photo ? t('Change receipt') : (label || t('Add receipt photo'))}</button>
-      <button class="btn ghost" type="button" data-rm ${photo ? '' : 'hidden'} style="color:var(--danger)">${t('Remove')}</button>
+      <button class="btn ghost danger-text" type="button" data-rm ${photo ? '' : 'hidden'}>${t('Remove')}</button>
       <input type="file" accept="image/*" data-file hidden>
     </div>`;
   const prev = wrap.querySelector('[data-prev]'), pick = wrap.querySelector('[data-pick]'), rm = wrap.querySelector('[data-rm]'), file = wrap.querySelector('[data-file]');
   pick.onclick = () => file.click();
   prev.onclick = () => { if (photo) openImage(photo); };
   let seq = 0;   // a newer pick or a remove makes older in-flight decodes (900 or 1600) no-ops
-  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; const mine = ++seq; readImageResized(f, url => { if (mine !== seq) return; photo = url; prev.innerHTML = html`<img src="${url}">`; prev.style.cursor = 'zoom-in'; pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); });
+  file.onchange = ev => { const f = ev.target.files[0]; if (!f) return; const mine = ++seq; readImageResized(f, url => { if (mine !== seq) return; photo = url; prev.innerHTML = html`<img src="${url}">`; prev.classList.add('zoomable'); pick.textContent = t('Change receipt'); rm.hidden = false; onChange(photo); });
     if (onBig) readImageResized(f, url => { if (mine === seq) onBig(url); }, 1600); };
-  rm.onclick = () => { seq++; photo = ''; prev.innerHTML = '🧾'; prev.style.cursor = 'default'; pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); if (onBig) onBig(''); };
+  rm.onclick = () => { seq++; photo = ''; prev.innerHTML = '🧾'; prev.classList.remove('zoomable'); pick.textContent = label || t('Add receipt photo'); rm.hidden = true; onChange(photo); if (onBig) onBig(''); };
   return wrap;
 }
 function openImage(url) {
   const host = el('div');
-  host.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.85);display:grid;place-items:center;padding:20px;cursor:zoom-out';
-  host.innerHTML = html`<img src="${url}" style="max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8)">`;
+  host.classList.add('photo-lightbox');
+  host.innerHTML = html`<img src="${url}">`;
   host.onclick = () => host.remove();
   document.body.appendChild(host);
 }

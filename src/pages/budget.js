@@ -30,8 +30,8 @@ function renderBudget() {
      themes, instead of the old hardcoded Soul Red that never moved. */
   const ring = el('div', 'card budget-ring-card' + (overBudget ? ' over' : ''));
   ring.innerHTML = html`
-    <div class="ring" style="width:96px;height:96px">
-      <svg viewBox="0 0 92 92" style="width:96px;height:96px">
+    <div class="ring budget-ring">
+      <svg viewBox="0 0 92 92" class="budget-ring-svg">
         <defs><linearGradient id="budgetRingGrad" x1="0" y1="0" x2="1" y2="1">
           <stop class="rg-from" offset="0"/>
           <stop class="rg-to" offset="1"/>
@@ -40,15 +40,15 @@ function renderBudget() {
         <circle class="prog" cx="46" cy="46" r="40" fill="none" stroke-width="8"
           stroke-dasharray="${dash}" stroke-dashoffset="${dash * (1 - clamp(pct, 0, 1))}"/>
       </svg>
-      <div class="ring-label"><div class="ring-num" style="font-size:19px">${Math.round(pct * 100)}%</div><div class="ring-cap">${t('of budget')}</div></div>
+      <div class="ring-label"><div class="ring-num fs-22">${Math.round(pct * 100)}%</div><div class="ring-cap">${t('of budget')}</div></div>
     </div>
-    <div style="flex:1">
-      <div class="muted" style="font-size:12px">${t('Spent in')} ${year}</div>
-      <div style="font-size:26px;font-weight:800;letter-spacing:-.5px">${sar(spent)} <span class="muted" style="font-size:13px;font-weight:600">SAR</span></div>
-      <div style="font-size:12.5px;margin-top:4px" class="${overBudget ? '' : 'muted'}">
+    <div class="grow">
+      <div class="muted fs-12">${t('Spent in')} ${year}</div>
+      <div class="budget-amount">${sar(spent)} <span class="muted fs-13 fw-600">SAR</span></div>
+      <div class="fs-12 mt-4 ${overBudget ? '' : 'muted'}">
         ${overBudget ? html`⚠️ ${sar(spent - budget)} ${t('over budget')}` : html`${sar(budget - spent)} ${t('SAR remaining of')} ${sar(budget)}`}
       </div>
-      <button class="odo-edit" id="editBudget" style="margin-top:8px">
+      <button class="odo-edit mt-8" id="editBudget">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
         ${t('Set annual budget')}
       </button>
@@ -61,14 +61,14 @@ function renderBudget() {
     const dueCost = upcoming.reduce((a, r) => a + (r.s.cost || 0), 0);
     const odCount = upcoming.filter(r => r.st.level === 'danger').length;
     const fc = el('div', 'card');
-    fc.style.cssText = 'padding:14px 16px;margin-top:12px;display:flex;align-items:center;gap:12px;cursor:pointer';
+    fc.classList.add('upcoming-card');
     fc.innerHTML = html`
       <div class="item-ic">🔧</div>
-      <div style="flex:1">
-        <h3 style="font-size:13.5px;font-weight:650">${t('Upcoming maintenance')}</h3>
-        <p class="muted" style="font-size:12px;margin-top:2px">${upcoming.length} ${t('services due')}${odCount ? html` · ${odCount} ${t('overdue')}` : ''} — ${t('plan ~')}${sar(dueCost)} SAR</p>
+      <div class="grow">
+        <h3 class="fs-13 fw-600">${t('Upcoming maintenance')}</h3>
+        <p class="muted fs-12 mt-4">${upcoming.length} ${t('services due')}${odCount ? html` · ${odCount} ${t('overdue')}` : ''} — ${t('plan ~')}${sar(dueCost)} SAR</p>
       </div>
-      <span style="color:var(--accent-soft);font-size:12.5px;font-weight:600">${t('View ›')}</span>`;
+      <span class="accent-text fs-12 fw-600">${t('View ›')}</span>`;
     fc.onclick = () => go('maintenance', { filter: odCount ? 'Overdue' : 'Due soon' });
     v.appendChild(fc);
   }
@@ -76,7 +76,7 @@ function renderBudget() {
   // monthly bars (last 6 months)
   v.appendChild(sectionTitle('Monthly spending', '', null));
   const bars = el('div', 'card');
-  bars.style.padding = '16px';
+  bars.classList.add('pad-16');
   bars.appendChild(monthlyBars());
   v.appendChild(bars);
 
@@ -90,12 +90,12 @@ function renderBudget() {
     v.appendChild(sectionTitle(`${t('By category')} (${year})`, '', null));
     // (category names translated below)
     const cc = el('div', 'card');
-    cc.style.padding = '14px 16px';
+    cc.classList.add('pad-14-16');
     const total = cats.reduce((a, c) => a + c[1], 0) || 1;
     cc.innerHTML = html`${cats.map(([k, val]) => html`
-      <div style="margin:10px 0 12px">
-        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
-          <span>${t(k)}</span><span style="font-weight:700">${sar(val)} SAR</span>
+      <div class="cat-row">
+        <div class="cat-head fs-13">
+          <span>${t(k)}</span><span class="fw-700">${sar(val)} SAR</span>
         </div>
         <div class="bar"><span style="width:${(val / total) * 100}%"></span></div>
       </div>`)}`;

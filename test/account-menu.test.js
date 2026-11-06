@@ -203,3 +203,77 @@ test('Share anonymous data checkbox shows only when signed in', () => withBoot(a
   assert.strictEqual(item.getAttribute('role'), 'menuitemcheckbox');
   assert.ok(['true', 'false'].includes(item.getAttribute('aria-checked')));
 }));
+
+/* The account dialog and Add a Mazda share one device-local market (garage.market).
+   These tests pin that they agree in both directions. */
+const sel = (d, id) => d.querySelector('#' + id);
+const btnText = (d, re) => Array.from(d.querySelectorAll('#modalCard button')).find(b => re.test(b.textContent));
+
+test('account market: the country and city saved in the account are what Add a Mazda starts from', () => withBoot(async ({ document: d, api, evalInApp }) => {
+  api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+  evalInApp("saveMarket({ country: 'QA', city: 'Doha' })");
+  api.openAccountDialog();
+  assert.strictEqual(sel(d, 'acct_country').value, 'QA', 'account dialog did not show the saved country');
+  assert.strictEqual(sel(d, 'acct_city').value, 'Doha', 'account dialog did not show the saved city');
+  sel(d, 'acct_country').value = 'OM';
+  sel(d, 'acct_country').onchange();
+  assert.ok(Array.from(sel(d, 'acct_city').options).some(o => o.value === 'Muscat'), 'city list did not follow the country');
+  sel(d, 'acct_city').value = 'Muscat';
+  btnText(d, /Save market/).onclick();
+  assert.deepStrictEqual(JSON.parse(evalInApp("localStorage.getItem('garage.market')")), { country: 'OM', city: 'Muscat' });
+  api.closeModal();
+
+  api.openAddVehicle();
+  assert.strictEqual(sel(d, 'av_country'), null, 'Add a Mazda still shows a country field');
+  assert.strictEqual(sel(d, 'av_city'), null, 'Add a Mazda still shows a city field');
+  const models = Array.from(sel(d, 'av_model').options).map(o => o.textContent);
+  assert.ok(models.some(m => /Mazda 2/.test(m)), 'Oman list should include the Mazda2');
+  assert.ok(!models.some(m => /CX-5 · KE/.test(m)), 'Oman list should not include the 2012-16 CX-5');
+  api.closeModal();
+}));
+
+test('account market: Add a Mazda only filters models and leaves the account market unchanged', () => withBoot(async ({ document: d, api, evalInApp }) => {
+  api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+  evalInApp("saveMarket({ country: 'BH', city: 'Manama' })");
+  api.openAddVehicle();
+  assert.strictEqual(sel(d, 'av_country'), null);
+  assert.ok(sel(d, 'av_model').options.length > 0, 'Bahrain model list is empty');
+  api.closeModal();
+  assert.deepStrictEqual(JSON.parse(evalInApp("localStorage.getItem('garage.market')")), { country: 'BH', city: 'Manama' });
+}));
+
+test('account mobile number: validated, saved on this device, and shown again when the dialog reopens', () => withBoot(async ({ document: d, api, evalInApp }) => {
+  api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+  api.openAccountDialog();
+  sel(d, 'acct_phone').value = '12';
+  btnText(d, /Save phone/).onclick();
+  assert.ok(!d.querySelector('#modalCard .acct-err').hidden, 'a too-short number was accepted');
+  assert.strictEqual(evalInApp("localStorage.getItem('garage.phone')"), null, 'an invalid number was saved');
+  sel(d, 'acct_phone').value = '+966 5 1234 5678';
+  btnText(d, /Save phone/).onclick();
+  assert.strictEqual(evalInApp("localStorage.getItem('garage.phone')"), '+966512345678');
+  api.closeModal();
+  api.openAccountDialog();
+  assert.strictEqual(sel(d, 'acct_phone').value, '+966 51 234 5678');
+  api.closeModal();
+}));
+
+test('mobile number rules and format follow the account country', () => withBoot(async ({ document: d, api, evalInApp }) => {
+  api.account.setUserForTest({ id: 'u1', email: 'a@b.c' });
+  assert.strictEqual(evalInApp("validPhone('0512345678', 'KSA')"), true);
+  assert.strictEqual(evalInApp("validPhone('+966512345678', 'KW')"), false, 'a Saudi number passed the Kuwait check');
+  assert.strictEqual(evalInApp("formatPhone('966512345678', 'KSA')"), '+966 51 234 5678');
+  assert.strictEqual(evalInApp("formatPhone('+96551234567', 'KW')"), '+965 5123 4567');
+  api.openAccountDialog();
+  sel(d, 'acct_country').value = 'KW';
+  sel(d, 'acct_country').onchange();
+  assert.strictEqual(sel(d, 'acct_phone').placeholder, '+965 XXXX XXXX', 'placeholder did not follow the country');
+  sel(d, 'acct_phone').value = '+966 5 1234 5678';
+  btnText(d, /Save phone/).onclick();
+  assert.ok(!d.querySelector('#modalCard .acct-err').hidden, 'a Saudi number was saved under Kuwait');
+  sel(d, 'acct_phone').value = '5123 4567';
+  btnText(d, /Save phone/).onclick();
+  assert.strictEqual(evalInApp("localStorage.getItem('garage.phone')"), '+96551234567');
+  assert.strictEqual(sel(d, 'acct_phone').value, '+965 5123 4567', 'saved number was not shown formatted');
+  api.closeModal();
+}));

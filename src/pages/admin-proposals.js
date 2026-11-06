@@ -81,7 +81,7 @@ function proposalRow(p, models, refresh) {
   const first = catalogAdmin.draftDiff(p.before, p.after)[0];
 
   const sum = el('div');
-  sum.style.cssText = 'display:flex;justify-content:space-between;gap:12px;cursor:pointer';
+  sum.classList.add('proposal-sum');
   sum.setAttribute('role', 'button');
   sum.tabIndex = 0;
   sum.setAttribute('aria-expanded', 'false');
@@ -223,7 +223,7 @@ function proposalRow(p, models, refresh) {
    CONTEXT: a revert is itself an audited change and can be reverted). */
 function recentChangesCard(changes, models, refresh) {
   const card = el('div', 'card');
-  card.style.cssText = 'padding:16px;margin-top:12px';
+  card.classList.add('pad-16', 'mt-12');
   const h = el('h3'); h.textContent = t('Recent approvals');
   card.appendChild(h);
   if (!changes.ok) {
@@ -276,7 +276,7 @@ function adminProposals(res, models, refresh, changes) {
 
 function adminProposalsQueue(res, models, refresh) {
   const card = el('div', 'card');
-  card.style.padding = '16px';
+  card.classList.add('pad-16');
   if (!res.ok) {
     const p = el('p', 'muted'); p.textContent = t('Could not load proposals. Check your connection and try again.');
     const b = el('button', 'btn ghost'); b.type = 'button'; b.textContent = t('Try again');
@@ -294,7 +294,7 @@ function adminProposalsQueue(res, models, refresh) {
   const wrap = el('div');
   const opts = catalogAdmin.proposalFilterOptions(res.rows);
   const fcard = el('div', 'card');
-  fcard.style.cssText = 'padding:16px;margin-bottom:12px';
+  fcard.classList.add('pad-16', 'mb-12');
   const frow = el('div', 'field-row proposal-filters');
   const sel = (key, label, values, labelOf) => {
     const f = field(label, html`<select data-f="${key}"></select>`);
@@ -370,7 +370,7 @@ function adminProposalsQueue(res, models, refresh) {
       body.appendChild(m);
       return;
     }
-    const list = el('div', 'list');
+    const list = el('div', 'list proposal-list');
     rows.forEach(p => list.appendChild(proposalRow(p, models, safeRefresh)));
     body.appendChild(list);
   }

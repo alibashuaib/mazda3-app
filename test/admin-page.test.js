@@ -50,11 +50,12 @@ test('a non-admin is told so and sees no catalogue', async () => {
   } finally { app.cleanup(); }
 });
 
-test('signed out shows a sign-in form', async () => {
+test('signed out shows the app-wide sign-in gate, not a form in Advanced', async () => {
   const app = await bootApp({ protocol: 'https:', supabaseStub: stub('admin') });
   try {
-    app.api.go('admin');
-    assert.ok(await until(() => !!app.document.querySelector('#adm_email')));
+    assert.ok(await until(() => !app.document.querySelector('#signinGate').hidden), 'gate shown');
+    assert.ok(app.document.querySelector('#signinEmail'));
+    assert.strictEqual(app.document.querySelector('#app').hidden, true);
   } finally { app.cleanup(); }
 });
 
@@ -78,5 +79,30 @@ test('the account menu offers Account to a signed-in user; Admin lives in the Ad
     app.document.querySelector('#accountBtn').onclick();
     assert.ok(items().some(s => /Account/.test(s)), items().join(' | '));
     assert.ok(!items().some(s => /Admin/.test(s)), 'no Admin entry in the menu any more');
+    assert.ok(items().some(s => /Sign out/.test(s)), 'Sign out is in the gear menu');
+  } finally { app.cleanup(); }
+});
+
+test('the Advanced data loads once per page load, not on every render or tab switch', async () => {
+  const calls = {};
+  const base = stub('admin').createClient();
+  const counting = { createClient: () => ({
+    auth: base.auth,
+    from: table => { calls[table] = (calls[table] || 0) + 1; return base.from(table); }
+  }) };
+  const app = await bootApp({ protocol: 'https:', supabaseStub: counting });
+  try {
+    app.api.account.setUserForTest({ id: 'u1' });
+    app.api.go('admin');
+    assert.ok(await until(() => app.document.querySelectorAll('#view [role=tab]').length >= 2), text(app.document));
+    const after = calls.profiles || 0;
+    app.api.go('admin');                                             // re-render
+    app.api.go('admin');
+    assert.ok(await until(() => app.document.querySelectorAll('#view [role=tab]').length >= 2), text(app.document));
+    const tabs = [...app.document.querySelectorAll('#view [role=tab]')];
+    const settle = () => new Promise(r => setTimeout(r, 20));   // let any stray fetch land
+    tabs[1].onclick(); await settle(); tabs[0].onclick(); await settle();
+    assert.ok(after >= 1);
+    assert.strictEqual(calls.profiles || 0, after, 'profiles fetched again: ' + JSON.stringify(calls));
   } finally { app.cleanup(); }
 });
