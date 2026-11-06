@@ -358,6 +358,32 @@ function isLegacyUnverifiedPart(part, modelId) {
    separate hardcoded catalogue — now gets the same full 15-part starter
    list this comment always said was the intent, with placeholder ("verify
    for your model") brand/part numbers until real OEM data is filled in. */
+/* OEM numbers confirmed against the PartSouq catalogue and price-checked against
+   miata-mazda.com (SAR incl. VAT, rounded) — [partNo, price], keyed by model then part name.
+   Only parts whose two sources agree within 30% are listed. */
+const OEM_CHECKED = {
+  mazda3bm: { 'Oil Filter': ['PE01-14-302B', 29] },
+  mazda2: { 'Oil Filter': ['PE01-14-302B', 29] },
+  mazda6: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 60],
+    'Front Brake Pads': ['G4YA-33-28ZA', 378], 'Rear Brake Pads': ['GMY0-26-43ZB', 411]
+  },
+  cx3: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PEHH-13-3A0', 85], 'Cabin A/C Filter': ['D09W-61-J6X', 97],
+    'Front Brake Pads': ['B6YS-33-28ZA', 374], 'Rear Brake Pads': ['DAY3-26-48ZA', 229]
+  },
+  cx5ke: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242]
+  },
+  cx5kf: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242]
+  },
+  cx9tb: { 'Oil Filter': ['CA02-14-302', 26], 'Engine Air Filter': ['CY01-13-Z40B', 97], 'Serpentine Belt': ['CY01-15-908D', 121], 'Rear Brake Pads': ['L2Y8-26-43ZA', 302] },
+  cx9: { 'Oil Filter': ['PY8W-14-302', 29], 'Cabin A/C Filter': ['TK48-61-J6X', 103], 'Front Brake Pads': ['TKY8-33-28Z', 374], 'Rear Brake Pads': ['TKY8-26-48ZA', 374] }
+};
+
 function sharedParts(modelId, engineCode) {
   const P = (name, icon, cat, options) => ({ id: dep.uid(), name, icon, cat, options });
   const D = 'Mazda Dealer (Alireza)', A = 'Amazon.sa';
@@ -368,7 +394,8 @@ function sharedParts(modelId, engineCode) {
   const m = CAR_MODELS.find(x => x.id === modelId);
   const code = engineCode || (m && m.engines[0] && m.engines[0][0]) || '';
   const oilL = engineInfo(modelId, code).oilL || 4.2;
-  return stampPartsFitment([
+  const checked = OEM_CHECKED[modelId] || {};
+  const parts = [
     P('Oil Filter', '🧽', 'Engine', [
       { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G — commonly shared)', partNo: 'PE01-14-302B', price: 45, store: D, note: 'One filter fits most SkyActiv-G engines — verify' },
       { tag: 'ALT', brand: 'Denso 150-2010', partNo: '150-2010', price: 28, store: A }]),
@@ -400,7 +427,12 @@ function sharedParts(modelId, engineCode) {
       { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
     P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
-  ], modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
+  ];
+  parts.forEach(p => {
+    const c = checked[p.name], o = c && p.options.find(x => x.tag === 'OEM');
+    if (o) Object.assign(o, { brand: 'Mazda Genuine', partNo: c[0], price: c[1], note: 'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)' });
+  });
+  return stampPartsFitment(parts, modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
 }
 
 /* Every hatch/sedan takes a passenger-car tire the same way; only the
