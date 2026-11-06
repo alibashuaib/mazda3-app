@@ -359,10 +359,12 @@ function isLegacyUnverifiedPart(part, modelId) {
    list this comment always said was the intent, with placeholder ("verify
    for your model") brand/part numbers until real OEM data is filled in. */
 /* OEM numbers confirmed against the PartSouq catalogue and price-checked against
-   miata-mazda.com (SAR incl. VAT, rounded) — [partNo, price], keyed by model then part name.
-   Only parts whose two sources agree within 30% are listed. */
+   miata-mazda.com (SAR incl. VAT, rounded) — [partNo, price, enginePrefix?], keyed by model
+   then part name. The price is always the miata-mazda.com one; where PartSouq's price was
+   more than 30% lower (cx5 cabin, cx5ke belt, cx9 air/belt) the owner chose miata anyway.
+   An optional engine prefix limits the entry to engines whose name starts with it. */
 const OEM_CHECKED = {
-  mazda3bm: { 'Oil Filter': ['PE01-14-302B', 29] },
+  mazda3bm: { 'Oil Filter': ['PE01-14-302B', 29, '2.0L'] }, // 1.6L not checked
   mazda2: { 'Oil Filter': ['PE01-14-302B', 29] },
   mazda6: {
     'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 60],
@@ -374,14 +376,20 @@ const OEM_CHECKED = {
   },
   cx5ke: {
     'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
-    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242]
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242],
+    'Cabin A/C Filter': ['KD45-61-J6X', 103], 'Serpentine Belt': ['PE08-15-909C', 115, '2.0L']
   },
   cx5kf: {
     'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
-    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242]
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242],
+    'Cabin A/C Filter': ['KD45-61-J6X', 103]
   },
-  cx9tb: { 'Oil Filter': ['CA02-14-302', 26], 'Engine Air Filter': ['CY01-13-Z40B', 97], 'Serpentine Belt': ['CY01-15-908D', 121], 'Rear Brake Pads': ['L2Y8-26-43ZA', 302] },
-  cx9: { 'Oil Filter': ['PY8W-14-302', 29], 'Cabin A/C Filter': ['TK48-61-J6X', 103], 'Front Brake Pads': ['TKY8-33-28Z', 374], 'Rear Brake Pads': ['TKY8-26-48ZA', 374] }
+  // Engine parts checked on the 3.7L catalogue only; 3.5L not checked.
+  cx9tb: { 'Oil Filter': ['CA02-14-302', 26, '3.7L'], 'Engine Air Filter': ['CY01-13-Z40B', 97, '3.7L'], 'Serpentine Belt': ['CY01-15-908D', 121, '3.7L'], 'Rear Brake Pads': ['L2Y8-26-43ZA', 302] },
+  cx9: {
+    'Oil Filter': ['PY8W-14-302', 29], 'Cabin A/C Filter': ['TK48-61-J6X', 103], 'Front Brake Pads': ['TKY8-33-28Z', 374], 'Rear Brake Pads': ['TKY8-26-48ZA', 374],
+    'Engine Air Filter': ['PY8W-13-3A0', 103], 'Serpentine Belt': ['PY01-15-909A', 144]
+  }
 };
 /* Front wiper lengths in inches [driver, passenger] (left-hand drive), from aftermarket
    size charts (wipersizechart.com, UK wiper retailers). No OEM wiper price could be
@@ -438,7 +446,7 @@ function sharedParts(modelId, engineCode) {
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
   ];
   parts.forEach(p => {
-    const c = checked[p.name], o = c && p.options.find(x => x.tag === 'OEM');
+    const c = checked[p.name], o = c && (!c[2] || code.startsWith(c[2])) && p.options.find(x => x.tag === 'OEM');
     if (o) Object.assign(o, { brand: 'Mazda Genuine', partNo: c[0], price: c[1], note: 'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)' });
   });
   const w = WIPER_IN[modelId];

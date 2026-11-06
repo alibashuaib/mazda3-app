@@ -83,6 +83,12 @@ test('aftermarket wiper option carries the model\'s blade sizes', () => {
   assert.strictEqual(wiper('cx5gen3').brand, 'Bosch Aerotwin'); // no size data yet
 });
 
+test('engine-limited OEM entry only applies to the matching engine', () => {
+  const belt = code => cat.sharedParts('cx5ke', code).find(p => p.name === 'Serpentine Belt').options[0];
+  assert.strictEqual(belt('2.0L SkyActiv-G').partNo, 'PE08-15-909C');
+  assert.strictEqual(belt('2.5L SkyActiv-G').partNo, ''); // 2.5L belt not confirmed
+});
+
 test('parts are model-locked unless explicitly shareable', () => {
   const bm = cat.sharedParts('mazda3bm');
   const filter = bm.find(p => p.name === 'Oil Filter');
