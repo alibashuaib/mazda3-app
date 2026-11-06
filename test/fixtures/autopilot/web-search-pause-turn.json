@@ -1,0 +1,6 @@
+{"id":"msg_03","type":"message","role":"assistant","model":"claude-haiku-5-5","stop_reason":"pause_turn",
+ "content":[
+  {"type":"server_tool_use","id":"srvtoolu_03","name":"web_search","input":{"query":"y"}},
+  {"type":"web_search_tool_result","tool_use_id":"srvtoolu_03","content":[
+    {"type":"web_search_result","url":"https://owners.example.sa/p2","title":"P2","page_age":null,"encrypted_content":"Ejkl"}]}],
+ "usage":{"input_tokens":1200,"output_tokens":80,"server_tool_use":{"web_search_requests":1}}}

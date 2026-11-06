@@ -62,6 +62,22 @@ test('diffDraft is false for identical content and true for any change', async (
   assert.strictEqual(diffDraft(undefined, { ...live }), true);
 });
 
+test('diffDraft ignores the key order jsonb returns parts in', async () => {
+  const { diffDraft } = await load();
+  const proposed = { interval_km: 10000, interval_months: 12, note: 'n', parts: [{ name: 'Oil filter', part_no: 'PE01', qty: 1 }] };
+  const live = { ...proposed, parts: [{ qty: 1, name: 'Oil filter', part_no: 'PE01' }] };
+  assert.strictEqual(diffDraft(live, proposed), false);
+  assert.strictEqual(diffDraft({ ...live, parts: [{ qty: 2, name: 'Oil filter', part_no: 'PE01' }] }, proposed), true);
+});
+
+test('safeEqual matches only identical strings', async () => {
+  const { safeEqual } = await load();
+  assert.strictEqual(await safeEqual('s3cret', 's3cret'), true);
+  assert.strictEqual(await safeEqual('s3cret', 's3cres'), false);
+  assert.strictEqual(await safeEqual('s3cret', 's3cret-longer'), false);
+  assert.strictEqual(await safeEqual('', 'x'), false);
+});
+
 test('isPrivateIp flags loopback, private, link-local, CGNAT and unspecified, v4 and v6', async () => {
   const { isPrivateIp } = await load();
   for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0',

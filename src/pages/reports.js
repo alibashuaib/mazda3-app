@@ -16,7 +16,7 @@ function renderReports() {
 
   const toolbar = el('div', 'rpt-toolbar');
   const seg = el('div', 'seg');
-  seg.style.flexWrap = 'wrap';
+  seg.classList.add('wrap');
   const types = [['service', 'Service history'], ['purchases', 'Purchases'], ['summary', 'Full summary']];
   types.forEach(([k, label]) => {
     const b = el('button', k === reportType ? 'on' : '', html`${t(label)}`);
@@ -123,14 +123,14 @@ function reportSummary() {
   const histTotal = session.current().history.reduce((a, e) => a + Number(e.cost || 0), 0);
   const dueRows = due.length
     ? due.map(({ s, st }) => html`<tr><td>${t(s.name)}</td><td>${st.level === 'danger' ? t('Overdue') : t('Due soon')}</td><td class="num">${st.kmLeft <= 0 ? fmt(-st.kmLeft) + ' ' + t('km over') : fmt(st.kmLeft) + ' ' + t('km left')}</td><td class="num">${sar(s.cost)} SAR</td></tr>`)
-    : html`<tr><td colspan="4" style="text-align:center;color:#8b93a3;padding:16px">${t('Everything is up to date 🎉')}</td></tr>`;
+    : html`<tr><td colspan="4" class="empty-cell">${t('Everything is up to date 🎉')}</td></tr>`;
   return html`${reportHeader(t('Vehicle Summary Report'))}
     <div class="rpt-cards">
       <div class="rpt-stat"><div class="n">${hs}</div><div class="l">${t('Health score')}</div></div>
       <div class="rpt-stat"><div class="n">${soon.length}</div><div class="l">${t('Due soon')}</div></div>
       <div class="rpt-stat"><div class="n">${overdue.length}</div><div class="l">${t('Overdue')}</div></div>
     </div>
-    <div class="rpt-cards" style="margin-top:12px">
+    <div class="rpt-cards mt-12">
       <div class="rpt-stat"><div class="n">${sar(spent)}</div><div class="l">${t('Spent in')} ${today().getFullYear()} (SAR)</div></div>
       <div class="rpt-stat"><div class="n">${sar(histTotal)}</div><div class="l">${t('Lifetime service cost')}</div></div>
       <div class="rpt-stat"><div class="n">${session.current().history.length}</div><div class="l">${t('Services logged')}</div></div>
@@ -169,7 +169,7 @@ function spendEntry(e) {
   it.innerHTML = html`
     <div class="e-ic">${emoji}</div>
     <div class="e-main"><h3>${e.desc}${e.photo ? ' 🧾' : ''}</h3><p>${t(e.cat)} · ${fmtDate(e.date, { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
-    <div class="e-amt">${sar(e.amount)} <span class="muted" style="font-size:10px">SAR</span></div>`;
+    <div class="e-amt">${sar(e.amount)} <span class="muted fs-11">SAR</span></div>`;
   it.onclick = () => openAddSpending(e);
   return it;
 }

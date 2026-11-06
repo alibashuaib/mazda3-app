@@ -292,3 +292,33 @@ test('catalogId is unique across every model and engine', () => {
   const ids = cat.CAR_MODELS.flatMap(m => m.engines.map(e => cat.catalogId(m.id, e[0])));
   assert.strictEqual(new Set(ids).size, ids.length);
 });
+
+test('sharedAcrossModels counts every model carrying the same part number, ignoring quantity', () => {
+  const { sharedAcrossModels, partsForModel, CAR_MODELS } = require('../src/data/catalog.js');
+  const oil = partsForModel('cx5kf', '2.5L SkyActiv-G').find(p => p.name === 'Oil Filter');
+  assert.ok(sharedAcrossModels(oil) > 5, 'the oil filter is on most models');
+  const tyres = partsForModel('mazda2', '1.5L SkyActiv-G').find(p => p.name.startsWith('Tires'));   // 185/65R15 is only on the Mazda2
+  assert.strictEqual(sharedAcrossModels(tyres), 1, 'a size only one model uses is not shared');
+  assert.ok(CAR_MODELS.length > 0);
+});
+
+test('markets: every model names its countries, and the market filter follows the official lists', () => {
+  const codes = ['KSA', 'UAE', 'KW', 'QA', 'BH', 'OM'];
+  cat.CAR_MODELS.forEach(m => {
+    assert.ok(Array.isArray(m.markets), `${m.id} needs a markets array`);
+    m.markets.forEach(c => assert.ok(codes.includes(c), `${m.id} has unknown market ${c}`));
+  });
+  const ids = c => cat.modelsForMarket(c).map(m => m.id).sort();
+  // Official lists: Oman has the Mazda2; the Mazda6 is sold in every market; neither CX-50/70/80 nor MX-30 is listed anywhere.
+  assert.ok(ids('OM').includes('mazda2') && !ids('KSA').includes('mazda2'));
+  codes.forEach(c => assert.ok(ids(c).includes('mazda6'), `Mazda6 missing in ${c}`));
+  assert.ok(!ids('KSA').includes('cx80') && !ids('KSA').includes('cx70') && !ids('KSA').includes('cx50'));
+  // UAE follows the Saudi list.
+  assert.deepStrictEqual(ids('UAE'), ids('KSA'));
+  // CX-9 TC is shown in every country on the owner's instruction, not because an official page lists it.
+  codes.forEach(c => assert.ok(ids(c).includes('cx9'), `CX-9 TC missing in ${c}`));
+  // Old CX-9 TB is Saudi-rule only.
+  assert.ok(ids('KSA').includes('cx9tb') && !ids('KW').includes('cx9tb'));
+  // No country means every model.
+  assert.strictEqual(cat.modelsForMarket(undefined).length, cat.CAR_MODELS.length);
+});

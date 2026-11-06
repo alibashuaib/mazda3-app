@@ -30,10 +30,11 @@
 
   /* Public by design. RLS is the boundary; secrecy is not. Replace both
      before the first deploy — see supabase/schema.sql. */
-  const SUPABASE_URL = 'https://gkofviorehcavxfvtorn.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdrb2Z2aW9yZWhjYXZ4ZnZ0b3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjg0NDksImV4cCI6MjEwNzg0NDQ0OX0.tMOJtEk_sB9eF_ujBtVj5eb7ZFQ8S5f6FiMzsQ8CsX0';
+  const SUPABASE_URL = 'https://nqozmlstxxsrlbremaoj.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xb3ptbHN0eHhzcmxicmVtYW9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4NDE2OTIsImV4cCI6MjEwOTQxNzY5Mn0.u4HyotWwtnP8vZpP7fQ5Y4zhFulXjpPT3nmVvAGUP84';
 
   let _user = null;
+  let _restored = false;
   let _watching = false;      // one auth subscription per configured client, never two
 
   const DEFAULTS = {
@@ -77,6 +78,7 @@
 
   function reset() {
     _user = null;
+    _restored = false;
     _watching = false;
     env = Object.assign({}, DEFAULTS);
     deps = dep;
@@ -94,6 +96,17 @@
   function available() { return protocol() !== 'file:' && !!env.client; }
 
   function user() { return _user; }
+  /* True once start() has read the stored session, so a page can wait instead of
+     showing "signed out" for the instant before the stored session is read. */
+  function restored() { return _restored; }
+  let _restoredWaiters = [];
+  function markRestored() {
+    _restored = true;
+    const waiting = _restoredWaiters; _restoredWaiters = [];
+    waiting.forEach(resolve => resolve());
+  }
+  /* Resolves once the stored session has been read (local, no network needed). */
+  function whenRestored() { return _restored ? Promise.resolve() : new Promise(resolve => _restoredWaiters.push(resolve)); }
 
   /* Photos stay local in Phase 4a: the Blobs live in IndexedDB and only their
      ids cross the wire. Deep-copied so the live record keeps its object URL —
@@ -688,14 +701,23 @@
     } catch (e) { _watching = false; }
   }
 
+  /* Ends the Supabase session but keeps local data. signOut() wipes the device
+     garage; the admin timer must not do that. The SIGNED_OUT echo runs expire(), which is harmless here. */
+  function endSession() {
+    const c = env.client;
+    return Promise.resolve(c ? c.auth.signOut() : null).catch(() => {}).then(() => { _user = null; env.rerender(); });
+  }
+
   function start() {
     if (!available()) return Promise.resolve(false);
     return Promise.resolve(env.client.auth.getSession()).then(res => {
       if (res && res.error) throw res.error;
       const s = res && res.data && res.data.session;
-      if (!s || !s.user) { _user = null; return false; }
+      if (!s || !s.user) { _user = null; markRestored(); return false; }
       _user = s.user;
+      markRestored();
       watchAuth();
+      if (typeof syncAdminTab === 'function') syncAdminTab();   // Advanced tab from the remembered flag, before the sync below
       /* Drain first, then pull: the local writes queued in the outbox are
          newer than anything the server holds, and pulling first would adopt a
          garage that is missing them. */
@@ -704,15 +726,23 @@
         .then(pulled => adopt(pulled))
         .then(() => { env.rerender(); return true; })
         .catch(() => false);   // offline boot: stay signed in, keep rendering from local
-    }).catch(() => { _user = null; return false; });
+    }).catch(() => { _user = null; markRestored(); return false; });
+  }
+
+  /* Self-service: the signed-in user changes their own password. Never rejects. */
+  function changePassword(password) {
+    if (!env.client || !_user) return Promise.resolve({ ok: false, error: 'signed_out' });
+    return Promise.resolve(env.client.auth.updateUser({ password }))
+      .then(res => (res && res.error ? { ok: false, error: 'failed' } : { ok: true }))
+      .catch(() => ({ ok: false, error: 'offline' }));
   }
 
   return {
-    configure, reset, available, user, setUserForTest,
+    configure, reset, available, user, setUserForTest, changePassword,
     stripPhotos, pushVehicle, pushGarage,
     enqueueVehicle, enqueueGarage, enqueueTombstone, enqueuePhoto, enqueueContribution, drain, outboxSize,
     pull, isUntouchedSeed, adopt, uploadAll, reconcile,
-    signIn, signOut, expire, start, sync,
+    signIn, signOut, expire, endSession, start, restored, whenRestored, sync,
     SUPABASE_URL, SUPABASE_ANON_KEY
   };
 });

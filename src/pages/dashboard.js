@@ -196,12 +196,6 @@ const CAR_COLOR_PHOTOS = {
     'titanium-flash-mica': 'assets/mazda3-titanium-flash.webp'
   }
 };
-/* CX cutouts share width, center and baseline; each model keeps its height. */
-const CX_NORMALIZED_PHOTOS = new Set([
-  'cx30', 'cx5ke', 'cx5kf', 'cx5gen3', 'cx9tb', 'cx9',
-  'cx50', 'cx60', 'cx70', 'cx80', 'cx90'
-]);
-
 /* 'Soul Red Metallic (Code 41V)' -> 'soul-red-metallic' */
 function colorSlug(name) {
   return (name || '').toLowerCase().replace(/\s*\(code[^)]*\)\s*$/, '').trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -210,15 +204,9 @@ function studioCarImage(color, car) {
   const modelId = car && car.modelId;
   const byModel = CAR_COLOR_PHOTOS[modelId];
   const exact = byModel && byModel[colorSlug(color)];
-  const freshAsset = url => modelId === 'mazda3bp' ? `${url}?v=mazda3bp-cleanup-200`
-    : modelId === 'mazda6' ? `${url}?v=mazda6-wheel-logo-205`
-    : modelId === 'cx3' ? `${url}?v=cx3-alignment-logos-207`
-    : modelId === 'mazda2' ? `${url}?v=mazda2-paint-fixes-209`
-    : CX_NORMALIZED_PHOTOS.has(modelId) ? `${url}?v=cx-family-fixes-211`
-    : modelId === 'mazda3bm' ? `${url}?v=mazda3bm-framing-213` : url;
-  if (exact) return freshAsset(exact);
-  if (GENERIC_MODEL_IMAGE[modelId]) return freshAsset(GENERIC_MODEL_IMAGE[modelId]);
-  if (modelId === 'mazda3bm') return freshAsset('assets/mazda3-studio.webp');
+  if (exact) return carPhotos.photoUrl(exact, modelId);
+  if (GENERIC_MODEL_IMAGE[modelId]) return carPhotos.photoUrl(GENERIC_MODEL_IMAGE[modelId], modelId);
+  if (modelId === 'mazda3bm') return carPhotos.photoUrl('assets/mazda3-studio.webp', modelId);
   return '';
 }
 
@@ -299,14 +287,14 @@ function renderDashboard() {
   v.appendChild(topRow);
 
   // Approved recalls for this model (NHTSA, US market): a pointer to the dealer, never a verdict.
-  const recallBox = el('div', 'card recall-banner'); recallBox.style.cssText = 'padding:12px 14px;margin:10px 0'; recallBox.hidden = true;
+  const recallBox = el('div', 'card recall-banner'); recallBox.classList.add('recall-box'); recallBox.hidden = true;
   v.appendChild(recallBox);
   recalls.forModel(session.current().car.modelId).then(rows => {
     if (!rows || !rows.length || !recallBox.isConnected) return;
     const head = el('strong');
     head.textContent = `⚠️ ${rows.length} ${t(rows.length === 1 ? 'recall' : 'recalls')} ${t('found for this model year in the US — confirm with your Mazda dealer')}`;
     recallBox.replaceChildren(head);
-    rows.forEach(r => { const line = el('div', 'muted'); line.style.fontSize = '12px'; line.textContent = `${r.campaign} · ${r.component}`; recallBox.appendChild(line); });
+    rows.forEach(r => { const line = el('div', 'muted'); line.classList.add('fs-12'); line.textContent = `${r.campaign} · ${r.component}`; recallBox.appendChild(line); });
     recallBox.hidden = false;
   }).catch(() => {});
 
@@ -319,7 +307,7 @@ function renderDashboard() {
   tiles.children[0].onclick = () => go('maintenance', { filter: 'Due soon' });
   tiles.children[1].onclick = () => go('maintenance', { filter: 'Overdue' });
   tiles.children[2].onclick = () => go('budget');
-  [...tiles.children].forEach(t => { t.style.cursor = 'pointer'; });
+  [...tiles.children].forEach(t => { t.classList.add('clickable'); });
   v.appendChild(tiles);
 
   // Keep the two most common actions above the fold on phones.
@@ -370,7 +358,7 @@ function renderDashboard() {
   // Recommendations (dashboard only)
   v.appendChild(sectionTitle('Recommendations', '', null));
   const recs = el('div', 'list');
-  recommendations().forEach(r => recs.appendChild(r));
+  recommendations(session.current().car).forEach(r => recs.appendChild(r));
   v.appendChild(recs);
 
   hero.querySelector('#editOdo').onclick = openEditOdo;
@@ -384,21 +372,43 @@ function renderDashboard() {
 }
 
 /* ---------- recommendations (Dashboard only) ---------- */
-function recommendations() {
+function recommendations(car) {
+  // Latin numbers sit in LRI/PDI isolates so they keep their order inside Arabic text.
+  const LTR = s => '⁦' + s + '⁩';
   const out = [];
+  const modelId = (car && car.modelId) || '';
+  const engine = (car && car.engine) || '';
+  // Fuel type comes from the engine code, the same check the schedule and oil parts use.
+  const diesel = modelId && engineInfo(modelId, engine).fuel === 'diesel';
+  const tyre = modelId ? OEM_TIRE_SIZE[modelId] : '';
+  const battery = modelId ? batteryAhFor(modelId, engine) : null;
 
-  // evergreen tips — from the 5-year Jeddah maintenance plan (Usage & Climate Notes)
-  const tips = [
-    ['🛢️', 'Oil every ~7,500 km', "In Jeddah's heat, shorten oil changes to ~7,500 km if you mostly do city driving. Fresh 5W-30 (API SP) keeps the SkyActiv engine clean."],
-    ['🛞', 'Tire pressure 36 PSI', 'Keep tires at 36 PSI and check monthly (when cold). Correct pressure saves fuel and prevents blowouts on hot asphalt.'],
-    ['🔋', 'Battery every 2–3 years', 'Heat-related wear shortens battery life in Jeddah — plan to replace it every 2–3 years, and load-test it yearly.'],
-    ['💧', 'Wash the underbody', "Wash the underbody occasionally to protect against corrosion from Jeddah's coastal salt air."]
-  ];
-  tips.forEach(tip => out.push(recCard(tip[0], t(tip[1]), t(tip[2]))));
+  // evergreen tips — from the 5-year Jeddah maintenance plan (Usage & Climate Notes), shaped by the loaded car
+  const tips = [];
+  if (diesel) {
+    tips.push(['🛢️', 'Use low-SAPS oil', 'Use 0W-30 low-SAPS (ACEA C3) every ~7,500 km. Any other oil leaves ash that clogs the diesel particulate filter (DPF).']);
+    tips.push(['🛣️', 'Let the DPF clean itself', 'Drive at steady highway speed now and then so the particulate filter can burn off soot.']);
+  } else {
+    tips.push(['🛢️', 'Oil and filter every ~7,500 km', 'Fresh 5W-30 (API SP) with a fuel-system cleaner. Change the filter too.']);
+  }
+
+  // One tire card: the factory size as the title, the cold pressure on its own line.
+  // Latin numbers sit in LRI/PDI isolates so they keep their order inside Arabic text.
+  const psi = modelId ? TIRE_PSI[modelId] : null;
+  const unit = t('psi');
+  const pressure = !psi ? '36 ' + unit : psi[0] === psi[1] ? psi[0] + ' ' + unit : psi[0] + ' / ' + psi[1] + ' ' + unit;
+  tips.push(['🛞', tyre ? t('Tire size') + ' ' + LTR(tyre) : t('Tire pressure'),
+    psi ? 'Check monthly, when cold. Confirm on the door-jamb sticker.'
+      : 'Keep tires at 36 PSI. Check monthly, when cold.',
+    psi ? t('Cold pressure') + ': ' + LTR(pressure) : null]);   // generic tip already states the pressure in its body
+  tips.push(['🔋', battery ? (battery.verified ? t('Battery') : t('Battery about')) + ' ' + LTR(battery.jis) + ' (' + LTR(battery.ah + ' ' + t('Ah')) + ')' : 'Battery every 2–3 years',
+    'Heat-related wear shortens battery life in Jeddah — plan to replace it every 2–3 years, and load-test it yearly.']);
+  tips.push(['💧', 'Wash the underbody', "Wash the underbody occasionally to protect against corrosion from Jeddah's coastal salt air."]);
+  tips.forEach(tip => out.push(recCard(tip[0], t(tip[1]), t(tip[2]), tip[3])));
   return out;
 }
-function recCard(ic, title, body) {
+function recCard(ic, title, body, figure) {
   const c = el('div', 'card rec');
-  c.innerHTML = html`<div class="r-ic">${ic}</div><div><h3>${title}</h3><p>${body}</p></div>`;
+  c.innerHTML = html`<div class="r-ic">${ic}</div><div><h3>${title}</h3><p>${body}</p>${figure ? html`<p class="rec-figure">${figure}</p>` : ''}</div>`;
   return c;
 }

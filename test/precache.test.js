@@ -66,14 +66,16 @@ test('sw.js precaches only the default car image', () => {
   assert.deepStrictEqual(cachedImages, ['assets/mazda3-studio.webp']);
 });
 
-test('the sw cache version is bumped whenever the asset list changes', () => {
-  /* Not a drift check — just a floor. A stale CACHE name means activate()
-     never evicts the old cache, so returning visitors keep the previous
-     ASSETS forever. Pinning the current value makes changing ASSETS without
-     touching CACHE a visible, deliberate edit rather than an oversight. */
-  const m = read('sw.js').match(/const CACHE\s*=\s*'garage-v(\d+)'/);
-  assert.ok(m, 'sw.js: CACHE must stay in the garage-v<N> form the activate() cleanup keys on');
-  assert.ok(Number(m[1]) >= 45, 'sw.js: CACHE version went backwards');
+test('the sw cache version is the content hash of the precached files', () => {
+  /* A stale CACHE name means activate() never evicts the old cache, so
+     returning visitors keep the previous ASSETS forever. D-18: CACHE is a hash
+     of every precached file, so editing one without regenerating fails here
+     instead of relying on a hand bump. */
+  const { checkCacheLine } = require('../tools/sw-version.js');
+  const r = checkCacheLine();
+  assert.ok(r.ok, 'sw.js CACHE is stale: run npm run sw:version and commit the result.');
+  const m = read('sw.js').match(/const CACHE\s*=\s*'([^']+)'/);
+  assert.ok(m && /^garage-[0-9a-f]{12}$/.test(m[1]), 'sw.js: CACHE must be garage-<12 hex>');
 });
 
 test('service-worker updates bypass HTTP cache and refresh an already-controlled app', () => {

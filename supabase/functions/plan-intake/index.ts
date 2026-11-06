@@ -1,64 +1,39 @@
-// Supabase Edge Function: draft the maker's schedule and fetch recalls for admin review.
+// Supabase Edge Function: draft the maker's schedule for admin review.
+// Recalls are NOT handled here: the autopilot function owns them (proposals, approval gate).
 // Secrets: ANTHROPIC_API_KEY, INTAKE_CRON_SECRET (required); INTAKE_MODEL (optional).
-// Never writes dealer_plan_items: only plan_drafts and pending recalls.
+// Never writes dealer_plan_items: only plan_drafts.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { SYSTEM_PROMPT, diffDraft, htmlToText, isPrivateIp, isSafeUrl, parseRecalls, parseSchedule, sha256Hex } from './logic.mjs';
+import { allowedOrigins, corsDecision } from '../_shared/cors.mjs';
+import { DEFAULT_POLICY, safeFetch } from '../_shared/safe-fetch.mjs';
+import { resolveHostAddresses } from '../_shared/dns.ts';
+import { logEdgeError } from '../_shared/app-errors.mjs';
+import { SYSTEM_PROMPT, applyCarWrites, htmlToText, parseSchedule, planCarWrites, safeEqual, sha256Hex } from './logic.mjs';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret' };
-const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
-const MAX_PDF = 8_000_000;
-
-// A public-looking hostname must not resolve to a private address (DNS rebinding). Not airtight
-// (the fetch resolves again), but sources are admin-registered, so this closes the easy hole.
-async function resolvesPublic(url: string): Promise<boolean> {
-  try {
-    const host = new URL(url).hostname;
-    const ips = [...await Deno.resolveDns(host, 'A').catch(() => []), ...await Deno.resolveDns(host, 'AAAA').catch(() => [])];
-    return ips.length > 0 && !ips.some(isPrivateIp);
-  } catch { return false; }
-}
-
-async function fetchSource(url: string): Promise<{ kind: 'text' | 'pdf'; body: string } | null> {
-  if (!isSafeUrl(url) || !(await resolvesPublic(url))) return null;
-  const r = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(20000) });
-  if (r.status >= 300 && r.status < 400) {                 // follow one redirect, re-checked
-    const loc = r.headers.get('location');
-    if (!loc) return null;
-    const next = new URL(loc, url).toString();
-    if (!isSafeUrl(next) || !(await resolvesPublic(next))) return null;
-    return fetchSource1(next);
-  }
-  return readBody(r);
-}
-async function fetchSource1(url: string) {
-  const r = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20000) });
-  return readBody(r);
-}
-async function readBody(r: Response) {
-  if (!r.ok) return null;
-  const type = r.headers.get('content-type') ?? '';
-  if (Number(r.headers.get('content-length') ?? 0) > MAX_PDF) return null;   // refuse before reading a huge body
-  const buf = new Uint8Array(await r.arrayBuffer());
-  if (buf.length > MAX_PDF) return null;
-  if (/pdf/i.test(type)) {
-    let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-    return { kind: 'pdf' as const, body: btoa(bin) };
-  }
-  return { kind: 'text' as const, body: htmlToText(new TextDecoder().decode(buf)) };
-}
+// External fetches go through safeFetch (scheme/host/DNS re-checked per hop, caps, type allowlist, robots).
+// DNS rebinding between check and connect is a residual risk; sources are admin-registered.
 
 Deno.serve(async (req) => {
+  // Hoisted so the outer catch can log (admin may still be null) and answer with CORS headers (json() is scoped to the try).
+  let admin: any = null;
+  let corsHeaders: Record<string, string> = {};
   try {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+    // Origin gate first: foreign/null Origin never reaches OPTIONS, auth or the paid model (D-13/D-14/D-16).
+    const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
+    if (!cors.ok) return new Response('forbidden', { status: 403 });
+    // corsDecision types its header values as possibly undefined; drop them, the Response API wants strings
+    const ch = Object.fromEntries(Object.entries(cors.headers).filter(([, v]) => v !== undefined)) as Record<string, string>;
+    corsHeaders = ch;
+    const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...ch, 'Content-Type': 'application/json' } });
+    if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: ch });
     if (req.method !== 'POST') return json(405, { error: 'method' });
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY'), url = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY'), serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const cron = Deno.env.get('INTAKE_CRON_SECRET');
     if (!apiKey || !url || !anonKey || !serviceKey || !cron) return json(503, { error: 'not configured' });
-    const admin = createClient(url, serviceKey);
+    admin = createClient(url, serviceKey);
 
     const secret = req.headers.get('x-cron-secret');
-    if (!(secret && secret === cron)) {                    // otherwise must be an admin's JWT
+    if (!(secret && await safeEqual(secret, cron))) {                    // otherwise must be an admin's JWT
       const userClient = createClient(url, anonKey, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } });
       const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
       const { data: u } = await userClient.auth.getUser(jwt);
@@ -73,13 +48,15 @@ Deno.serve(async (req) => {
     const { data: cars, error: carErr } = await q;
     if (carErr || !cars) return json(503, { error: 'unavailable' });
 
-    let drafts = 0, recalls = 0, skipped = 0;
+    let drafts = 0, skipped = 0;
     for (const car of cars) {
       // ---- schedule drafts: only when a source's content hash changed ----
       const { data: srcs } = await admin.from('schedule_sources').select('*').eq('car_model_id', car.id);
+      let live = await loadLive(admin, car.id);               // once per car, reused across sources (Pitfall 19)
       for (const s of srcs ?? []) {
         try {
-          const doc = await fetchSource(s.url);
+          const res = await safeFetch(s.url, DEFAULT_POLICY, { fetch, resolve: resolveHostAddresses });
+          const doc = res.ok ? { kind: res.kind, body: res.kind === 'text' ? htmlToText(res.body) : res.body } : null;
           if (!doc) { skipped++; continue; }
           const hash = await sha256Hex(doc.body);
           await admin.from('schedule_sources').update({ last_checked_at: new Date().toISOString() }).eq('id', s.id);
@@ -98,50 +75,23 @@ Deno.serve(async (req) => {
             await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // same content is not retried; clear content_hash to force
             skipped++; continue;
           }
-          const { data: live } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,note,parts').eq('car_model_id', car.id);
-          for (const it of items) {
-            const cur = (live ?? []).find((x: any) => x.service.toLowerCase() === it.service.toLowerCase());
-            const proposed = { interval_km: it.interval_km, interval_months: it.interval_months, note: it.note, parts: it.parts };
-            if (!diffDraft(cur, proposed)) continue;
-            await admin.from('plan_drafts').delete().eq('car_model_id', car.id).eq('service', cur?.service ?? it.service).eq('status', 'pending');
-            const { error } = await admin.from('plan_drafts').insert({
-              car_model_id: car.id, source_id: s.id, service: cur?.service ?? it.service, proposed,
-              reason: cur ? 'Source differs from the live schedule' : 'New service found in the source',
-            });
-            if (!error) drafts++;
-          }
-          await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // only after drafts were written
-        } catch { skipped++; }
-      }
-
-      // ---- recalls: NHTSA, model-year range of the generation ----
-      const years = yearsOf(car.generation);
-      if (years.length) {
-        const found: any[] = [];
-        for (const y of years) {
-          const r = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(car.make)}&model=${encodeURIComponent(/^\d+$/.test(car.model) ? 'mazda' + car.model : car.model)}&modelYear=${y}`, { signal: AbortSignal.timeout(15000) }).catch(() => null);
-          if (r?.ok) found.push(...parseRecalls(await r.json().catch(() => null), [y]));
-        }
-        const merged = new Map<string, any>();
-        for (const f of found) { const m = merged.get(f.campaign); if (m) m.years = [...new Set([...m.years, ...f.years])]; else merged.set(f.campaign, f); }
-        for (const f of merged.values()) {
-          const { data: ex } = await admin.from('recalls').select('campaign').eq('campaign', f.campaign).eq('car_model_id', car.id).maybeSingle();
-          if (ex) continue;                                // never reset an approved/rejected status
-          const { error } = await admin.from('recalls').insert({ ...f, car_model_id: car.id });
-          if (!error) recalls++;
-        }
+          // One delete + one insert per source, whatever the item count (FND-10); live rows come from the per-car select above.
+          const plan = planCarWrites(car.id, s.id, items, live);
+          const { ok, written } = await applyCarWrites(admin, car.id, plan, (e: Error) => logEdgeError(admin, 'plan-intake', e, 'plan-intake'));
+          drafts += written;
+          if (written) live = await loadLive(admin, car.id);   // refresh only after a write
+          if (ok) await admin.from('schedule_sources').update({ content_hash: hash }).eq('id', s.id);   // only after the write succeeded, so a failed write is retried
+        } catch (e) { skipped++; await logEdgeError(admin, 'plan-intake', e, 'plan-intake'); }
       }
     }
-    return json(200, { drafts, recalls, skipped });
-  } catch { return json(500, { error: 'server' }); }
+    return json(200, { drafts, skipped });
+  } catch (e) {
+    await logEdgeError(admin, 'plan-intake', e, 'plan-intake');
+    return new Response(JSON.stringify({ error: 'server' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 });
 
-// "BM/BN · 2014–18", "BP · 2019+" -> model years (open-ended capped at the current year).
-function yearsOf(gen: string): number[] {
-  const m = String(gen ?? '').match(/(\d{4})\s*([-–]\s*(\d{2,4})|\+)/);
-  if (!m) return [];
-  const a = Number(m[1]);
-  let b = new Date().getFullYear();
-  if (m[3]) b = m[3].length === 2 ? Number(String(a).slice(0, 2) + m[3]) : Number(m[3]);
-  return Array.from({ length: Math.max(0, Math.min(b - a + 1, 15)) }, (_, i) => a + i);
+async function loadLive(admin: any, carId: string) {
+  const { data } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,note,parts').eq('car_model_id', carId);
+  return data ?? [];
 }

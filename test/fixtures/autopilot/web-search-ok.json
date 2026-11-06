@@ -1,0 +1,11 @@
+{"id":"msg_01","type":"message","role":"assistant","model":"claude-haiku-5-5","stop_reason":"end_turn",
+ "content":[
+  {"type":"text","text":"Searching."},
+  {"type":"server_tool_use","id":"srvtoolu_01","name":"web_search","input":{"query":"official maintenance schedule"}},
+  {"type":"web_search_tool_result","tool_use_id":"srvtoolu_01","content":[
+    {"type":"web_search_result","url":"https://owners.example.sa/schedule","title":"Schedule","page_age":"March 2025","encrypted_content":"EqgfCioIAhgB"},
+    {"type":"web_search_result","url":"https://spam.example.com/x","title":"Spam","page_age":null,"encrypted_content":"Eabc"},
+    {"type":"web_search_result","url":"http://insecure.example.sa/a","title":"Http","page_age":null,"encrypted_content":"Edef"},
+    {"type":"web_search_result","url":"https://owners.example.sa/schedule","title":"Dup","page_age":null,"encrypted_content":"Eghi"}
+  ]}],
+ "usage":{"input_tokens":6039,"output_tokens":931,"server_tool_use":{"web_search_requests":1}}}

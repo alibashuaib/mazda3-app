@@ -49,6 +49,9 @@ module.exports = defineConfig({
       metadata: { appUrl: FILE_URL, backend: 'localStorage' },
       use: {
         browserName: 'chromium',
+        // The service worker would serve the vendored client from cache after the
+        // first load, bypassing the route block in the specs and bringing the gate back.
+        serviceWorkers: 'block',
         // Without this, Chromium treats each file:// document as its own
         // opaque origin and the app cannot read its own scripts' state.
         launchOptions: { args: ['--allow-file-access-from-files'] }
@@ -57,7 +60,7 @@ module.exports = defineConfig({
     {
       name: 'http',
       metadata: { appUrl: HTTP_URL, backend: 'indexeddb' },
-      use: { browserName: 'chromium' }
+      use: { browserName: 'chromium', serviceWorkers: 'block' }
     }
   ]
 });

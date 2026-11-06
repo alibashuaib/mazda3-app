@@ -152,8 +152,11 @@ test('no English month names in Arabic, in any calendar mode', () => withBoot(as
 
 /* ---------- the settings control ---------- */
 
-const calGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Calendar"]');
-const svGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Maintenance schedule"]');
+// aria-label follows the applied language (t()), so the selectors match the Arabic
+// name too — the calendar group is only ever visible in Arabic, and the schedule
+// group is labelled in whichever language the app is showing.
+const calGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Calendar"], #modalCard [role="radiogroup"][aria-label="التقويم"]');
+const svGroup = doc => doc.querySelector('#modalCard [role="radiogroup"][aria-label^="Maintenance schedule"], #modalCard [role="radiogroup"][aria-label="جدول الصيانة"]');
 const rowOf = group => group.previousSibling.parentNode;   // the wrapper holding label + seg
 
 // Language moved to the account menu (account-menu.test.js), so the calendar

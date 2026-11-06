@@ -155,7 +155,7 @@ function renderParts() {
   }
 
   const add = el('button', 'btn block ghost', html`${iconSvg('plus')}${t('Add a part')}`);
-  add.style.marginTop = '16px';
+  add.classList.add('mt-16');
   add.onclick = () => openEditPart(null);
   v.appendChild(add);
   return v;
@@ -165,27 +165,35 @@ function partCard(p) {
   const cheapest = partCheapest(p);
   const usedIn = servicesForPart(p);
   const model = CAR_MODELS.find(m => m.id === session.current().car.modelId);
-  const fitmentLabel = p.fitment && p.fitment.shareable
-    ? t('Shared consumable')
-    : `🔒 ${model ? `Mazda ${model.model} · ${model.gen}` : t('This vehicle only')}`;
+  // Shared = universal consumable, or the same part number on more than one catalogue model (quantity ignored).
+  const sharedWith = p.fitment && p.fitment.shareable ? 0 : sharedAcrossModels(p);
+  const isShared = !!(p.fitment && p.fitment.shareable) || sharedWith > 1;
+  // No OEM part number on any option means the part is not verified across cars,
+  // so it gets no share/lock icon at all — the icon only means "verified same part".
+  const verified = (p.options || []).some(o => o.partNo);
+  const icon = !verified ? '' : isShared ? '↔' : '🔒';
+  const fitmentText = isShared
+    ? (p.fitment && p.fitment.shareable ? t('Shared consumable') : t('Shared across {n} models').replace('{n}', sharedWith))
+    : (model ? `Mazda ${model.model} · ${model.gen}` : t('This vehicle only'));
+  const fitmentLabel = icon ? `${icon} ${fitmentText}` : fitmentText;
   const card = el('div', 'card part');
   card.dataset.id = p.id;
   card.innerHTML = html`
     <div class="part-head">
       <div class="item-ic">${p.icon || '🔩'}</div>
-      <h3>${t(p.name)} <span title="${fitmentLabel}" style="font-size:11px;opacity:.65">${p.fitment && p.fitment.shareable ? '↔' : '🔒'}</span></h3>
-      <div style="text-align:right">
-        <div style="font-weight:750;font-size:14px">${t('from')} ${sar(cheapest)} <span class="muted" style="font-size:11px">SAR</span></div>
-        <div class="muted" style="font-size:11px">${p.options.length} ${t('options')}</div>
-        <div class="muted" id="avg_${p.id}" style="font-size:11px;margin-top:2px"></div>
-        <div class="muted" id="life_${p.id}" style="font-size:11px;margin-top:2px"></div>
-        <div class="muted" id="shop_${p.id}" style="font-size:11px;margin-top:2px"></div>
-        <div class="muted" id="repair_${p.id}" style="font-size:11px;margin-top:2px"></div>
+      <h3>${t(p.name)}${icon ? html` <span title="${fitmentLabel}" class="ico-badge">${icon}</span>` : ''}</h3>
+      <div class="text-right">
+        <div class="price-main">${t('from')} ${sar(cheapest)} <span class="muted fs-11">SAR</span></div>
+        <div class="muted fs-11">${p.options.length} ${t(p.options.length === 1 ? 'option' : 'options')}</div>
+        <div class="muted fs-11 mt-4" id="avg_${p.id}"></div>
+        <div class="muted fs-11 mt-4" id="life_${p.id}"></div>
+        <div class="muted fs-11 mt-4" id="shop_${p.id}"></div>
+        <div class="muted fs-11 mt-4" id="repair_${p.id}"></div>
       </div>
       <button class="part-toggle"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
     </div>
     <div class="part-body">
-      <div style="margin-bottom:10px"><span class="pill ${p.fitment && p.fitment.shareable ? 'ok' : ''}">${fitmentLabel}</span></div>
+      <div class="mb-12"><span class="pill ${isShared ? 'ok' : ''}">${fitmentLabel}</span></div>
       ${p.options.map(o => html`
         <div class="opt">
           <span class="opt-tag ${o.tag === 'OEM' ? 'oem' : 'alt'}">${o.tag}</span>
@@ -194,18 +202,18 @@ function partCard(p) {
             <div class="s">${[o.partNo, t(o.note)].filter(Boolean).join(' · ') || raw('&nbsp;')}</div>
           </div>
           <div class="opt-price">
-            <div class="p">${sar(o.price)} <span class="muted" style="font-size:10px">SAR</span></div>
+            <div class="p">${sar(o.price)} <span class="muted fs-11">SAR</span></div>
             <div class="store">${t(o.store)}</div>
           </div>
         </div>`)}
-      ${usedIn.length ? html`<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-        <span class="muted" style="font-size:11px;font-weight:600">${t('🔧 Used in:')}</span>
+      ${usedIn.length ? html`<div class="used-in">
+        <span class="muted fs-11 fw-600">${t('🔧 Used in:')}</span>
         ${usedIn.map(s => html`<button class="chip-link" data-svc="${s.id}">${t(s.name)}</button>`)}
       </div>` : ''}
-      ${p.partsouq ? html`<a class="btn" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer" style="width:100%;margin-top:12px;font-size:12.5px;padding:11px;text-decoration:none;color:var(--accent-soft)">${raw(t('🔎 Live price &amp; alternatives on PartSouq ↗'))}</a>` : ''}
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-edit>${t('Edit')}</button>
-        ${pricing.available() ? html`<button class="btn ghost" style="flex:1;font-size:12.5px;padding:9px" data-report>${t('Report your price')}</button>` : ''}
+      ${p.partsouq ? html`<a class="btn partsouq-link" href="https://partsouq.com/en/search/all?q=${encodeURIComponent(p.partsouq)}" target="_blank" rel="noopener noreferrer">${raw(t('🔎 Live price &amp; alternatives on PartSouq ↗'))}</a>` : ''}
+      <div class="card-actions">
+        <button class="btn ghost half-btn" data-edit>${t('Edit')}</button>
+        ${pricing.available() ? html`<button class="btn ghost half-btn" data-report>${t('Report your price')}</button>` : ''}
       </div>
     </div>`;
   const toggle = () => card.classList.toggle('open');
@@ -228,7 +236,7 @@ function openEditPart(p) {
     card.appendChild(field('Part name', html`<input id="p_name" value="${p ? p.name : ''}" placeholder="${t('e.g. Front Brake Pads')}">`));
     const fitment = el('div', 'card');
     const fitmentModel = CAR_MODELS.find(m => m.id === session.current().car.modelId);
-    fitment.style.cssText = 'padding:11px 13px;margin-bottom:12px;font-size:12px;color:var(--text-2)';
+    fitment.classList.add('fitment-note');
     fitment.textContent = p && p.fitment && p.fitment.shareable
       ? `↔ ${t('Shared consumable across compatible Mazda models')}`
       : `🔒 ${t('Locked to')} ${fitmentModel ? `Mazda ${fitmentModel.model} · ${fitmentModel.gen}` : t('this vehicle')}`;
@@ -239,10 +247,10 @@ function openEditPart(p) {
     row.append(field('Icon (emoji)', html`<input id="p_icon" value="${p ? p.icon : '🔩'}" maxlength="2">`),
       field('Category', html`<select id="p_cat">${catList.map(c => html`<option value="${c}" ${c === curCat ? 'selected' : ''}>${t(c)}</option>`)}</select>`));
     card.appendChild(row);
-    card.appendChild(field('PartSouq part no. (optional — enables live-price link)', html`<input id="p_psq" value="${p && p.partsouq ? p.partsouq : ''}" placeholder="e.g. PE0114302A">`));
+    card.appendChild(field('PartSouq part no. (optional — enables live-price link)', html`<input id="p_psq" value="${p && p.partsouq ? p.partsouq : ''}" placeholder="e.g. PE0114302B">`));
 
     const optsWrap = el('div');
-    const lbl = el('div'); lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-2);margin:6px 0';
+    const lbl = el('div', 'opt-label');
     lbl.textContent = t('Options (OEM & alternatives)');
     card.appendChild(lbl);
     card.appendChild(optsWrap);
@@ -252,21 +260,21 @@ function openEditPart(p) {
       optsWrap.innerHTML = '';
       opts.forEach((o, i) => {
         const box = el('div', 'card');
-        box.style.cssText = 'padding:12px;margin-bottom:10px';
+        box.classList.add('opt-box');
         box.innerHTML = html`
-          <div class="field-row" style="margin-bottom:8px">
-            <div class="field" style="margin:0"><label>${t('Type')}</label><select data-k="tag"><option ${o.tag === 'OEM' ? 'selected' : ''}>OEM</option><option ${o.tag !== 'OEM' ? 'selected' : ''}>ALT</option></select></div>
-            <div class="field" style="margin:0"><label>${t('Price (SAR)')}</label><input type="number" data-k="price" value="${o.price}"></div>
+          <div class="field-row mb-8">
+            <div class="field field-flush"><label>${t('Type')}</label><select data-k="tag"><option ${o.tag === 'OEM' ? 'selected' : ''}>OEM</option><option ${o.tag !== 'OEM' ? 'selected' : ''}>ALT</option></select></div>
+            <div class="field field-flush"><label>${t('Price (SAR)')}</label><input type="number" data-k="price" value="${o.price}"></div>
           </div>
-          <div class="field" style="margin:0 0 8px"><label>${t('Brand / product')}</label><input data-k="brand" value="${o.brand || ''}"></div>
-          <div class="field-row" style="margin-bottom:8px">
-            <div class="field" style="margin:0"><label>${t('Part no.')}</label><input data-k="partNo" value="${o.partNo || ''}"></div>
-            <div class="field" style="margin:0"><label>${t('Store')}</label><input data-k="store" value="${o.store || ''}"></div>
+          <div class="field field-flush-b"><label>${t('Brand / product')}</label><input data-k="brand" value="${o.brand || ''}"></div>
+          <div class="field-row mb-8">
+            <div class="field field-flush"><label>${t('Part no.')}</label><input data-k="partNo" value="${o.partNo || ''}"></div>
+            <div class="field field-flush"><label>${t('Store')}</label><input data-k="store" value="${o.store || ''}"></div>
           </div>
-          <div class="field" style="margin:0"><label>${t('Note')}</label><input data-k="note" value="${o.note || ''}"></div>`;
+          <div class="field field-flush"><label>${t('Note')}</label><input data-k="note" value="${o.note || ''}"></div>`;
         box.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { o[inp.dataset.k] = inp.type === 'number' ? +inp.value : inp.value; });
         if (opts.length > 1) {
-          const rm = el('button', 'btn ghost', html`${t('Remove option')}`); rm.style.cssText = 'margin-top:8px;font-size:12px;padding:7px;color:var(--danger)';
+          const rm = el('button', 'btn ghost', html`${t('Remove option')}`); rm.classList.add('opt-remove');
           rm.onclick = () => { opts.splice(i, 1); drawOpts(); };
           box.appendChild(rm);
         }
@@ -275,7 +283,7 @@ function openEditPart(p) {
     }
     drawOpts();
     const addOpt = el('button', 'btn block ghost', html`${iconSvg('plus')}${t('Add option')}`);
-    addOpt.style.marginBottom = '14px';
+    addOpt.classList.add('mb-16');
     addOpt.onclick = () => { opts.push({ tag: 'ALT', brand: '', partNo: '', price: 0, store: '', note: '' }); drawOpts(); };
     card.appendChild(addOpt);
 

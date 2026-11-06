@@ -25,7 +25,8 @@ async function line(name, level, { available = true, life = [], repair = [] } = 
 test('guidance line: overdue plain item says Replace and that only the Mazda schedule was used', async () => {
   const txt = await line('Cabin Filter', 'danger', { available: false });
   assert.ok(txt.startsWith('Replace'), txt);
-  assert.ok(txt.includes('Mazda schedule only'), txt);
+  // The source note is shown once above the list (scheduleSourceNote), not on each row.
+  assert.ok(!txt.includes('Mazda schedule only'), txt);
 });
 test('guidance line: community inspection rate makes a not-due item Inspect', async () => {
   const txt = await line('Cabin Filter', 'ok', { repair: stat(0, 0, { n_inspected: 6, attention_share: 0.4 }) });
@@ -73,4 +74,15 @@ test('guidance line: community rows for a longer item key still match the servic
 test('guidance line: rows for a different item are ignored', async () => {
   const txt = await line('Engine Oil', 'ok', { repair: stat(0, 0, { n_inspected: 6, attention_share: 0.4 }, 'oil filter') });
   assert.ok(txt.startsWith('OK'), txt);
+});
+
+test('the Mazda-only source note shows once above the list, and only when community data is off', async () => {
+  const app = await bootApp();
+  try {
+    const { api } = app;
+    api.insights.available = () => false;
+    assert.strictEqual(api.scheduleSourceNote().textContent, 'Mazda schedule only');
+    api.insights.available = () => true;
+    assert.strictEqual(api.scheduleSourceNote(), null);
+  } finally { app.cleanup(); }
 });

@@ -12,7 +12,7 @@
 
 const AR = {
   // nav
-  'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Parts': 'القطع', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
+  'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
   // account menu — language switch item names the *other* language; 'العربية'
   // is shown raw (own script, no translation needed), but 'English' needs
   // this entry so it reads in Arabic script once Arabic is active.
@@ -25,14 +25,14 @@ const AR = {
   'Your service schedule and full work history — tracked by distance and time.': 'جدول الصيانة وسجل الأعمال الكامل — حسب المسافة والوقت.',
   'Car Parts': 'قطع السيارة', 'OEM parts with cheaper alternatives, prices and where to buy. Tap a part to compare.': 'قطع أصلية مع بدائل أرخص، الأسعار وأماكن الشراء. اضغط على قطعة للمقارنة.',
   'Only compatible parts are shown. Shared consumables are marked ↔; vehicle-locked parts are marked 🔒.': 'تظهر القطع المتوافقة فقط. المستهلكات المشتركة بعلامة ↔، والقطع الخاصة بالسيارة بعلامة 🔒.',
-  'Shared consumable': 'مستهلك مشترك', 'This vehicle only': 'لهذه السيارة فقط',
+  'Shared consumable': 'مستهلك مشترك', 'Shared across {n} models': 'مشترك بين {n} طرازات','This vehicle only': 'لهذه السيارة فقط',
   'Shared consumable across compatible Mazda models': 'مستهلك مشترك بين طرازات مازدا المتوافقة',
   'Locked to': 'مخصص لـ', 'this vehicle': 'هذه السيارة',
   'Log fill-ups to track economy (L/100 km) and running cost.': 'سجّل التعبئة لتتبع الاستهلاك (ل/100كم) وتكلفة التشغيل.',
   'Budget & Spending': 'الميزانية والمصروفات', 'Track what your Mazda costs to run and keep it in top shape.': 'تابع تكلفة تشغيل سيارتك وحافظ عليها بأفضل حال.',
   'Generate a clean, printable A4 report — then Print or Save as PDF.': 'أنشئ تقرير A4 واضح للطباعة — ثم اطبعه أو احفظه PDF.',
   // section titles + links
-  'Next up': 'التالي', 'Recommendations': 'التوصيات', 'Documents & renewals': 'الوثائق والتجديدات', 'Monthly spending': 'المصروف الشهري',
+  'Recommendations': 'التوصيات', 'Documents & renewals': 'الوثائق والتجديدات', 'Monthly spending': 'المصروف الشهري',
   'Recent spending': 'أحدث المصروفات', 'Fill-up log': 'سجل التعبئة', 'Economy trend — L/100km (lower is better)': 'اتجاه الاستهلاك — ل/100كم (الأقل أفضل)',
   'Schedule': 'الجدول', 'History': 'السجل', 'See all': 'عرض الكل', 'Add': 'إضافة', 'More': 'المزيد', 'Work history': 'سجل الأعمال',
   // schedule basis (severe vs dealer)
@@ -71,7 +71,7 @@ const AR = {
   /* Year-free: callers append the live year, so this phrase never goes stale. */
   'Spent in': 'المصروف في',
   // filters / segments
-  'All': 'الكل', 'OK': 'سليمة',
+  'All': 'الكل',
   // buttons
   'Log a service': 'تسجيل صيانة', 'Add spending': 'إضافة مصروف', 'Add fill-up': 'إضافة تعبئة', 'Mark done now': 'تحديد كمنجز',
   'A single service, or a whole milestone at once.': 'صيانة واحدة، أو صيانة دورية كاملة دفعة واحدة.',
@@ -91,7 +91,7 @@ const AR = {
   'Log ›': 'تسجيل ›',
   'Edit': 'تعديل', 'Save': 'حفظ', 'Add a part': 'إضافة قطعة', 'Add a custom service': 'إضافة خدمة مخصصة', 'Print / Save PDF': 'طباعة / حفظ PDF',
   'Update mileage': 'تحديث العداد', 'Set annual budget': 'تعيين الميزانية السنوية', 'Add a vehicle': 'إضافة مركبة', 'Add option': 'إضافة خيار',
-  'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save changes': 'حفظ التغييرات', 'Save profile': 'حفظ الملف',
+  'Log a past service': 'تسجيل خدمة سابقة', 'Add to history': 'إضافة للسجل', 'Save profile': 'حفظ الملف',
   'Save part': 'حفظ القطعة', 'Remove': 'إزالة', 'Remove this vehicle': 'إزالة هذه المركبة', 'Delete': 'حذف',
   // crowdsourced price averages
   'Community price': 'سعر المجتمع', 'reports': 'تقييم', 'No reports yet': 'لا توجد تقييمات بعد', 'Report your price': 'شارك سعرك', 'Search or add an item…': 'ابحث أو أضف عنصراً…', 'Add "%s" as a new item': 'أضف "%s" كعنصر جديد', 'Your price (SAR)': 'سعرك (ريال)', 'Submit price': 'إرسال السعر', 'Price submitted ✓': 'تم إرسال السعر ✓', 'Sign in to see or share community prices.': 'سجّل الدخول لعرض أو مشاركة أسعار المجتمع.', 'Price required': 'السعر مطلوب', 'Search shared item': 'ابحث عن عنصر مشترك', 'e.g. Car paint job': 'مثال: دهان السيارة',
@@ -105,7 +105,7 @@ const AR = {
   'Drive (Serpentine) Belt': 'سير الإدارة', 'Battery Check': 'فحص البطارية', 'Brake Inspection & Caliper Lube': 'فحص الفرامل وتزييت الكاليبر',
   'Suspension & Steering Inspection': 'فحص التعليق والتوجيه',
   // care tips
-  'Oil every ~7,500 km': 'الزيت كل ~7,500 كم', 'Tire pressure 36 PSI': 'ضغط الإطارات 36 رطل', 'Battery every 2–3 years': 'البطارية كل 2–3 سنوات', 'Wash the underbody': 'اغسل أسفل السيارة',
+  'Oil every ~7,500 km': 'غيّر الزيت كل 7,500 كم تقريباً', 'Tire pressure 36 PSI': 'ضغط الإطارات 36 رطل', 'Battery every 2–3 years': 'البطارية كل 2–3 سنوات', 'Wash the underbody': 'اغسل أسفل السيارة',
   // categories
   'Engine': 'المحرك', 'Interior': 'الداخلية', 'Brakes': 'الفرامل', 'Exterior': 'الخارجية', 'Electrical': 'الكهرباء',
   'Drivetrain': 'نقل الحركة', 'Suspension': 'التعليق', 'A/C': 'التكييف', 'Tires': 'الإطارات', 'Paint': 'الدهان', 'General': 'عام',
@@ -114,7 +114,7 @@ const AR = {
   'Driving License': 'رخصة القيادة', 'Warranty': 'الضمان', 'Other': 'أخرى',
   // modal titles / subs
   'Your garage': 'مرآبك', 'Switch between your vehicles or add another.': 'بدّل بين مركباتك أو أضف أخرى.',
-  'Car profile': 'ملف السيارة', 'Add fill-up ': 'إضافة تعبئة', 'Edit fill-up': 'تعديل التعبئة', 'Add document': 'إضافة وثيقة', 'Edit document': 'تعديل الوثيقة',
+  'Add fill-up ': 'إضافة تعبئة', 'Edit fill-up': 'تعديل التعبئة', 'Add document': 'إضافة وثيقة', 'Edit document': 'تعديل الوثيقة',
   'Add spending ': 'إضافة مصروف', 'Edit expense': 'تعديل المصروف', 'Log a service ': 'تسجيل صيانة', 'Annual budget': 'الميزانية السنوية',
   // common field labels
   'Date': 'التاريخ', 'Odometer (km)': 'العداد (كم)', 'Litres': 'اللترات', 'Cost (SAR)': 'التكلفة (ريال)', 'Category': 'الفئة',
@@ -123,19 +123,19 @@ const AR = {
   'Receipt / invoice': 'الإيصال / الفاتورة', 'Nickname (optional)': 'الاسم المختصر (اختياري)', 'Expiry date': 'تاريخ الانتهاء',
   'Budget (SAR / year)': 'الميزانية (ريال / سنة)', 'Full tank': 'خزان ممتلئ', 'Partial fill': 'تعبئة جزئية', 'Add receipt photo': 'إضافة صورة إيصال',
   // parts-page chrome
-  'from': 'من', 'options': 'خيارات', '🔧 Used in:': '🔧 مستخدمة في:',
+  'from': 'من', 'options': 'خيارات', 'option': 'خيار', '🔧 Used in:': '🔧 مستخدمة في:',
   '🔎 Live price &amp; alternatives on PartSouq ↗': '🔎 السعر والبدائل المباشرة على PartSouq ↗',
   // service-detail rows
   'Interval': 'الفترة', 'Last done': 'آخر مرة', 'Next due': 'الاستحقاق التالي',
   // budget ring
   'over budget': 'فوق الميزانية', 'SAR remaining of': 'ريال متبقية من',
   // report internals
-  'Total spent (SAR)': 'إجمالي المصروف (ريال)', 'Total': 'الإجمالي', 'Service': 'الخدمة', 'Odometer': 'العداد',
+  'Total spent (SAR)': 'إجمالي المصروف (ريال)', 'Total': 'الإجمالي', 'Service': 'الخدمة',
   'Cost': 'التكلفة', 'Notes': 'ملاحظات', 'Everything is up to date 🎉': 'كل شيء محدّث 🎉',
   'Generated': 'أُنشئ في', 'Odometer ': 'العداد ', 'Current odometer (km)': 'العداد الحالي (كم)', 'No service history recorded yet.': 'لا يوجد سجل صيانة بعد.',
   'Service History Report': 'تقرير سجل الصيانة', 'No purchases or spending recorded yet.': 'لا توجد مشتريات أو مصروفات بعد.', 'Entries': 'إدخالات', 'Categories': 'الفئات',
   'By category': 'حسب الفئة', 'Amount': 'المبلغ', 'Share': 'النسبة', 'All purchases': 'كل المشتريات', 'Item': 'البند', 'Purchases & Spending Report': 'تقرير المشتريات والمصروفات',
-  'Health score': 'درجة الحالة', 'Lifetime service cost': 'تكلفة الصيانة الإجمالية', 'Upcoming &amp; overdue services': 'الخدمات القادمة والمتأخرة',
+  'Lifetime service cost': 'تكلفة الصيانة الإجمالية', 'Upcoming &amp; overdue services': 'الخدمات القادمة والمتأخرة',
   'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
   'Car Care · Mazda care app': 'Car Care · تطبيق العناية بمازدا', 'Report generated': 'صدر التقرير',
   // part names
@@ -336,7 +336,7 @@ const AR = {
 
   // dashboard recommendation body text
   'In Jeddah\'s heat, shorten oil changes to ~7,500 km if you mostly do city driving. Fresh 5W-30 (API SP) keeps the SkyActiv engine clean.': 'في حرارة جدة، قلّل فترة تغيير الزيت إلى ~7,500 كم إذا كانت قيادتك غالباً داخل المدينة. الزيت الطازج 5W-30 (API SP) يحافظ على نظافة محرك SkyActiv.',
-  'Keep tires at 36 PSI and check monthly (when cold). Correct pressure saves fuel and prevents blowouts on hot asphalt.': 'حافظ على ضغط الإطارات عند 36 رطل وافحصه شهرياً (والإطار بارد). الضغط الصحيح يوفر الوقود ويمنع الانفجار على الإسفلت الساخن.',
+  'Keep tires at 36 PSI. Check monthly, when cold.': 'حافظ على 36 رطل/بوصة². افحصه شهرياً والإطار بارد.',
   'Heat-related wear shortens battery life in Jeddah — plan to replace it every 2–3 years, and load-test it yearly.': 'التآكل الناتج عن الحرارة يقصّر عمر البطارية في جدة — خطّط لاستبدالها كل 2–3 سنوات، واختبر حملها سنوياً.',
   'Wash the underbody occasionally to protect against corrosion from Jeddah\'s coastal salt air.': 'اغسل أسفل السيارة بين حين وآخر لحمايتها من الصدأ الناتج عن هواء جدة الساحلي المالح.',
 
@@ -349,6 +349,9 @@ const AR = {
   // storage errors
   'Storage is full — your change was NOT saved. Remove some receipt photos.': 'مساحة التخزين ممتلئة — لم يتم حفظ التغيير. احذف بعض صور الإيصالات.',
   'Could not save your change.': 'تعذّر حفظ التغيير.',
+  "Couldn't save. Your changes are still on screen.": 'تعذّر الحفظ. تغييراتك ما زالت على الشاشة.',
+  'Retry': 'إعادة المحاولة',
+  'Saved on this device, but sync failed. Your changes are still on screen.': 'تم الحفظ على هذا الجهاز، لكن فشلت المزامنة. تغييراتك ما زالت على الشاشة.',
 
   // odometer staleness
   'Mileage is {n} days old — due dates may be off': 'مضى {n} يوماً على تحديث العداد — قد تكون مواعيد الاستحقاق غير دقيقة',
@@ -391,7 +394,7 @@ const AR = {
   'Stopped sharing. Your shared data will be removed when you are back online.': 'تم إيقاف المشاركة. ستُحذف بياناتك المشتركة عند عودة الاتصال.',
   'Your anonymous car data now helps other owners. Turn it off in the menu.': 'بيانات سيارتك المجهولة تساعد الآن ملاك آخرين. يمكنك إيقافها من القائمة.',
   // accounts
-  'Car profile': 'ملف السيارة',
+  'Car profile': 'ملف السيارة', 'Maintenance schedule': 'جدول الصيانة', 'Calendar': 'التقويم',
   'Switch vehicles or add another': 'بدّل بين المركبات أو أضف أخرى',
   'Add your first vehicle': 'أضف مركبتك الأولى',
   'Pick your Mazda and its engine — its SkyActiv service plan is set up for you.': 'اختر سيارة المازدا ومحركها — سيتم إعداد خطة الصيانة سكاي أكتيف لك تلقائيًا.',
@@ -409,6 +412,35 @@ const AR = {
   'Typical replacement': 'الاستبدال المعتاد',
   'km since the last one': 'كم منذ آخر مرة',
   'Admin': 'الإدارة',
+  'Advanced': 'متقدم',
+  'Refresh': 'تحديث',
+  'Use low-SAPS oil': 'استخدم زيتاً منخفض الرماد',
+  'Use 0W-30 low-SAPS (ACEA C3) every ~7,500 km. Any other oil leaves ash that clogs the diesel particulate filter (DPF).': 'استخدم زيت 0W-30 منخفض الرماد (ACEA C3) كل ~7,500 كم. أي زيت آخر يترك رماداً يسد مرشح الجسيمات للديزل (DPF).',
+  'Let the DPF clean itself': 'اترك فلتر الديزل يُنظّف نفسه',
+  'Drive at steady highway speed now and then so the particulate filter can burn off soot.': 'قُد بسرعة ثابتة على الطريق السريع من حين لآخر ليحرق مرشح الجسيمات السخام.',
+  'Tire size': 'مقاس الإطار',
+  'Tire pressure': 'ضغط الإطارات',
+  'Oil and filter every ~7,500 km': 'الزيت والفلتر كل 7,500 كم تقريباً',
+  'Fresh 5W-30 (API SP) with a fuel-system cleaner. Change the filter too.': 'زيت 5W-30 (API SP) جديد مع منظف لنظام الوقود. غيّر الفلتر أيضاً.',
+  'Ah': 'أمبير/ساعة',
+  'psi': 'رطل/بوصة²',
+  'Cold pressure': 'الضغط عند البرودة',
+  'Check monthly, when cold. Confirm on the door-jamb sticker.': 'افحصه شهرياً والإطار بارد. تأكد من ملصق باب السائق.',
+  'Battery': 'البطارية',
+  'Battery about': 'بطارية تقريباً',
+  'Confirm the size on the door-jamb sticker before buying. Keep tires at 36 PSI and check monthly (when cold).': 'تأكد من المقاس على ملصق باب السائق قبل الشراء. حافظ على ضغط الإطارات عند 36 رطل وافحصه شهرياً (والإطار بارد).',
+  'In Jeddah\'s heat, shorten oil changes to ~7,500 km if you mostly do city driving. Fresh 5W-30 (API SP) with a fuel-system cleaner each change keeps the direct-injection SkyActiv-G clean.': 'في حرارة جدة، قلّل تغيير الزيت إلى ~7,500 كم إذا كنت تقود في المدينة غالباً. زيت 5W-30 (API SP) جديد مع منظف لنظام الوقود في كل تغيير يحافظ على نظافة SkyActiv-G ذي الحقن المباشر.',
+  'Sign in to use the app.': 'سجّل الدخول لاستخدام التطبيق.',
+  'Account': 'الحساب',
+  'Settings': 'الإعدادات',
+  'Change password': 'تغيير كلمة المرور',
+  'New password': 'كلمة المرور الجديدة',
+  'Confirm new password': 'تأكيد كلمة المرور الجديدة',
+  'Password must be at least 8 characters.': 'يجب أن تكون كلمة المرور 8 أحرف على الأقل.', 'At least 8 characters.': '8 أحرف على الأقل.',
+  'Passwords do not match.': 'كلمتا المرور غير متطابقتين.',
+  'Password updated': 'تم تحديث كلمة المرور',
+  'Could not update password.': 'تعذر تحديث كلمة المرور.',
+  'Sign out': 'تسجيل الخروج',
   'Review and correct the shared car catalogue.': 'راجع دليل السيارات المشترك وصحّحه.',
   'Loading…': 'جارٍ التحميل…',
   'Admin needs an internet connection.': 'تحتاج الإدارة إلى اتصال بالإنترنت.',
@@ -428,7 +460,6 @@ const AR = {
   'Due, and past the typical life other owners see': 'حان موعدها وتجاوزت العمر المعتاد لدى الملاك الآخرين',
   'Due by the Mazda schedule': 'حان موعدها حسب جدول مازدا',
   'of owners who inspected this found a problem': 'من الملاك الذين فحصوها وجدوا مشكلة',
-  'of owners repaired this instead of replacing it': 'من الملاك أصلحوها بدل استبدالها',
   'Mazda schedule only': 'حسب جدول مازدا فقط',
   'recall': 'استدعاء',
   'recalls': 'استدعاءات',
@@ -445,6 +476,8 @@ const AR = {
   'Source differs from the live schedule': 'المصدر يختلف عن الجدول المعتمد',
   'Parts': 'القطع',
   'All cars': 'كل السيارات',
+  'Show all cars': 'عرض كل السيارات',
+  'Hide all cars': 'إخفاء كل السيارات',
   'Warranty (years)': 'الضمان (سنوات)',
   'Warranty (km)': 'الضمان (كم)',
   'Parts (name | part number | qty, one per line)': 'القطع (الاسم | رقم القطعة | الكمية، سطر لكل قطعة)',
@@ -452,8 +485,13 @@ const AR = {
   'Save changes': 'حفظ التغييرات',
   'Catalogue saved': 'تم حفظ الدليل',
   'Could not save. Check your connection.': 'تعذّر الحفظ. تحقّق من الاتصال.',
+  'Could not ban the domain. Check your connection.': 'تعذّر حظر النطاق. تحقّق من الاتصال.',
+  'Could not approve the domain. Check your connection.': 'تعذّرت الموافقة على النطاق. تحقّق من الاتصال.',
+  'Could not turn off autopilot. Check your connection.': 'تعذّر إيقاف الطيار الآلي. تحقّق من الاتصال.',
+  'Could not turn on autopilot. Check your connection.': 'تعذّر تشغيل الطيار الآلي. تحقّق من الاتصال.',
+  'Monthly': 'شهري', 'Running': 'قيد التشغيل', 'Failed': 'فشل', 'Cost cap reached': 'تم بلوغ حد التكلفة', 'Stopped': 'متوقّف',
   'Recent changes': 'آخر التغييرات',
-  'Shop (optional)': 'المتجر (اختياري)', 'City': 'المدينة', 'Area': 'الحي',
+  'Shop (optional)': 'المتجر (اختياري)', 'City': 'المدينة', 'Area': 'الحي', 'Country': 'الدولة', 'Market': 'السوق', 'Save market': 'حفظ السوق', 'Market saved': 'تم حفظ السوق', 'Mobile number': 'رقم الجوال', 'Contact': 'جهة الاتصال','Save phone': 'حفظ الرقم', 'Phone saved': 'تم حفظ الرقم', 'Enter a valid mobile number.': 'أدخل رقم جوال صحيحاً.', 'e.g. Jeddah': 'مثال: جدة', 'Saudi Arabia': 'السعودية', 'United Arab Emirates': 'الإمارات', 'Kuwait': 'الكويت', 'Qatar': 'قطر', 'Bahrain': 'البحرين', 'Oman': 'عُمان',
   'Would you buy from this shop again?': 'هل ستشتري من هذا المتجر مرة أخرى؟',
   'Good price': 'سعر جيد', 'Quality work': 'جودة العمل', 'Honest': 'أمين', 'Fast': 'سريع',
   'Send': 'إرسال', 'Did you mean:': 'هل تقصد:', 'No, it is a new shop': 'لا، هذا متجر جديد', 'Not now': 'ليس الآن', 'Thanks for the feedback': 'شكرًا على رأيك',
@@ -461,6 +499,7 @@ const AR = {
   'Read bill': 'قراءة الفاتورة', 'Reading…': 'جارٍ القراءة…', 'Read this bill?': 'قراءة هذه الفاتورة؟',
   'The photo is sent to our server and an AI service to read it. It is not stored.': 'تُرسل الصورة إلى خادمنا وخدمة ذكاء اصطناعي لقراءتها. لا يتم تخزينها.',
   'Continue': 'متابعة', 'Cancel': 'إلغاء',
+  'Remove this vehicle?': 'إزالة هذه المركبة؟', 'Everything logged against it goes too: history, spending, fuel and receipt photos. This cannot be undone.': 'تُحذف معها كل السجلات: السجل والمصاريف والوقود وصور الإيصالات. لا يمكن التراجع عن ذلك.', 'Save password': 'حفظ كلمة المرور',
   'Daily bill limit reached. Enter it by hand.': 'تم بلوغ حد الفواتير اليومي. أدخلها يدويًا.',
   'Could not read that bill. Enter it by hand.': 'تعذّرت قراءة الفاتورة. أدخلها يدويًا.',
   'You are offline.': 'أنت غير متصل.', 'Could not read the bill.': 'تعذّرت قراءة الفاتورة.',
@@ -470,7 +509,49 @@ const AR = {
   'Result: not stated': 'النتيجة: غير محددة', 'Looked fine': 'سليمة', 'Needs attention': 'تحتاج إلى انتباه', 'General guidance': 'إرشاد عام',
   'of owners repaired this instead of replacing it': 'من المالكين أصلحوها بدل تبديلها', 'median SAR': 'الوسيط ريال', 'repaired vs': 'للإصلاح مقابل', 'replaced': 'للتبديل',
   'a repaired one lasts about': 'القطعة المُصلَحة تدوم نحو', 'before replacement': 'قبل تبديلها',
-  'Inspections found a problem': 'الفحص وجد مشكلة في', 'of the time': 'من الحالات'
+  'Inspections found a problem': 'الفحص وجد مشكلة في', 'of the time': 'من الحالات',
+  'Errors': 'الأخطاء', 'Could not load errors.': 'تعذّر تحميل الأخطاء.', 'No errors logged': 'لا توجد أخطاء مسجّلة',
+  'Count': 'العدد', 'First seen': 'أول ظهور', 'Last seen': 'آخر ظهور', 'Source': 'المصدر',
+  'Resolve': 'تعيين كمحلول', 'Resolved': 'تم الحل', 'Show stacks': 'عرض التفاصيل', 'Hide stacks': 'إخفاء التفاصيل',
+  'Proposals': 'المقترحات', 'No proposals waiting': 'لا توجد مقترحات بانتظارك',
+  'New findings from the autopilot will appear here for your approval. Nothing reaches users until you approve it.': 'ستظهر هنا النتائج الجديدة من الوضع التلقائي لاعتمادك. لا يصل شيء إلى المستخدمين قبل اعتمادك.',
+  'Could not load proposals. Check your connection and try again.': 'تعذّر تحميل المقترحات. تحقّق من الاتصال وحاول مجددًا.',
+  'Try again': 'حاول مجددًا', 'Approved': 'تم الاعتماد', 'Run {n}': 'التشغيل {n}',
+  'High': 'عالية', 'Medium': 'متوسطة', 'Low': 'منخفضة', 'Why this confidence': 'سبب مستوى الثقة',
+  'Best source: {tier}': 'أفضل مصدر: {tier}', 'Agreeing sources: {n}': 'المصادر المتفقة: {n}', 'Change size: {n}%': 'حجم التغيير: {n}%',
+  'Official': 'رسمي', 'Secondary': 'ثانوي', 'Invalid source link': 'رابط المصدر غير صالح', 'Sources': 'المصادر',
+  'Showing the newest 500. Approve or reject some to see more.': 'عرض أحدث 500. اعتمد بعضها أو ارفضه لعرض المزيد.',
+  'Approve {target}': 'اعتماد {target}', 'Schedule item': 'بند جدول الصيانة',
+  'Car': 'السيارة', 'Kind': 'النوع', 'Confidence': 'الثقة', 'Run': 'التشغيل', 'Clear filters': 'مسح المرشحات',
+  'No proposals match these filters': 'لا توجد مقترحات تطابق هذه المرشحات',
+  'Edit {target}': 'تعديل {target}', 'Approve edited value': 'اعتماد القيمة المعدّلة', 'Reject {target}': 'رفض {target}', 'Reason (optional)': 'السبب (اختياري)',
+  'Why is this wrong or not useful?': 'لماذا هذا خاطئ أو غير مفيد؟', 'Reject proposal': 'رفض المقترح', 'Rejected': 'تم الرفض',
+  'Live value changed': 'تغيّرت القيمة الحالية',
+  'Approve {n} high-confidence': 'اعتماد {n} عالية الثقة', 'Approve high-confidence proposals': 'اعتماد المقترحات عالية الثقة',
+  'Approve {n} high-confidence proposals? Each one changes the live catalogue for all users.': 'اعتماد {n} مقترحات عالية الثقة؟ كل واحد منها يغيّر الكتالوج الحالي لجميع المستخدمين.',
+  'Approve {n}': 'اعتماد {n}', '{x} approved, {y} failed': 'تم اعتماد {x}، وفشل {y}', 'No longer high confidence': 'لم يعد عالي الثقة',
+  'Could not apply': 'تعذّر التطبيق', 'Approving…': 'جارٍ الاعتماد…',
+  'Recent approvals': 'آخر الاعتمادات', 'No approvals yet': 'لا توجد اعتمادات بعد', 'Revert': 'تراجع', 'Revert {target}': 'تراجع عن {target}',
+  'Reverted:': 'تم التراجع:', 'Reverted': 'تم التراجع', 'Newer change exists. Revert that one first.': 'يوجد تغيير أحدث. تراجع عنه أولًا.',
+  'The live value is now {live}. Reject this proposal or edit it against the live value.': 'القيمة الحالية الآن {live}. ارفض هذا المقترح أو عدّله بناءً على القيمة الحالية.',
+  // Phase 3 — autopilot card
+  'The last monthly autopilot run failed.': 'فشل آخر تشغيل شهري للطيار الآلي.',
+  'The monthly autopilot has not finished a run in over 35 days.': 'لم يُكمل الطيار الآلي الشهري أي تشغيل منذ أكثر من 35 يومًا.',
+  'The monthly autopilot has not completed a run yet.': 'لم يُكمل الطيار الآلي الشهري أي تشغيل بعد.',
+  'Monthly autopilot': 'الطيار الآلي الشهري', 'Autopilot is on': 'الطيار الآلي يعمل', 'Autopilot is paused': 'الطيار الآلي متوقف',
+  'Turn off': 'إيقاف', 'Turn on': 'تشغيل',
+  'Turning it off stops the run at the next paid call.': 'الإيقاف يوقف التشغيل عند أول استدعاء مدفوع تالٍ.',
+  'Spend this month': 'الإنفاق هذا الشهر',
+  'Last run report': 'تقرير آخر تشغيل', 'No run report yet': 'لا يوجد تقرير تشغيل بعد', 'new': 'جديد', 'unchanged': 'دون تغيير',
+  'Searches': 'عمليات البحث', 'LLM calls': 'استدعاءات النموذج', 'Error': 'خطأ', 'Skipped sources': 'المصادر المتخطاة',
+  'Ban domain': 'حظر النطاق', 'Ban': 'حظر', 'Banned': 'محظور', 'Pending': 'قيد الانتظار', 'Ban {host}': 'حظر {host}',
+  'Ban {host}? This is permanent and automatically rejects its pending proposals.': 'حظر {host}؟ الحظر دائم ويرفض تلقائيًا مقترحاته المعلّقة.',
+  'Source domains': 'نطاقات المصادر', 'No domains yet': 'لا توجد نطاقات بعد', 'Could not load.': 'تعذّر التحميل.',
+  'Unverified items': 'عناصر غير مؤكدة', 'Everything was re-verified recently': 'تم التحقق من كل شيء مؤخرًا', 'missed runs': 'تشغيلات فائتة',
+  'Check now': 'افحص الآن', 'Preview': 'معاينة', 'Could not preview. Try again.': 'تعذّرت المعاينة. حاول مرة أخرى.',
+  'Estimated cost': 'التكلفة المقدّرة', 'Preview costs nothing. A run starts only when you confirm.': 'المعاينة مجانية. لا يبدأ الفحص إلا بعد تأكيدك.','Skipped as unchanged': 'متخطى لعدم التغيير', 'Confirm run': 'تأكيد التشغيل',
+  'Run started': 'بدأ التشغيل', 'Monthly cost cap reached.': 'بلغت التكلفة الحد الشهري.', 'Could not start the run.': 'تعذّر بدء التشغيل.',
+  'Campaign': 'الحملة', 'Component': 'المكوّن', 'Summary': 'الملخص', 'Severe km': 'الاستخدام الشاق (كم)', 'Severe months': 'الاستخدام الشاق (أشهر)'
 };
 
   return { AR };

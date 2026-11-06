@@ -1,16 +1,21 @@
--- Manual RLS check for Phase 5a. Run in the Supabase SQL editor after
--- schema.sql and seed-catalogue.sql. Replace NON_ADMIN_UUID and ADMIN_UUID
--- with two real accounts (the admin one already promoted). Every block
--- raises 'FAIL: ...' on a broken rule; finishing silently means pass.
+-- RLS check for the catalogue (Phase 5a). Runs in the `rls` CI job after
+-- schema.sql and seed-catalogue.sql. Fixtures: a1 = plain user, a2 = admin.
+-- Every block raises 'FAIL: ...' on a broken rule; finishing silently means pass.
 -- Ends in ROLLBACK, so nothing it does persists.
 begin;
+
+insert into auth.users (id, created_at, email_confirmed_at) values
+  ('00000000-0000-0000-0000-0000000000a1', now(), now()),
+  ('00000000-0000-0000-0000-0000000000a2', now(), now()) on conflict (id) do nothing;
+insert into public.profiles (user_id, role) values ('00000000-0000-0000-0000-0000000000a2', 'admin')
+  on conflict (user_id) do update set role = 'admin';
 
 insert into public.car_models (id, model, generation, engine, status)
 values ('rls-test:draft', 'TEST', 'TEST', 'TEST', 'draft');
 
 -- Non-admin
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"NON_ADMIN_UUID","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
 
 do $$ begin
   update public.dealer_plan_items set interval_km = 1 where id = (select min(id) from public.dealer_plan_items);
@@ -41,7 +46,7 @@ do $$ begin
 end $$;
 
 -- Admin
-select set_config('request.jwt.claims', '{"sub":"ADMIN_UUID","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
 
 do $$ declare n int; begin
   update public.dealer_plan_items set interval_km = interval_km where id = (select min(id) from public.dealer_plan_items);

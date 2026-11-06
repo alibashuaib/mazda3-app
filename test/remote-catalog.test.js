@@ -99,6 +99,22 @@ test('first sight keeps a hand-edited dealer interval and only stamps', async ()
   assert.strictEqual(d.services[0].normalKm, 12000);
 });
 
+test('severe interval flows from the plan onto severeKm/severeMonths; absent leaves existing', async () => {
+  const items = [
+    { car_model_id: MODELS[0].id, service: 'Engine Oil & Filter', interval_km: 9000, interval_months: 12, severe_km: 5000, severe_months: 6, sort: 0 },
+    { car_model_id: MODELS[0].id, service: 'Wheel Alignment', interval_km: 20000, severe_km: null, severe_months: null, sort: 1 }
+  ];
+  rc.configure(Object.assign({ client: fakeClient({ items }) }, memMeta()));
+  await rc.refresh();
+  const d = car(undefined);
+  d.services[1].severeKm = 7777;
+  rc.applyDealerPlan(d, { force: true });
+  assert.strictEqual(d.services[0].severeKm, 5000);
+  assert.strictEqual(d.services[0].severeMonths, 6);
+  assert.strictEqual(d.services[1].severeKm, 7777, 'null severe must not clear');
+  assert.strictEqual(d.services[1].severeMonths, undefined);
+});
+
 test('first sight fills a service with no dealer interval yet', async () => {
   rc.configure(Object.assign({ client: fakeClient() }, memMeta()));
   await rc.refresh();

@@ -57,14 +57,14 @@ function openModal(title, sub, bodyBuilder, opts) {
   // must not overwrite it with the outgoing dialog's own button.
   if (!modalReturnFocus) modalReturnFocus = document.activeElement;
   document.addEventListener('keydown', onModalKeydown);
-  document.body.style.overflow = 'hidden';      // don't scroll the page behind it
+  document.body.classList.add('no-scroll');      // don't scroll the page behind it
   const target = card.querySelector(FOCUSABLE);
   if (target) target.focus();
 }
 function closeModal() {
   $('#modalHost').hidden = true;
   document.removeEventListener('keydown', onModalKeydown);
-  document.body.style.overflow = '';
+  document.body.classList.remove('no-scroll');
   const back = modalReturnFocus;
   modalReturnFocus = null;
   if (back && typeof back.focus === 'function' && document.contains(back)) back.focus();

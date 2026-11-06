@@ -493,14 +493,16 @@ const threeVehicles = api => {
    that is what this drives — the real settings dialog, clicked twice. */
 test('double-tapping "Remove this vehicle" removes exactly one', () => withBoot(async ({ document, api }) => {
   threeVehicles(api);
-  api.confirm = () => true;                  // the new confirmation, accepted
   api.openSettings();
 
   const del = Array.from(document.querySelectorAll('#modalCard button'))
     .find(b => /Remove this vehicle/.test(b.textContent));
   assert.ok(del, 'the settings dialog no longer offers a remove button — this test proves nothing');
 
-  del.onclick(); del.onclick();              // the double-tap
+  del.onclick();                             // opens the confirmation
+  const yes = Array.from(document.querySelectorAll('#modalCard button')).find(b => b.textContent === 'Remove');
+  assert.ok(yes, 'the confirmation has no Remove button');
+  yes.onclick(); yes.onclick();              // the double-tap
   await new Promise(r => setTimeout(r, 50));
 
   const left = api.session.garage().vehicles.map(v => v.id);
@@ -509,16 +511,16 @@ test('double-tapping "Remove this vehicle" removes exactly one', () => withBoot(
 
 test('removing a vehicle asks first, and does nothing when declined', () => withBoot(async ({ document, api }) => {
   threeVehicles(api);
-  let asked = 0;
-  api.confirm = () => { asked++; return false; };
   api.openSettings();
 
   const del = Array.from(document.querySelectorAll('#modalCard button'))
     .find(b => /Remove this vehicle/.test(b.textContent));
   del.onclick();
+  const cancel = Array.from(document.querySelectorAll('#modalCard button')).find(b => b.textContent === 'Cancel');
+  assert.ok(cancel, 'an irreversible delete has no confirmation step');
+  cancel.onclick();
   await new Promise(r => setTimeout(r, 50));
 
-  assert.strictEqual(asked, 1, 'an irreversible delete went ahead without confirming');
   assert.strictEqual(api.session.garage().vehicles.length, 3, 'declining the confirmation still deleted the vehicle');
 }));
 
@@ -1228,3 +1230,40 @@ test('fail() rings the offending field and clears the ring on the next keystroke
   litres.dispatchEvent(new document.defaultView.Event('input'));
   assert.ok(!litres.classList.contains('field-error'), 'the ring must clear on input, not outlive the mistake');
 }));
+
+/* Dashboard recommendations follow the loaded car: diesel gets the low-SAPS oil
+   and DPF tips, a gasoline SkyActiv-G gets the fuel-system-cleaner oil tip. */
+test('dashboard recommendations change with the loaded car', async () => {
+  const { normalizeData, buildProfile } = require('../src/data/normalize.js');
+  const dieselData = normalizeData(buildProfile('cx60', 2, {}));    // 3.3L e-SkyActiv-D
+  const petrolData = normalizeData(buildProfile('cx5kf', 0, {}));   // SkyActiv-G gasoline
+  const diesel = await bootApp({ vehicles: [{ id: 'd1', data: dieselData }], activeId: 'd1' });
+  try {
+    const text = diesel.document.querySelector('#view').textContent;
+    assert.match(text, /low-SAPS/);
+    assert.match(text, /particulate filter/);
+    assert.doesNotMatch(text, /fuel-system cleaner/);
+  } finally { diesel.cleanup(); }
+  const petrol = await bootApp({ vehicles: [{ id: 'p1', data: petrolData }], activeId: 'p1' });
+  try {
+    const text = petrol.document.querySelector('#view').textContent;
+    assert.match(text, /fuel-system cleaner/);
+    assert.doesNotMatch(text, /low-SAPS/);
+  } finally { petrol.cleanup(); }
+});
+
+/* Per-model tire pressure from TIRE_PSI; a model without a verified figure keeps the generic 36 psi tip. */
+test('dashboard shows the loaded model\'s tire pressure, or the generic 36 psi when unverified', async () => {
+  const { normalizeData, buildProfile } = require('../src/data/normalize.js');
+  const cx9 = await bootApp({ vehicles: [{ id: 'c9', data: normalizeData(buildProfile('cx9', 0, {})) }], activeId: 'c9' });
+  try {
+    assert.match(cx9.document.querySelector('#view').textContent, /255\/60R18/);
+    assert.match(cx9.document.querySelector('#view').textContent, /34 psi/);
+    assert.doesNotMatch(cx9.document.querySelector('#view').textContent, /34 \/ 34/);
+  } finally { cx9.cleanup(); }
+  const cx5 = await bootApp({ vehicles: [{ id: 'k5', data: normalizeData(buildProfile('cx5kf', 0, {})) }], activeId: 'k5' });
+  try {
+    assert.match(cx5.document.querySelector('#view').textContent, /225\/65R17/);
+    assert.match(cx5.document.querySelector('#view').textContent, /36 PSI/);
+  } finally { cx5.cleanup(); }
+});

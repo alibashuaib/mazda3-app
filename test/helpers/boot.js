@@ -75,6 +75,7 @@ const SCRIPTS = [
   'src/core/schedule.js',
   'src/data/storage.js',
   'src/data/normalize.js',
+  'src/data/error-log.js',
   'src/data/session.js',
   'src/data/status.js',
   'src/data/account.js',
@@ -88,6 +89,7 @@ const SCRIPTS = [
   'src/data/remote-catalog.js',
   'src/data/admin.js',
   'src/core/async-click.js',
+  'src/data/car-photos.js',
   'src/pages/dashboard.js',
   'src/pages/maintenance.js',
   'src/pages/parts.js',
@@ -96,6 +98,9 @@ const SCRIPTS = [
   'src/pages/reports.js',
   'src/pages/documents.js',
   'src/pages/admin.js',
+  'src/pages/admin-autopilot.js',
+  'src/pages/admin-proposals.js',
+  'src/pages/signin.js',
   'main.js'
 ];
 

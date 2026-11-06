@@ -159,27 +159,47 @@
     return Promise.resolve().then(() => doSave(v.id, data, _garage.activeId, dep.uid)).then(res => {
       if (gen !== _generation) return false;   // a clear() happened mid-save — stale write, no side effects
       if (res.ok) {
-        dep.applyPhotoIds(data, res.data);
-        cacheNewPhotos(data, res.photoIds);
-        prunePhotoBlobs();
+        /* Bookkeeping after a landed save: a throw here must not read as a failed save
+           (that would toast "Couldn't save" and offer a Retry of work already persisted). */
+        try {
+          dep.applyPhotoIds(data, res.data);
+          cacheNewPhotos(data, res.photoIds);
+          prunePhotoBlobs();
+        } catch (e) { report('post-save bookkeeping failed: ' + (e && e.message), e); }
         /* Inside the ok branch and behind the generation check above, so a
            write started before a sign-out can never push into the account
            that signed in after it. Throwing here must not turn a successful
            local save into a failure. */
-        try { env.afterSave(v.id, res.data, res.photoIds); } catch (e) {}
+        try { env.afterSave(v.id, res.data, res.photoIds); } catch (e) {
+          // Local save succeeded; only the sync enqueue failed. Log it and say
+          // so, with no Retry: retrying would redo a save that already landed.
+          report('afterSave failed: ' + (e && e.message), e);
+          if (typeof env.notify === 'function') env.notify('Saved on this device, but sync failed. Your changes are still on screen.', 'warn');
+        }
         return true;
       }
-      env.notify(dep.isQuotaError(res.error)
-        ? 'Storage is full — your change was NOT saved. Remove some receipt photos.'
-        : 'Could not save your change.', 'warn');
-      return false;
+      return failed(res.error);
     }).catch(err => {
       if (gen !== _generation) return false;   // stale write — resolve false, no notify, no cache writes
-      env.notify(dep.isQuotaError(err)
-        ? 'Storage is full — your change was NOT saved. Remove some receipt photos.'
-        : 'Could not save your change.', 'warn');
-      return false;
+      return failed(err);
     });
+  }
+
+  /* Only the message and stack leave the device (D-03): never the vehicle
+     data, ids or photo ids. */
+  function report(message, err) {
+    if (typeof errorLog !== 'undefined') errorLog.report({ source: 'client', message, stack: err && err.stack });
+  }
+
+  /* A save that did not land: log it, then show a Retry toast that re-runs the
+     same save. The quota wording stays actionable. */
+  function failed(err) {
+    const quota = dep.isQuotaError(err);
+    report('save failed: ' + (quota ? 'quota' : 'failed'), err);
+    env.notify(quota
+      ? 'Storage is full — your change was NOT saved. Remove some receipt photos.'
+      : "Couldn't save. Your changes are still on screen.", 'warn', { retry: () => save() });
+    return false;
   }
 
   /* Clears session state: garage, active vehicle, photo cache and object URLs.

@@ -29,6 +29,7 @@ const SHELL = `<!doctype html><html lang="en"><body>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card" id="modalCard"></div>
   </div>
+  <div class="signin-gate" id="signinGate" hidden></div>
   <div class="toast-host" id="toastHost"></div>
 </body></html>`;
 
