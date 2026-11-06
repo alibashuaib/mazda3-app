@@ -184,7 +184,7 @@ function partCard(p) {
       <h3>${t(p.name)}${icon ? html` <span title="${fitmentLabel}" class="ico-badge">${icon}</span>` : ''}</h3>
       <div class="text-right">
         <div class="price-main">${t('from')} ${sar(cheapest)} <span class="muted fs-11">SAR</span></div>
-        <div class="muted fs-11">${p.options.length} ${t('options')}</div>
+        <div class="muted fs-11">${p.options.length} ${t(p.options.length === 1 ? 'option' : 'options')}</div>
         <div class="muted fs-11 mt-4" id="avg_${p.id}"></div>
         <div class="muted fs-11 mt-4" id="life_${p.id}"></div>
         <div class="muted fs-11 mt-4" id="shop_${p.id}"></div>

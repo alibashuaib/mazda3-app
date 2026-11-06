@@ -208,6 +208,7 @@ function adminAutopilot(state, refresh) {
   const mlab = el('div', 'ap-meter-label');
   const ml = el('span'); ml.textContent = t('Spend this month');
   const mv = el('span'); mv.textContent = `${spent == null ? '—' : Math.round(spent * 100) / 100} / ${cap} SAR`;
+  mv.setAttribute('dir', 'ltr');   // otherwise RTL reorders it to "SAR 50 / 12.4"
   mlab.append(ml, mv);
   const track = el('div', 'bar ' + (pct >= 90 ? 'danger' : pct >= 60 ? 'warn' : 'ok'));
   track.setAttribute('role', 'progressbar'); track.setAttribute('aria-label', t('Spend this month'));

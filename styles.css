@@ -377,7 +377,7 @@ body {
 .budget-ring-card.over .rg-from { stop-color: var(--danger); }
 .budget-ring-card.over .rg-to { stop-color: #ff8a95; }
 .ring .ring-label { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
-.ring .ring-num { font-size: 30px; font-weight: 800; line-height: 1; }
+.ring .ring-num { font-size: 22px; font-weight: 800; line-height: 1; }
 .ring .ring-cap { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .8px; margin-top: 4px; }
 
 /* ---- Stat tiles row ---- */
@@ -546,7 +546,6 @@ body {
 /* recommendation card */
 .rec {
   padding: 16px 16px; display: flex; gap: 12px; align-items: flex-start;
-  border-left: 3px solid var(--accent);
 }
 .rec .r-ic { font-size: 22px; }
 .rec h3 { font-size: 13px; font-weight: 600; }
@@ -944,14 +943,11 @@ html { scroll-behavior: smooth; }
 .reminder-banner {
   width: 100%; display: flex; align-items: center; gap: 12px;
   padding: 12px 16px; margin: 16px 0 4px; cursor: pointer;
-  font-family: inherit; text-align: left; color: inherit;
-  border-left: 3px solid var(--warn);
+  font-family: inherit; text-align: start; color: inherit;
+  border: 1px solid var(--warn); background: var(--warn-soft);
 }
-.reminder-banner.danger { border-left-color: var(--danger); }
-.reminder-banner.ok { border-left-color: var(--ok); }
-[dir="rtl"] .reminder-banner { border-left: 0; border-right: 3px solid var(--warn); }
-[dir="rtl"] .reminder-banner.danger { border-right-color: var(--danger); }
-[dir="rtl"] .reminder-banner.ok { border-right-color: var(--ok); }
+.reminder-banner.danger { border-color: var(--danger); background: var(--danger-soft); }
+.reminder-banner.ok { border-color: var(--ok); background: var(--ok-soft); }
 .reminder-banner .rb-ic { font-size: 22px; line-height: 1; }
 .reminder-banner .rb-text { flex: 1; font-size: 13px; }
 .reminder-banner .rb-go { font-size: 12px; font-weight: 700; color: var(--accent-soft); }
@@ -961,8 +957,8 @@ html { scroll-behavior: smooth; }
 .plan-year { font-size: 12px; font-weight: 800; color: var(--text-2); letter-spacing: .4px; margin: 8px 4px 4px; }
 .plan-year:first-child { margin-top: 0; }
 .plan-ms { padding: 16px 16px; }
-.plan-ms.major { box-shadow: var(--shadow), inset 3px 0 0 var(--accent); }
-[dir="rtl"] .plan-ms.major { box-shadow: var(--shadow), inset -3px 0 0 var(--accent); }
+/* Major milestones: a full hairline in the accent, not a side stripe */
+.plan-ms.major { border-color: var(--accent); }
 .plan-ms-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .plan-km { font-size: 17px; font-weight: 800; letter-spacing: -.3px; color: var(--accent-soft); display: flex; align-items: baseline; gap: 4px; }
 .plan-km span { font-size: 11px; font-weight: 600; color: var(--text-2); letter-spacing: 0; }
@@ -1017,7 +1013,7 @@ html { scroll-behavior: smooth; }
 
 /* keep the 6 bottom-bar labels tidy on phones */
 .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tab { gap: 4px; }
+.tab { gap: 4px; min-width: 0; }
 .tab svg { width: 21px; height: 21px; }
 @media (max-width: 440px) { .tab { font-size: 11px; } .tab svg { width: 20px; height: 20px; } .tabbar { padding: 8px 4px; } }
 @media (max-width: 360px) { .tab { font-size: 11px; } }
@@ -1074,7 +1070,6 @@ html { scroll-behavior: smooth; }
 }
 
 /* ---- RTL (Arabic) — layout mostly mirrors via dir=rtl; fix the directional bits ---- */
-[dir="rtl"] .rec { border-left: 0; border-right: 3px solid var(--accent); }
 [dir="rtl"] .item-side { text-align: left; }
 [dir="rtl"] .tl-item::before { left: auto; right: 19px; }
 [dir="rtl"] .tl-year { margin-left: 0; margin-right: 56px; }
@@ -1127,7 +1122,7 @@ html { scroll-behavior: smooth; }
 /* One segmented control: a single track, the active tab is the only filled segment */
 .admin-tabs { display: flex; flex-wrap: nowrap; gap: 4px; margin-bottom: 16px; padding: 4px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--stroke); }
 .admin-tabs .btn { flex: 1 1 0; min-width: 0; min-height: 40px; padding-inline: 12px; border: 0; box-shadow: none; background: transparent; color: var(--text-2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.admin-tabs .btn.primary { background: var(--surface-solid); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+.admin-tabs .btn.primary, .admin-view .admin-tabs .btn.primary { background: var(--surface-solid); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 
 /* Admin page: work-tool look (flat surfaces, hairline borders, one accent, no glow).
    Reference: awesome-design-md/linear.app. Scoped to .admin-view so the rest of the app is untouched. */
@@ -1151,9 +1146,9 @@ html { scroll-behavior: smooth; }
 .ap-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--stroke); }
 .ap-section h4 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .ap-section p { font-size: 13px; margin: 4px 0; }
-.ap-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.ap-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
 .ap-stat { padding: 12px 12px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--stroke); }
-.ap-stat-value { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+.ap-stat .ap-stat-value { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
 .ap-stat span { font-size: 11px; color: var(--text-2); }
 .ap-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--stroke); font-size: 13px; }
 .ap-row:last-of-type { border-bottom: 0; }
@@ -1204,20 +1199,21 @@ html { scroll-behavior: smooth; }
 .ap-error { font-size: 13px; color: var(--accent-soft); margin: 0 0 12px; }
 .ap-estimate .ap-error { margin: 0; }
 /* Proposals are a single column: the desktop two-up .view .list grid made each row half the page wide. */
-.view .list.proposal-list { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+.view .list.proposal-list { grid-template-columns: minmax(0, 1fr); }
 /* Advanced tab: two columns on wide screens, one on phones. Grid follows dir, so RTL mirrors itself. */
 .admin-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (min-width: 1100px) {
   .admin-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-cols > :only-child { grid-column: 1 / -1; }
   .admin-cols .ap-card { margin-bottom: 0; }
-  .admin-cols .list.proposal-list { max-width: none; }
 }
 .admin-cars-toggle { margin: 16px 0; }
 /* Review queue car list: one card per model, two columns once there is room. */
 .admin-car-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .admin-car-groups .card { margin: 0; }
-.admin-car-group { padding: 16px 16px 4px; }
+.admin-car-group { padding: 16px 16px 8px; font-size: 15px; }
+.admin-car-groups .item, .admin-car-rows .item { border: 0; border-radius: 0; background: transparent; border-top: 1px solid var(--stroke); }
+.admin-car-rows .item:first-child { border-top: 0; }
 @media (min-width: 700px) { .admin-car-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .proposal-row .btn { min-height: 44px; }
 .proposal-row .pill { font-weight: 600; }

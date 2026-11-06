@@ -215,9 +215,10 @@ function adminQueue(drafts, recalls) {
   return card;
 }
 
-function adminCarItem(m) {
+/* inGroup: the group card already names the model, so the row starts at the generation. */
+function adminCarItem(m, inGroup) {
   const it = el('div', 'item');
-  it.innerHTML = html`<div class="item-main"><h3>Mazda ${m.model} · ${m.generation}</h3><p>${m.engine}</p></div>
+  it.innerHTML = html`<div class="item-main"><h3>${inGroup ? m.generation : html`Mazda ${m.model} · ${m.generation}`}</h3><p>${m.engine}</p></div>
     <div class="item-side">${m.status === 'draft' ? html`<span class="pill warn">${t('Needs review')}</span>` : ''}</div>`;
   it.onclick = () => { adminModelId = m.id; go('admin'); };
   return it;
@@ -227,7 +228,7 @@ function adminList(bundle) {
   const models = bundle.models;
   // The full car list is hidden behind a button; cars waiting for review always show, since this is the only way into their editor.
   const ordered = models.filter(m => m.status === 'draft');
-  const wrap = el('div', 'card');
+  const wrap = el('div', 'card admin-car-rows');
   ordered.forEach(m => wrap.appendChild(adminCarItem(m)));
   const both = el('div');
   both.append(adminQueue(bundle.drafts, bundle.recalls));
@@ -246,8 +247,9 @@ function adminList(bundle) {
     const groups = el('div', 'admin-car-groups');
     byModel.forEach((list, name) => {
       const g = el('div', 'card');
-      g.innerHTML = html`<h4 class="admin-car-group">Mazda ${name}</h4>`;
-      list.forEach(m => g.appendChild(adminCarItem(m)));
+      // Model names already carry the brand for some (Mazda3), not for others (CX-5).
+      g.innerHTML = html`<h4 class="admin-car-group">${/^mazda/i.test(name) ? name : 'Mazda ' + name}</h4>`;
+      list.forEach(m => g.appendChild(adminCarItem(m, true)));
       groups.appendChild(g);
     });
     both.appendChild(groups);

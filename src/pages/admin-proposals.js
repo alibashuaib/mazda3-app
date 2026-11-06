@@ -357,7 +357,7 @@ function adminProposalsQueue(res, models, refresh) {
     bulkBox.textContent = '';
     const high = catalogAdmin.filterProposals(res.rows, proposalFilter).filter(p => p.confidence_tier === 'high');
     if (high.length) {
-      const bb = el('button', 'btn primary block'); bb.type = 'button';
+      const bb = el('button', 'btn primary block mb-12'); bb.type = 'button';
       bb.textContent = t('Approve {n} high-confidence').replace('{n}', String(high.length));
       bb.onclick = () => bulkAsk(high);
       bulkBox.appendChild(bb);

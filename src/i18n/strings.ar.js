@@ -123,7 +123,7 @@ const AR = {
   'Receipt / invoice': 'الإيصال / الفاتورة', 'Nickname (optional)': 'الاسم المختصر (اختياري)', 'Expiry date': 'تاريخ الانتهاء',
   'Budget (SAR / year)': 'الميزانية (ريال / سنة)', 'Full tank': 'خزان ممتلئ', 'Partial fill': 'تعبئة جزئية', 'Add receipt photo': 'إضافة صورة إيصال',
   // parts-page chrome
-  'from': 'من', 'options': 'خيارات', '🔧 Used in:': '🔧 مستخدمة في:',
+  'from': 'من', 'options': 'خيارات', 'option': 'خيار', '🔧 Used in:': '🔧 مستخدمة في:',
   '🔎 Live price &amp; alternatives on PartSouq ↗': '🔎 السعر والبدائل المباشرة على PartSouq ↗',
   // service-detail rows
   'Interval': 'الفترة', 'Last done': 'آخر مرة', 'Next due': 'الاستحقاق التالي',
