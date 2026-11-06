@@ -76,6 +76,13 @@ test('sharedParts is the generic fallback and carries the full starter set, on e
   });
 });
 
+test('aftermarket wiper option carries the model\'s blade sizes', () => {
+  const wiper = id => cat.sharedParts(id).find(p => p.name === 'Wiper Blades (pair)').options[0];
+  assert.strictEqual(wiper('cx5kf').brand, 'Bosch Aerotwin 24" + 18"');
+  assert.match(wiper('cx90').note, /Driver 26" \(660 mm\) \+ passenger 17" \(432 mm\)/);
+  assert.strictEqual(wiper('cx5gen3').brand, 'Bosch Aerotwin'); // no size data yet
+});
+
 test('parts are model-locked unless explicitly shareable', () => {
   const bm = cat.sharedParts('mazda3bm');
   const filter = bm.find(p => p.name === 'Oil Filter');

@@ -383,6 +383,15 @@ const OEM_CHECKED = {
   cx9tb: { 'Oil Filter': ['CA02-14-302', 26], 'Engine Air Filter': ['CY01-13-Z40B', 97], 'Serpentine Belt': ['CY01-15-908D', 121], 'Rear Brake Pads': ['L2Y8-26-43ZA', 302] },
   cx9: { 'Oil Filter': ['PY8W-14-302', 29], 'Cabin A/C Filter': ['TK48-61-J6X', 103], 'Front Brake Pads': ['TKY8-33-28Z', 374], 'Rear Brake Pads': ['TKY8-26-48ZA', 374] }
 };
+/* Front wiper lengths in inches [driver, passenger] (left-hand drive), from aftermarket
+   size charts (wipersizechart.com, UK wiper retailers). No OEM wiper price could be
+   checked, so the aftermarket option carries the size instead. cx5gen3 has no data yet.
+   Mazda 2 DJ: 2022+ facelift is 24" + 16"; some charts list a 16" passenger blade earlier too. */
+const WIPER_IN = {
+  mazda2: [22, 17], mazda3bm: [24, 18], mazda3bp: [26, 17], mazda6: [24, 18], cx3: [22, 19], cx30: [26, 16],
+  cx5ke: [24, 18], cx5kf: [24, 18], cx9tb: [26, 17], cx9: [24, 18], cx50: [26, 15], cx60: [26, 16],
+  cx70: [26, 17], cx80: [26, 16], cx90: [26, 17]
+};
 
 function sharedParts(modelId, engineCode) {
   const P = (name, icon, cat, options) => ({ id: dep.uid(), name, icon, cat, options });
@@ -432,6 +441,8 @@ function sharedParts(modelId, engineCode) {
     const c = checked[p.name], o = c && p.options.find(x => x.tag === 'OEM');
     if (o) Object.assign(o, { brand: 'Mazda Genuine', partNo: c[0], price: c[1], note: 'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)' });
   });
+  const w = WIPER_IN[modelId];
+  if (w) Object.assign(parts.find(p => p.name === 'Wiper Blades (pair)').options[0], { brand: `Bosch Aerotwin ${w[0]}" + ${w[1]}"`, note: `Driver ${w[0]}" (${Math.round(w[0] * 25.4)} mm) + passenger ${w[1]}" (${Math.round(w[1] * 25.4)} mm), from aftermarket size charts — check your blades before buying` });
   return stampPartsFitment(parts, modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
 }
 
