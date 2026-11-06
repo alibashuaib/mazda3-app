@@ -98,11 +98,11 @@ const AR = {
   // report types
   'Service history': 'سجل الصيانة', 'Purchases': 'المشتريات', 'Full summary': 'ملخص كامل',
   // built-in service names
-  'Engine Oil & Filter': 'زيت المحرك والفلتر', 'Fuel System Cleaner': 'منظف نظام الوقود', 'Tire Rotation & Balance': 'تدوير وموازنة الإطارات', 'Cabin (A/C) Filter': 'فلتر المكيف (المقصورة)',
+  'Engine Oil & Filter': 'زيت المحرك والفلتر', 'Fuel System Cleaner': 'منظف نظام الوقود', 'Tire Rotation & Balance': 'تدوير وموازنة الإطارات', 'Cabin (A/C) Filter': 'فلتر مكيف المقصورة',
   'Engine Air Filter': 'فلتر هواء المحرك', 'Wheel Alignment': 'ضبط زوايا العجلات', 'Brake Fluid': 'زيت الفرامل',
-  'Automatic Transmission Fluid': 'زيت ناقل الحركة الأوتوماتيكي', 'Engine Coolant (FL22)': 'سائل تبريد المحرك (FL22)',
-  'Throttle Body & MAF Cleaning': 'تنظيف بوابة الهواء وحساس الهواء', 'Spark Plugs (x4)': 'بواجي الإشعال (×4)', 'Spark Plugs (x6)': 'بواجي الإشعال (×6)', 'Fuel Filter': 'فلتر الوقود',
-  'Drive (Serpentine) Belt': 'سير الإدارة', 'Battery Check': 'فحص البطارية', 'Brake Inspection & Caliper Lube': 'فحص الفرامل وتزييت الكاليبر',
+  'Automatic Transmission Fluid': 'زيت القير الأوتوماتيك', 'Engine Coolant (FL22)': 'سائل تبريد المحرك (FL22)',
+  'Throttle Body & MAF Cleaning': 'تنظيف بوابة الهواء وحساس تدفق الهواء (MAF)', 'Spark Plugs (x4)': 'بواجي الإشعال (×4)', 'Spark Plugs (x6)': 'بواجي الإشعال (×6)', 'Fuel Filter': 'فلتر الوقود',
+  'Drive (Serpentine) Belt': 'سير المولد (السربنتين)', 'Battery Check': 'فحص البطارية', 'Brake Inspection & Caliper Lube': 'فحص الفرامل وتشحيم الكاليبر',
   'Suspension & Steering Inspection': 'فحص التعليق والتوجيه',
   // care tips
   'Oil every ~7,500 km': 'غيّر الزيت كل 7,500 كم تقريباً', 'Tire pressure 36 PSI': 'ضغط الإطارات 36 رطل', 'Battery every 2–3 years': 'البطارية كل 2–3 سنوات', 'Wash the underbody': 'اغسل أسفل السيارة',
@@ -139,10 +139,10 @@ const AR = {
   'Status': 'الحالة', 'Distance': 'المسافة', 'Est. cost': 'التكلفة التقديرية', 'Estimated total': 'الإجمالي التقديري', 'Vehicle Summary Report': 'تقرير ملخص المركبة',
   'Car Care · Mazda care app': 'Car Care · تطبيق العناية بمازدا', 'Report generated': 'صدر التقرير',
   // part names
-  'Engine Oil 5W-30': 'زيت محرك 5W-30', 'Oil Filter': 'فلتر الزيت', 'Fuel System Cleaner (additive)': 'منظف نظام الوقود (إضافة)', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
+  'Engine Oil 5W-30': 'زيت محرك 5W-30', 'Oil Filter': 'فلتر الزيت', 'Fuel System Cleaner (additive)': 'منظف نظام الوقود (مادة مضافة)', 'Cabin A/C Filter': 'فلتر مكيف المقصورة',
   'Spark Plugs (each)': 'بواجي الإشعال (للحبة)', 'Front Brake Pads': 'فحمات الفرامل الأمامية', 'Rear Brake Pads': 'فحمات الفرامل الخلفية',
-  'Wiper Blades (pair)': 'مساحات الزجاج (زوج)', '12V Battery': 'بطارية 12 فولت', 'Serpentine Belt': 'سير المولد (السربنتين)',
-  'Coolant FL22 (long-life)': 'سائل تبريد FL22 (طويل العمر)', 'ATF FZ (per liter)': 'زيت ناقل ATF FZ (للتر)', 'Brake Fluid (DOT 4)': 'زيت فرامل (DOT 4)',
+  'Wiper Blades (pair)': 'مساحات الزجاج (زوج)', '12V Battery': 'بطارية 12 فولت', '48V Mild-Hybrid Battery Pack': 'بطارية الهايبرد الخفيف 48 فولت', 'Serpentine Belt': 'سير المولد (السربنتين)',
+  'Coolant FL22 (long-life)': 'سائل تبريد FL22 (طويل العمر)', 'ATF FZ (per liter)': 'زيت القير ATF FZ (للتر)', 'Brake Fluid (DOT 4)': 'زيت الفرامل (DOT 4)',
   'Windshield Washer Fluid (~2L)': 'سائل غسيل الزجاج (~2 لتر)', 'Front Shock Absorber (each)': 'مساعد أمامي (للحبة)',
   'Rear Shock Absorber (each)': 'مساعد خلفي (للحبة)', 'Front Lower Control Arm (each)': 'مقص أمامي سفلي (للحبة)',
   'Front Strut Mount Bearing (each)': 'رمان بلي حاملة المساعد الأمامي (للحبة)', 'Rear Wheel Hub Bearing (each)': 'رمان بلي عجلة خلفية (للحبة)',
