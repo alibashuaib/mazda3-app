@@ -476,6 +476,8 @@ const AR = {
   'Source differs from the live schedule': 'المصدر يختلف عن الجدول المعتمد',
   'Parts': 'القطع',
   'All cars': 'كل السيارات',
+  'Show all cars': 'عرض كل السيارات',
+  'Hide all cars': 'إخفاء كل السيارات',
   'Warranty (years)': 'الضمان (سنوات)',
   'Warranty (km)': 'الضمان (كم)',
   'Parts (name | part number | qty, one per line)': 'القطع (الاسم | رقم القطعة | الكمية، سطر لكل قطعة)',

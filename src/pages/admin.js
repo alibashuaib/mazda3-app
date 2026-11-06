@@ -8,6 +8,7 @@
 
 let adminModelId = null;   // the car being edited, or null for the list
 let adminTab = 'proposals';    // 'proposals' | 'queue' | 'errors'
+let adminShowCars = false;   // Review queue: full car list, grouped by model, shown on demand
 
 /* Failures go to the error log (plan 01-10), not the browser console */
 function adminReport(message, e) {
@@ -214,21 +215,43 @@ function adminQueue(drafts, recalls) {
   return card;
 }
 
+function adminCarItem(m) {
+  const it = el('div', 'item');
+  it.innerHTML = html`<div class="item-main"><h3>Mazda ${m.model} · ${m.generation}</h3><p>${m.engine}</p></div>
+    <div class="item-side">${m.status === 'draft' ? html`<span class="pill warn">${t('Needs review')}</span>` : ''}</div>`;
+  it.onclick = () => { adminModelId = m.id; go('admin'); };
+  return it;
+}
+
 function adminList(bundle) {
   const models = bundle.models;
-  // The full car list is hidden; only cars waiting for review show, since this is the only way into their editor.
+  // The full car list is hidden behind a button; cars waiting for review always show, since this is the only way into their editor.
   const ordered = models.filter(m => m.status === 'draft');
   const wrap = el('div', 'card');
-  ordered.forEach(m => {
-    const it = el('div', 'item');
-    it.innerHTML = html`<div class="item-main"><h3>Mazda ${m.model} · ${m.generation}</h3><p>${m.engine}</p></div>
-      <div class="item-side">${m.status === 'draft' ? html`<span class="pill warn">${t('Needs review')}</span>` : ''}</div>`;
-    it.onclick = () => { adminModelId = m.id; go('admin'); };
-    wrap.appendChild(it);
-  });
+  ordered.forEach(m => wrap.appendChild(adminCarItem(m)));
   const both = el('div');
   both.append(adminQueue(bundle.drafts, bundle.recalls));
   if (ordered.length) both.appendChild(wrap);
+
+  const toggle = el('button', 'btn ghost admin-cars-toggle');
+  toggle.type = 'button';
+  toggle.textContent = t(adminShowCars ? 'Hide all cars' : 'Show all cars');
+  toggle.setAttribute('aria-expanded', adminShowCars ? 'true' : 'false');
+  toggle.onclick = () => { adminShowCars = !adminShowCars; go('admin'); };
+  both.appendChild(toggle);
+  if (adminShowCars) {
+    // One card per model (Mazda3, CX-5, ...), in catalogue order.
+    const byModel = new Map();
+    models.forEach(m => { if (!byModel.has(m.model)) byModel.set(m.model, []); byModel.get(m.model).push(m); });
+    const groups = el('div', 'admin-car-groups');
+    byModel.forEach((list, name) => {
+      const g = el('div', 'card');
+      g.innerHTML = html`<h4 class="admin-car-group">Mazda ${name}</h4>`;
+      list.forEach(m => g.appendChild(adminCarItem(m)));
+      groups.appendChild(g);
+    });
+    both.appendChild(groups);
+  }
   return both;
 }
 

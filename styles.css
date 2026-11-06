@@ -1213,6 +1213,12 @@ html { scroll-behavior: smooth; }
   .admin-cols .ap-card { margin-bottom: 0; }
   .admin-cols .list.proposal-list { max-width: none; }
 }
+.admin-cars-toggle { margin: 16px 0; }
+/* Review queue car list: one card per model, two columns once there is room. */
+.admin-car-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.admin-car-groups .card { margin: 0; }
+.admin-car-group { padding: 16px 16px 4px; }
+@media (min-width: 700px) { .admin-car-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .proposal-row .btn { min-height: 44px; }
 .proposal-row .pill { font-weight: 600; }
 .btn.ghost.reject { color: var(--danger); border-color: var(--danger-soft); }

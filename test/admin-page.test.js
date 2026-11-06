@@ -37,6 +37,15 @@ test('admin sees the catalogue with drafts marked for review', async () => {
     tab().onclick();   // Proposals is the default tab since Phase 2
     assert.ok(await until(() => /CX-5/.test(text(app.document))), text(app.document));
     assert.match(text(app.document), /Needs review/);
+    // The full list is hidden until asked for, then grouped by model
+    const doc = app.document;
+    assert.equal(doc.querySelector('#view .admin-car-groups'), null);
+    const toggle = () => doc.querySelector('#view .admin-cars-toggle');
+    assert.equal(toggle().textContent, 'Show all cars');
+    toggle().onclick();
+    assert.ok(await until(() => doc.querySelector('#view .admin-car-groups')), text(doc));
+    assert.equal(doc.querySelector('#view .admin-car-group').textContent, 'Mazda CX-5');
+    assert.equal(toggle().textContent, 'Hide all cars');
   } finally { app.cleanup(); }
 });
 
