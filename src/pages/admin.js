@@ -84,9 +84,12 @@ async function renderAdminBody(body) {
         { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
         id => { adminTab = id; show(); }));
       try {
-        if (adminTab === 'proposals') body.appendChild(adminAutopilot({ status, domains, unverified, models }, refresh));
-        body.appendChild(adminTab === 'proposals' ? adminProposals(props, models, refresh, changes)
+        // Two columns on wide screens (autopilot | proposals); a lone child spans both. See .admin-cols.
+        const cols = el('div', 'admin-cols');
+        if (adminTab === 'proposals') cols.appendChild(adminAutopilot({ status, domains, unverified, models }, refresh));
+        cols.appendChild(adminTab === 'proposals' ? adminProposals(props, models, refresh, changes)
           : adminTab === 'errors' ? adminErrors(errs, () => adminReload()) : adminList(bundle));
+        body.appendChild(cols);
       }
       catch (e) { adminReport('admin: render failed', e); body.appendChild(el('div', 'card', html`<p class="pad-16">${t('Could not load the catalogue.')}</p>`)); }
     };
