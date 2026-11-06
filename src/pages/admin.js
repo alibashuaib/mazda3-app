@@ -216,7 +216,8 @@ function adminQueue(drafts, recalls) {
 
 function adminList(bundle) {
   const models = bundle.models;
-  const ordered = models.filter(m => m.status === 'draft').concat(models.filter(m => m.status !== 'draft'));
+  // The full car list is hidden; only cars waiting for review show, since this is the only way into their editor.
+  const ordered = models.filter(m => m.status === 'draft');
   const wrap = el('div', 'card');
   ordered.forEach(m => {
     const it = el('div', 'item');
@@ -226,7 +227,8 @@ function adminList(bundle) {
     wrap.appendChild(it);
   });
   const both = el('div');
-  both.append(adminQueue(bundle.drafts, bundle.recalls), wrap);
+  both.append(adminQueue(bundle.drafts, bundle.recalls));
+  if (ordered.length) both.appendChild(wrap);
   return both;
 }
 
