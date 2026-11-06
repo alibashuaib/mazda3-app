@@ -1120,8 +1120,9 @@ html { scroll-behavior: smooth; }
 
 /* Admin tab strip: all tabs on one line; labels truncate rather than wrap */
 .admin-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-.admin-toolbar.with-banner { justify-content: stretch; align-items: center; gap: 12px; }
-.admin-toolbar.with-banner .proposal-alert { flex: 1 1 auto; min-width: 0; }
+/* Banner and Refresh stretch to one shared height; the banner's text is centred in it. */
+.admin-toolbar.with-banner { justify-content: stretch; align-items: stretch; gap: 12px; }
+.admin-toolbar.with-banner .proposal-alert { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; min-height: 46px; padding: 8px 16px; border-radius: 14px; font-size: 13px; font-weight: 600; }
 .admin-toolbar.with-banner .btn { flex: 0 0 auto; }
 /* One segmented control: a single track, the active tab is the only filled segment */
 .admin-tabs { display: flex; flex-wrap: nowrap; gap: 4px; margin-bottom: 16px; padding: 4px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--stroke); }
