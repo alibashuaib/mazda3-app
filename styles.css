@@ -1163,11 +1163,11 @@ html { scroll-behavior: smooth; }
 .page-intro h1 { font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
 .page-intro p { font-size: 13px; margin-top: 4px; line-height: 1.5; }
 .ap-check-hint { font-size: 12px; margin: 0 0 12px; }
-.ap-check { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ap-check { display: flex; gap: 8px; align-items: center; }
 /* Native select restyled to the same surface, radius and height as .btn, so the
    pair reads as one control row. Chevron is drawn in currentColor, so it follows the theme. */
 .ap-check select {
-  flex: 1 1 100%; min-width: 0; height: 46px; padding: 0 40px 0 16px;
+  flex: 1 1 0; min-width: 0; height: 46px; padding: 0 40px 0 16px;
   font: inherit; font-size: 13px; font-weight: 600; color: var(--text);
   background-color: var(--surface-2); border: 1px solid var(--stroke); border-radius: 14px;
   appearance: none; -webkit-appearance: none; cursor: pointer; outline: none;
@@ -1182,7 +1182,7 @@ html { scroll-behavior: smooth; }
 /* The open list is drawn by the OS unless color-scheme says otherwise, so it followed the device theme, not the app. */
 :root:not([data-theme="light"]) .ap-check select { color-scheme: dark; }
 :root[data-theme="light"] .ap-check select { color-scheme: light; }
-.ap-check .btn { flex: 1 1 100%; }
+.ap-check .btn { flex: 0 0 auto; }
 /* Estimate panel: the cost is the headline, the counts sit in one divided row,
    and Confirm is full width so it is the obvious next step. */
 .ap-estimate {
