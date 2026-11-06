@@ -23,7 +23,7 @@ const AR = {
   'SAR this year': 'ريال هذا العام', 'Health': 'الحالة', 'km left': 'كم متبقية', 'km over': 'كم تجاوز',
   // page intros
   'Your service schedule and full work history — tracked by distance and time.': 'جدول الصيانة وسجل الأعمال الكامل — حسب المسافة والوقت.',
-  'Car Parts': 'قطع السيارة', 'OEM parts with cheaper alternatives, prices and where to buy. Tap a part to compare.': 'قطع أصلية مع بدائل أرخص، الأسعار وأماكن الشراء. اضغط على قطعة للمقارنة.',
+  'Car Parts': 'قطع السيارة',
   'Only compatible parts are shown. Shared consumables are marked ↔; vehicle-locked parts are marked 🔒.': 'تظهر القطع المتوافقة فقط. المستهلكات المشتركة بعلامة ↔، والقطع الخاصة بالسيارة بعلامة 🔒.',
   'Shared consumable': 'مستهلك مشترك', 'Shared across {n} models': 'مشترك بين {n} طرازات','This vehicle only': 'لهذه السيارة فقط',
   'Shared consumable across compatible Mazda models': 'مستهلك مشترك بين طرازات مازدا المتوافقة',
@@ -46,13 +46,11 @@ const AR = {
   'Plan': 'الخطة', 'Major milestone': 'صيانة دورية كبرى', 'mo': 'شهر', 'yr': 'سنة', 'Next up': 'التالي',
   'What’s coming up, built from your own services and when each was last done. Tap a task to log it, or log a whole milestone.': 'ما هو قادم، مبني من خدماتك ومتى أُجريت كل منها آخر مرة. اضغط على مهمة لتسجيلها، أو سجّل صيانة دورية كاملة.',
   'Log this milestone': 'سجّل هذه الصيانة الدورية', 'Milestone logged ✓': 'تم تسجيل الصيانة الدورية ✓', 'Milestone': 'صيانة دورية',
-  'Show later years': 'عرض السنوات القادمة', 'Nothing scheduled — you’re all caught up!': 'لا شيء مجدول — كل شيء عندك تمام!',
+  'Nothing scheduled — you’re all caught up!': 'لا شيء مجدول — كل شيء عندك تمام!',
   'This adapts to when you actually service the car — log a task off its usual interval and the plan re-times itself. Edit intervals under Schedule.': 'يتكيّف هذا مع وقت صيانتك الفعلي للسيارة — سجّل مهمة خارج فترتها المعتادة وتعيد الخطة ضبط توقيتها. عدّل الفترات من الجدول.',
   // first-time plan setup — step-by-step wizard
   'Set up your plan': 'إعداد خطة الصيانة', 'Set up': 'إعداد', 'e.g. 316,000': 'مثال: 316,000',
-  'Tell the plan which major services you’ve already done.': 'أخبر الخطة بالخدمات الرئيسية التي أنجزتها.',
-  'Update your plan': 'تحديث خطتك', 'Re-answer the setup questions if anything’s changed.': 'أعد الإجابة على أسئلة الإعداد إذا تغيّر أي شيء.',
-  'No services in your list yet.\nAdd some under Schedule first.': 'لا توجد خدمات في قائمتك بعد.\nأضف بعضها من الجدول أولاً.',
+  'Update your plan': 'تحديث خطتك',
   'km': 'كم', 'Step': 'خطوة', 'of': 'من', 'Back': 'رجوع', 'Next': 'التالي', 'Finish': 'إنهاء',
   'Do you follow the dealer schedule or the community schedule?': 'هل تتبع جدول الوكيل أم جدول المجتمع؟',
   'Dealer service follows Mazda’s official sheet — e.g. oil every 10,000 km. Community service is tighter, often recommended for GCC heat & dust.': 'خدمة الوكيل تتبع جدول مازدا الرسمي — مثلاً تغيير الزيت كل 10,000 كم. خدمة المجتمع أقصر، وغالبًا ما يُنصح بها بسبب حرارة وغبار دول الخليج.',
@@ -165,7 +163,7 @@ const AR = {
   'Front CV Axle (complete, each)': 'عكس أمامي كامل (للحبة)', 'Front ABS Wheel Speed Sensor': 'حساس سرعة عجلة ABS أمامي',
   'Engine Coolant Temp Sensor (ECT)': 'حساس حرارة الماء (ECT)', 'Intake Manifold Gasket': 'جوان مجمع السحب',
   // dashboard chrome
-  'Odometer': 'العداد', 'Change car photo': 'تغيير صورة السيارة', 'Add a photo of your car': 'أضف صورة لسيارتك',
+  'Odometer': 'العداد',
   'No documents yet.\nAdd insurance, Istimara or license expiry.': 'لا توجد وثائق بعد.\nأضف تاريخ انتهاء التأمين أو الاستمارة أو الرخصة.',
   // maintenance chrome
   'Nothing here — all good!': 'لا شيء هنا — كل شيء بخير!', 'No service history yet.\nLog your first one above.': 'لا يوجد سجل صيانة بعد.\nسجّل أول خدمة بالأعلى.',
@@ -185,7 +183,6 @@ const AR = {
   'Record a refuel to track economy & cost.': 'سجّل التعبئة لتتبع الاستهلاك والتكلفة.',
   'Track renewals so you never miss an expiry.': 'تابع التجديدات حتى لا يفوتك أي انتهاء.',
   'Keep this current so due dates stay accurate.': 'حدّثه باستمرار لتبقى مواعيد الاستحقاق دقيقة.',
-  'These details personalise the app and its badge.': 'هذه التفاصيل تخصص التطبيق وشعاره.',
   'This car’s details.': 'تفاصيل هذه السيارة.',
   'Pick this car’s paint — the app’s accent follows it.': 'اختر طلاء هذه السيارة — يتبعه لون التطبيق.',
   'Your target spend on the car for the year.': 'هدف إنفاقك على السيارة خلال العام.',
@@ -208,7 +205,7 @@ const AR = {
   'Options': 'الخيارات', 'Options (OEM & alternatives)': 'الخيارات (الأصلي والبدائل)', 'Also add this cost to Budget': 'أضف هذه التكلفة إلى الميزانية أيضاً',
   // select options / pickers
   'Automatic': 'أوتوماتيك', 'Manual': 'عادي (مانيوال)', 'Start from scratch…': 'ابدأ من الصفر…',
-  'Change receipt': 'تغيير الإيصال', 'Change photo': 'تغيير الصورة', 'Add photo': 'إضافة صورة',
+  'Change receipt': 'تغيير الإيصال',
   // buttons
   'Save service': 'حفظ الخدمة', 'Delete fill-up': 'حذف التعبئة', 'Delete document': 'حذف الوثيقة', 'Delete record': 'حذف السجل',
   'Delete service': 'حذف الخدمة', 'Delete expense': 'حذف المصروف', 'Delete part': 'حذف القطعة', 'Remove option': 'حذف الخيار',
@@ -217,11 +214,10 @@ const AR = {
   // undo affordance on a record delete (chrome.js deleteRow/undoToast)
   'Undo': 'تراجع', 'Restored': 'تمت الاستعادة',
   'Fill-up updated': 'تم تحديث التعبئة', 'Fill-up added': 'تمت إضافة التعبئة', 'Fill-up deleted': 'تم حذف التعبئة',
-  'Litres required': 'اللترات مطلوبة', 'Odometer required': 'العداد مطلوب',
+  'Litres required': 'اللترات مطلوبة',
   'Litres must be greater than zero': 'يجب أن تكون اللترات أكبر من صفر',
   'Odometer must be zero or greater': 'يجب أن يكون العداد صفرًا أو أكثر',
   'Cost must be zero or greater': 'يجب أن تكون التكلفة صفرًا أو أكثر',
-  'Could not restore backup. Your existing garage was kept.': 'تعذّر استعادة النسخة الاحتياطية. تم الاحتفاظ بمرآبك الحالي.',
   'Document updated': 'تم تحديث الوثيقة', 'Document added': 'تمت إضافة الوثيقة', 'Document deleted': 'تم حذف الوثيقة',
   'Mileage updated': 'تم تحديث العداد', 'Could not read that image': 'تعذّر قراءة الصورة', 'Profile saved': 'تم حفظ الملف', 'Budget updated': 'تم تحديث الميزانية',
   'Service name required': 'اسم الخدمة مطلوب', 'Record updated': 'تم تحديث السجل', 'Service logged ✓': 'تم تسجيل الخدمة ✓', 'Record deleted': 'تم حذف السجل',
@@ -395,7 +391,6 @@ const AR = {
   'Your anonymous car data now helps other owners. Turn it off in the menu.': 'بيانات سيارتك المجهولة تساعد الآن ملاك آخرين. يمكنك إيقافها من القائمة.',
   // accounts
   'Car profile': 'ملف السيارة', 'Maintenance schedule': 'جدول الصيانة', 'Calendar': 'التقويم',
-  'Switch vehicles or add another': 'بدّل بين المركبات أو أضف أخرى',
   'Add your first vehicle': 'أضف مركبتك الأولى',
   'Pick your Mazda and its engine — its SkyActiv service plan is set up for you.': 'اختر سيارة المازدا ومحركها — سيتم إعداد خطة الصيانة سكاي أكتيف لك تلقائيًا.',
   'Keep this device’s garage': 'الاحتفاظ ببيانات هذا الجهاز',
