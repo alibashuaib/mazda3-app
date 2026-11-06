@@ -80,13 +80,20 @@ test('aftermarket wiper option carries the model\'s blade sizes', () => {
   const wiper = id => cat.sharedParts(id).find(p => p.name === 'Wiper Blades (pair)').options[0];
   assert.strictEqual(wiper('cx5kf').brand, 'Bosch Aerotwin 24" + 18"');
   assert.match(wiper('cx90').note, /Driver 26" \(660 mm\) \+ passenger 17" \(432 mm\)/);
-  assert.strictEqual(wiper('cx5gen3').brand, 'Bosch Aerotwin'); // no size data yet
+  assert.strictEqual(wiper('cx5gen3').brand, 'Bosch Aerotwin 26" + 17"');
+  assert.strictEqual(wiper('cx5kf').price, 233); // 24" + 18" singles
+  assert.strictEqual(wiper('cx50').price, 95); // no 15" price found
 });
 
 test('engine-limited OEM entry only applies to the matching engine', () => {
   const belt = code => cat.sharedParts('cx5ke', code).find(p => p.name === 'Serpentine Belt').options[0];
   assert.strictEqual(belt('2.0L SkyActiv-G').partNo, 'PE08-15-909C');
-  assert.strictEqual(belt('2.5L SkyActiv-G').partNo, ''); // 2.5L belt not confirmed
+  assert.strictEqual(belt('2.5L SkyActiv-G').partNo, 'PY01-15-909A');
+  const kfBelt = code => cat.sharedParts('cx5kf', code).find(p => p.name === 'Serpentine Belt').options[0];
+  assert.strictEqual(kfBelt('2.0L SkyActiv-G').partNo, ''); // 2.0L belt not confirmed
+  const bmOil = code => cat.sharedParts('mazda3bm', code).find(p => p.name === 'Oil Filter').options[0];
+  assert.strictEqual(bmOil('1.6L SkyActiv-G').partNo, 'B6Y1-14-302A');
+  assert.match(bmOil('1.6L SkyActiv-G').note, /price from PartSouq/);
 });
 
 test('parts are model-locked unless explicitly shareable', () => {
