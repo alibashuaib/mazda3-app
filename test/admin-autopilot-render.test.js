@@ -51,7 +51,8 @@ test('failed monthly run shows the banner above the tabs', async () => {
     assert.ok(await until(() => app.document.querySelector('#view [role=tablist]')), text(app));
     const b = app.document.querySelector('#view .proposal-alert.fail');
     assert.match(b.textContent, /last monthly autopilot run failed/);
-    assert.ok(b.compareDocumentPosition(app.document.querySelector('#view [role=tablist]')) & 4, 'banner precedes tabs');
+    // The banner shares a row with Refresh, so compare that row (the banner's parent) with the tab strip.
+    assert.ok(b.parentNode.compareDocumentPosition(app.document.querySelector('#view [role=tablist]')) & 4, 'banner precedes tabs');
   } finally { app.cleanup(); }
 });
 
