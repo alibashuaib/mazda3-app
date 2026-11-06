@@ -1142,7 +1142,6 @@ html { scroll-behavior: smooth; }
 /* Monthly autopilot card (admin-autopilot.js) */
 .ap-card { padding: 20px; margin-bottom: 16px; }
 .ap-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.ap-head h3 { font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
 .ap-control { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
 .ap-control p { margin: 0; font-size: 13px; }
 .ap-meter { margin-top: 16px; }
@@ -1200,7 +1199,10 @@ html { scroll-behavior: smooth; }
 .ap-est-cell:first-child { padding-inline-start: 0; border-inline-start: 0; }
 .ap-est-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .ap-confirm { margin-top: 4px; }
-.ap-error { font-size: 13px; color: var(--accent-soft); margin: 0 0 12px; }
+.ap-error { font-size: 13px; color: var(--danger); margin: 0 0 12px; }
+/* Inline failure text; .muted.save-error so it outranks the grey .muted colour.
+   The stale-value box is also .save-error (so it gets cleared) but keeps its warn styling. */
+.muted.save-error { color: var(--danger); font-size: 13px; margin: 8px 0 0; }
 .ap-estimate .ap-error { margin: 0; }
 /* Proposals are a single column: the desktop two-up .view .list grid made each row half the page wide. */
 .view .list.proposal-list { grid-template-columns: minmax(0, 1fr); }
@@ -1219,7 +1221,8 @@ html { scroll-behavior: smooth; }
 .admin-car-groups .item, .admin-car-rows .item { border: 0; border-radius: 0; background: transparent; border-top: 1px solid var(--stroke); }
 .admin-car-rows .item:first-child { border-top: 0; }
 @media (min-width: 700px) { .admin-car-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.proposal-row .btn { min-height: 44px; }
+/* 44px touch target for every Advanced action (kill switch, Preview, Confirm run, domain Approve/Ban). */
+.admin-view .btn { min-height: 44px; }
 .proposal-row .pill { font-weight: 600; }
 .btn.ghost.reject { color: var(--danger); border-color: var(--danger-soft); }
 

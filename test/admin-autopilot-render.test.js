@@ -62,7 +62,8 @@ test('healthy run: no banner; report, domains, unverified render; hostile text i
     assert.ok(await until(() => /Last run report/.test(text(app))), text(app));
     assert.strictEqual(app.document.querySelector('#view .proposal-alert.fail'), null);
     const t = text(app);
-    assert.match(t, /schedule_item: 3 new, 1 unchanged/);
+    assert.match(t, /Schedule item: 3 new, 1 unchanged/);
+    assert.match(t, /Monthly · Done/);
     assert.match(t, /4\.5 SAR/);
     assert.match(t, /Engine Oil\s*missed runs: 3/);
     assert.ok(t.includes('evil<b>.example'));
