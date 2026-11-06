@@ -92,8 +92,8 @@ test('engine-limited OEM entry only applies to the matching engine', () => {
   const kfBelt = code => cat.sharedParts('cx5kf', code).find(p => p.name === 'Serpentine Belt').options[0];
   assert.strictEqual(kfBelt('2.0L SkyActiv-G').partNo, ''); // 2.0L belt not confirmed
   const bmOil = code => cat.sharedParts('mazda3bm', code).find(p => p.name === 'Oil Filter').options[0];
-  assert.strictEqual(bmOil('1.6L SkyActiv-G').partNo, 'B6Y1-14-302A');
-  assert.match(bmOil('1.6L SkyActiv-G').note, /price from PartSouq/);
+  assert.strictEqual(bmOil('1.6L MZR').partNo, 'B6Y1-14-302A');
+  assert.match(bmOil('1.6L MZR').note, /price from PartSouq/);
 });
 
 test('parts are model-locked unless explicitly shareable', () => {
