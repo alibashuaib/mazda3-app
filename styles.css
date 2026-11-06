@@ -1236,7 +1236,7 @@ html { scroll-behavior: smooth; }
 .admin-car-panel .item p { font-size: 12px; }
 .admin-car-groups .item, .admin-car-rows .item { border: 0; border-radius: 0; background: transparent; border-top: 1px solid var(--stroke); }
 .admin-car-rows .item:first-child, .admin-car-panel .admin-car-group + .item { border-top: 0; }
-@media (min-width: 700px) { .admin-car-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 700px) { .admin-car-groups { display: block; column-count: 2; column-gap: 12px; } .admin-car-panel { break-inside: avoid; margin-bottom: 12px; } .admin-car-panel:last-child { margin-bottom: 0; } }
 /* 44px touch target for every Advanced action (kill switch, Preview, Confirm run, domain Approve/Ban). */
 .admin-view .btn { min-height: 44px; }
 .proposal-row .pill { font-weight: 600; }
