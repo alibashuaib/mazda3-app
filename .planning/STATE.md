@@ -72,6 +72,7 @@ None yet.
 | 261107-wsc | Coolant FL22 OEM price 78.20 SAR per gallon from dealer | 2026-11-07 | fb30de9 | [261107-wsc-coolant-fl22-oem-price-78-20-sar-per-gal](./quick/261107-wsc-coolant-fl22-oem-price-78-20-sar-per-gal/) |
 | 261107-wuu | Suggest coolant gallons per car, keep per-gallon price | 2026-11-07 | d64d553 | [261107-wuu-suggest-coolant-gallons-per-car-keep-per](./quick/261107-wuu-suggest-coolant-gallons-per-car-keep-per/) |
 | 261107-x2y | Swap coolant OEM part number 508E to 508F | 2026-11-07 | 923bd92 | [261107-x2y-swap-coolant-oem-part-number-508e-to-508](./quick/261107-x2y-swap-coolant-oem-part-number-508e-to-508/) |
+| 261108-05r | Local-scope sign-out for failed sign-in cleanup and endSession | 2026-11-08 | 0f2dff7 | [261108-05r-sign-out-scope-local](./quick/261108-05r-sign-out-scope-local/) |
 
 ## Session Continuity
 
