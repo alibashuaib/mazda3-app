@@ -357,7 +357,7 @@ function isLegacyUnverifiedPart(part, modelId) {
 const OEM_CHECKED = {
   // 1.6L is the Z-family MZR engine (as in the Mazda 2 DE), which takes B6Y1-14-302A; PartSouq
   // lists PE01-14-302 as its substitute. Not checked on a BM 1.6 VIN diagram.
-  mazda3bm: { 'Oil Filter': [['PE01-14-302B', 29, '2.0L'], ['B6Y1-14-302A', 26, '1.6L', 'PartSouq']] },
+  mazda3bm: { 'Oil Filter': [['PE01-14-302B', 29, '2.0L'], ['B6Y1-14-302A', 26, '1.6L', 'KSA']] },
   // miata-mazda.com has no Mazda 2 DJ, so the air filter and belt carry PartSouq's price.
   mazda2: { 'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['P501-13-3A0', 56, null, 'PartSouq'], 'Serpentine Belt': ['P51D-15-909', 67, null, 'PartSouq'] },
   mazda6: {
@@ -389,6 +389,25 @@ const OEM_CHECKED = {
     'Spark Plugs (each)': ['PY8V-18-110', 91],
     'Engine Air Filter': ['PY8W-13-3A0', 103], 'Serpentine Belt': ['PY01-15-909A', 144]
   }
+};
+/* Mazda KSA dealer prices (mazda.com.sa/ppl, SAR incl. VAT, rounded, 2026-11-07) for parts that
+   still have no OEM number here. The dealer list names parts but gives no numbers, so this only
+   replaces the generic placeholder price; a value can be a list of [price, enginePrefix] when the
+   dealer lists engines separately. Left out on purpose: coolant (the list does not say how much
+   the price buys), the CX-30 (23) and CX-90 (42.55) belts (look like a different, small belt),
+   and cars with no dealer page (cx5gen3, cx50, cx70, cx80). cx90 has one dealer page, applied to
+   both engines; cx60's 3.3L figures come from its petrol HighPlus page and also cover the diesel. */
+const DEALER_PRICE = {
+  mazda3bm: { 'Cabin A/C Filter': 129, 'Spark Plugs (each)': [[23, '1.6L'], [104, '2.0L']] },
+  mazda3bp: { 'Cabin A/C Filter': 132, 'Spark Plugs (each)': 104, 'Front Brake Pads': 437, 'Rear Brake Pads': 414 },
+  mazda6: { 'Cabin A/C Filter': 129, 'Spark Plugs (each)': 104 },
+  cx9tb: { 'Spark Plugs (each)': [[33, '3.7L']] },
+  cx30: { 'Cabin A/C Filter': 132, 'Spark Plugs (each)': 104, 'Front Brake Pads': 495, 'Rear Brake Pads': 414 },
+  cx60: {
+    'Engine Air Filter': 132, 'Cabin A/C Filter': 140, 'Spark Plugs (each)': 115,
+    'Front Brake Pads': [[518, '3.3L'], [610, '2.5L']], 'Rear Brake Pads': 799, 'Serpentine Belt': [[101, '3.3L']]
+  },
+  cx90: { 'Engine Air Filter': 132, 'Cabin A/C Filter': 140, 'Spark Plugs (each)': 115, 'Front Brake Pads': 518, 'Rear Brake Pads': 736 }
 };
 /* Front wiper lengths in inches [driver, passenger] (left-hand drive), from aftermarket
    size charts (wipersizechart.com, UK wiper retailers). No OEM wiper price could be
@@ -468,7 +487,12 @@ function sharedParts(modelId, engineCode) {
     const o = c && p.options.find(x => x.tag === 'OEM');
     if (o) Object.assign(o, { brand: 'Mazda Genuine', partNo: c[0], price: c[1], note: c[3] === 'PartSouq'
       ? 'OEM no. and price from PartSouq (USD converted to SAR)'
+      : c[3] === 'KSA' ? 'OEM no. from PartSouq catalogue; price from the Mazda KSA dealer price list (SAR incl. VAT)'
       : 'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)' });
+    const d = (DEALER_PRICE[modelId] || {})[p.name];
+    const price = Array.isArray(d) ? (d.find(x => code.startsWith(x[1])) || [])[0] : d;
+    const po = price && p.options.find(x => x.tag === 'OEM' && !x.partNo);
+    if (po) Object.assign(po, { price, note: 'Price from the Mazda KSA dealer price list (SAR incl. VAT); no part number listed' });
   });
   const w = WIPER_IN[modelId];
   const wPrice = w && BOSCH_SINGLE_SAR[w[0]] && BOSCH_SINGLE_SAR[w[1]] ? BOSCH_SINGLE_SAR[w[0]] + BOSCH_SINGLE_SAR[w[1]] : 95;

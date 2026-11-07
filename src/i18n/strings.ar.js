@@ -13,6 +13,8 @@
 const AR = {
   'OEM no. and price from PartSouq (USD converted to SAR)': 'الرقم الأصلي والسعر من PartSouq (محوّل من الدولار إلى ريال)',
   'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)': 'الرقم الأصلي من كتالوج PartSouq؛ السعر مُتحقق منه على miata-mazda.com (ريال شامل الضريبة)',
+  'OEM no. from PartSouq catalogue; price from the Mazda KSA dealer price list (SAR incl. VAT)': 'رقم القطعة من كتالوج PartSouq؛ السعر من قائمة أسعار وكيل مازدا في السعودية (ريال شامل الضريبة)',
+  'Price from the Mazda KSA dealer price list (SAR incl. VAT); no part number listed': 'السعر من قائمة أسعار وكيل مازدا في السعودية (ريال شامل الضريبة)؛ بدون رقم قطعة',
   // catalogue part and service notes (numbered ones are templates in lang.js AR_PATTERNS)
   'Large-platform 8-speed automatic: Mazda Original Oil ATF-A7. Verify the exact procedure and quantity for your VIN; do not substitute ATF-FZ.': 'ناقل حركة أوتوماتيك 8 سرعات للمنصة الكبيرة: زيت مازدا الأصلي ATF-A7. تحقق من الإجراء والكمية الدقيقة حسب رقم الهيكل (VIN)؛ لا تستبدله بـ ATF-FZ.',
   'First-generation CX-9 transmission: verify the exact fluid specification and quantity for your VIN; do not use the later CX-9 ATF-FZ recommendation.': 'ناقل حركة CX-9 الجيل الأول: تحقق من مواصفات الزيت والكمية الدقيقة حسب رقم الهيكل (VIN)؛ لا تعتمد توصية ATF-FZ الخاصة بـ CX-9 الأحدث.',
