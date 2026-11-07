@@ -510,6 +510,9 @@ function sharedParts(modelId, engineCode) {
     if (po) Object.assign(po, { price, note: po.partNo
       ? 'OEM no. from PartSouq catalogue; price from the Mazda KSA dealer price list (SAR incl. VAT)'
       : 'Price from the Mazda KSA dealer price list (SAR incl. VAT); no part number listed' });
+    // Remembers which price came from the catalogue, so normalizeData can refresh a saved car's
+    // OEM option later without overwriting a price the owner typed in.
+    p.options.forEach(x => { if (x.tag === 'OEM') x.catPrice = x.price; });
   });
   const w = WIPER_IN[modelId];
   const wPrice = w && BOSCH_SINGLE_SAR[w[0]] && BOSCH_SINGLE_SAR[w[1]] ? BOSCH_SINGLE_SAR[w[0]] + BOSCH_SINGLE_SAR[w[1]] : 95;

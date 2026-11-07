@@ -356,3 +356,21 @@ test('a saved garage with the old oil filter number is updated to PE01-14-302B',
   assert.ok(nos.includes('PE01-14-302B'), 'new number present');
   assert.ok(!nos.includes('PE01-14-302A'), 'old number gone');
 });
+
+test('normalizeData refreshes catalogue OEM prices on a saved car but keeps prices the owner typed', () => {
+  const v = buildProfile('cx30', 0, { odometer: 0 });
+  const oem = name => v.parts.find(p => p.name === name).options.find(o => o.tag === 'OEM');
+  // Legacy save (no catPrice stamp) holding the old placeholder price: refreshed.
+  delete oem('Front Brake Pads').catPrice; oem('Front Brake Pads').price = 300;
+  // Stamped option the owner edited: left alone.
+  oem('Rear Brake Pads').price = 999;
+  // Legacy save with a price no catalogue ever shipped: left alone.
+  delete oem('Cabin A/C Filter').catPrice; oem('Cabin A/C Filter').price = 77;
+  normalizeData(v);
+  assert.strictEqual(oem('Front Brake Pads').price, 495);
+  assert.strictEqual(oem('Front Brake Pads').catPrice, 495);
+  assert.strictEqual(oem('Rear Brake Pads').price, 999);
+  assert.strictEqual(oem('Cabin A/C Filter').price, 77);
+  const again = JSON.stringify(v.parts); normalizeData(v);
+  assert.strictEqual(JSON.stringify(v.parts), again, 'idempotent');
+});
