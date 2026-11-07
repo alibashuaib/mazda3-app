@@ -32,7 +32,14 @@ async function stopRun(job, deps, reason) {
 async function paid(job, deps, model, request, estSar) {
   const r = await deps.db.reserve(job.run_id, estSar);
   if (!r || !r.ok) return stopRun(job, deps, r && r.reason);
-  const response = await deps.llm(request);
+  let response;
+  try {
+    response = await deps.llm(request);
+  } catch (e) {
+    // Failed call: settle at zero usage so the reservation stops counting against the monthly cap.
+    await deps.db.settle(r.reservation_id, model, {}).catch(() => {});
+    throw e;
+  }
   const s = await deps.db.settle(r.reservation_id, model, response && response.usage);
   if (!s || s.over) return stopRun(job, deps, 'cap');
   return { response };
@@ -159,6 +166,9 @@ export async function runRecalls(job, deps) {
 
 // D-03: free. Fetch + hash compare only; zero search / LLM calls. A never-checked car has no known sources,
 // so nothing can be skipped as unchanged and the estimate is the full worst case (basis 'worst-case').
+// ponytail: typical-case, not a ceiling. A run can make more calls (pause_turn resends, the second search pass,
+// new candidates found by discover). Spend stays safe because every call reserves against the cap first;
+// count MAX_RESENDS and new candidates here if the owner wants a true upper bound.
 export async function runPreview(carId, deps) {
   const { cfg, db } = deps;
   const car = await db.loadCar(carId);

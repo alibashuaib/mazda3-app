@@ -51,6 +51,7 @@ export function isPrivateIp(ip) {
   if (!h) return true;
   const v4 = (hi, lo) => privateV4(hi >> 8, hi & 255, lo >> 8);
   if (h.every(n => n === 0) || (h.slice(0, 7).every(n => n === 0) && h[7] === 1)) return true;   // :: and ::1
+  if (h.slice(0, 6).every(n => n === 0)) return v4(h[6], h[7]);                                    // ::/96 IPv4-compatible (deprecated)
   if (h.slice(0, 5).every(n => n === 0) && h[5] === 0xffff) return v4(h[6], h[7]);                // ::ffff:a.b.c.d
   if (h[0] === 0x64 && h[1] === 0xff9b && h.slice(2, 6).every(n => n === 0)) return v4(h[6], h[7]); // NAT64
   if (h[0] === 0x2002) return v4(h[1], h[2]);                                                       // 6to4

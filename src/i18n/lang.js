@@ -9,14 +9,31 @@
 'use strict';
 
 let lang = 'en';
-/* The tire part's name carries its OEM size ("Tires (205/60R16, each)", see
-   catalog.js tiresPart), so one dictionary key can't cover every model. */
-const AR_TIRES = /^Tires \((.+), each\)$/;
+/* Catalogue strings that carry a number (tire size, wiper inches, oil and
+   coolant litres — see catalog.js), so one dictionary key can't cover every
+   model. {1}, {2}… mark the values, copied unchanged into the Arabic text. */
+const AR_PATTERNS = [
+  ['Tires ({1}, each)', 'إطار ({1}، للحبة)'],
+  ['Driver {1}" ({2} mm) + passenger {3}" ({4} mm), from aftermarket size charts — check your blades before buying',
+    'السائق {1}" ({2} مم) + الراكب {3}" ({4} مم)، حسب جداول المقاسات في السوق — تحقق من المساحات قبل الشراء'],
+  ['API SP / ILSAC GF-6A full synthetic — ~{1} L with filter', 'اصطناعي بالكامل API SP / ILSAC GF-6A — ~{1} لتر مع الفلتر'],
+  ["System holds ~{1} L, per Mazda's capacities table for this engine. Replace every 5 years in KSA heat.",
+    'سعة النظام ~{1} لتر، حسب جدول سعات مازدا لهذا المحرك. استبدله كل 5 سنوات في حرارة المملكة.'],
+  ['System holds an estimated ~{1} L — no published capacity table found for this engine; confirm on your coolant reservoir or service sheet before buying. Replace every 5 years in KSA heat.',
+    'سعة النظام تقديرياً ~{1} لتر — لا يوجد جدول سعات منشور لهذا المحرك؛ تحقق من خزان سائل التبريد أو ورقة الصيانة قبل الشراء. استبدله كل 5 سنوات في حرارة المملكة.'],
+  ['5W-30 (API SP / ILSAC GF-6A) full synthetic — ~{1} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.',
+    'زيت 5W-30 اصطناعي بالكامل (API SP / ILSAC GF-6A) — ~{1} لتر مع الفلتر. كل 7,500 كم / 6 أشهر (ظروف قاسية) لحرارة وغبار جدة والقيادة داخل المدينة. أضف منظف نظام الوقود مع كل تغيير زيت — ضروري لمحرك SkyActiv-G ذي الحقن المباشر للحفاظ على نظافة البخاخات وصمامات السحب.'],
+  ['0W-30 low-SAPS (ACEA C3, DPF-safe) full synthetic — ~{1} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Never use a non-low-SAPS oil — the ash clogs the diesel particulate filter (DPF) over time. No fuel-system cleaner additive needed — this is compression-ignition, not the direct-injection gasoline SkyActiv-G.',
+    'زيت 0W-30 منخفض الرماد (ACEA C3، آمن لمرشح DPF) اصطناعي بالكامل — ~{1} لتر مع الفلتر. كل 7,500 كم / 6 أشهر (ظروف قاسية) لحرارة وغبار جدة والقيادة داخل المدينة. لا تستخدم أبداً زيتاً غير منخفض الرماد — الرماد يسد مرشح الجسيمات للديزل (DPF) مع الوقت. لا حاجة لمادة منظف نظام الوقود — هذا محرك اشتعال بالضغط، وليس SkyActiv-G البنزين ذا الحقن المباشر.'],
+].map(([en, ar]) => [new RegExp('^' + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{(\d)\\\}/g, '(.+?)') + '$'), ar]);
 function t(s) {
   if (lang !== 'ar' || s == null) return s;
-  if (AR[s]) return AR[s];
-  const m = AR_TIRES.exec(s);
-  return m ? `إطار (${m[1]}، للحبة)` : s;
+  if (Object.prototype.hasOwnProperty.call(AR, s)) return AR[s];   // own keys only: t('constructor') must not return Object's method
+  for (const [re, ar] of AR_PATTERNS) {
+    const m = re.exec(s);
+    if (m) return ar.replace(/\{(\d)\}/g, (_, i) => m[i]);
+  }
+  return s;
 }
 const relDate = d => {
   const days = Math.round((d - today()) / 86400000);

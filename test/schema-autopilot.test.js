@@ -41,7 +41,7 @@ test('autopilot: no write policy or table grant beyond select on any autopilot t
 
 test('autopilot: worker functions are service_role only', () => {
   const worker = ['autopilot_reserve(bigint, numeric)', 'autopilot_settle(bigint, text, jsonb)',
-    'autopilot_start_run(text, text)', 'autopilot_claim_job()', 'autopilot_finish_job(bigint, boolean, text, jsonb)',
+    'autopilot_start_run(text, text)', 'autopilot_claim_job(bigint)', 'autopilot_finish_job(bigint, boolean, text, jsonb)',
     'autopilot_end_run(bigint, text)', 'autopilot_stage_findings(bigint, text, text, jsonb)',
     'autopilot_get_source_hash(text, text)', 'autopilot_set_source_hash(text, text, text)',
     'autopilot_see_domain(text)', 'autopilot_publish_run(bigint)'];

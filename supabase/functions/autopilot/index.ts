@@ -12,6 +12,7 @@ import { safeEqual } from '../plan-intake/logic.mjs';
 import { runDiscover, runExtract, runPreview, runRecalls } from './flow.mjs';
 
 const BUDGET_MS = 100_000;   // stop claiming new jobs after this; the 5-minute cron poke picks up the rest
+const LLM_TIMEOUT_MS = 90_000;   // under BUDGET_MS, so one slow call cannot run past the claim window
 
 Deno.serve(async (req) => {
   let admin: any = null;
@@ -50,14 +51,16 @@ Deno.serve(async (req) => {
 
     const deps = await buildDeps(admin, apiKey);
     const car = body?.car_model_id;
-    if (action === 'preview') {
+    if (action === 'preview' || action === 'run') {
       if (typeof car !== 'string') return json(400, { error: 'car_model_id' });
-      return json(200, await runPreview(car, deps));          // free: fetches + hash compare only
+      const { data: known } = await admin.from('car_models').select('id').eq('id', car).maybeSingle();
+      if (!known) return json(404, { error: 'unknown car' });  // checked here, not inside carRow, which would 500
     }
+    if (action === 'preview') return json(200, await runPreview(car, deps));   // free: fetches + hash compare only
     if (action === 'run') {
-      if (typeof car !== 'string') return json(400, { error: 'car_model_id' });
       const started = await rpc(admin, 'autopilot_start_run', { p_kind: 'manual', p_car: car });
       if (!started?.ok) return json(409, started ?? { error: 'start' });
+      return json(200, await work(admin, deps, started.run_id));
     }
     return json(200, await work(admin, deps));
   } catch (e) {
@@ -72,11 +75,12 @@ async function rpc(admin: any, fn: string, args: Record<string, unknown>) {
   return data;
 }
 
-async function work(admin: any, deps: any) {
+// runId: a manual run drains only its own jobs; the cron poke (no runId) drains the queue.
+async function work(admin: any, deps: any, runId: number | null = null) {
   const t0 = Date.now();
   let done = 0, failed = 0;
   while (Date.now() - t0 < BUDGET_MS) {
-    const job = await rpc(admin, 'autopilot_claim_job', {});
+    const job = await rpc(admin, 'autopilot_claim_job', { p_run: runId });
     if (!job) break;
     try {
       let notes: unknown = null;
@@ -124,6 +128,7 @@ async function buildDeps(admin: any, apiKey: string) {
         method: 'POST',
         headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
         body: JSON.stringify(request),
+        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),   // a hung call would hold the job claim and its reservation
       });
       if (!r.ok) throw new Error(`anthropic ${r.status}`);
       return r.json();

@@ -11,6 +11,27 @@
 })(typeof self !== 'undefined' ? self : globalThis, function () {
 
 const AR = {
+  'OEM no. and price from PartSouq (USD converted to SAR)': 'الرقم الأصلي والسعر من PartSouq (محوّل من الدولار إلى ريال)',
+  'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)': 'الرقم الأصلي من كتالوج PartSouq؛ السعر مُتحقق منه على miata-mazda.com (ريال شامل الضريبة)',
+  // catalogue part and service notes (numbered ones are templates in lang.js AR_PATTERNS)
+  'Large-platform 8-speed automatic: Mazda Original Oil ATF-A7. Verify the exact procedure and quantity for your VIN; do not substitute ATF-FZ.': 'ناقل حركة أوتوماتيك 8 سرعات للمنصة الكبيرة: زيت مازدا الأصلي ATF-A7. تحقق من الإجراء والكمية الدقيقة حسب رقم الهيكل (VIN)؛ لا تستبدله بـ ATF-FZ.',
+  'First-generation CX-9 transmission: verify the exact fluid specification and quantity for your VIN; do not use the later CX-9 ATF-FZ recommendation.': 'ناقل حركة CX-9 الجيل الأول: تحقق من مواصفات الزيت والكمية الدقيقة حسب رقم الهيكل (VIN)؛ لا تعتمد توصية ATF-FZ الخاصة بـ CX-9 الأحدث.',
+  'This model is not confirmed to use Mazda Genuine ATF-FZ. Verify the exact transmission fluid specification and quantity for your VIN before servicing.': 'لم يتأكد أن هذا الموديل يستخدم زيت مازدا الأصلي ATF-FZ. تحقق من مواصفات زيت القير والكمية الدقيقة حسب رقم الهيكل (VIN) قبل الصيانة.',
+  'Mandatory for direct-injection SkyActiv-G': 'ضروري لمحرك SkyActiv-G ذي الحقن المباشر',
+  '~1 L for a full flush': '~1 لتر لتغيير كامل',
+  '~4.5 L per drain (7.7–8.0 L total dry fill). Every 60–80k km; dealer or specialist.': '~4.5 لتر لكل تصريف (7.7–8.0 لتر سعة كاملة على الجاف). كل 60–80 ألف كم؛ لدى الوكالة أو ورشة متخصصة.',
+  'One filter fits most SkyActiv-G engines — verify': 'فلتر واحد يناسب معظم محركات SkyActiv-G — تحقق',
+  'Match the size, not necessarily the brand — Mazda sources sedan OEM tires from more than one maker.': 'طابق المقاس، وليس بالضرورة الماركة — مازدا تورّد إطارات المصنع للسيدان من أكثر من شركة.',
+  'Match the size, not necessarily the brand — Mazda sources SUV OEM tires from more than one maker.': 'طابق المقاس، وليس بالضرورة الماركة — مازدا تورّد إطارات المصنع لسيارات SUV من أكثر من شركة.',
+  'Community default for daily highway driving — strong wet grip, long tread life.': 'الخيار الشائع في المجتمع للقيادة اليومية على الطرق السريعة — تماسك قوي على الأسطح المبتلة وعمر مداس طويل.',
+  'Popular value pick locally for Mazda 3/6 — solid heat resistance for the price.': 'خيار اقتصادي شائع محلياً لمازدا 3/6 — مقاومة جيدة للحرارة مقابل السعر.',
+  'The touring choice most recommended for CX-5/CX-9 daily driving — quiet, handles the extra weight well.': 'إطار الرحلات الأكثر توصية للقيادة اليومية لـ CX-5/CX-9 — هادئ ويتحمل الوزن الإضافي جيداً.',
+  'Comfort-focused highway tread, a frequent local pick for its ride quality.': 'مداس للطرق السريعة يركّز على الراحة، خيار محلي متكرر لجودة القيادة.',
+  'Ah rating and JIS code estimated — no published spec found for this engine; confirm the label on your current battery before buying.': 'سعة Ah ورمز JIS تقديريان — لا توجد مواصفات منشورة لهذا المحرك؛ تحقق من الملصق على بطاريتك الحالية قبل الشراء.',
+  'Dealer-only — no aftermarket exists yet. Figure is a sourced floor ("at least $5,000" incl. a required refrigerant service), not a quote; get the exact number from the dealer before budgeting.': 'لدى الوكالة فقط — لا يوجد بديل تجاري بعد. الرقم حد أدنى من مصدر ("5,000 دولار على الأقل" شاملة خدمة غاز التبريد المطلوبة)، وليس عرض سعر؛ اطلب الرقم الدقيق من الوكالة قبل وضع الميزانية.',
+  'Clean throttle body & MAF sensor — Jeddah dust fouls them; restores idle & economy. (A known SkyActiv-G MAF weak point.)': 'نظّف بوابة الخانق وحساس MAF — غبار جدة يلوّثهما؛ يثبّت الاستاندر ويحسّن استهلاك الوقود. (نقطة ضعف معروفة في حساس MAF لمحركات SkyActiv-G.)',
+  'Check shocks, control arms, ball joints, sway-bar links, tie rods & coil springs — common SkyActiv wear points on rough roads.': 'افحص المساعدات وأذرع التحكم ومفاصل الكرة وروابط عارضة التوازن وقضبان التوجيه والياي — نقاط تآكل شائعة في سيارات SkyActiv على الطرق الوعرة.',
+  'Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy. Six-cylinder engine — six plugs, not four.': 'بواجي NGK إيريديوم ILKAR7L11 — كل 120,000 كم / 6 سنوات (جدول خارج أوروبا). يثبّت الاستاندر ويحسّن استهلاك الوقود. محرك سداسي الأسطوانات — ست بواجي، وليس أربعاً.',
   // nav
   'Dashboard': 'الرئيسية', 'Maintenance': 'الصيانة', 'Fuel': 'الوقود', 'Budget': 'الميزانية', 'Reports': 'التقارير',
   // account menu — language switch item names the *other* language; 'العربية'

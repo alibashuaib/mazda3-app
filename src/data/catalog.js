@@ -87,7 +87,9 @@ const CAR_MODELS = [
    here rather than introducing a second, redundant flag to keep in sync. */
 function engineInfo(modelId, engineCode) {
   const m = CAR_MODELS.find(x => x.id === modelId);
-  const found = m && m.engines.find(e => e[0] === engineCode);
+  // Saved cars can carry an older label for the same engine: match on displacement ("1.6L …") when the exact code is gone.
+  const disp = s => (String(s || '').match(/^\d\.\dL/i) || [''])[0].toUpperCase();
+  const found = m && (m.engines.find(e => e[0] === engineCode) || m.engines.find(e => disp(e[0]) && disp(e[0]) === disp(engineCode)));
   return {
     oilL: found ? found[1] : null,
     cylinders: (found && found[2]) || 4,
@@ -344,20 +346,6 @@ function isLegacyUnverifiedPart(part, modelId) {
   return !!signature && String(brand || '').startsWith(signature);
 }
 
-/* Generic SkyActiv-G consumables — every model starts with these until its own
-   OEM numbers are filled in. Numbers vary by model, so verify before buying.
-
-   stampPartsFitment already locks every non-universal part to `modelId` (and
-   already drops ATF FZ for a model that doesn't use it) — a trailing
-   `.filter(p => p.fitment.shareable || p.name === 'ATF FZ (per liter)')` used
-   to run on top of that and threw away everything else: Engine Oil, Oil
-   Filter, Fuel System Cleaner, both air filters, spark plugs, both brake
-   pads, the serpentine belt, the battery and the wipers. Verified: every
-   model had only 3-4 parts total (cx90: Brake Fluid, Coolant, Washer
-   Fluid). Every model — including the BM, which used to have its own
-   separate hardcoded catalogue — now gets the same full 15-part starter
-   list this comment always said was the intent, with placeholder ("verify
-   for your model") brand/part numbers until real OEM data is filled in. */
 /* OEM numbers confirmed against the PartSouq catalogue and price-checked against
    miata-mazda.com (SAR incl. VAT, rounded) — [partNo, price, enginePrefix?], keyed by model
    then part name. The price is always the miata-mazda.com one; where PartSouq's price was
@@ -406,10 +394,10 @@ const OEM_CHECKED = {
    size charts (wipersizechart.com, UK wiper retailers). No OEM wiper price could be
    checked, so the aftermarket option carries the size instead. cx5gen3 is from one source
    (oximo.pl, CX-5 2025-09+).
-   Mazda 2 DJ: 2022+ facelift is 24" + 16"; some charts list a 16" passenger blade earlier too,
-   but oximo.pl and windscreenwipers.co.uk both give 17" for 2015-21. */
+   Mazda 2 DJ is left out: the catalogue has one DJ entry for 2015+, and the 2022+ facelift
+   (24" + 16") differs from 2015-21 (17" passenger), so no single pair is right for it. */
 const WIPER_IN = {
-  mazda2: [22, 17], mazda3bm: [24, 18], mazda3bp: [26, 17], mazda6: [24, 18], cx3: [22, 19], cx30: [26, 16],
+  mazda3bm: [24, 18], mazda3bp: [26, 17], mazda6: [24, 18], cx3: [22, 19], cx30: [26, 16],
   cx5ke: [24, 18], cx5kf: [24, 18], cx5gen3: [26, 17], cx9tb: [26, 17], cx9: [24, 18], cx50: [26, 15], cx60: [26, 16],
   cx70: [26, 17], cx80: [26, 16], cx90: [26, 17]
 };
@@ -417,6 +405,20 @@ const WIPER_IN = {
    front blade, by inches; a pair is priced as two singles. No 15" listing, so cx50 keeps 95. */
 const BOSCH_SINGLE_SAR = { 16: 87, 17: 84, 18: 83, 19: 103, 22: 96, 24: 150, 26: 89 };
 
+/* Generic SkyActiv-G consumables — every model starts with these until its own
+   OEM numbers are filled in. Numbers vary by model, so verify before buying.
+
+   stampPartsFitment already locks every non-universal part to `modelId` (and
+   already drops ATF FZ for a model that doesn't use it) — a trailing
+   `.filter(p => p.fitment.shareable || p.name === 'ATF FZ (per liter)')` used
+   to run on top of that and threw away everything else: Engine Oil, Oil
+   Filter, Fuel System Cleaner, both air filters, spark plugs, both brake
+   pads, the serpentine belt, the battery and the wipers. Verified: every
+   model had only 3-4 parts total (cx90: Brake Fluid, Coolant, Washer
+   Fluid). Every model — including the BM, which used to have its own
+   separate hardcoded catalogue — now gets the same full 15-part starter
+   list this comment always said was the intent, with placeholder ("verify
+   for your model") brand/part numbers until real OEM data is filled in. */
 function sharedParts(modelId, engineCode) {
   const P = (name, icon, cat, options) => ({ id: dep.uid(), name, icon, cat, options });
   const D = 'Mazda Dealer (Alireza)', A = 'Amazon.sa';

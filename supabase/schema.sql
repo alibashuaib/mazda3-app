@@ -1634,7 +1634,11 @@ end $$;
 
 -- Returns the claimed job row (json) or null. publish waits for every other job of its
 -- run; extract waits for its car's discover (so a discover retry is not overtaken).
-create or replace function public.autopilot_claim_job() returns jsonb
+-- p_run (optional) limits the claim to one run: a manual Check-now request drains only its own car's
+-- jobs, not the monthly queue, which the cron poke handles. The zero-arg version is dropped first,
+-- since a second overload would make the no-argument cron call ambiguous.
+drop function if exists public.autopilot_claim_job();
+create or replace function public.autopilot_claim_job(p_run bigint default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare j public.autopilot_jobs; dead bigint[]; rid bigint;
 begin
@@ -1651,6 +1655,7 @@ begin
 
   select q.* into j from public.autopilot_jobs q
    where q.status = 'queued' and q.run_after <= now()
+     and (p_run is null or q.run_id = p_run)
      and exists (select 1 from public.autopilot_runs r where r.id = q.run_id and r.status = 'running')
      and (q.stage <> 'publish' or not exists (select 1 from public.autopilot_jobs o
             where o.run_id = q.run_id and o.id <> q.id and o.status in ('queued', 'running')))
@@ -1899,8 +1904,8 @@ revoke execute on function public.autopilot_settle(bigint, text, jsonb) from pub
 grant execute on function public.autopilot_settle(bigint, text, jsonb) to service_role;
 revoke execute on function public.autopilot_start_run(text, text) from public, anon, authenticated;
 grant execute on function public.autopilot_start_run(text, text) to service_role;
-revoke execute on function public.autopilot_claim_job() from public, anon, authenticated;
-grant execute on function public.autopilot_claim_job() to service_role;
+revoke execute on function public.autopilot_claim_job(bigint) from public, anon, authenticated;
+grant execute on function public.autopilot_claim_job(bigint) to service_role;
 revoke execute on function public.autopilot_finish_job(bigint, boolean, text, jsonb) from public, anon, authenticated;
 grant execute on function public.autopilot_finish_job(bigint, boolean, text, jsonb) to service_role;
 revoke execute on function public.autopilot_end_run(bigint, text) from public, anon, authenticated;

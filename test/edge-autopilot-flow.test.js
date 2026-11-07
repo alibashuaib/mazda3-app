@@ -165,6 +165,18 @@ test('preview: known unchanged source is skipped and costs less', async () => {
   assert.equal(calls.includes('llm'), false);
 });
 
+test('failed llm call settles its reservation at zero, then the error propagates', async () => {
+  const settled = [];
+  const { deps, calls } = fakes({
+    candidates: ['https://ok.com/a'],
+    llmQueue: [() => { throw new Error('anthropic 503'); }],
+    settle: () => { settled.push(true); return { ok: true, sar: 0, over: false }; },
+  });
+  await assert.rejects(flow.runExtract({ run_id: 1, car_model_id: CAR.id }, deps), /anthropic 503/);
+  assert.equal(settled.length, 1);
+  assert.ok(calls.indexOf('settle') > calls.indexOf('llm'));
+});
+
 test('recalls: NHTSA rows staged as kind recall, no reserve', async () => {
   const body = JSON.stringify({ results: [{ NHTSACampaignNumber: '20V123', Component: 'AIR BAGS', Summary: 'Inflator may rupture.', Remedy: 'Replace inflator.' }] });
   const urls = [];
