@@ -1,5 +1,5 @@
 ---
-quick_id: 261107
+quick_id: 261107-wdz
 ---
 # Apply Mazda KSA dealer prices to all mapped OEM rows
 
