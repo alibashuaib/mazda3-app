@@ -69,6 +69,7 @@ None yet.
 | 261107-w9p | Apply Mazda KSA dealer prices to placeholder OEM rows in catalog.js | 2026-11-07 | 455a575 | [261107-w9p-apply-mazda-ksa-dealer-prices-to-placeho](./quick/261107-w9p-apply-mazda-ksa-dealer-prices-to-placeho/) |
 | 261107-wdz | Apply Mazda KSA dealer prices to all mapped OEM rows | 2026-11-07 | b42ee3e | [261107-wdz-apply-mazda-ksa-dealer-prices-to-all-map](./quick/261107-wdz-apply-mazda-ksa-dealer-prices-to-all-map/) |
 | 261107-wkb | Refresh catalogue OEM prices on saved cars at load | 2026-11-07 | afd84c5 | [261107-wkb-refresh-catalogue-oem-prices-on-saved-ca](./quick/261107-wkb-refresh-catalogue-oem-prices-on-saved-ca/) |
+| 261107-wsc | Coolant FL22 OEM price 78.20 SAR per gallon from dealer | 2026-11-07 | pending | [261107-wsc-coolant-fl22-oem-price-78-20-sar-per-gal](./quick/261107-wsc-coolant-fl22-oem-price-78-20-sar-per-gal/) |
 
 ## Session Continuity
 
