@@ -641,7 +641,7 @@
            data stays: this is endSession(), not signOut(). */
         .catch(err => {
           _user = null;
-          return Promise.resolve().then(() => env.client.auth.signOut()).catch(() => {}).then(() => { throw err; });
+          return Promise.resolve().then(() => env.client.auth.signOut({ scope: 'local' })).catch(() => {}).then(() => { throw err; });
         });
     });
   }
@@ -717,11 +717,11 @@
     } catch (e) { _watching = false; }
   }
 
-  /* Ends the Supabase session but keeps local data. signOut() wipes the device
+  /* Ends THIS device's Supabase session (scope 'local': other devices stay signed in) but keeps local data. signOut() wipes the device
      garage; the admin timer must not do that. The SIGNED_OUT echo runs expire(), which is harmless here. */
   function endSession() {
     const c = env.client;
-    return Promise.resolve(c ? c.auth.signOut() : null).catch(() => {}).then(() => { _user = null; env.rerender(); });
+    return Promise.resolve(c ? c.auth.signOut({ scope: 'local' }) : null).catch(() => {}).then(() => { _user = null; env.rerender(); });
   }
 
   function start() {

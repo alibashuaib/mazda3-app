@@ -654,11 +654,13 @@ test('a failed post-auth sign-in also ends the Supabase session', async () => {
   const client = fullClient({ failSelect: true });
   let signedOut = 0;
   client.auth.signInWithPassword = () => Promise.resolve({ data: { session: { user: { id: 'u1' } }, user: { id: 'u1' } }, error: null });
-  client.auth.signOut = () => { signedOut++; return Promise.resolve({ error: null }); };
+  let scope;
+  client.auth.signOut = (o) => { signedOut++; scope = o && o.scope; return Promise.resolve({ error: null }); };
   account.configure({ client, protocol: 'https:' });
 
   await assert.rejects(() => account.signIn('a@b.c', 'pw'), /PULL_FAILED/);
   assert.strictEqual(signedOut, 1, 'a stored token would let the next boot adopt over the local garage');
+  assert.strictEqual(scope, 'local', 'cleanup must not revoke other devices');
 });
 
 test('signIn surfaces the provider error and stays anonymous', async () => {
