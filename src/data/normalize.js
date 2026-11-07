@@ -237,6 +237,8 @@
     }
     // The oil filter's OEM number is PE01-14-302B in KSA (302A is not available). Saved garages keep their old number otherwise.
     s.parts.forEach(p => { if (p.name === 'Oil Filter') (p.options || []).forEach(o => { if (o.partNo === 'PE01-14-302A') o.partNo = 'PE01-14-302B'; }); });
+    // Coolant OEM number 0000-77-508E-20 was superseded by 508F-20 (1 US gal, FL22 55/45).
+    s.parts.forEach(p => { if (/^Coolant FL22/.test(p.name)) (p.options || []).forEach(o => { if (o.partNo === '0000-77-508E-20') o.partNo = '0000-77-508F-20'; }); });
     // Engine Oil and Coolant used to say the same fixed quantity for every
     // model (a flat "4L" oil bottle, a flat "~6.6L" coolant fill) regardless
     // of the actual engine — real oil capacity ranges 3.6-5.4 L across the

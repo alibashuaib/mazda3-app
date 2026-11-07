@@ -186,6 +186,7 @@ test('normalizeData corrects a saved vehicle\'s oil and coolant quantities for i
   assert.ok(/~5\.1 L/.test(oil.options[0].note), 'CX-90\'s real 5.1 L oil capacity must appear');
   assert.strictEqual(coolant.id, 'c1');
   assert.ok(/estimated ~10\.5 L/.test(coolant.options[0].note));
+  assert.strictEqual(coolant.options[0].partNo, '0000-77-508F-20', 'superseded coolant number must be migrated');
   assert.ok(!coolant.fitment.shareable, 'coolant capacity is car-specific — must no longer be universally shareable');
 });
 
