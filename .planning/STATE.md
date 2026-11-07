@@ -66,7 +66,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 261107-w40 | Change B6Y1-14-302A oil filter price 15 to 26 SAR in catalog.js | 2026-11-07 | e381307 | [261107-w40-change-b6y1-14-302a-oil-filter-price-15-](./quick/261107-w40-change-b6y1-14-302a-oil-filter-price-15-/) |
-| 261107-w9p | Apply Mazda KSA dealer prices to placeholder OEM rows in catalog.js | 2026-11-07 | pending | [261107-w9p-apply-mazda-ksa-dealer-prices-to-placeho](./quick/261107-w9p-apply-mazda-ksa-dealer-prices-to-placeho/) |
+| 261107-w9p | Apply Mazda KSA dealer prices to placeholder OEM rows in catalog.js | 2026-11-07 | 455a575 | [261107-w9p-apply-mazda-ksa-dealer-prices-to-placeho](./quick/261107-w9p-apply-mazda-ksa-dealer-prices-to-placeho/) |
 
 ## Session Continuity
 
