@@ -357,7 +357,7 @@ function isLegacyUnverifiedPart(part, modelId) {
 const OEM_CHECKED = {
   // 1.6L is the Z-family MZR engine (as in the Mazda 2 DE), which takes B6Y1-14-302A; PartSouq
   // lists PE01-14-302 as its substitute. Not checked on a BM 1.6 VIN diagram.
-  mazda3bm: { 'Oil Filter': [['PE01-14-302B', 29, '2.0L'], ['B6Y1-14-302A', 15, '1.6L', 'PartSouq']] },
+  mazda3bm: { 'Oil Filter': [['PE01-14-302B', 29, '2.0L'], ['B6Y1-14-302A', 26, '1.6L', 'PartSouq']] },
   // miata-mazda.com has no Mazda 2 DJ, so the air filter and belt carry PartSouq's price.
   mazda2: { 'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['P501-13-3A0', 56, null, 'PartSouq'], 'Serpentine Belt': ['P51D-15-909', 67, null, 'PartSouq'] },
   mazda6: {

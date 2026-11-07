@@ -61,6 +61,12 @@ None yet.
 - Phase 3 research flags: `anthropic-version` header, web_search quality for KSA, Edge Function limits.
 - Phase 4: marketplace terms; prices likely from snippets and user observations only.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 261107-w40 | Change B6Y1-14-302A oil filter price 15 to 26 SAR in catalog.js | 2026-11-07 | pending | [261107-w40-change-b6y1-14-302a-oil-filter-price-15-](./quick/261107-w40-change-b6y1-14-302a-oil-filter-price-15-/) |
+
 ## Session Continuity
 
 Last session: 2026-11-05T05:15:36.694Z
