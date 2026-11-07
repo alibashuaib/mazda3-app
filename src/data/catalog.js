@@ -149,6 +149,7 @@ function coolantLitersFor(modelId, engineCode) {
 }
 function coolantPart(modelId, engineCode) {
   const { liters, verified } = coolantLitersFor(modelId, engineCode);
+  const gal = Math.ceil(liters / 3.785);  // dealer sells FL22 by the US gallon; round up so the full fill is covered
   const note = verified
     ? `System holds ~${liters} L, per Mazda's capacities table for this engine. Replace every 5 years in KSA heat.`
     : `System holds an estimated ~${liters} L — no published capacity table found for this engine; confirm on your coolant reservoir or service sheet before buying. Replace every 5 years in KSA heat.`;
@@ -158,7 +159,7 @@ function coolantPart(modelId, engineCode) {
   return stampPartFitment({
     id: dep.uid(), name: 'Coolant FL22 (long-life)', icon: '🌡️', cat: 'Engine',
     options: [
-      { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 78.2, store: 'Mazda Dealer (Alireza)', note: note + ' Price is per 1 gal (3.78 L) from the Mazda KSA dealer price list (SAR incl. VAT).' },
+      { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 78.2, store: 'Mazda Dealer (Alireza)', note: note + ` Buy ${gal} gal (1 gal = 3.78 L); price is per gallon from the Mazda KSA dealer price list (SAR incl. VAT).` },
       { tag: 'ALT', brand: 'Total Glacelf Auto Supra', partNo: '', price: 85, store: 'Local parts market', note: 'KSA-available compatible coolant (per 5-yr plan)' },
       { tag: 'ALT', brand: 'Zerex Asian Blue (P-HOAT)', partNo: '', price: 85, store: 'Amazon.sa', note: 'Compatible chemistry' }
     ]

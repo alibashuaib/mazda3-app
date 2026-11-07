@@ -257,7 +257,7 @@
       const coolantIdx = s.parts.findIndex(p => p.name === 'Coolant FL22 (long-life)');
       // 130 was the old catalogue price; the dealer sells it per gallon at 78.20. Owner-typed prices stay.
       const oldCoolantPrice = coolantIdx >= 0 && (s.parts[coolantIdx].options[0] || {}).tag === 'OEM' && s.parts[coolantIdx].options[0].price === 130;
-      if (coolantIdx >= 0 && (oldCoolantPrice || !new RegExp(`~${wantCoolant.liters}\\s*L`).test((s.parts[coolantIdx].options[0] || {}).note || ''))) {
+      if (coolantIdx >= 0 && (oldCoolantPrice || !new RegExp(`~${wantCoolant.liters}\\s*L.*Buy ${Math.ceil(wantCoolant.liters / 3.785)} gal`).test((s.parts[coolantIdx].options[0] || {}).note || ''))) {
         s.parts[coolantIdx] = Object.assign(dep.coolantPart(s.car.modelId, s.car.engine), { id: s.parts[coolantIdx].id });
       }
       const wantAh = dep.batteryAhFor(s.car.modelId, s.car.engine).ah;
