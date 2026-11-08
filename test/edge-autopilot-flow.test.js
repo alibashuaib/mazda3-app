@@ -148,7 +148,7 @@ test('preview: zero paid calls; never-checked car is worst-case', async () => {
   const r = await flow.runPreview(CAR.id, deps);
   assert.equal(r.basis, 'worst-case');
   assert.ok(r.sar > 0);
-  assert.equal(r.llm_calls, 1 + flow.MAX_CANDIDATES);
+  assert.equal(r.llm_calls, 2 + flow.MAX_CANDIDATES);   // + the parts search
   assert.equal(calls.includes('llm'), false);
   assert.equal(calls.includes('reserve'), false);
 });
@@ -213,4 +213,128 @@ test('recalls: NHTSA redirected off api.nhtsa.gov is not staged', async () => {
   const { deps } = fakes({ fetch: () => ({ ok: true, kind: 'json', body, finalUrl: 'https://evil.com/x' }) });
   await assert.rejects(flow.runRecalls({ run_id: 1, car_model_id: CAR.id }, deps), /nhtsa unavailable/);
   assert.equal(deps.staged.length, 0);
+});
+
+/* ---- parts job (04-06) ---- */
+const PCAR = { id: 'm3-bp', name: 'Mazda 3 BP', make: 'Mazda', model: '3', generation: 'BP · 2019-20', engine: '2.5L' };
+const OILF = { car_model_id: 'm3-bp', part_name: 'Oil Filter', slot: 'oem', brand: 'Mazda', part_no: '', price: 30, price_basis: 'indicative', note: '' };
+const partsResp = (claims, cites) => ({ content: [{ type: 'text', text: JSON.stringify(claims), citations: cites.map(([url, cited_text]) => ({ url, cited_text })) }], usage: { input_tokens: 100, output_tokens: 50 } });
+const Q = (pn, price, eng = '2.5L') => `Mazda 3 2019 ${eng} oil filter ${pn} SAR ${price}`;
+function partsFakes(over = {}) {
+  const f = fakes({ ...over, cfg: { minPct: 0.1, minSar: 5, optionalFloorSar: 8, dealerPriceUrls: {}, ...(over.cfg || {}) } });
+  Object.assign(f.deps.db, {
+    loadCar: async () => PCAR,
+    budgetLeft: async () => (over.budget === undefined ? 100 : over.budget),
+    loadLiveParts: async () => (over.live === undefined ? [OILF] : over.live),
+    userAgreement: async () => over.users || [],
+  });
+  return f;
+}
+const JOB = { run_id: 1, car_model_id: 'm3-bp' };
+const OK = { 'a.com': 'approved', 'b.com': 'approved', 'www.a.com': 'approved', 'shop.a.com': 'approved' };
+
+test('parts: below the soft floor skips with no reserve, llm or stage', async () => {
+  const { deps, calls } = partsFakes({ budget: 3 });
+  const r = await flow.runParts(JOB, deps);
+  assert.deepEqual(r.notes.skipped, ['budget']);
+  assert.equal(calls.some(c => ['reserve', 'llm', 'stage'].includes(c)), false);
+});
+
+test('parts: 2 independent hosts confirm the part number, evidence has both urls', async () => {
+  const { deps, calls } = partsFakes({ domains: OK, llmQueue: [partsResp([{ part: 'Oil Filter', part_no: 'PE01-14-302B', price: null, url: 'https://a.com/x' }],
+    [['https://a.com/x', Q('PE01-14-302B', 30)], ['https://b.com/y', Q('PE01-14-302B', 31)]])] });
+  const r = await flow.runParts(JOB, deps);
+  const row = deps.staged[0].rows[0];
+  assert.equal(deps.staged[0].kind, 'part');
+  assert.equal(row.target_key, 'Oil Filter|oem');
+  assert.equal(row.after.part_no, 'PE01-14-302B');
+  assert.equal(row.evidence.length, 2);
+  assert.ok(llmAfterReserve(calls));
+  assert.ok(r.ok);
+});
+
+test('parts: two subdomains of one site are a single source', async () => {
+  const { deps } = partsFakes({ domains: OK, llmQueue: [partsResp([{ part: 'Oil Filter', part_no: 'PE01-14-302B', price: null, url: 'https://www.a.com/x' }],
+    [['https://www.a.com/x', Q('PE01-14-302B', 30)], ['https://shop.a.com/y', Q('PE01-14-302B', 30)]])] });
+  const r = await flow.runParts(JOB, deps);
+  assert.equal(r.notes.dropped.single_source, 1);
+  assert.equal(deps.staged[0].rows.length, 0);
+});
+
+test('parts: wrong engine in the quote is dropped', async () => {
+  const { deps } = partsFakes({ domains: OK, llmQueue: [partsResp([{ part: 'Oil Filter', part_no: 'PE01-14-302B', price: 30, url: 'https://a.com/x' }],
+    [['https://a.com/x', Q('PE01-14-302B', 30, '2.0L')], ['https://b.com/y', Q('PE01-14-302B', 30, '2.0L')]])] });
+  const r = await flow.runParts(JOB, deps);
+  assert.ok(r.notes.dropped.engine_mismatch >= 1);
+  assert.equal(deps.staged[0].rows.length, 0);
+});
+
+test('parts: model-claimed price with no matching citation is not staged', async () => {
+  const { deps } = partsFakes({ domains: OK, llmQueue: [partsResp([{ part: 'Oil Filter', part_no: null, price: 26, url: 'https://a.com/x' }],
+    [['https://a.com/x', Q('PE01-14-302B', 45)]])] });
+  const r = await flow.runParts(JOB, deps);
+  assert.equal(r.notes.dropped.unverified_price, 1);
+  assert.equal(deps.staged[0].rows.length, 0);
+});
+
+test('parts: immaterial price dropped, material staged as indicative', async () => {
+  const run = async price => {
+    const { deps } = partsFakes({ domains: OK, llmQueue: [partsResp([{ part: 'Oil Filter', part_no: null, price, url: 'https://a.com/x' }], [['https://a.com/x', Q('PE01-14-302B', price)]])] });
+    const r = await flow.runParts(JOB, deps);
+    return { r, rows: deps.staged[0].rows };
+  };
+  const a = await run(32);
+  assert.equal(a.r.notes.dropped.immaterial, 1);
+  assert.equal(a.rows.length, 0);
+  const b = await run(45);
+  assert.equal(b.rows[0].after.price, 45);
+  assert.equal(b.rows[0].after.price_basis, 'indicative');
+});
+
+test('parts: dealer page price staged as dealer/official; fetch error is skipped, not thrown', async () => {
+  const dealer = { 'm3-bp': 'https://dealer.example/parts' };
+  const quote = 'Oil Filter genuine 33 SAR each';
+  const page = `<html><body><p>${quote}</p></body></html>`;
+  const resp = { content: [{ type: 'text', text: JSON.stringify({ items: [{ part: 'Oil Filter', price: 33, quote }] }) }], usage: { input_tokens: 10, output_tokens: 10 } };
+  const a = partsFakes({ cfg: { dealerPriceUrls: dealer }, fetch: () => html(page), llmQueue: [resp, partsResp([], [])] });
+  await flow.runParts(JOB, a.deps);
+  const row = a.deps.staged[0].rows[0];
+  assert.equal(row.after.price_basis, 'dealer');
+  assert.equal(row.evidence[0].tier, 'official');
+  assert.ok(llmAfterReserve(a.calls));
+  const b = partsFakes({ cfg: { dealerPriceUrls: dealer }, fetch: () => ({ ok: false, error: 'robots' }), llmQueue: [partsResp([], [])] });
+  const r = await flow.runParts(JOB, b.deps);
+  assert.ok(r.notes.skipped.some(s => /robots/.test(s)));
+});
+
+test('parts: 3 agreeing users stage an ALT row with users evidence only; unknown part dropped', async () => {
+  const { deps } = partsFakes({ llmQueue: [partsResp([], [])], users: [
+    { item_key: 'oil filter', brand: 'Denso', part_no: '150-2010', users: 3, median_price: 27 },
+    { item_key: 'flux capacitor', brand: 'X', part_no: '', users: 5, median_price: 10 }] });
+  const r = await flow.runParts(JOB, deps);
+  const row = deps.staged[0].rows.find(x => x.target_key === 'Oil Filter|alt:denso');
+  assert.deepEqual(row.evidence, [{ type: 'users', tier: 'community', users: 3, median: 27 }]);
+  assert.equal(row.after.price, 27);
+  assert.equal(r.notes.dropped.unknown_part, 1);
+  assert.ok(r.notes.skipped.includes('no citations'));
+});
+
+test('parts: new model uses generic names as OEM inserts and stages no ALT', async () => {
+  const { deps } = partsFakes({ live: [], domains: OK, users: [{ item_key: 'oil filter', brand: 'Denso', part_no: 'x', users: 3, median_price: 27 }],
+    llmQueue: [partsResp([{ part: 'Oil Filter', part_no: 'PE01-14-302B', price: 30, url: 'https://a.com/x' }],
+      [['https://a.com/x', Q('PE01-14-302B', 30)], ['https://b.com/y', Q('PE01-14-302B', 31)]])] });
+  await flow.runParts(JOB, deps);
+  assert.deepEqual(deps.staged[0].rows.map(x => x.target_key), ['Oil Filter|oem']);
+});
+
+test('parts: no citations is a skipped note, job ok', async () => {
+  const { deps } = partsFakes({ llmQueue: [partsResp([], [])] });
+  const r = await flow.runParts(JOB, deps);
+  assert.ok(r.ok && r.notes.skipped.includes('no citations'));
+});
+
+test('index.ts: parts stage mapped, config + rpc wired, still no live writes', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'autopilot', 'index.ts'), 'utf8');
+  for (const s of ['parts: runParts', 'autopilot_user_agreement', 'autopilot_budget_left', 'min_pct', 'optional_floor_sar', 'dealer_price_urls']) assert.ok(src.includes(s), s);
+  assert.equal(/\.(insert|update|upsert|delete)\(/.test(src), false);
 });
