@@ -90,3 +90,15 @@ test('applyParts skips a row with a null price instead of stamping 0 SAR', async
   rc.applyParts(d);
   assert.deepStrictEqual([d.parts[0].options[0].price, d.parts[0].options[0].partNo], [10, 'OLD']);
 });
+
+test('applyParts removes a catalogue-created ALT whose approved row is gone, keeps owner-priced and built-in ones (WR-09)', async () => {
+  rc.configure({ client: client(PARTS) }); await rc.refresh();
+  const d = data(10, 10);
+  d.parts[0].options.push(
+    { tag: 'ALT', brand: 'Gone', partNo: '', price: 15, catPrice: 15, store: '' },        // created by the catalogue, row withdrawn
+    { tag: 'ALT', brand: 'Typed', partNo: '', price: 18, catPrice: 15, store: '' },       // owner changed the price
+    { tag: 'ALT', brand: 'Builtin', partNo: '', price: 15, catPrice: 15, store: 'noon' }  // shipped with the app
+  );
+  assert.strictEqual(rc.applyParts(d), 'changed');
+  assert.deepStrictEqual(d.parts[0].options.map(o => o.brand).sort(), ['Bosch', 'Builtin', 'Mazda Genuine', 'Typed']);
+});

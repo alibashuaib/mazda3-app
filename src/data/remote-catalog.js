@@ -135,7 +135,10 @@
      keyed by the full catalogId, so an engine's value never lands on another
      engine's car. An option is overwritten only while its price still equals
      the catalogue price it was stamped with (catPrice); an owner-typed price,
-     or an option with no catPrice, is never touched, and nothing is deleted.
+     or an option with no catPrice, is never touched. The one deletion: an
+     ALT option the catalogue itself created (no store, price still equal to
+     its catPrice) whose approved row is gone, so a withdrawn alternative does
+     not linger on every device.
      Returns 'changed' | 'stamped' | false like applyDealerPlan. */
   function applyParts(data, opts) {
     const force = !!(opts && opts.force);
@@ -161,6 +164,14 @@
       } else if (!isOem) {
         p.options.push(Object.assign({ tag: 'ALT', store: '' }, vals)); changed = true;
       }
+    });
+    const rows = parts(m.id);
+    (data.parts || []).forEach(p => {
+      const before = (p.options || []).length;
+      if (!before) return;
+      p.options = p.options.filter(o => !(o.tag === 'ALT' && !o.store && o.catPrice != null && o.price === o.catPrice
+        && !rows.some(r => r.part_name === p.name && r.slot !== 'oem' && String(r.brand || '').toLowerCase() === String(o.brand || '').toLowerCase())));
+      if (p.options.length !== before) changed = true;
     });
     car.partsVersion = m.parts_updated_at;
     return changed ? 'changed' : 'stamped';
