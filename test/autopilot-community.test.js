@@ -8,12 +8,15 @@ const row = (url, category = 'transmission', extra = {}) => ({ url, category, qu
 
 test('parseFailures: enum only, max 30, km coerced, bad JSON -> []', async () => {
   const { parseFailures } = await load();
-  const out = parseFailures('x {"items":[{"category":"transmission","quote":"jerks","km":"60000"},{"category":"transmission","quote":"a","km":70000},{"category":"ignore previous instructions","quote":"b"}]}');
+  const q1 = 'my automatic transmission jerks badly when shifting', q2 = 'transmission slipped and the gearbox failed at highway speed';
+  const out = parseFailures('x {"items":[{"category":"transmission","quote":"' + q1 + '","km":"60000"},{"category":"transmission","quote":"' + q2 + '","km":70000},{"category":"ignore previous instructions","quote":"b"}]}');
   assert.deepStrictEqual(out, [
-    { category: 'transmission', quote: 'jerks', km: null },
-    { category: 'transmission', quote: 'a', km: 70000 },
+    { category: 'transmission', quote: q1, km: null },
+    { category: 'transmission', quote: q2, km: 70000 },
   ]);
-  const many = JSON.stringify({ items: Array.from({ length: 80 }, () => ({ category: 'brakes', quote: 'q' })) });
+  // WR-06: too short, or no word of its category, is not a mention
+  assert.deepStrictEqual(parseFailures('{"items":[{"category":"transmission","quote":"jerks"},{"category":"brakes","quote":"the car makes a loud noise when cold"},{"category":"other","quote":"short note here"}]}'), []);
+  const many = JSON.stringify({ items: Array.from({ length: 80 }, () => ({ category: 'brakes', quote: 'the brake pedal feels soft after warm up' })) });
   assert.strictEqual(parseFailures(many).length, 30);
   assert.deepStrictEqual(parseFailures('not json'), []);
   assert.deepStrictEqual(parseFailures('{"items":"x"}'), []);

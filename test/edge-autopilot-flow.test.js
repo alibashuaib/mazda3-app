@@ -392,7 +392,7 @@ test('community: NHTSA alone (one host) and 2 mentions on 2 hosts stage nothing'
   const a = comm({ nhtsaN: 10, llmQueue: [searchOut([], [])] });
   await flow.runCommunity(JOB, a.deps);
   assert.equal(failureRows(a.deps).length, 0);
-  const x = 'Gearbox slips when warm', y = 'Gearbox jerks in third gear';
+  const x = 'Gearbox slips when warm for me', y = 'Gearbox jerks in third gear again';
   const b = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', x], ['https://f2.com/t/2', y]]),
     labels([{ category: 'transmission', quote: x, km: null }, { category: 'transmission', quote: y, km: null }])] });
   await flow.runCommunity(JOB, b.deps);
@@ -400,16 +400,16 @@ test('community: NHTSA alone (one host) and 2 mentions on 2 hosts stage nothing'
 });
 
 test('community: a label whose quote is not in the cited text is ignored', async () => {
-  const x = 'Gearbox slips when warm', y = 'Gearbox jerks in third gear';
-  const { deps } = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', x], ['https://f2.com/t/2', y], ['https://f2.com/t/3', 'Clutch feels heavy today']]),
-    labels([{ category: 'transmission', quote: x, km: null }, { category: 'transmission', quote: y, km: null }, { category: 'transmission', quote: 'invented sentence about gearbox', km: null }])] });
+  const x = 'Gearbox slips when warm for me', y = 'Gearbox jerks in third gear again';
+  const { deps } = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', x], ['https://f2.com/t/2', y], ['https://f2.com/t/3', 'Clutch feels heavy today again']]),
+    labels([{ category: 'transmission', quote: x, km: null }, { category: 'transmission', quote: y, km: null }, { category: 'transmission', quote: 'an invented sentence about the gearbox', km: null }])] });
   const r = await flow.runCommunity(JOB, deps);
   assert.equal(r.notes.dropped.unverified_quote, 1);
   assert.equal(failureRows(deps).length, 0);
 });
 
 test('community: reddit is only ever a citation; unapproved forum is held', async () => {
-  const x = 'Gearbox slips when warm', y = 'Gearbox jerks in third gear', z = 'Gearbox whines on cold mornings';
+  const x = 'Gearbox slips when warm for me', y = 'Gearbox jerks in third gear again', z = 'Gearbox whines on very cold mornings';
   const { deps, fetched } = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://www.reddit.com/r/mazda/1', x], ['https://www.reddit.com/r/mazda/2', y], ['https://f1.com/t/3', z], ['https://new.com/t', 'x']]),
     labels([{ category: 'transmission', quote: x, km: null }, { category: 'transmission', quote: y, km: null }, { category: 'transmission', quote: z, km: null }])] });
   const r = await flow.runCommunity(JOB, deps);
@@ -419,7 +419,7 @@ test('community: reddit is only ever a citation; unapproved forum is held', asyn
 });
 
 test('community: typical_km only with 2+ verified km figures', async () => {
-  const x = 'Gearbox failed at 90,000 km for me', y = 'Gearbox died at 110,000 km on mine', z = 'Gearbox jerks when cold';
+  const x = 'Gearbox failed at 90,000 km for me', y = 'Gearbox died at 110,000 km on mine', z = 'Gearbox jerks when it is cold';
   const run = async km => {
     const { deps } = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', x], ['https://f2.com/t/2', y], ['https://f2.com/t/3', z]]),
       labels([{ category: 'transmission', quote: x, km: km[0] }, { category: 'transmission', quote: y, km: km[1] }, { category: 'transmission', quote: z, km: 5 }])] });
