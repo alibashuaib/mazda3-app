@@ -456,7 +456,7 @@ const MSENT = 'The all-new Mazda CX-70 3.3L Turbo 2025 takes 6.5 litres of engin
 const modelsResp = (over = {}) => ({ content: [{ type: 'text', text: JSON.stringify({ items: [{ model: 'CX-70', generation: null, years: [2025], markets: ['KSA'],
   engines: [{ name: '3.3L Turbo', oil_l: 6.5, warranty_years: 5, warranty_km: 100000, quote: MSENT }], ...over }] }) }], usage: { input_tokens: 10, output_tokens: 10 } });
 function modelFakes(over = {}) {
-  const f = partsFakes({ cfg: GCC, domains: { 'gcc.example': 'approved' }, fetch: () => html(`<html><body><p>${MSENT}</p></body></html>`),
+  const f = partsFakes({ cfg: GCC, domains: { 'gcc.example': 'approved' }, fetch: () => html(`<html><body><h1>Mazda Saudi Arabia</h1><p>${MSENT}</p></body></html>`),
     llmQueue: [searchResp(['https://gcc.example/models']), modelsResp(over.item)], ...over });
   f.deps.db.loadCar = async () => { throw new Error('models job must not load a car'); };
   f.deps.db.loadAllModels = async () => over.all || [];
@@ -519,4 +519,21 @@ test('extract: a page where no item verified is not hashed (retried next run); a
   const b = fakes({ candidates: ['https://ok.com/a'], llmQueue: [empty] });
   await flow.runExtract({ run_id: 1, car_model_id: CAR.id }, b.deps);
   assert.equal(b.deps.hashed.length, 1);
+});
+
+test('models: identity fields not on the page are dropped; empty-slug names get a hash id (WR-03, WR-07)', async () => {
+  const { groundModels, modelId, validModelId } = await import('../supabase/functions/autopilot/models.mjs');
+  const dropped = {};
+  const eng = n => ({ name: n, oil_l: null, warranty_years: null, warranty_km: null, quote: 'q' });
+  const out = groundModels([
+    { model: 'CX-70', generation: 'KZ', years: [2025, 2031], markets: ['KSA', 'QA'], engines: [eng('3.3L Turbo'), eng('9.9L Fake')] },
+    { model: 'CX-99', generation: null, years: [], markets: ['KSA'], engines: [eng('3.3L Turbo')] },
+  ], 'Mazda Saudi Arabia: the CX-70 3.3L Turbo, 2025 model', dropped);
+  assert.equal(out.length, 1);
+  assert.deepEqual([out[0].generation, out[0].years, out[0].markets, out[0].engines.map(e => e.name)], [null, [2025], ['KSA'], ['3.3L Turbo']]);
+  assert.deepEqual(dropped, { unverified_engine: 1, unverified_model: 1 });
+  const id = modelId({ model: 'مازدا', years: [2025] }, '2.0L', []);
+  assert.ok(validModelId(id), id);
+  assert.notEqual(id, modelId({ model: 'سيارة', years: [2025] }, '2.0L', []));
+  assert.equal(validModelId('x:'), false);
 });

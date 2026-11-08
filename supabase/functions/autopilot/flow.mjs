@@ -12,7 +12,7 @@ import { htmlToText, parseRecalls, sha256Hex } from '../plan-intake/logic.mjs';
 import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, registrableHost, worstCaseEstimate, worstCaseUsage } from './logic.mjs';
 import { buildExtractPrompt, normaliseForQuote, parseExtraction, quoteHasNumber, validateItem } from './extract.mjs';
 import { buildFailurePrompt, countMentions, groupComplaints, parseFailures, typicalKm } from './community.mjs';
-import { buildModelsPrompt, diffModels, modelId, parseModels } from './models.mjs';
+import { buildModelsPrompt, diffModels, groundModels, modelId, parseModels, validModelId } from './models.mjs';
 import { GENERIC_PARTS, PART_NO_RE, altSlot, checkFitment, confirmParts, isMaterial, normPart, priceFromCitation } from './parts.mjs';
 
 export const MAX_CANDIDATES = 4;   // sources read per car per run: bounds extract cost (D-01)
@@ -518,7 +518,7 @@ export async function runModels(job, deps) {
     const r = await paid(job, deps, cfg.extractModel, req, estimateFor(deps, cfg.extractModel, req, 0));
     if (r.stop) return r;
     // an engine whose quote is not verbatim proves nothing: drop it before diffing
-    const found = parseModels(textOf(r.response)).map(f => ({ ...f, engines: f.engines.filter(e => ciIncludes(text, e.quote) || (bump(dropped, 'unverified_quote'), false)) }));
+    const found = groundModels(parseModels(textOf(r.response)), text, dropped).map(f => ({ ...f, engines: f.engines.filter(e => ciIncludes(text, e.quote) || (bump(dropped, 'unverified_quote'), false)) }));
     for (const d of diffModels(found, existing)) {
       const e = d.engine, bad = [];
       const chk = (field, v, unit) => { if (v == null) return null; if (quoteHasNumber(text, e.quote, v, unit)) return v; bad.push(field); bump(dropped, 'unverified_' + field); return null; };
@@ -528,6 +528,7 @@ export async function runModels(job, deps) {
         markets: d.markets, years: d.years,
       };
       const id = modelId(d, e.name, ids);
+      if (!validModelId(id)) { bump(dropped, 'bad_model_id'); continue; }   // WR-07: counted in the run report, not staged
       ids.add(id); existing.push({ id, model: d.model, generation: d.generation, engine: e.name });   // later pages see it as known
       rows.push({ target_key: id, after, verified: !bad.length, reason: bad.map(f => 'unverified_' + f).join(','), evidence: [{ url, quote: e.quote.slice(0, 300), tier: 'official' }] });
     }
