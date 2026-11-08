@@ -88,6 +88,12 @@ export async function runDiscover(job, deps) {
   return { ok: true, notes: { candidates, skipped } };
 }
 
+// WR-05: 'official' is earned only by the owner's GCC host list; a page found by the open (pass 2) search is 'secondary'.
+const tierOf = (url, cfg) => {
+  const h = hostOf(url);
+  return (cfg.gccDomains || []).some(d => { d = String(d).toLowerCase(); return h === d || h.endsWith('.' + d); }) ? 'official' : 'secondary';
+};
+
 export async function runExtract(job, deps) {
   const { cfg, db } = deps;
   const car = await db.loadCar(job.car_model_id);
@@ -123,7 +129,7 @@ export async function runExtract(job, deps) {
       if (v.dropped.length === 0) verified++;
       rows.set(v.service, {
         target_key: v.service, after: v.after, verified: v.dropped.length === 0, reason: '',
-        evidence: v.evidence.map(quote => ({ url, quote, tier: 'official', content_hash: hash })),
+        evidence: v.evidence.map(quote => ({ url, quote, tier: tierOf(url, cfg), content_hash: hash })),
       });
     }
     // WR-02: a page whose items all failed verification is retried next run, not remembered as unchanged

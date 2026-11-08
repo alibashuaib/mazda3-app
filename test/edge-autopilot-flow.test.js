@@ -73,7 +73,7 @@ test('discover: pass 2 runs only when pass 1 finds nothing, with blocked_domains
 });
 
 test('extract: stages verified finding with evidence, hash saved after stage', async () => {
-  const { deps, calls } = fakes({ candidates: ['https://ok.com/a'], llmQueue: [extractResp()] });
+  const { deps, calls } = fakes({ cfg: { gccDomains: ['ok.com'] }, candidates: ['https://ok.com/a'], llmQueue: [extractResp()] });
   const r = await flow.runExtract({ run_id: 1, car_model_id: CAR.id }, deps);
   assert.equal(r.notes.unchanged, false);
   const row = deps.staged[0].rows[0];
@@ -85,6 +85,12 @@ test('extract: stages verified finding with evidence, hash saved after stage', a
   assert.ok(row.evidence[0].content_hash);
   assert.ok(calls.indexOf('stage') < calls.indexOf('sethash'));
   assert.ok(llmAfterReserve(calls));
+});
+
+test('extract: a page from outside the owner GCC host list is secondary, not official (WR-05)', async () => {
+  const { deps } = fakes({ cfg: { gccDomains: ['gcc.example'] }, candidates: ['https://ok.com/a'], llmQueue: [extractResp()] });
+  await flow.runExtract({ run_id: 1, car_model_id: CAR.id }, deps);
+  assert.equal(deps.staged[0].rows[0].evidence[0].tier, 'secondary');
 });
 
 test('extract: unchanged hash skips the LLM entirely', async () => {
