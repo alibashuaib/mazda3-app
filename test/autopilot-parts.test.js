@@ -75,3 +75,17 @@ test('GENERIC_PARTS equals the part names sharedParts returns for an unknown mod
   const { sharedParts } = require('../src/data/catalog.js');
   assert.deepStrictEqual([...GENERIC_PARTS], sharedParts('no-such-model', '').map(p => p.name));
 });
+
+test('security: numeric model needs maker word; price dot is literal; shared hosts split', async () => {
+  const { checkFitment, priceFromCitation } = await load();
+  const m3 = { model: '3', generation: null, engine: null };
+  assert.strictEqual(checkFitment('CX-3 oil filter', m3).reason, 'model_missing');
+  assert.strictEqual(checkFitment('2.5L oil filter', { model: '2' }).reason, 'model_missing');
+  assert.strictEqual(checkFitment('Mazda3 oil filter', m3).ok, true);
+  assert.strictEqual(checkFitment('Mazda 3 oil filter', m3).ok, true);
+  assert.strictEqual(priceFromCitation('SAR 2615', 26.5), false);
+  assert.strictEqual(priceFromCitation('SAR 26.50', 26.5), true);
+  const { registrableHost } = await import('../supabase/functions/autopilot/logic.mjs');
+  assert.notStrictEqual(registrableHost('a.blogspot.com'), registrableHost('b.blogspot.com'));
+  assert.strictEqual(registrableHost('www.example.com.sa'), 'example.com.sa');
+});

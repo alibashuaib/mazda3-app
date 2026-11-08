@@ -43,7 +43,9 @@ const YEAR_RE = /(?<![\d-])(?:19|20)\d\d(?![\d-])/g;
 export function checkFitment(quote, car) {
   const q = normaliseForQuote(quote), m = nk(car && car.model);
   // whole-token model match, spaces/hyphen optional ("CX-5", "CX5"); "cx5" must not match inside "cx50"
-  const modelRe = m && new RegExp(`(?<![a-z0-9])${[...m].join('[\\s-]?')}(?![a-z0-9])`);
+  // numeric models ('2','3','6') need the maker word: a bare "3" would match "CX-3" and the "2" in "2.5L"
+  const tok = /^\d+$/.test(m) ? `mazda[\\s-]?${m}` : [...m].join('[\\s-]?');
+  const modelRe = m && new RegExp(`(?<![a-z0-9])${tok}(?![a-z0-9]|\\.\\d)`);
   if (!modelRe || !modelRe.test(q)) return { ok: false, reason: 'model_missing' };
   const yrs = (q.match(YEAR_RE) || []).map(Number), own = yearsOf(car.generation);
   if (yrs.length && own.length && !yrs.some(y => own.includes(y))) return { ok: false, reason: 'generation_mismatch' };

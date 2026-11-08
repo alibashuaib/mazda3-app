@@ -82,11 +82,15 @@ export function extractSearchUrls(response, bannedHosts) {
 }
 
 // Registrable host: last two labels, last three under com/co/net/org/gov/edu/ac + 2-letter TLD (x.com.sa).
+// Shared-hosting suffixes (anyone can get a subdomain) count as public, so two blogs on one platform are
+// two hosts, not one platform agreeing with itself, and not two subdomains passed off as two sources.
 // ponytail: no public-suffix list; exotic suffixes (e.g. .gov.uk handled, .ltd.uk not) may collapse wrongly. Add a PSL if it matters.
+const SHARED = /^(github\.io|blogspot\.com|wordpress\.com|netlify\.app|vercel\.app|pages\.dev|herokuapp\.com|web\.app|firebaseapp\.com|wixsite\.com|weebly\.com|tumblr\.com|medium\.com|substack\.com)$/;
 export const registrableHost = host => {
   const l = String(host || '').toLowerCase().split('.').filter(Boolean);
   if (l.length <= 2) return l.join('.');
-  const n = (/^(com|co|net|org|gov|edu|ac)$/.test(l[l.length - 2]) && l[l.length - 1].length === 2) ? 3 : 2;
+  let n = (/^(com|co|net|org|gov|edu|ac)$/.test(l[l.length - 2]) && l[l.length - 1].length === 2) ? 3 : 2;
+  if (SHARED.test(l.slice(-n).join('.'))) n++;
   return l.slice(-n).join('.');
 };
 

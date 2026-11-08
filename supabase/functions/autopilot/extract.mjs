@@ -57,7 +57,9 @@ export function quoteHasNumber(fetchedText, quote, number, unit) {
   // whole-token match; "5,000" counts as 5000
   const c = q.replace(/(\d),(?=\d{3}\b)/g, '$1');
   // trailing zeros are the same number ("26.50" proves 26.5, "10.0" proves 10)
-  const m = new RegExp(`(?<![\\d.])${n}${n.includes('.') ? '0*' : '(?:\\.0+)?'}(?![\\d]|\\.\\d)`).exec(c);
+  // plain decimals only; '.' escaped so "26.5" cannot match "2615" (a regex '.' is any char)
+  if (!/^\d+(\.\d+)?$/.test(n)) return false;
+  const m = new RegExp(`(?<![\\d.])${n.replace('.', '\\.')}${n.includes('.') ? '0*' : '(?:\\.0+)?'}(?![\\d]|\\.\\d)`).exec(c);
   if (!m) return false;
   const after = c.slice(m.index + m[0].length).split(/\d/)[0];
   const before = c.slice(0, m.index).split(/\d/).pop();
