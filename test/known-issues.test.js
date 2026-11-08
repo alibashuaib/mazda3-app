@@ -84,3 +84,21 @@ test('in-progress note: only server-registered models with a loaded, empty cache
     assert.ok(!built.document.body.textContent.includes(NOTE), 'static car never shows it');
   } finally { built.cleanup(); }
 });
+
+test('dashboard recall banner queries recalls by the catalog id (car_models.id FK) and renders the row', async () => {
+  const app = await bootApp({ vehicles: veh('mazda3bp', '2.0L SkyActiv-G') });
+  try {
+    const { api, document } = app, seen = {};
+    const rc = { from: t => {
+      assert.strictEqual(t, 'recalls');
+      const p = Promise.resolve({ data: [{ campaign: '24V001', component: 'FUEL PUMP', summary: 's', years: [2020] }], error: null });
+      const c = { then: p.then.bind(p), catch: p.catch.bind(p) };
+      c.select = () => c; c.eq = (k, v) => { seen[k] = v; return c; };
+      return c;
+    } };
+    api.recalls.configure({ client: rc });
+    api.go('dashboard'); await tick();
+    assert.strictEqual(seen.car_model_id, api.session.current().car.catalogId);
+    assert.ok(document.querySelector('.recall-box').textContent.includes('24V001'));
+  } finally { app.cleanup(); }
+});
