@@ -124,7 +124,7 @@ async function afterPurchase(logged, shopIn, cur, vid, billReadId) {
     // Sharing off: nothing leaves the device (no shop row, no prices, no vote).
     if (!(await insights.shareEnabled())) return;
     const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
-    contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
+    contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, engine: cur.car.engine, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
     if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop, billReadId || null);  // never stack on an open modal
   } catch (e) { /* shop features optional; save already succeeded */ }
 }
