@@ -91,7 +91,7 @@ function engineInfo(modelId, engineCode) {
   const disp = s => (String(s || '').match(/^\d\.\dL/i) || [''])[0].toUpperCase();
   const found = m && (m.engines.find(e => e[0] === engineCode) || m.engines.find(e => disp(e[0]) && disp(e[0]) === disp(engineCode)));
   return {
-    oilL: found ? found[1] : null,
+    oilL: found && found[1] > 0 ? found[1] : null,
     cylinders: (found && found[2]) || 4,
     fuel: /e-SkyActiv-D/i.test(engineCode || '') ? 'diesel' : 'gasoline'
   };
@@ -103,9 +103,10 @@ function sparkPlugService(cylinders) {
     note: `Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.${six ? ' Six-cylinder engine — six plugs, not four.' : ''}` };
 }
 function engineOilNote(oilL, fuel) {
+  const qty = oilL ? ` — ~${oilL} L with filter` : '';   // unknown capacity (server-added model): say nothing rather than "~null L"
   return fuel === 'diesel'
-    ? `0W-30 low-SAPS (ACEA C3, DPF-safe) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Never use a non-low-SAPS oil — the ash clogs the diesel particulate filter (DPF) over time. No fuel-system cleaner additive needed — this is compression-ignition, not the direct-injection gasoline SkyActiv-G.`
-    : `5W-30 (API SP / ILSAC GF-6A) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.`;
+    ? `0W-30 low-SAPS (ACEA C3, DPF-safe) full synthetic${qty}. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Never use a non-low-SAPS oil — the ash clogs the diesel particulate filter (DPF) over time. No fuel-system cleaner additive needed — this is compression-ignition, not the direct-injection gasoline SkyActiv-G.`
+    : `5W-30 (API SP / ILSAC GF-6A) full synthetic${qty}. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.`;
 }
 /* The oil PART (what you'd actually buy) used to say a flat "(4L)" for every
    model regardless of engine — real capacity ranges 3.6-5.4 L across the
@@ -655,10 +656,16 @@ function fuelSystemCleanerPart(modelId) {
      per engine (id 'cx70x:3.3l-turbo'); CAR_MODELS is per model, so group by
      the part before ':'. Append-only and idempotent: picker option values are
      CAR_MODELS indices, so nothing may reorder or replace an existing entry,
-     and a static id from the shipped catalogue is never touched. */
+     and a static id from the shipped catalogue is never touched.
+     Each call REBUILDS the registered tail from the rows it is given: a model
+     the server no longer approves (or an engine it dropped) disappears instead
+     of lingering. Registered entries are only ever appended after the static
+     ones, so removing them cannot move a static index. */
   const STATIC_IDS = new Set(CAR_MODELS.map(m => m.id));
   const REGISTERED = new Set();
   function registerModels(rows) {
+    for (let i = CAR_MODELS.length - 1; i >= 0; i--) if (REGISTERED.has(CAR_MODELS[i].id)) CAR_MODELS.splice(i, 1);
+    REGISTERED.clear();
     (rows || []).forEach(r => {
       const mid = String(r && r.id || '').split(':')[0];
       if (!mid || STATIC_IDS.has(mid) || !r.engine) return;
@@ -668,7 +675,7 @@ function fuelSystemCleanerPart(modelId) {
         m = { id: mid, markets: Array.isArray(r.markets) ? r.markets.slice() : [], model: r.model, gen: r.generation, engines: [], colors: paints.length ? paints : [DEFAULT_COLOR] };
         CAR_MODELS.push(m); REGISTERED.add(mid);
       }
-      if (!m.engines.some(e => e[0] === r.engine)) m.engines.push([r.engine, Number(r.oil_capacity_l) || 0]);
+      if (!m.engines.some(e => e[0] === r.engine)) m.engines.push([r.engine, Number(r.oil_capacity_l) > 0 ? Number(r.oil_capacity_l) : null]);   // unknown capacity stays null, never a 0 L oil change
     });
     _sharedMap = null;
   }
