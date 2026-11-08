@@ -147,6 +147,7 @@
     parts(m.id).forEach(r => {
       const p = (data.parts || []).find(x => x.name === r.part_name);
       if (!p) return;
+      if (r.price == null) return;   // no verified price: Number(null) would stamp a 0 SAR price
       p.options = p.options || [];
       const price = Number(r.price), indicative = r.price_basis === 'indicative';
       const vals = { brand: r.brand, partNo: r.part_no || '', price, note: r.note || '', catPrice: price, indicative };

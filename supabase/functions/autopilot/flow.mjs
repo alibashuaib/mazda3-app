@@ -311,6 +311,8 @@ export async function runParts(job, deps) {
     const live = oemLive.get(name) || null, pn = numbers.get(name), pr = prices.get(name);
     if (!pn && !pr) continue;
     const changed = pn && (!live || normPart(live.part_no) !== normPart(pn.part_no));
+    const price = pr ? pr.price : (live && live.price != null ? Number(live.price) : null);
+    if (price == null) { bump(dropped, 'no_price'); continue; }   // a part proposal needs a price (submit_proposal refuses null)
     if (live && !changed) {
       if (!pr) continue;
       if (pr.basis === live.price_basis && live.price != null && !isMaterial(Number(live.price), pr.price, th)) { bump(dropped, 'immaterial'); continue; }
@@ -320,7 +322,7 @@ export async function runParts(job, deps) {
       target_key: `${name}|oem`, verified: true, reason: '', evidence,
       after: {
         tag: 'OEM', brand: (live && live.brand) || 'Mazda', part_no: pn ? pn.part_no : (live ? live.part_no : ''),
-        price: pr ? pr.price : (live && live.price != null ? Number(live.price) : null),
+        price,
         // no new price: keep the live basis; a static one is not allowed in a proposal, so it is labelled indicative
         price_basis: pr ? pr.basis : (live && live.price_basis !== 'static' ? live.price_basis : 'indicative'),
         note: (live && live.note) || '', fitment: fit,
@@ -462,11 +464,12 @@ export async function runCommunity(job, deps) {
     if (!/^alt:[a-z0-9-]{1,40}$/.test(slot)) { bump(dropped, 'no_brand'); continue; }
     const pc = typeof cl.price === 'number' ? ok.find(x => x.url === cl.url && priceFromCitation(x.quote, cl.price) && checkFitment(x.quote, car).ok) : null;
     if (cl.price != null && !pc) bump(dropped, 'unverified_price');
+    if (!pc) { bump(dropped, 'no_price'); continue; }   // a part proposal needs a verified price
     const evidence = [...conf.items, ...(pc ? [pc] : [])].filter((e, i, a) => a.findIndex(x => x.url === e.url) === i).slice(0, 10)
       .map(i => ({ url: i.url, quote: i.quote.slice(0, 300), tier: 'community' }));
     const live = liveRows.find(r => r.part_name === name && r.slot === slot);
     alts.set(`${name}|${slot}`, { target_key: `${name}|${slot}`, verified: true, reason: '', evidence,
-      after: { tag: 'ALT', brand, part_no: pn, price: pc ? cl.price : null, price_basis: 'indicative', note: (live && live.note) || '', fitment: fit } });
+      after: { tag: 'ALT', brand, part_no: pn, price: cl.price, price_basis: 'indicative', note: (live && live.note) || '', fitment: fit } });
   }
   if (alts.size) {
     // autopilot_stage_findings replaces this run+car+kind, so restage the union; runParts rows win (claim order: no concurrent writer).

@@ -82,3 +82,11 @@ test('parts page shows the indicative pill only on indicative options', async ()
     assert.strictEqual(opts[1] ? opts[1].querySelectorAll('.pill.warn').length : 0, 0);
   } finally { app.cleanup(); }
 });
+
+test('applyParts skips a row with a null price instead of stamping 0 SAR', async () => {
+  const nullPriced = PARTS.map(r => (r.slot === 'oem' ? { ...r, price: null } : r));
+  rc.configure({ client: client(nullPriced) }); await rc.refresh();
+  const d = data(10, 10);
+  rc.applyParts(d);
+  assert.deepStrictEqual([d.parts[0].options[0].price, d.parts[0].options[0].partNo], [10, 'OLD']);
+});

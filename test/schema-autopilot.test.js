@@ -151,3 +151,7 @@ test('autopilot: hashes are staged per run and promoted only by a successful pub
   assert.match(fn('autopilot_end_run'), /delete from public\.autopilot_pending_hashes/);
   assert.match(fn('autopilot_abort_run'), /delete from public\.autopilot_pending_hashes/);
 });
+
+test('submit_proposal refuses a part without a price (CR-03)', () => {
+  assert.match(schema, /raise exception 'part needs a price'/);
+});

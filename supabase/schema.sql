@@ -1146,6 +1146,7 @@ begin
        or char_length(coalesce(p_after->>'note', '')) > 300 then raise exception 'part text too long'; end if;
     if coalesce(p_after->>'price_basis', '') not in ('dealer', 'indicative') then raise exception 'bad price_basis'; end if;
     if p_after ? 'price' and jsonb_typeof(p_after->'price') not in ('number', 'null') then raise exception 'bad price'; end if;
+    if jsonb_typeof(p_after->'price') is distinct from 'number' then raise exception 'part needs a price'; end if;
     if jsonb_typeof(p_after->'price') = 'number' and not ((p_after->>'price')::numeric > 0 and (p_after->>'price')::numeric < 100000) then
       raise exception 'price out of range'; end if;
     -- Research Q5: an alternative only makes sense next to a part the car already has.

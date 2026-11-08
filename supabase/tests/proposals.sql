@@ -473,6 +473,10 @@ begin
   r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":100,"price_basis":"dealer"}'::jsonb, ev);
   if r->>'action' <> 'noop' then raise exception 'FAIL: x) equal part not noop: %', r; end if;
 
+  -- a part proposal without a price is refused (CR-03)
+  begin perform public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":null,"price_basis":"indicative"}'::jsonb, ev);
+    raise exception 'FAIL: x) part without a price accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
   -- ALT needs an existing part name for the car
   begin perform public.submit_proposal('part', 'test:gate', 'Nonexistent Part|alt:foo', '{"brand":"B","price":10,"price_basis":"indicative"}'::jsonb, ev);
     raise exception 'FAIL: x) alt for a missing part accepted';

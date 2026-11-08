@@ -427,15 +427,20 @@ test('community: NHTSA failure is a skipped note, job still ok', async () => {
 });
 
 test('community: forum alternative needs 2 hosts on brand + part number; unions with the runParts rows', async () => {
-  const claim = [{ part: 'Oil Filter', brand: 'Denso', part_no: '150-2010', price: null, url: 'https://f1.com/t/1' }];
-  const q1 = 'Mazda 3 2019 owners use Denso 150-2010 oil filter', q2 = 'Denso 150-2010 fits my Mazda 3 2020 perfectly';
+  const claim = [{ part: 'Oil Filter', brand: 'Denso', part_no: '150-2010', price: 45, url: 'https://f1.com/t/1' }];
+  const q1 = 'Mazda 3 2019 owners use Denso 150-2010 oil filter for 45 SAR', q2 = 'Denso 150-2010 fits my Mazda 3 2020 perfectly';
   const oem = { target_key: 'Oil Filter|oem', after: { tag: 'OEM' }, evidence: [], reason: '', verified: true };
   const two = comm({ nhtsaN: 0, domains: FD, staged: [oem], llmQueue: [searchOut(claim, [['https://f1.com/t/1', q1], ['https://f2.com/t/2', q2]]), labels([])] });
   await flow.runCommunity(JOB, two.deps);
   const part = two.deps.staged.find(s => s.kind === 'part').rows;
   assert.deepEqual(part.map(r => r.target_key), ['Oil Filter|oem', 'Oil Filter|alt:denso']);
   assert.equal(part[1].evidence[0].tier, 'community');
-  assert.equal(part[1].after.price, null);
+  assert.equal(part[1].after.price, 45);
+  // no verified price: not staged (submit_proposal refuses a part without one)
+  const np = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([{ ...claim[0], price: null }], [['https://f1.com/t/1', q1], ['https://f2.com/t/2', q2]]), labels([])] });
+  const nr = await flow.runCommunity(JOB, np.deps);
+  assert.equal(nr.notes.dropped.no_price, 1);
+  assert.equal(np.deps.staged.some(s => s.kind === 'part'), false);
   const one = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut(claim, [['https://f1.com/t/1', q1], ['https://f1.com/t/9', q2]]), labels([])] });
   const r = await flow.runCommunity(JOB, one.deps);
   assert.equal(r.notes.dropped.single_source, 1);
