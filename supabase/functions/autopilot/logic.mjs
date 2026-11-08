@@ -30,12 +30,13 @@ export const costSar = (model, usage, prices) => costUsd(model, usage, prices) *
 
 // D-01/ENG-03: reservation is a ceiling: 1 token per input char (no tokenizer assumption), full max_tokens out,
 // full max_uses searches. Assumes no prompt caching in the run; cache writes are not reserved.
+export const worstCaseUsage = ({ inputChars, maxTokens, maxSearches }) => ({
+  input_tokens: Math.ceil(inputChars || 0),
+  output_tokens: maxTokens || 0,
+  server_tool_use: { web_search_requests: maxSearches || 0 },
+});
 export function worstCaseEstimate({ model, inputChars, maxTokens, maxSearches }, prices) {
-  const usage = {
-    input_tokens: Math.ceil(inputChars || 0),
-    output_tokens: maxTokens || 0,
-    server_tool_use: { web_search_requests: maxSearches || 0 },
-  };
+  const usage = worstCaseUsage({ inputChars, maxTokens, maxSearches });
   const usd = costUsd(model, usage, prices);
   return { usd, sar: usd * prices.usd_sar };
 }

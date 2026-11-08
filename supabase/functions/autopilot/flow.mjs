@@ -9,7 +9,7 @@
    or proposals (publish is the SQL function autopilot_publish_run). */
 import { DEFAULT_POLICY, NHTSA_POLICY } from '../_shared/safe-fetch.mjs';
 import { htmlToText, parseRecalls, sha256Hex } from '../plan-intake/logic.mjs';
-import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, registrableHost, worstCaseEstimate } from './logic.mjs';
+import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, registrableHost, worstCaseEstimate, worstCaseUsage } from './logic.mjs';
 import { buildExtractPrompt, normaliseForQuote, parseExtraction, quoteHasNumber, validateItem } from './extract.mjs';
 import { buildFailurePrompt, countMentions, groupComplaints, parseFailures, typicalKm } from './community.mjs';
 import { buildModelsPrompt, diffModels, modelId, parseModels } from './models.mjs';
@@ -41,8 +41,13 @@ async function paid(job, deps, model, request, estSar) {
   try {
     response = await deps.llm(request);
   } catch (e) {
-    // Failed call: settle at zero usage so the reservation stops counting against the monthly cap.
-    await deps.db.settle(r.reservation_id, model, {}).catch(() => {});
+    // A 4xx was rejected before any work, so it is free: settle at zero. A timeout, network error or 5xx may
+    // have been billed (the request can still run on the provider), so settle at the worst case instead of
+    // letting the monthly cap undercount.
+    const free = /^anthropic 4\d\d$/.test(String(e && e.message));
+    const tool = (request.tools || [])[0];
+    const usage = free ? {} : worstCaseUsage({ inputChars: JSON.stringify(request).length, maxTokens: request.max_tokens, maxSearches: (tool && tool.max_uses) || 0 });
+    await deps.db.settle(r.reservation_id, model, usage).catch(() => {});
     throw e;
   }
   const s = await deps.db.settle(r.reservation_id, model, response && response.usage);
