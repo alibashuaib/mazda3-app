@@ -91,3 +91,10 @@ test('security: numeric model needs maker word; price dot is literal; shared-hos
   assert.strictEqual(confirmParts([{ part_no: 'PE01-14-302B', host: 'a.blogspot.com' }, { part_no: 'PE01-14-302B', host: 'b.blogspot.com' }]).length, 0);
   assert.strictEqual(registrableHost('www.example.com.sa'), 'example.com.sa');
 });
+
+test('security: part number must match a whole token in the quote, not a substring', async () => {
+  const { PART_NO_RE, normPart } = await load();
+  const toks = q => (q.toUpperCase().match(new RegExp(PART_NO_RE.source, 'g')) || []).map(normPart);
+  assert.ok(!toks('see ABC1234 here').includes(normPart('PE01-14-302')));
+  assert.ok(toks('see PE01-14-302B here').includes(normPart('PE01-14-302B')));
+});

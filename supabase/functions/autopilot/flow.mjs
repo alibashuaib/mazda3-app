@@ -11,7 +11,7 @@ import { DEFAULT_POLICY, NHTSA_POLICY } from '../_shared/safe-fetch.mjs';
 import { htmlToText, parseRecalls, sha256Hex } from '../plan-intake/logic.mjs';
 import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, worstCaseEstimate } from './logic.mjs';
 import { buildExtractPrompt, parseExtraction, quoteHasNumber, validateItem } from './extract.mjs';
-import { GENERIC_PARTS, altSlot, checkFitment, confirmParts, isMaterial, normPart, priceFromCitation } from './parts.mjs';
+import { GENERIC_PARTS, PART_NO_RE, altSlot, checkFitment, confirmParts, isMaterial, normPart, priceFromCitation } from './parts.mjs';
 
 export const MAX_CANDIDATES = 4;   // sources read per car per run: bounds extract cost (D-01)
 export const MAX_RESENDS = 2;      // pause_turn resends per search pass
@@ -262,9 +262,13 @@ export async function runParts(job, deps) {
       const name = byName.get(String(cl && cl.part).toLowerCase());
       if (!name) { bump(dropped, 'unknown_part'); continue; }
       if (typeof cl.part_no === 'string' && cl.part_no && !numbers.has(name)) {
+        // Whole-token match only: a substring hit let "ABC1234" prove "ABC123" (wrong part, same family).
         const key = normPart(cl.part_no), cands = [];
+        const anchored = new RegExp('^(?:' + PART_NO_RE.source + ')$');
+        if (!anchored.test(String(cl.part_no).trim().toUpperCase())) continue;
         for (const c of ok) {
-          if (!normPart(c.quote).includes(key)) continue;
+          const toks = (String(c.quote).toUpperCase().match(new RegExp(PART_NO_RE.source, 'g')) || []).map(normPart);
+          if (!toks.includes(key)) continue;
           const f = checkFitment(c.quote, car);
           if (!f.ok) { bump(dropped, f.reason); continue; }
           cands.push({ part_no: cl.part_no, host: c.host, tier: 'secondary', quote: c.quote, url: c.url });
