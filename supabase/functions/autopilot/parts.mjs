@@ -3,8 +3,7 @@
    D-04 (fitment pinned to car:engine), D-05 (2 independent hosts for a part number),
    D-06 (snippet prices only from API cited_text), D-07 (materiality), D-13 (outlier trim). */
 import { clash, nk, normaliseForQuote, quoteHasNumber } from './extract.mjs';
-import { registrableHost } from './logic.mjs';
-import { yearsOf } from './flow.mjs';
+import { registrableHost, yearsOf } from './logic.mjs';
 
 // Mazda-style numbers (PE01-14-302B, K020-W0-052E4). Aftermarket numbers match by brand + normPart text instead.
 export const PART_NO_RE = /\b[A-Z0-9]{4}-?[A-Z0-9]{2}-?[A-Z0-9]{3,6}\b/;

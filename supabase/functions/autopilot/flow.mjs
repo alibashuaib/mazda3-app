@@ -9,7 +9,7 @@
    or proposals (publish is the SQL function autopilot_publish_run). */
 import { DEFAULT_POLICY, NHTSA_POLICY } from '../_shared/safe-fetch.mjs';
 import { htmlToText, parseRecalls, sha256Hex } from '../plan-intake/logic.mjs';
-import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, registrableHost, worstCaseEstimate, worstCaseUsage } from './logic.mjs';
+import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, hostOf, registrableHost, worstCaseEstimate, worstCaseUsage, yearsOf } from './logic.mjs';
 import { buildExtractPrompt, normaliseForQuote, parseExtraction, quoteHasNumber, validateItem } from './extract.mjs';
 import { buildFailurePrompt, countMentions, groupComplaints, parseFailures, typicalKm } from './community.mjs';
 import { buildModelsPrompt, diffModels, groundModels, modelId, parseModels, validModelId } from './models.mjs';
@@ -22,7 +22,6 @@ export const EXTRACT_MAX_TOKENS = 4096;
 export const PARTS_MAX_TOKENS = 2048;
 const PARTS_NAME_LIMIT = 30;       // part names sent per prompt: bounds input size
 const TEXT_LIMIT = 60000;          // htmlToText default; validators run on this exact text
-const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
 const bump = (o, k, n = 1) => { o[k] = (o[k] || 0) + n; };
 
 // Cap/kill answers end the run (staged findings dropped, nothing published). 'run_ended' = already over.
@@ -140,16 +139,6 @@ export async function runExtract(job, deps) {
   // CR-01: only staged here; autopilot_publish_run promotes the hash after a successful publish (an ended run re-reads the page)
   for (const [url, hash] of toHash) await db.stageSourceHash(job.run_id, job.car_model_id, url, hash);
   return { ok: true, notes: { dropped, skipped, unchanged: candidates.length > 0 && unchanged === candidates.length } };
-}
-
-// "BM/BN · 2014–18", "BP · 2019+" -> model years (open-ended capped at the current year).
-export function yearsOf(gen, nowYear = new Date().getFullYear()) {
-  const m = String(gen ?? '').match(/(\d{4})\s*([-–]\s*(\d{2,4})|\+)/);
-  if (!m) return [];
-  const a = Number(m[1]);
-  let b = nowYear;
-  if (m[3]) b = m[3].length === 2 ? Number(String(a).slice(0, 2) + m[3]) : Number(m[3]);
-  return Array.from({ length: Math.max(0, Math.min(b - a + 1, 15)) }, (_, i) => a + i);
 }
 
 // SCH-04: NHTSA is free (no reserve), still through safeFetch with the NHTSA policy.

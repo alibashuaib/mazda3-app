@@ -115,3 +115,13 @@ export function estimatePreview({ sources, hashes, prices, cfg }) {
   if (changed.length) add(cfg.extract, changed.length);
   return { sar, searches, llm_calls: llm, skipped };
 }
+
+// "BM/BN · 2014–18", "BP · 2019+" -> model years (open-ended capped at the current year).
+export function yearsOf(gen, nowYear = new Date().getFullYear()) {
+  const m = String(gen ?? '').match(/(\d{4})\s*([-–]\s*(\d{2,4})|\+)/);
+  if (!m) return [];
+  const a = Number(m[1]);
+  let b = nowYear;
+  if (m[3]) b = m[3].length === 2 ? Number(String(a).slice(0, 2) + m[3]) : Number(m[3]);
+  return Array.from({ length: Math.max(0, Math.min(b - a + 1, 15)) }, (_, i) => a + i);
+}
