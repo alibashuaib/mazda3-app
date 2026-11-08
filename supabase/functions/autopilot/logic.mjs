@@ -41,12 +41,6 @@ export function worstCaseEstimate({ model, inputChars, maxTokens, maxSearches },
   return { usd, sar: usd * prices.usd_sar };
 }
 
-// Post-call check: actual spend against the reservation made before the call. over=true => stop the run.
-export function reconcile(reservation, model, usage, prices) {
-  const sar = costSar(model, usage, prices);
-  return { sar, over: sar > reservation.sar };
-}
-
 // D-05/D-06. Pass 1 = GCC allowed_domains only (null when none: go to pass 2). Pass 2 = blocked_domains only.
 // The API 400s if both keys are set, so exactly one is ever present.
 export function buildSearchRequest(pass, car, cfg) {
@@ -109,9 +103,6 @@ export function extractCitations(response, bannedHosts) {
   }
   return out;
 }
-
-// D-13: 3 attempts total. Attempt 1 and 2 failing retry after a growing delay; attempt 3 failing => null (give up).
-export const backoffMs = attempt => (attempt === 1 ? 30000 : attempt === 2 ? 120000 : null);
 
 // D-03: pure preview. sources [{url, hash}] = just fetched (free); hashes = {url: storedHash}.
 // cfg: {discover:{model,inputChars,maxTokens,maxSearches}, extract:{model,inputChars,maxTokens}}
