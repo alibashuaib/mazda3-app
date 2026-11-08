@@ -351,3 +351,114 @@ test('drifted revert shows the message, no toast; row_key is escaped', async () 
     assert.doesNotMatch(app.document.body.textContent, /Reverted(?!:)/);
   } finally { app.cleanup(); }
 });
+
+/* Phase 4 kinds: part, failure, car_model */
+const SC = '<script>alert(1)</script>';
+const ev = (url, extra) => Object.assign({ url, tier: 'community', fetched_at: '2026-11-01T00:00:00Z', quote: 'q' }, extra);
+const partP = o => prop(Object.assign({ id: 30, kind: 'part', target_key: 'Oil Filter|OEM', op: 'insert', before: null,
+  after: { tag: 'OEM', brand: 'Mazda', part_no: 'PE01-14-302', price: 45, price_basis: 'indicative', note: '' },
+  evidence: [{ type: 'users', tier: 'community', users: 4, median: 45 }] }, o));
+const failP = o => prop(Object.assign({ id: 31, kind: 'failure', target_key: 'Rattle', op: 'insert', before: null,
+  after: { title: 'Rattle', summary: 'Heat shield', typical_km: 60000, mentions: 5 },
+  evidence: [ev('https://a.example/x'), ev('https://b.example/y'), ev('https://a.example/z')] }, o));
+const modelP = o => prop(Object.assign({ id: 32, kind: 'car_model', target_key: 'mazda:cx-70-2024', op: 'insert', before: null,
+  after: { make: 'mazda', model: 'CX-70', generation: 'KJ', engine: '3.3L Turbo', oil_capacity_l: 6.2, warranty_years: 5, warranty_km: 100000, markets: ['KSA', 'UAE'], years: [2024, 2025] },
+  evidence: [ev('https://m.example/a')] }, o));
+const openAll = app => [...app.document.querySelectorAll('#view .proposal-row [role=button]')].forEach(b => b.onclick());
+const pills = r => [...r.querySelectorAll('.pill')].filter(p => p.textContent === 'indicative').length;
+
+test('part proposal: fields, indicative pill, users evidence; dealer has no pill', async () => {
+  const dealer = partP({ id: 33, target_key: 'Air Filter|OEM', after: { tag: 'OEM', brand: 'Mazda', part_no: 'X', price: 60, price_basis: 'dealer' } });
+  const { app } = await open({ proposals: [partP(), dealer] });
+  try {
+    assert.ok(await until(() => row(app)));
+    openAll(app);
+    const rows = [...app.document.querySelectorAll('#view .proposal-row')];
+    const t = rows[0].textContent;
+    assert.match(t, /Part: Oil Filter/); assert.match(t, /Slot: OEM/); assert.match(t, /Brand: Mazda/);
+    assert.match(t, /Part number: PE01-14-302/); assert.match(t, /Price: 45 SAR/);
+    assert.match(t, /4 app users agree \(median SAR 45\)/); assert.doesNotMatch(t, /Invalid source link/);
+    assert.strictEqual(pills(rows[0]), 1);
+    assert.strictEqual(pills(rows[1]), 0);
+  } finally { app.cleanup(); }
+});
+
+test('failure proposal shows mentions, km and distinct hosts; model shows all fields', async () => {
+  const { app } = await open({ proposals: [failP(), modelP()] });
+  try {
+    assert.ok(await until(() => row(app)));
+    openAll(app);
+    const [f, m] = [...app.document.querySelectorAll('#view .proposal-row')].map(r => r.textContent);
+    assert.match(f, /Known issue.{1,2}· Mentions: 5/); assert.match(f, /Typical km: 60000/); assert.match(f, /Hosts: a\.example, b\.example/);
+    assert.match(m, /New model.{1,2}· CX-70 · 3\.3L Turbo/);
+    for (const re of [/Generation: KJ/, /Years: 2024, 2025/, /Oil \(L\): 6\.2/, /Warranty: 5 \/ 100000/, /Markets: KSA, UAE/]) assert.match(m, re);
+  } finally { app.cleanup(); }
+});
+
+test('script payloads in brand, title, model are inert text', async () => {
+  const { app } = await open({ proposals: [partP({ after: { tag: 'OEM', brand: SC, price: 1 } }), failP({ id: 34, after: { title: SC, summary: SC, mentions: 1 } }),
+    modelP({ id: 35, after: { model: SC, engine: SC, generation: SC } })] });
+  try {
+    assert.ok(await until(() => row(app)));
+    openAll(app);
+    const v = app.document.querySelector('#view');
+    assert.strictEqual(v.querySelector('script'), null);
+    assert.ok(v.textContent.includes(SC));
+  } finally { app.cleanup(); }
+});
+
+test('stale approve on a part shows live price and part number', async () => {
+  const live = { tag: 'OEM', brand: 'Mazda', part_no: 'LIVE-1', price: 99 };
+  const { app } = await open({ proposals: [partP()], rpcResult: { apply_proposal: { data: { ok: false, error: 'stale', live, live_hash: 'h2' }, error: null } } });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick(); btn(app, 'Approve').onclick();
+    assert.ok(await until(() => app.document.querySelector('#view .proposal-alert')));
+    const al = app.document.querySelector('#view .proposal-alert').textContent;
+    assert.match(al, /LIVE-1/); assert.match(al, /99 SAR/);
+  } finally { app.cleanup(); }
+});
+
+test('edit part sends the full after with edited brand, part number and price', async () => {
+  const { app, s } = await open({ proposals: [partP()] });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick(); btn(app, 'Edit').onclick();
+    assert.strictEqual(app.document.querySelector('#view [data-k=price]').value, '45');
+    setK(app, 'brand', 'Denso'); setK(app, 'part_no', 'D-1'); setK(app, 'price', '39.5');
+    btn(app, 'Approve edited value').onclick();
+    assert.ok(await until(() => s.rpc.length === 1));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(s.rpc[0][1].p_edit)),
+      { tag: 'OEM', brand: 'Denso', part_no: 'D-1', price: 39.5, price_basis: 'indicative', note: '' });
+  } finally { app.cleanup(); }
+});
+
+test('edit failure shows title, summary, km', async () => {
+  const { app, s } = await open({ proposals: [failP()] });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick(); btn(app, 'Edit').onclick();
+    setK(app, 'title', 'Rattle 2'); setK(app, 'typical_km', '70000');
+    btn(app, 'Approve edited value').onclick();
+    assert.ok(await until(() => s.rpc.length === 1));
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(s.rpc[0][1].p_edit)), { title: 'Rattle 2', summary: 'Heat shield', typical_km: 70000, mentions: 5 });
+  } finally { app.cleanup(); }
+});
+
+test('edit car_model sends the edited id; an invalid id is refused client-side', async () => {
+  const { app, s } = await open({ proposals: [modelP()] });
+  try {
+    assert.ok(await until(() => row(app)));
+    row(app).onclick(); btn(app, 'Edit').onclick();
+    assert.strictEqual(app.document.querySelector('#view [data-k=id]').value, 'mazda:cx-70-2024');
+    setK(app, 'id', 'Bad Id');
+    btn(app, 'Approve edited value').onclick();
+    assert.ok(await until(() => /Invalid id/.test(text(app.document))));
+    assert.strictEqual(s.rpc.length, 0);
+    setK(app, 'id', 'cx-70-2024:3.3l-turbo'); setK(app, 'markets', 'KSA, QAT');
+    btn(app, 'Approve edited value').onclick();
+    assert.ok(await until(() => s.rpc.length === 1));
+    const e = JSON.parse(JSON.stringify(s.rpc[0][1].p_edit));
+    assert.strictEqual(e.id, 'cx-70-2024:3.3l-turbo'); assert.deepStrictEqual(e.markets, ['KSA', 'QAT']); assert.strictEqual(e.model, 'CX-70');
+  } finally { app.cleanup(); }
+});

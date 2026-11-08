@@ -574,7 +574,28 @@ const AR = {
   'Check now': 'افحص الآن', 'Preview': 'معاينة', 'Could not preview. Try again.': 'تعذّرت المعاينة. حاول مرة أخرى.',
   'Estimated cost': 'التكلفة المقدّرة', 'Preview costs nothing. A run starts only when you confirm.': 'المعاينة مجانية. لا يبدأ الفحص إلا بعد تأكيدك.','Skipped as unchanged': 'متخطى لعدم التغيير', 'Confirm run': 'تأكيد التشغيل',
   'Run started': 'بدأ التشغيل', 'Monthly cost cap reached.': 'بلغت التكلفة الحد الشهري.', 'Could not start the run.': 'تعذّر بدء التشغيل.',
-  'Campaign': 'الحملة', 'Component': 'المكوّن', 'Summary': 'الملخص', 'Severe km': 'الاستخدام الشاق (كم)', 'Severe months': 'الاستخدام الشاق (أشهر)'
+  'Campaign': 'الحملة', 'Component': 'المكوّن', 'Summary': 'الملخص', 'Severe km': 'الاستخدام الشاق (كم)', 'Severe months': 'الاستخدام الشاق (أشهر)',
+  'Recall': 'سحب',
+  'Part': 'قطعة',
+  'Known issue': 'عطل معروف',
+  'New model': 'طراز جديد',
+  'Slot': 'النوع',
+  'OEM': 'أصلية',
+  'Alternative': 'بديلة',
+  'Part number': 'رقم القطعة',
+  'Fitment': 'التوافق',
+  'Title': 'العنوان',
+  'Typical km': 'المسافة المعتادة (كم)',
+  'Mentions': 'عدد الإشارات',
+  'Hosts': 'المواقع',
+  'Generation': 'الجيل',
+  'Years': 'السنوات',
+  'Oil (L)': 'الزيت (لتر)',
+  'Markets': 'الأسواق',
+  'indicative': 'تقريبي',
+  'Id': 'المعرّف',
+  '{n} app users agree (median SAR {m})': '{n} من مستخدمي التطبيق متفقون (الوسيط {m} ريال)',
+  'Invalid id. Use lowercase letters, digits and hyphens: maker:model-year': 'معرّف غير صالح. استخدم أحرفاً صغيرة وأرقاماً وشرطات بصيغة maker:model-year'
 };
 
   return { AR };
