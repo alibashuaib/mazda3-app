@@ -159,3 +159,13 @@ test('submit_proposal refuses a part without a price (CR-03)', () => {
 test('proposal_confidence caps a single-host part price at medium (WR-04)', () => {
   assert.match(schema, /if p_after \? 'price' and doms < 2 then score := least\(score, 2\)/);
 });
+
+test('submit_proposal bounds schedule_item intervals, parts and note (WR-11)', () => {
+  const i = schema.indexOf("if p_kind = 'schedule_item' then\n    -- WR-11");
+  assert.ok(i > 0);
+  const b = schema.slice(i, schema.indexOf("if p_kind = 'recall' then", i));
+  assert.match(b, /between 1 and 1000000/);
+  assert.match(b, /between 1 and 240/);
+  assert.match(b, /jsonb_array_length\(p_after->'parts'\) > 50/);
+  assert.match(b, /> 300 then raise exception 'schedule note too long'/);
+});

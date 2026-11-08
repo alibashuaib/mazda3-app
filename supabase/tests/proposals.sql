@@ -116,6 +116,20 @@ begin
     raise exception 'FAIL: miles accepted';
   exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
 
+  -- WR-11: schedule bounds (km 1..1000000, months 1..240, parts <= 50, note <= 300)
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5a', '{"interval_km":2000000,"interval_months":12,"note":"","parts":[]}'::jsonb, ok_ev);
+    raise exception 'FAIL: km over 1000000 accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5b', '{"interval_km":10000,"interval_months":300,"note":"","parts":[]}'::jsonb, ok_ev);
+    raise exception 'FAIL: months over 240 accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5c', '{"interval_km":10.5,"interval_months":12,"note":"","parts":[]}'::jsonb, ok_ev);
+    raise exception 'FAIL: fractional km accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5d', jsonb_build_object('interval_km', 10000, 'note', repeat('x', 301)), ok_ev);
+    raise exception 'FAIL: long schedule note accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+
   begin perform public.submit_proposal('nope', 'test:gate', 'V6', ok_after, ok_ev);
     raise exception 'FAIL: unknown kind accepted';
   exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;

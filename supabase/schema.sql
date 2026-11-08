@@ -1127,7 +1127,7 @@ create or replace function public.submit_proposal(
   p_run_id bigint default null, p_reason text default '', p_maker_id text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare car public.car_models; ev jsonb; before_v jsonb; conf jsonb; new_id bigint; ah text; sh text; ex bigint;
-        mk text; slot text; pnm text; mpct numeric; msar numeric; lp numeric; np numeric; dp numeric;
+        mk text; slot text; pnm text; mpct numeric; msar numeric; lp numeric; np numeric; dp numeric; k text;
 begin
   if p_kind not in ('schedule_item', 'recall', 'part', 'failure', 'car_model') then raise exception 'unsupported kind'; end if;
   if p_kind = 'car_model' then
@@ -1188,6 +1188,23 @@ begin
                      or (y #>> '{}')::int not between 1990 and 2100)) then
       raise exception 'bad years'; end if;
     mk := coalesce(p_maker_id, lower(btrim(p_after->>'make')));
+  end if;
+  if p_kind = 'schedule_item' then
+    -- WR-11: bound what the extractor (untrusted) can put on a live schedule row. null / absent = "no value".
+    foreach k in array array['interval_km', 'severe_km'] loop
+      if jsonb_typeof(p_after->k) = 'number' and not ((p_after->>k) ~ '^[0-9]+$' and (p_after->>k)::numeric between 1 and 1000000) then
+        raise exception 'bad schedule interval'; end if;
+      if p_after ? k and jsonb_typeof(p_after->k) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
+    end loop;
+    foreach k in array array['interval_months', 'severe_months'] loop
+      if jsonb_typeof(p_after->k) = 'number' and not ((p_after->>k) ~ '^[0-9]+$' and (p_after->>k)::numeric between 1 and 240) then
+        raise exception 'bad schedule interval'; end if;
+      if p_after ? k and jsonb_typeof(p_after->k) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
+    end loop;
+    if p_after ? 'parts' and jsonb_typeof(p_after->'parts') not in ('array', 'null') then raise exception 'bad schedule parts'; end if;
+    if jsonb_typeof(p_after->'parts') = 'array' and jsonb_array_length(p_after->'parts') > 50 then
+      raise exception 'too many schedule parts'; end if;
+    if char_length(coalesce(p_after->>'note', '')) > 300 then raise exception 'schedule note too long'; end if;
   end if;
   if p_kind = 'recall' then
     if char_length(btrim(coalesce(p_after->>'component', ''))) not between 1 and 200 then raise exception 'bad recall component'; end if;
