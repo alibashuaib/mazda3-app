@@ -431,13 +431,13 @@ export function trimmedMedian(prices) {            // one price per user already
 | A8 | `anthropic-version: 2023-06-01` works with `web_search_20250305` (carried from Phase 3 A4, still unverified) | Pitfall 11 | Discovery calls 400 |
 | A9 | Approving `car_model` writes `status='approved'` directly (the proposal is the draft) | Pattern 2 | If owner wants a visible draft row too, add a second state |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Is the dealer price page fetchable HTML?** Known: its prices were entered manually (`DEALER_PRICE`, 2026-11-07). Unclear: robots and rendering. Recommendation: Wave-0 smoke fetch through `safeFetch`; if it fails, price proposals use only indicative sources and the dealer values stay manual.
-2. **Are `autopilot_config.gcc_domains` and a forum allowlist populated?** Phase 3 left them as an owner item. Without them the `models` stage and GCC-first searches do nothing. Recommendation: an early owner checkpoint task, and the run report must say "skipped: no GCC domains".
-3. **Relax D-13 for `price_observations`?** It has no car or engine, so by D-13 it cannot qualify. Recommendation: exclude; revisit only if the owner accepts model-less price averages.
-4. **Label for seeded `static` prices?** They are neither dealer-confirmed nor indicative. Recommendation: treat as unlabelled built-ins (current UI behaviour), label only `indicative`.
-5. **Should alternatives be limited to parts that already have an OEM row?** Recommendation: yes; a `part` ALT proposal requires the part name to exist for the car.
+1. **Is the dealer price page fetchable HTML?** Known: its prices were entered manually (`DEALER_PRICE`, 2026-11-07). Unclear: robots and rendering. Recommendation: Wave-0 smoke fetch through `safeFetch`; if it fails, price proposals use only indicative sources and the dealer values stay manual. RESOLVED: by the 04-03 Wave-0 `--ppl` smoke and owner checkpoint; runParts skips the dealer step when `dealer_price_urls` is empty (04-06).
+2. **Are `autopilot_config.gcc_domains` and a forum allowlist populated?** Phase 3 left them as an owner item. Without them the `models` stage and GCC-first searches do nothing. Recommendation: an early owner checkpoint task, and the run report must say "skipped: no GCC domains". RESOLVED: by the 04-03 owner checkpoint (`supabase/seed-sources.sql`); runModels reports "skipped: no GCC domains" (04-08).
+3. **Relax D-13 for `price_observations`?** It has no car or engine, so by D-13 it cannot qualify. Recommendation: exclude; revisit only if the owner accepts model-less price averages. RESOLVED: in 04-01/04-04 per recommendation: excluded; `autopilot_user_agreement` reads only `contributions` + `contribution_links`.
+4. **Label for seeded `static` prices?** They are neither dealer-confirmed nor indicative. Recommendation: treat as unlabelled built-ins (current UI behaviour), label only `indicative`. RESOLVED: in 04-01 per recommendation: seeded rows use `price_basis` `static` (or `dealer`), unlabelled; only `indicative` is labelled (04-05, 04-07). Owner confirmation pending via orchestrator.
+5. **Should alternatives be limited to parts that already have an OEM row?** Recommendation: yes; a `part` ALT proposal requires the part name to exist for the car. RESOLVED: in 04-01 per recommendation: `submit_proposal` refuses an ALT slot when the part name has no catalogue_parts row for that car.
 
 ## Environment Availability
 
