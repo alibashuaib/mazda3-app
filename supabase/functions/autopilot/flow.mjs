@@ -114,17 +114,21 @@ export async function runExtract(job, deps) {
     const block = (out.response.content || []).find(b => b && b.type === 'text');
     const items = parseExtraction(block && block.text);
     if (!items) { skipped.push(`${url}: unreadable`); continue; }   // fail closed, hash not saved so it is retried
+    let verified = 0;
     for (const item of items) {
       const v = validateItem(item, { fetchedText: text, liveServices, car, otherGenerations: car.otherGenerations });
       if (!v.ok) { bump(dropped, v.dropped[0]); continue; }
       for (const d of v.dropped) bump(dropped, d);
       if (rows.has(v.service)) { bump(dropped, 'duplicate_service'); continue; }
+      if (v.dropped.length === 0) verified++;
       rows.set(v.service, {
         target_key: v.service, after: v.after, verified: v.dropped.length === 0, reason: '',
         evidence: v.evidence.map(quote => ({ url, quote, tier: 'official', content_hash: hash })),
       });
     }
-    toHash.push([url, hash]);
+    // WR-02: a page whose items all failed verification is retried next run, not remembered as unchanged
+    if (!items.length || verified) toHash.push([url, hash]);
+    else skipped.push(`${url}: no item verified`);
   }
   await db.stageFindings(job.run_id, job.car_model_id, 'schedule_item', [...rows.values()]);
   // CR-01: only staged here; autopilot_publish_run promotes the hash after a successful publish (an ended run re-reads the page)

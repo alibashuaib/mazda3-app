@@ -507,3 +507,16 @@ test('index.ts: community + models dispatched, read-only helpers wired', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'autopilot', 'index.ts'), 'utf8');
   for (const s of ['community: runCommunity', 'models: runModels', 'loadAllModels', 'stagedFindings']) assert.ok(src.includes(s), s);
 });
+
+test('extract: a page where no item verified is not hashed (retried next run); an empty extraction is (WR-02)', async () => {
+  const bad = { content: [{ type: 'text', text: JSON.stringify({ items: [{ service: 'Engine oil', generation: null, engine: null,
+    normal: { km: 10000, months: 12, miles: null, quote: 'this sentence is not on the page at all' }, severe: null }] }) }], usage: { input_tokens: 10, output_tokens: 10 } };
+  const a = fakes({ candidates: ['https://ok.com/a'], llmQueue: [bad] });
+  const r = await flow.runExtract({ run_id: 1, car_model_id: CAR.id }, a.deps);
+  assert.equal(a.deps.hashed.length, 0);
+  assert.match(r.notes.skipped[0], /no item verified/);
+  const empty = { content: [{ type: 'text', text: '{"items":[]}' }], usage: { input_tokens: 10, output_tokens: 10 } };
+  const b = fakes({ candidates: ['https://ok.com/a'], llmQueue: [empty] });
+  await flow.runExtract({ run_id: 1, car_model_id: CAR.id }, b.deps);
+  assert.equal(b.deps.hashed.length, 1);
+});
