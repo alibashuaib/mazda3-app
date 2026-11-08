@@ -9,14 +9,15 @@
 'use strict';
 (function (root, factory) {
   const isNode = typeof module !== 'undefined' && module.exports;
-  const api = factory(isNode ? require('./catalog.js').NORMAL_SCHED : root.NORMAL_SCHED);
+  const api = factory(isNode ? require('./catalog.js') : root);
   if (isNode) module.exports = api;
   else root.remoteCatalog = api;
-})(typeof self !== 'undefined' ? self : globalThis, function (NORMAL_SCHED) {
+})(typeof self !== 'undefined' ? self : globalThis, function (cat) {
+  const NORMAL_SCHED = cat.NORMAL_SCHED;
 
   const DEFAULTS = { client: null, pageSize: 1000, metaGet: () => Promise.resolve({}), metaSet: () => Promise.resolve(true) };
   let env = Object.assign({}, DEFAULTS);
-  let cache = null;   // { models, items, fetchedAt }
+  let cache = null;   // { models, items, parts, fetchedAt }
 
   function configure(next) { env = Object.assign({}, env, next || {}); }
   function reset() { env = Object.assign({}, DEFAULTS); cache = null; }
@@ -24,21 +25,26 @@
   function load() {
     return Promise.resolve(env.metaGet()).then(meta => {
       const c = meta && meta.catalogue;
-      if (c && Array.isArray(c.models) && Array.isArray(c.items)) cache = c;
+      if (c && Array.isArray(c.models) && Array.isArray(c.items)) cache = Object.assign({ parts: [] }, c);   // old caches predate parts
+      if (cache) register();
       return !!cache;
     }).catch(() => false);
   }
 
   /* Never rejects: offline or an unconfigured project leaves the last good
      cache in place, which is the whole point of keeping one. */
+  function register() { if (typeof cat.registerModels === 'function') cat.registerModels(cache.models); }
+  function loaded() { return !!cache; }
+
   function refresh() {
     if (!env.client) return Promise.resolve(false);
     return Promise.all([
-      env.client.from('car_models').select('id,model,generation,engine,warranty_years,warranty_km,plan_updated_at').eq('status', 'approved'),
-      allItems()
-    ]).then(([m, items]) => {
-      if (!m || m.error || !items) return false;
-      cache = { models: m.data || [], items, fetchedAt: new Date().toISOString() };
+      env.client.from('car_models').select('id,model,generation,engine,warranty_years,warranty_km,plan_updated_at,oil_capacity_l,paints,markets,parts_updated_at').eq('status', 'approved'),
+      allItems(), allParts()
+    ]).then(([m, items, parts]) => {
+      if (!m || m.error || !items || !parts) return false;
+      cache = { models: m.data || [], items, parts, fetchedAt: new Date().toISOString() };
+      register();
       return Promise.resolve(env.metaSet({ catalogue: cache })).then(() => true);
     }).catch(() => false);
   }
@@ -54,6 +60,18 @@
       if (!r || r.error) return null;
       const rows = acc.concat(r.data || []);
       return (r.data || []).length < size ? rows : allItems(from + size, rows);
+    });
+  }
+
+  function allParts(from, acc) {
+    from = from || 0; acc = acc || [];
+    const size = env.pageSize;
+    return Promise.resolve(env.client.from('catalogue_parts')
+      .select('car_model_id,part_name,slot,brand,part_no,price,price_basis,note')
+      .order('car_model_id').order('part_name').order('slot').range(from, from + size - 1)).then(r => {
+      if (!r || r.error) return null;
+      const rows = acc.concat(r.data || []);
+      return (r.data || []).length < size ? rows : allParts(from + size, rows);
     });
   }
 
@@ -111,5 +129,41 @@
     return changed ? 'changed' : 'stamped';
   }
 
-  return { configure, reset, load, refresh, model, dealerPlan, applyDealerPlan };
+  function parts(id) { return ((cache && cache.parts) || []).filter(x => x.car_model_id === id); }
+
+  /* Approved part rows onto a vehicle's parts (PRT-01/02, COM-02). Rows are
+     keyed by the full catalogId, so an engine's value never lands on another
+     engine's car. An option is overwritten only while its price still equals
+     the catalogue price it was stamped with (catPrice); an owner-typed price,
+     or an option with no catPrice, is never touched, and nothing is deleted.
+     Returns 'changed' | 'stamped' | false like applyDealerPlan. */
+  function applyParts(data, opts) {
+    const force = !!(opts && opts.force);
+    const car = data && data.car;
+    const m = car && model(car.catalogId);
+    if (!m || !m.parts_updated_at || car.partsVersion === m.parts_updated_at) return false;
+    if (!force && car.partsVersion && Date.parse(car.partsVersion) >= Date.parse(m.parts_updated_at)) return false;
+    let changed = false;
+    parts(m.id).forEach(r => {
+      const p = (data.parts || []).find(x => x.name === r.part_name);
+      if (!p) return;
+      p.options = p.options || [];
+      const price = Number(r.price), indicative = r.price_basis === 'indicative';
+      const vals = { brand: r.brand, partNo: r.part_no || '', price, note: r.note || '', catPrice: price, indicative };
+      const isOem = r.slot === 'oem';
+      const lb = String(r.brand || '').toLowerCase();
+      const o = p.options.find(x => isOem ? x.tag === 'OEM' : x.tag === 'ALT' && String(x.brand || '').toLowerCase() === lb);
+      if (o) {
+        if (o.catPrice == null || o.price !== o.catPrice) return;   // owner's value
+        if (Object.keys(vals).every(k => o[k] === vals[k])) return;
+        Object.assign(o, vals); changed = true;
+      } else if (!isOem) {
+        p.options.push(Object.assign({ tag: 'ALT', store: '' }, vals)); changed = true;
+      }
+    });
+    car.partsVersion = m.parts_updated_at;
+    return changed ? 'changed' : 'stamped';
+  }
+
+  return { configure, reset, load, refresh, loaded, model, dealerPlan, applyDealerPlan, parts, applyParts };
 });

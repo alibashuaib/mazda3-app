@@ -651,7 +651,31 @@ function fuelSystemCleanerPart(modelId) {
     return code ? CAR_MODELS.filter(m => m.markets.includes(code)) : CAR_MODELS.slice();
   }
 
+  /* Approved server car_models that the app does not ship (NEW-01). Rows are
+     per engine (id 'cx70x:3.3l-turbo'); CAR_MODELS is per model, so group by
+     the part before ':'. Append-only and idempotent: picker option values are
+     CAR_MODELS indices, so nothing may reorder or replace an existing entry,
+     and a static id from the shipped catalogue is never touched. */
+  const STATIC_IDS = new Set(CAR_MODELS.map(m => m.id));
+  const REGISTERED = new Set();
+  function registerModels(rows) {
+    (rows || []).forEach(r => {
+      const mid = String(r && r.id || '').split(':')[0];
+      if (!mid || STATIC_IDS.has(mid) || !r.engine) return;
+      let m = CAR_MODELS.find(x => x.id === mid);
+      if (!m) {
+        const paints = Array.isArray(r.paints) ? r.paints.filter(p => typeof p === 'string' && p) : [];
+        m = { id: mid, markets: Array.isArray(r.markets) ? r.markets.slice() : [], model: r.model, gen: r.generation, engines: [], colors: paints.length ? paints : [DEFAULT_COLOR] };
+        CAR_MODELS.push(m); REGISTERED.add(mid);
+      }
+      if (!m.engines.some(e => e[0] === r.engine)) m.engines.push([r.engine, Number(r.oil_capacity_l) || 0]);
+    });
+    _sharedMap = null;
+  }
+  function isRegisteredModel(modelId) { return REGISTERED.has(modelId); }
+
   return {
+    registerModels, isRegisteredModel,
     DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, modelsForMarket, NORMAL_SCHED, ATF_NOTE, catalogId,
     skyactivServices, sharedParts, partsForModel,
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,
