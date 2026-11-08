@@ -324,6 +324,7 @@ test('parts: 3 agreeing users stage an ALT row with users evidence only; unknown
   const r = await flow.runParts(JOB, deps);
   const row = deps.staged[0].rows.find(x => x.target_key === 'Oil Filter|alt:denso');
   assert.deepEqual(row.evidence, [{ type: 'users', tier: 'community', users: 3, median: 27 }]);
+  assert.equal(row.verified, false);   // WR-10: aggregates of app users are not quote-verified
   assert.equal(row.after.price, 27);
   assert.equal(r.notes.dropped.unknown_part, 1);
   assert.ok(r.notes.skipped.includes('no citations'));
@@ -549,5 +550,14 @@ test('parts: a cited price whose quote names neither the part nor its number is 
     [['https://a.com/x', 'Mazda 3 2019 2.5L brake pads SAR 45']])] });
   const r = await flow.runParts(JOB, deps);
   assert.equal(r.notes.dropped.unverified_price, 1);
+  assert.equal(deps.staged[0].rows.length, 0);
+});
+
+test('parts: a part-number-only change on a static-priced row is not proposed with an indicative label (WR-10)', async () => {
+  const { deps } = partsFakes({ domains: OK, live: [{ ...OILF, part_no: 'OLD123', price_basis: 'static' }],
+    llmQueue: [partsResp([{ part: 'Oil Filter', part_no: 'PE01-14-302B', price: null, url: 'https://a.com/x' }],
+      [['https://a.com/x', Q('PE01-14-302B', 30)], ['https://b.com/y', Q('PE01-14-302B', 31)]])] });
+  const r = await flow.runParts(JOB, deps);
+  assert.equal(r.notes.dropped.no_price, 1);
   assert.equal(deps.staged[0].rows.length, 0);
 });

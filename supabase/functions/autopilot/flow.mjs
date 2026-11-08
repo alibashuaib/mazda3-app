@@ -328,8 +328,10 @@ export async function runParts(job, deps) {
     const live = oemLive.get(name) || null, pn = numbers.get(name), pr = prices.get(name);
     if (!pn && !pr) continue;
     const changed = pn && (!live || normPart(live.part_no) !== normPart(pn.part_no));
-    const price = pr ? pr.price : (live && live.price != null ? Number(live.price) : null);
-    if (price == null) { bump(dropped, 'no_price'); continue; }   // a part proposal needs a price (submit_proposal refuses null)
+    // WR-10: no verified price this run => nothing to propose. A static live price is never re-labelled indicative, and
+    // a proposal cannot carry a static basis or no price (submit_proposal), so a part-number-only change waits for a price.
+    const price = pr ? pr.price : (live && live.price != null && live.price_basis !== 'static' ? Number(live.price) : null);
+    if (price == null) { bump(dropped, 'no_price'); continue; }
     if (live && !changed) {
       if (!pr) continue;
       if (pr.basis === live.price_basis && live.price != null && !isMaterial(Number(live.price), pr.price, th)) { bump(dropped, 'immaterial'); continue; }
@@ -340,8 +342,7 @@ export async function runParts(job, deps) {
       after: {
         tag: 'OEM', brand: (live && live.brand) || 'Mazda', part_no: pn ? pn.part_no : (live ? live.part_no : ''),
         price,
-        // no new price: keep the live basis; a static one is not allowed in a proposal, so it is labelled indicative
-        price_basis: pr ? pr.basis : (live && live.price_basis !== 'static' ? live.price_basis : 'indicative'),
+        price_basis: pr ? pr.basis : live.price_basis,
         note: (live && live.note) || '', fitment: fit,
       },
     });
@@ -352,7 +353,7 @@ export async function runParts(job, deps) {
     if (!/^alt:[a-z0-9-]{1,40}$/.test(slot)) { bump(dropped, 'no_brand'); continue; }
     if (live && live.price_basis === 'indicative' && live.price != null && !isMaterial(Number(live.price), a.median, th)) { bump(dropped, 'immaterial'); continue; }
     rows.push({
-      target_key: `${a.name}|${slot}`, verified: true, reason: '', evidence: a.ev,
+      target_key: `${a.name}|${slot}`, verified: false, reason: 'app users only: no source page quote', evidence: a.ev,
       after: { tag: 'ALT', brand: a.brand, part_no: a.part_no || (live ? live.part_no : ''), price: a.median, price_basis: 'indicative', note: (live && live.note) || '', fitment: fit },
     });
   }
