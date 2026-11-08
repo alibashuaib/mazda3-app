@@ -3,8 +3,8 @@
    (autopilot_config), never literals here (CORE-06, D-04). Unknown model => throw (fail closed). */
 
 const M = 1e6;
-const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
-const isBanned = (host, banned) => (banned || []).some(b => { b = String(b).toLowerCase(); return host === b || host.endsWith('.' + b); });
+export const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
+export const isBanned = (host, banned) => (banned || []).some(b => { b = String(b).toLowerCase(); return host === b || host.endsWith('.' + b); });
 
 // A token or search class with no configured rate throws instead of billing NaN or 0 (fail closed).
 const need = (rate, key) => { if (rate == null) throw new Error(`unpriced token class: ${key}`); return rate; };
@@ -79,6 +79,31 @@ export function extractSearchUrls(response, bannedHosts) {
     }
   }
   return { urls, pause_turn: !!(response && response.stop_reason === 'pause_turn') };
+}
+
+// Registrable host: last two labels, last three under com/co/net/org/gov/edu/ac + 2-letter TLD (x.com.sa).
+// ponytail: no public-suffix list; exotic suffixes (e.g. .gov.uk handled, .ltd.uk not) may collapse wrongly. Add a PSL if it matters.
+export const registrableHost = host => {
+  const l = String(host || '').toLowerCase().split('.').filter(Boolean);
+  if (l.length <= 2) return l.join('.');
+  const n = (/^(com|co|net|org|gov|edu|ac)$/.test(l[l.length - 2]) && l[l.length - 1].length === 2) ? 3 : 2;
+  return l.slice(-n).join('.');
+};
+
+// Citations on text blocks (web search): [{url, host, quote}] — https only, banned hosts removed.
+// quote = the API's cited_text, the only readable proof for snippet-only sources.
+export function extractCitations(response, bannedHosts) {
+  const out = [];
+  for (const b of (response && Array.isArray(response.content) ? response.content : [])) {
+    if (!b || b.type !== 'text' || !Array.isArray(b.citations)) continue;
+    for (const c of b.citations) {
+      if (!c || typeof c.url !== 'string' || typeof c.cited_text !== 'string') continue;
+      let u; try { u = new URL(c.url); } catch (e) { continue; }
+      if (u.protocol !== 'https:' || isBanned(u.hostname.toLowerCase(), bannedHosts)) continue;
+      out.push({ url: c.url, host: u.hostname.toLowerCase(), quote: c.cited_text });
+    }
+  }
+  return out;
 }
 
 // D-13: 3 attempts total. Attempt 1 and 2 failing retry after a growing delay; attempt 3 failing => null (give up).

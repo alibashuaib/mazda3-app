@@ -117,3 +117,30 @@ test('worstCaseEstimate reserves 1 token per input char; reconcile flags an over
   assert.strictEqual(reconcile(res, 'claude-sonnet-5-5', { input_tokens: 20000 }, prices).over, false);
   assert.strictEqual(reconcile(res, 'claude-sonnet-5-5', { input_tokens: 70000 }, prices).over, true);
 });
+
+test('registrableHost: collapses subdomains, keeps country suffixes', async () => {
+  const { registrableHost } = await load();
+  assert.strictEqual(registrableHost('shop.partsouq.com'), 'partsouq.com');
+  assert.strictEqual(registrableHost('www.mazda.com.sa'), 'mazda.com.sa');
+  assert.strictEqual(registrableHost('a.b.co.uk'), 'b.co.uk');
+  assert.strictEqual(registrableHost('nhtsa.gov'), 'nhtsa.gov');
+});
+
+test('extractCitations: https, non-banned citations from text blocks only', async () => {
+  const { extractCitations, hostOf, isBanned } = await load();
+  const resp = { content: [
+    { type: 'text', text: 'no cites' },
+    { type: 'web_search_tool_result', content: [{ url: 'https://x.com' }] },
+    { type: 'text', text: 'a', citations: [
+      { type: 'web_search_result_location', url: 'https://shop.partsouq.com/a', cited_text: 'SAR 26' },
+      { type: 'web_search_result_location', url: 'http://plain.com/a', cited_text: 'SAR 26' },
+      { type: 'web_search_result_location', url: 'https://bad.com/a', cited_text: 'SAR 26' },
+      { type: 'web_search_result_location', url: 'not a url', cited_text: 'x' },
+      { url: 'https://nocite.com' },
+    ] },
+  ] };
+  assert.deepStrictEqual(extractCitations(resp, ['bad.com']), [{ url: 'https://shop.partsouq.com/a', host: 'shop.partsouq.com', quote: 'SAR 26' }]);
+  assert.deepStrictEqual(extractCitations(null, []), []);
+  assert.strictEqual(hostOf('https://A.com/x'), 'a.com');
+  assert.strictEqual(isBanned('sub.bad.com', ['bad.com']), true);
+});
