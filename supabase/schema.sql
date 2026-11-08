@@ -1922,13 +1922,14 @@ create or replace function public.autopilot_claim_job(p_run bigint default null)
 language plpgsql security definer set search_path = public as $$
 declare j public.autopilot_jobs; dead bigint[]; rid bigint;
 begin
-  -- Reclaim jobs whose worker died. A reclaim counts as a failed attempt so a job that
+  -- Reclaim jobs whose worker died. 15 minutes: one job can make several 90 s LLM calls plus resends, and a
+  -- shorter window would hand a live job to a second worker (double spend, double staging). A reclaim counts as a failed attempt so a job that
   -- keeps killing its worker still ends failed after 3.
   with u as (
     update public.autopilot_jobs set attempts = attempts + 1,
       status = case when attempts + 1 >= 3 then 'failed' else 'queued' end,
       last_error = 'stale: worker lost', claimed_at = null
-     where status = 'running' and claimed_at < now() - interval '3 minutes'
+     where status = 'running' and claimed_at < now() - interval '15 minutes'
     returning run_id, stage, status)
   select array_agg(run_id) into dead from u where stage = 'publish' and status = 'failed';
   foreach rid in array coalesce(dead, '{}') loop perform public.autopilot_abort_run(rid); end loop;

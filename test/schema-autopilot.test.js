@@ -68,7 +68,7 @@ test('autopilot: admin RPCs check is_admin() inside and are granted to authentic
 test('autopilot: queue rules (skip locked, stale reclaim, 3 attempts, publish waits)', () => {
   const c = fn('autopilot_claim_job');
   assert.match(c, /for update of q skip locked/);
-  assert.match(c, /interval '3 minutes'/);
+  assert.match(c, /interval '15 minutes'/);
   assert.match(c, /q\.stage <> 'publish' or not exists/);
   assert.match(fn('autopilot_finish_job'), /att >= 3/);
 });

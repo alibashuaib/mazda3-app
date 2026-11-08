@@ -209,9 +209,9 @@ do $$ declare rid bigint; j jsonb; j2 jsonb; fin jsonb; jid bigint; begin
     raise exception 'FAIL: third failure should mark failed: %', fin; end if;
   if (select last_error from public.autopilot_jobs where id = jid) <> 'boom 3' then raise exception 'FAIL: last_error'; end if;
 
-  -- stale: a running job older than 3 minutes is reclaimed (counts as an attempt) and claimable again
+  -- stale: a running job older than 15 minutes is reclaimed (counts as an attempt) and claimable again
   update public.autopilot_jobs set status = 'queued', attempts = 0, run_after = now() where stage = 'publish' and run_id = rid;
-  update public.autopilot_jobs set status = 'running', claimed_at = now() - interval '5 minutes', attempts = 0
+  update public.autopilot_jobs set status = 'running', claimed_at = now() - interval '20 minutes', attempts = 0
     where id = jid;
   j := public.autopilot_claim_job();
   if (j->>'id')::bigint <> jid then raise exception 'FAIL: stale job not reclaimed: %', j; end if;

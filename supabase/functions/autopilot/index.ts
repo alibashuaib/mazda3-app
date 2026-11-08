@@ -13,7 +13,8 @@ import { runCommunity, runDiscover, runExtract, runModels, runParts, runPreview,
 
 const STAGES: Record<string, (job: any, deps: any) => Promise<any>> = { discover: runDiscover, extract: runExtract, recalls: runRecalls, parts: runParts, community: runCommunity, models: runModels };
 
-const BUDGET_MS = 100_000;   // stop claiming new jobs after this; the 5-minute cron poke picks up the rest
+const BUDGET_MS = 100_000;   // stop claiming new jobs after this; the 5-minute cron poke picks up the rest.
+// A claimed job may run longer than this (several LLM calls); SQL only reclaims a running job after 15 minutes (autopilot_claim_job).
 const LLM_TIMEOUT_MS = 90_000;   // under BUDGET_MS, so one slow call cannot run past the claim window
 
 Deno.serve(async (req) => {
