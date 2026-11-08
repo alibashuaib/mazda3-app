@@ -74,15 +74,37 @@ test('severe_km is carried by hash, live value, confidence, apply and revert (D-
   assert.match(code('apply_proposal'), /v \? 'severe_km' then .* else \(live->>'severe_km'\)::int/);
 });
 
-test('recall kind is handled by every gate function and nothing else is accepted', () => {
+test('recall kind is handled by every gate function and unknown kinds are refused', () => {
   for (const n of ['proposal_live', 'submit_proposal', 'apply_proposal', 'revert_change']) {
     assert.ok(code(n).includes("'recall'"), n + ' lacks the recall branch');
   }
   for (const n of ['submit_proposal', 'apply_proposal', 'revert_change']) {
-    assert.ok(code(n).includes("not in ('schedule_item', 'recall')"), n);
+    assert.ok(code(n).includes("not in ('schedule_item', 'recall', 'part', 'failure', 'car_model')"), n);
   }
   assert.match(code('proposal_live'), /<> 'schedule_item' then raise exception 'unsupported kind'/);
   assert.match(code('apply_proposal'), /'approved', now\(\)/);
+});
+
+test('Phase 4 kinds (part, failure, car_model) are handled on the read side (D-03)', () => {
+  for (const n of ['proposal_live', 'submit_proposal']) {
+    for (const k of ['part', 'failure', 'car_model']) assert.ok(code(n).includes("'" + k + "'"), n + ' lacks ' + k);
+  }
+  assert.match(code('proposal_live'), /split_part\(p_target, '\|', 1\)/);
+  const sub = code('submit_proposal');
+  assert.ok(sub.includes("'immaterial'") && sub.includes("'users:'"));
+  assert.match(sub, /autopilot_config/);   // D-07 thresholds come from config, not literals
+  assert.ok(code('proposal_confidence').includes("'price'"));
+});
+
+test('Phase 4 kinds are applied, bulk-refused and reverted (D-03, D-17)', () => {
+  for (const n of ['apply_proposal', 'revert_change']) {
+    for (const t of ['catalogue_parts', 'known_issues', 'car_models']) assert.ok(code(n).includes('public.' + t), n + ' lacks ' + t);
+  }
+  assert.match(code('apply_proposal'), /insert into public\.catalogue_parts/);
+  assert.match(code('apply_proposal'), /p_edit->>'id'/);
+  assert.match(code('apply_proposal'), /sources/);
+  assert.ok(code('apply_proposals').includes("'not_bulk'"));
+  assert.ok(code('revert_change').includes("'in_use'"));
 });
 
 test('admin-proposals.js never uses raw()', () => {
