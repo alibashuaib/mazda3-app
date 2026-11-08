@@ -9,7 +9,9 @@ import { DEFAULT_POLICY, safeFetch } from '../_shared/safe-fetch.mjs';
 import { resolveHostAddresses } from '../_shared/dns.ts';
 import { logEdgeError } from '../_shared/app-errors.mjs';
 import { safeEqual } from '../plan-intake/logic.mjs';
-import { runDiscover, runExtract, runPreview, runRecalls } from './flow.mjs';
+import { runDiscover, runExtract, runParts, runPreview, runRecalls } from './flow.mjs';
+
+const STAGES: Record<string, (job: any, deps: any) => Promise<any>> = { discover: runDiscover, extract: runExtract, recalls: runRecalls, parts: runParts };
 
 const BUDGET_MS = 100_000;   // stop claiming new jobs after this; the 5-minute cron poke picks up the rest
 const LLM_TIMEOUT_MS = 90_000;   // under BUDGET_MS, so one slow call cannot run past the claim window
@@ -86,7 +88,9 @@ async function work(admin: any, deps: any, runId: number | null = null) {
       let notes: unknown = null;
       if (job.stage === 'publish') await rpc(admin, 'autopilot_publish_run', { p_run: job.run_id });
       else {
-        const run = job.stage === 'discover' ? runDiscover : job.stage === 'extract' ? runExtract : runRecalls;
+        // community/models entries arrive with 04-08; an unmapped stage fails loudly rather than running the wrong job
+        const run = STAGES[job.stage];
+        if (!run) throw new Error('unknown stage ' + job.stage);
         // the flow returns { stop } when the run ended, else { ok, notes }; the union is not narrowed by TS here
         const out = (await run(job, deps)) as { stop?: string; notes?: unknown };
         if (out.stop) continue;                                // run ended (capped / stopped): queue already closed in SQL
@@ -113,6 +117,10 @@ async function buildDeps(admin: any, apiKey: string) {
     maxUses: c?.search_max_uses ?? 3,
     discoverModel: 'claude-haiku-5-5',
     extractModel: Deno.env.get('INTAKE_MODEL') ?? 'claude-sonnet-5-5',
+    minPct: Number(c?.min_pct ?? 0.1),
+    minSar: Number(c?.min_sar ?? 5),
+    optionalFloorSar: Number(c?.optional_floor_sar ?? 8),
+    dealerPriceUrls: c?.dealer_price_urls ?? {},
   };
   const carRow = async (id: string) => {
     const { data: r } = await admin.from('car_models').select('id,make,model,generation,engine').eq('id', id).single();
@@ -141,6 +149,12 @@ async function buildDeps(admin: any, apiKey: string) {
       getSourceHash: (car: string, u: string) => rpc(admin, 'autopilot_get_source_hash', { p_car: car, p_url: u }),
       setSourceHash: (car: string, u: string, h: string) => rpc(admin, 'autopilot_set_source_hash', { p_car: car, p_url: u, p_hash: h }),
       stageFindings: (run: number, car: string, kind: string, rows: unknown) => rpc(admin, 'autopilot_stage_findings', { p_run: run, p_car: car, p_kind: kind, p_rows: rows }),
+      budgetLeft: () => rpc(admin, 'autopilot_budget_left', {}),
+      userAgreement: (car: string) => rpc(admin, 'autopilot_user_agreement', { p_car: car }),
+      loadLiveParts: async (car: string) => {
+        const { data } = await admin.from('catalogue_parts').select('car_model_id,part_name,slot,brand,part_no,price,price_basis,note').eq('car_model_id', car);
+        return data ?? [];
+      },
       loadCar: carRow,
       loadLive: async (car: string) => {
         const { data } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,severe_km,severe_months,note,parts').eq('car_model_id', car);
