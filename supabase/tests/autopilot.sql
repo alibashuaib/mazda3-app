@@ -489,8 +489,9 @@ do $$ declare rid bigint; r jsonb; begin
 end $$;
 
 -- q) user agreement: aggregates only, 3+ distinct users, trimmed median, engine matching
+-- qualified_users needs accounts >= 7 days old with a confirmed email
 insert into auth.users (id, created_at, email_confirmed_at)
-  select ('00000000-0000-0000-0000-0000000000a' || i)::uuid, now(), now() from generate_series(1, 5) i on conflict (id) do nothing;
+  select ('00000000-0000-0000-0000-0000000000a' || i)::uuid, now() - interval '8 days', now() - interval '8 days' from generate_series(1, 5) i on conflict (id) do nothing;
 insert into public.car_models (id, model, generation, engine, status) values
   ('agone:g1', 'AG1', 'G', 'Solo', 'approved'),
   ('agmul:g1', 'AGM', 'G', 'Alpha', 'approved'), ('agmul:g2', 'AGM', 'G', 'Beta', 'approved');

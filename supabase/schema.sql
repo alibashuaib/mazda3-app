@@ -2354,6 +2354,7 @@ begin
     select distinct on (l.user_id, k.gk) l.user_id, k.gk, c.item_key, c.brand, c.part_no, c.price
       from public.contributions c
       join public.contribution_links l on l.contribution_id = c.id
+      join public.qualified_users q on q.id = l.user_id
      cross join lateral (select lower(trim(c.item_key)) || '|' ||
               coalesce(nullif(upper(regexp_replace(coalesce(c.part_no, ''), '[^A-Za-z0-9]', '', 'g')), ''), lower(trim(coalesce(c.brand, '')))) as gk) k
      where c.kind = 'part' and c.model_id = mdl and c.price > 0 and c.item_key is not null
