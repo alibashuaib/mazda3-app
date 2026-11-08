@@ -86,6 +86,7 @@ const SCRIPTS = [
   'src/data/repairable.js',
   'src/data/guidance.js',
   'src/data/recalls.js',
+  'src/data/known-issues.js',
   'src/data/remote-catalog.js',
   'src/data/admin.js',
   'src/core/async-click.js',

@@ -679,6 +679,7 @@ function connectBackend() {
   insights.configure({ client, metaGet, metaSet, signedIn });
   shops.configure({ client, signedIn });
   recalls.configure({ client });
+  knownIssues.configure({ client });
   bills.configure({ client });
   remoteCatalog.configure({ client });
   catalogAdmin.configure({ client });
