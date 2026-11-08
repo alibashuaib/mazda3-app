@@ -40,7 +40,7 @@ test('app_errors resolved_at is stamped by a server-side trigger', () => {
 
 // Phase 3 autopilot tables: admin-only select policy, and no write policy at all (RPC-only writes).
 const AUTOPILOT_TABLES = ['autopilot_config', 'autopilot_runs', 'autopilot_jobs', 'autopilot_spend',
-  'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status'];
+  'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status', 'autopilot_due'];
 test('RLS: autopilot tables have RLS, an admin select policy and no write policy', () => {
   for (const name of AUTOPILOT_TABLES) {
     assert.ok(tables.includes(name), name + ' not created');
