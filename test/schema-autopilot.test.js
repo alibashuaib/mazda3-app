@@ -44,7 +44,8 @@ test('autopilot: worker functions are service_role only', () => {
     'autopilot_start_run(text, text)', 'autopilot_claim_job(bigint)', 'autopilot_finish_job(bigint, boolean, text, jsonb)',
     'autopilot_end_run(bigint, text)', 'autopilot_stage_findings(bigint, text, text, jsonb)',
     'autopilot_get_source_hash(text, text)', 'autopilot_set_source_hash(text, text, text)',
-    'autopilot_see_domain(text)', 'autopilot_publish_run(bigint)'];
+    'autopilot_see_domain(text)', 'autopilot_publish_run(bigint)',
+    'autopilot_budget_left()', 'autopilot_user_agreement(text)'];
   for (const sig of worker) {
     const q = sig.replace(/[()]/g, '\\$&');
     assert.match(section, new RegExp('revoke execute on function public\\.' + q + ' from public, anon, authenticated;'), sig + ' not revoked');
@@ -105,4 +106,40 @@ test('autopilot: publish re-checks banned hosts; ban uses the same parser and dr
   assert.match(b, /delete from public\.autopilot_findings f using public\.autopilot_runs r/);
   assert.match(fn('host_banned'), /strpos\(p_url, chr\(92\)\) > 0/);
   assert.match(fn('host_banned'), /h !~ '\^\[a-z0-9\]/);   // non-ASCII hosts fail closed
+});
+
+test('autopilot phase 4: stages, kinds, null-car findings, rotation, due tracking, soft budget', () => {
+  assert.match(section, /check \(stage in \('discover', 'extract', 'recalls', 'parts', 'community', 'models', 'publish'\)\)/);
+  assert.match(section, /check \(kind in \('schedule_item', 'recall', 'part', 'failure', 'car_model'\)\)/);
+  assert.match(section, /alter column car_model_id drop not null/);
+  assert.match(section, /\(run_id, car_model_id, kind, target_key\) nulls not distinct/);
+  assert.match(section, /create table if not exists public\.autopilot_due/);
+  assert.match(section, /optional_cars_per_run int not null default 6/);
+  assert.match(section, /optional_floor_sar numeric not null default 8/);
+  assert.match(section, /dealer_price_urls jsonb not null default '\{\}'/);
+  const s = fn('autopilot_start_run');
+  assert.match(s, /optional_cars_per_run/);
+  assert.match(s, /values \(rid, 'models'\)/);
+  assert.match(s, /if p_kind = 'monthly' then/);   // models job is monthly only
+  assert.match(fn('autopilot_claim_job'), /q\.stage <> 'community'/);
+  assert.match(fn('autopilot_finish_job'), /autopilot_due/);
+  const st = fn('autopilot_stage_findings');
+  assert.match(st, /car_model_id is not distinct from p_car/);
+  assert.match(st, /'car_model'/);
+  const p = fn('autopilot_publish_run');
+  assert.match(p, /e->>'url' is not null and public\.host_banned/);
+  assert.match(p, /stage in \('discover', 'extract', 'recalls'\) and status = 'failed'/);
+  assert.match(fn('autopilot_budget_left'), /monthly_cap_sar - coalesce\(/);
+});
+
+test('autopilot phase 4: user agreement is aggregate-only, privacy-safe and service_role only', () => {
+  const f = fn('autopilot_user_agreement');
+  assert.match(f, /contribution_links/);
+  assert.match(f, /percentile_cont/);
+  assert.match(f, /count\(\*\) >= 3/);
+  assert.match(f, /med\.m \* 0\.7 and med\.m \* 1\.3/);
+  assert.doesNotMatch(f, /jsonb_build_object\([^)]*user_id/);
+  assert.doesNotMatch(f, /from public\.price_observations/);
+  assert.match(section, /revoke execute on function public\.autopilot_user_agreement\(text\) from public, anon, authenticated;/);
+  assert.match(section, /grant execute on function public\.autopilot_user_agreement\(text\) to service_role;/);
 });

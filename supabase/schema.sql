@@ -1849,7 +1849,7 @@ grant execute on function public.autopilot_set_enabled(boolean) to authenticated
 -- A monthly run refuses to start while one is still running this month.
 create or replace function public.autopilot_start_run(p_kind text, p_car text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare rid bigint; n int;
+declare rid bigint; n int; opt int;
 begin
   if p_kind not in ('monthly', 'manual') then raise exception 'bad kind'; end if;
   if p_kind = 'monthly' and p_car is not null then raise exception 'monthly runs cover every car'; end if;
@@ -1865,9 +1865,28 @@ begin
       cross join (values ('discover', 1), ('extract', 2), ('recalls', 3)) s(stage, ord)
      where c.status = 'approved' and (p_car is null or c.id = p_car)
      order by c.id, s.ord;
-  get diagnostics n = row_count;
+  -- Phase 4 optional stages (D-19), queued after every core job so a budget squeeze costs
+  -- parts/community first. Monthly: the optional_cars_per_run least-recently-done cars; a
+  -- car is "done" when BOTH stages succeeded (least of the two), so a failed stage stays due.
+  -- Manual Check-now: that car regardless of rotation, and no models job.
+  select optional_cars_per_run into opt from public.autopilot_config where id = 1;
+  insert into public.autopilot_jobs (run_id, car_model_id, stage)
+    select rid, x.id, s.stage
+      from (select c.id,
+                   least(coalesce((select d.last_done_at from public.autopilot_due d where d.car_model_id = c.id and d.stage = 'parts'), '-infinity'),
+                         coalesce((select d.last_done_at from public.autopilot_due d where d.car_model_id = c.id and d.stage = 'community'), '-infinity')) as done
+              from public.car_models c
+             where c.status = 'approved' and (p_car is null or c.id = p_car)
+             order by 2, c.id
+             limit case when p_car is null then coalesce(opt, 6) else 1 end) x
+      cross join (values ('parts', 1), ('community', 2)) s(stage, ord)
+     order by x.done, x.id, s.ord;
+  if p_kind = 'monthly' then
+    insert into public.autopilot_jobs (run_id, stage) values (rid, 'models');
+  end if;
   insert into public.autopilot_jobs (run_id, stage) values (rid, 'publish');
-  return jsonb_build_object('ok', true, 'run_id', rid, 'jobs', n + 1);
+  select count(*) into n from public.autopilot_jobs where run_id = rid;
+  return jsonb_build_object('ok', true, 'run_id', rid, 'jobs', n);
 end $$;
 
 -- Internal: a publish job that cannot finish ends the run failed with nothing published.
@@ -1909,6 +1928,10 @@ begin
      and (q.stage <> 'extract' or not exists (select 1 from public.autopilot_jobs d
             where d.run_id = q.run_id and d.car_model_id = q.car_model_id and d.stage = 'discover'
               and d.status in ('queued', 'running')))
+     -- community unions its alternatives with the rows parts staged, so it waits for parts (04-08)
+     and (q.stage <> 'community' or not exists (select 1 from public.autopilot_jobs d
+            where d.run_id = q.run_id and d.car_model_id = q.car_model_id and d.stage = 'parts'
+              and d.status in ('queued', 'running')))
    order by q.id for update of q skip locked limit 1;
   if not found then return null; end if;
   update public.autopilot_jobs set status = 'running', claimed_at = now() where id = j.id returning * into j;
@@ -1926,6 +1949,11 @@ begin
   if p_ok then
     update public.autopilot_jobs set status = 'done', last_error = null, claimed_at = null,
       notes = coalesce(p_notes, notes) where id = p_id;
+    -- rotation bookkeeping (D-19): only a successful optional job moves the car back in the queue
+    if j.stage in ('parts', 'community') and j.car_model_id is not null then
+      insert into public.autopilot_due (car_model_id, stage, last_done_at) values (j.car_model_id, j.stage, now())
+        on conflict (car_model_id, stage) do update set last_done_at = now();
+    end if;
     return jsonb_build_object('ok', true, 'status', 'done');
   end if;
   att := j.attempts + 1;
@@ -1958,11 +1986,13 @@ create or replace function public.autopilot_stage_findings(p_run bigint, p_car t
 language plpgsql security definer set search_path = public as $$
 declare n int;
 begin
-  if p_kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
+  if p_kind not in ('schedule_item', 'recall', 'part', 'failure', 'car_model') then raise exception 'unsupported kind'; end if;
+  -- a new model has no car yet; every other kind belongs to one
+  if (p_kind = 'car_model') <> (p_car is null) then raise exception 'bad car for kind'; end if;
   if p_rows is null or jsonb_typeof(p_rows) <> 'array' then raise exception 'rows must be an array'; end if;
   if not exists (select 1 from public.autopilot_runs where id = p_run and status = 'running') then
     raise exception 'run not running'; end if;
-  delete from public.autopilot_findings where run_id = p_run and car_model_id = p_car and kind = p_kind;
+  delete from public.autopilot_findings where run_id = p_run and car_model_id is not distinct from p_car and kind = p_kind;
   insert into public.autopilot_findings (run_id, car_model_id, kind, target_key, after, evidence, reason, verified)
     select p_run, p_car, p_kind, x.target_key, x.after, x.evidence, left(coalesce(x.reason, ''), 300), coalesce(x.verified, true)
       from jsonb_to_recordset(p_rows) as x(target_key text, after jsonb, evidence jsonb, reason text, verified boolean);
@@ -2104,8 +2134,9 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'jobs_pending'); end if;
 
   for f in select * from public.autopilot_findings where run_id = p_run order by id loop
-    -- a source banned after staging must not reach the queue (TOCTOU with ban_source_domain)
-    if exists (select 1 from jsonb_array_elements(f.evidence) e where public.host_banned(e->>'url')) then
+    -- a source banned after staging must not reach the queue (TOCTOU with ban_source_domain).
+    -- Evidence without a url (e.g. {type:'users'} aggregates) has no host to ban.
+    if exists (select 1 from jsonb_array_elements(f.evidence) e where e->>'url' is not null and public.host_banned(e->>'url')) then
       act := 'banned';
     else
       begin
@@ -2136,7 +2167,9 @@ begin
       set missed_runs = public.autopilot_item_status.missed_runs + 1;
   end if;
 
-  st := case when exists (select 1 from public.autopilot_jobs where run_id = p_run and stage <> 'publish' and status = 'failed')
+  -- only core stages flip the run to failed; failed optional jobs show in the report's failed_jobs
+  st := case when exists (select 1 from public.autopilot_jobs where run_id = p_run
+                            and stage in ('discover', 'extract', 'recalls') and status = 'failed')
              then 'failed' else 'done' end;
   rep := public.autopilot_build_report(p_run, counts);
   update public.autopilot_runs set status = st, finished_at = now(), report = rep where id = p_run;
@@ -2249,3 +2282,92 @@ grant select on public.catalogue_parts, public.known_issues to anon, authenticat
 -- Price materiality thresholds (D-07, CORE-06): a change under either floor is never queued.
 alter table public.autopilot_config add column if not exists min_pct numeric not null default 0.10;
 alter table public.autopilot_config add column if not exists min_sar numeric not null default 5;
+
+-- ---- Phase 4 autopilot additions: optional stages, rotation, soft budget (D-19, D-13) ----
+-- D-19 tunables live in config (CORE-06). optional_floor_sar is a SOFT floor: optional stages
+-- stop when autopilot_budget_left() drops under it, so a hard-cap hit (which wipes the whole
+-- run's staged findings) is not caused by parts/community spend.
+alter table public.autopilot_config add column if not exists optional_cars_per_run int not null default 6
+  check (optional_cars_per_run between 0 and 50);
+alter table public.autopilot_config add column if not exists optional_floor_sar numeric not null default 8
+  check (optional_floor_sar >= 0);
+alter table public.autopilot_config add column if not exists dealer_price_urls jsonb not null default '{}';
+
+-- New job stages and finding kinds. The old inline checks have generated names, so look them up.
+do $$ declare c record; begin
+  for c in select conname from pg_constraint
+            where conrelid = 'public.autopilot_jobs'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%discover%' loop
+    execute format('alter table public.autopilot_jobs drop constraint %I', c.conname);
+  end loop;
+  alter table public.autopilot_jobs add constraint autopilot_jobs_stage_check
+    check (stage in ('discover', 'extract', 'recalls', 'parts', 'community', 'models', 'publish'));
+  for c in select conname from pg_constraint
+            where conrelid = 'public.autopilot_findings'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%schedule_item%' loop
+    execute format('alter table public.autopilot_findings drop constraint %I', c.conname);
+  end loop;
+  alter table public.autopilot_findings add constraint autopilot_findings_kind_check
+    check (kind in ('schedule_item', 'recall', 'part', 'failure', 'car_model'));
+end $$;
+
+-- A new model (car_model kind) has no car row yet. nulls not distinct keeps the dedupe working for it.
+alter table public.autopilot_findings alter column car_model_id drop not null;
+drop index if exists public.autopilot_findings_key;
+create unique index autopilot_findings_key
+  on public.autopilot_findings (run_id, car_model_id, kind, target_key) nulls not distinct;
+
+-- Rotation state: when each car last finished an optional stage successfully.
+create table if not exists public.autopilot_due (
+  car_model_id text not null references public.car_models on delete cascade,
+  stage        text not null check (stage in ('parts', 'community')),
+  last_done_at timestamptz,
+  primary key (car_model_id, stage)
+);
+alter table public.autopilot_due enable row level security;
+revoke all on public.autopilot_due from anon, authenticated;
+grant select on public.autopilot_due to authenticated;
+drop policy if exists admin_read_autopilot_due on public.autopilot_due;
+create policy admin_read_autopilot_due on public.autopilot_due for select to authenticated using (public.is_admin());
+
+-- Remaining monthly budget, read-only (no reservation). Same spend expression as autopilot_reserve.
+create or replace function public.autopilot_budget_left() returns numeric
+language sql stable security definer set search_path = public as $$
+  select c.monthly_cap_sar - coalesce((select sum(cost_sar) from public.autopilot_spend
+                                        where created_at >= date_trunc('month', now())), 0)
+    from public.autopilot_config c where c.id = 1
+$$;
+revoke execute on function public.autopilot_budget_left() from public, anon, authenticated;
+grant execute on function public.autopilot_budget_left() to service_role;
+
+-- COM-03 / D-13: what app users agree on, as aggregates only. For one car: part rows from
+-- contributions (joined to links only to count DISTINCT users; user ids never leave), latest
+-- price per user, then trimmed to +-30% of the median; 3+ users left = an agreement.
+-- price_observations is deliberately excluded: it has no car/engine link (research Q3).
+-- engine NULL rows count only when the model has a single engine (otherwise they are ambiguous).
+create or replace function public.autopilot_user_agreement(p_car text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare mdl text := split_part(p_car, ':', 1); eng text; single boolean; res jsonb;
+begin
+  select engine into eng from public.car_models where id = p_car;
+  if not found then return '[]'::jsonb; end if;
+  single := (select count(*) from public.car_models where split_part(id, ':', 1) = mdl) = 1;
+  with latest as (
+    select distinct on (l.user_id, k.gk) l.user_id, k.gk, c.item_key, c.brand, c.part_no, c.price
+      from public.contributions c
+      join public.contribution_links l on l.contribution_id = c.id
+     cross join lateral (select lower(trim(c.item_key)) || '|' ||
+              coalesce(nullif(upper(regexp_replace(coalesce(c.part_no, ''), '[^A-Za-z0-9]', '', 'g')), ''), lower(trim(coalesce(c.brand, '')))) as gk) k
+     where c.kind = 'part' and c.model_id = mdl and c.price > 0 and c.item_key is not null
+       and ((c.engine is not null and lower(trim(c.engine)) = lower(trim(eng))) or (c.engine is null and single))
+     order by l.user_id, k.gk, c.created_at desc, c.id desc),
+  med as (select gk, percentile_cont(0.5) within group (order by price) m from latest group by gk),
+  kept as (select l.* from latest l join med using (gk) where l.price between med.m * 0.7 and med.m * 1.3),
+  agg as (select min(item_key) item_key, min(brand) brand, min(part_no) part_no, count(*) users,
+                 round((percentile_cont(0.5) within group (order by price))::numeric, 2) median_price
+            from kept group by gk having count(*) >= 3)
+  select coalesce(jsonb_agg(jsonb_build_object('item_key', item_key, 'brand', brand, 'part_no', part_no,
+                                               'users', users, 'median_price', median_price) order by item_key), '[]'::jsonb)
+    into res from agg;
+  return res;
+end $$;
+revoke execute on function public.autopilot_user_agreement(text) from public, anon, authenticated;
+grant execute on function public.autopilot_user_agreement(text) to service_role;
