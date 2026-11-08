@@ -31,7 +31,7 @@
   const ACTIONS = ['replaced', 'repaired', 'inspected'];
   const actionOf = p => ACTIONS.includes(p.action) ? p.action : 'replaced';
 
-  function partContributions({ modelId, vehicleId, historyEntry, priorHistory, shopId }) {
+  function partContributions({ modelId, engine, vehicleId, historyEntry, priorHistory, shopId }) {
     const earlier = (priorHistory || []).filter(h => h.id !== historyEntry.id && h.odometer < historyEntry.odometer);
     if (!MONTH_RE.test(monthOf(historyEntry.date))) return [];
     const sameAs = (h, k, act) => (h.parts || []).some(q => key(q.part) === k && actionOf(q) === act);
@@ -41,7 +41,7 @@
       const prev = latest(k, 'replaced', -Infinity);
       const row = {
         source_key: `part:${vehicleId}:${historyEntry.id}:${k}`, kind: 'part',
-        model_id: modelId,
+        model_id: modelId, engine: engine || null,
         odometer_band: band(historyEntry.odometer), month: monthOf(historyEntry.date),
         item_key: k, brand: p.brand || null, part_no: p.partNo || null, price: p.price > 0 ? round2(p.price) : null,
         action,
