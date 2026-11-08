@@ -33,6 +33,9 @@ const UNIT_WORD = {
   km: 'km|kms|kilomet(?:er|re)s?|كم|كيلومتر(?:ات)?',
   miles: 'miles?|mi|أميال|ميل',
   months: 'months?|mos?|أشهر|شهور|شهر',
+  sar: 'sar|sr|s\\.r\\.|ر\\.?س|ريال',
+  litres: 'l|litres?|liters?|لتر',
+  years: 'years?|yrs?|سنوات|سنة',
 };
 const UNIT_RE = Object.fromEntries(Object.entries(UNIT_WORD).map(([k, w]) => [k, {
   after: new RegExp(`^\\s*(?:${w})(?![a-z])`),
@@ -53,9 +56,10 @@ export function quoteHasNumber(fetchedText, quote, number, unit) {
   if (n === 'NaN') return false;
   // whole-token match; "5,000" counts as 5000
   const c = q.replace(/(\d),(?=\d{3}\b)/g, '$1');
-  const m = new RegExp(`(?<![\\d.])${n}(?![\\d]|\\.\\d)`).exec(c);
+  // trailing zeros are the same number ("26.50" proves 26.5, "10.0" proves 10)
+  const m = new RegExp(`(?<![\\d.])${n}${n.includes('.') ? '0*' : '(?:\\.0+)?'}(?![\\d]|\\.\\d)`).exec(c);
   if (!m) return false;
-  const after = c.slice(m.index + n.length).split(/\d/)[0];
+  const after = c.slice(m.index + m[0].length).split(/\d/)[0];
   const before = c.slice(0, m.index).split(/\d/).pop();
   return re.after.test(after) || re.before.test(before);
 }
@@ -81,8 +85,8 @@ export function parseExtraction(text) {
   }).filter(Boolean);
 }
 
-const nk = s => normaliseForQuote(s).replace(/[^\p{L}\p{N}]/gu, '');
-const clash = (said, own) => { const a = nk(said), b = nk(own); return !!a && !!b && !a.includes(b) && !b.includes(a); };
+export const nk = s => normaliseForQuote(s).replace(/[^\p{L}\p{N}]/gu, '');
+export const clash = (said, own) => { const a = nk(said), b = nk(own); return !!a && !!b && !a.includes(b) && !b.includes(a); };
 
 /* Validate one interval: each number needs its own quote proof. Miles -> km here. */
 function checkInterval(iv, fetchedText, dropped, label) {
