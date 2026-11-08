@@ -102,14 +102,14 @@ Plans:
   3. Owner sees proposed common failures with mention counts and cheaper alternative parts from forums and app users, and user-submission proposals appear only when 3+ distinct users agree.
   4. Owner sees newly detected Mazda models/generations/engines as draft `car_models` proposals, and approving one makes it available in the app picker.
 
-**Plans:** 10 plans
+**Plans:** 3/10 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Gate kinds part/failure/car_model in SQL, catalogue_parts + known_issues tables, baseline parts seed
-- [ ] 04-02-PLAN.md — Pure code gates: 2-source parts, citation prices, materiality, mention counts, trim, model id rule
-- [ ] 04-03-PLAN.md — Wave-0 dealer page / citation smoke and owner host inputs (checkpoint)
+- [x] 04-01-PLAN.md — Gate kinds part/failure/car_model in SQL, catalogue_parts + known_issues tables, baseline parts seed
+- [x] 04-02-PLAN.md — Pure code gates: 2-source parts, citation prices, materiality, mention counts, trim, model id rule
+- [x] 04-03-PLAN.md — Wave-0 dealer page / citation smoke and owner host inputs (checkpoint)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -138,4 +138,4 @@ Plans:
 | 1. Reliable & Safe Foundation | 11/11 | Complete   | 2026-11-05 |
 | 2. Proposal Gate & Review Queue | 6/6 | Complete   | 2026-11-05 |
 | 3. Monthly Autopilot for Schedules & Recalls | 8/8 | Complete   | 2026-11-05 |
-| 4. Parts, Prices, Community & New Models | 0/10 | Planned | - |
+| 4. Parts, Prices, Community & New Models | 3/10 | In Progress|  |
