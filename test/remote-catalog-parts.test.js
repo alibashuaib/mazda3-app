@@ -68,3 +68,17 @@ test('applyParts: stale version is false, force applies, nothing to change stamp
   const e = { car: { catalogId: ID }, parts: [] };
   assert.strictEqual(rc.applyParts(e), 'stamped');
 });
+
+test('parts page shows the indicative pill only on indicative options', async () => {
+  const { bootApp } = require('./helpers/boot.js');
+  const { buildProfile, normalizeData } = require('../src/data/normalize.js');
+  const d = normalizeData(buildProfile('mazda3bm', 0, { odometer: 0 }));
+  d.parts[0].options[0].indicative = true;
+  const app = await bootApp({ vehicles: [{ id: 'car1', data: d }] });
+  try {
+    app.api.go('parts');
+    const opts = app.document.querySelectorAll('.part-body')[0].querySelectorAll('.opt');
+    assert.strictEqual(opts[0].querySelectorAll('.pill.warn').length, 1);
+    assert.strictEqual(opts[1] ? opts[1].querySelectorAll('.pill.warn').length : 0, 0);
+  } finally { app.cleanup(); }
+});

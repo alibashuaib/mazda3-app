@@ -202,7 +202,7 @@ function partCard(p) {
             <div class="s">${[o.partNo, t(o.note)].filter(Boolean).join(' · ') || raw('&nbsp;')}</div>
           </div>
           <div class="opt-price">
-            <div class="p">${sar(o.price)} <span class="muted fs-11">SAR</span></div>
+            <div class="p">${sar(o.price)} <span class="muted fs-11">SAR</span> ${o.indicative ? html`<span class="pill warn fs-11">${t('indicative')}</span>` : ''}</div>
             <div class="store">${t(o.store)}</div>
           </div>
         </div>`)}

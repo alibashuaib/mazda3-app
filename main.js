@@ -134,6 +134,7 @@ function openAddVehicle() {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '', color: colorSel.value }));
       remoteCatalog.applyDealerPlan(data, { force: true });   // a new car takes the current shared plan
+      remoteCatalog.applyParts(data, { force: true });        // ...and the approved parts/prices
       const v = { id: uid(), data };
       session.setVehicles(session.garage().vehicles.concat([v]), v.id);
       const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
@@ -726,7 +727,9 @@ if (canSignIn && typeof supabase !== 'undefined') connectBackend();
    fires the afterSave hook, so a signed-in change is queued for sync too.
    Returns applyDealerPlan's result: 'changed', 'stamped' or false. */
 function syncDealerPlan() {
-  const res = remoteCatalog.applyDealerPlan(session.current());
+  const d = remoteCatalog.applyDealerPlan(session.current());
+  const pr = remoteCatalog.applyParts(session.current());   // approved parts/prices (D-01)
+  const res = d === 'changed' || pr === 'changed' ? 'changed' : (d || pr);
   if (res) session.save();
   return res;
 }
