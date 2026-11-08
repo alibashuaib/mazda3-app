@@ -52,6 +52,17 @@ test('RLS: autopilot tables have RLS, an admin select policy and no write policy
   }
 });
 
+// Phase 4 live tables: public read policy, writes only through the security definer gate functions.
+test('RLS: catalogue_parts and known_issues are read-only to browser roles', () => {
+  for (const name of ['catalogue_parts', 'known_issues']) {
+    assert.ok(tables.includes(name), name + ' not created');
+    assert.match(schema, new RegExp('alter\\s+table\\s+public\\.' + name + '\\s+enable\\s+row\\s+level\\s+security'), name);
+    assert.match(schema, new RegExp('create policy read_' + name + ' on public\\.' + name + ' for select to anon, authenticated'), name + ' lacks select policy');
+    assert.doesNotMatch(schema, new RegExp('create policy \\w+ on public\\.' + name + ' for (insert|update|delete|all)'), name + ' has a write policy');
+    assert.match(schema, new RegExp('revoke insert, update, delete on [^;]*public\\.' + name + '[^;]* from anon, authenticated'), name + ' not revoked');
+  }
+});
+
 test('RLS: every create table has enable row level security', () => {
   for (const name of tables) {
     const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
