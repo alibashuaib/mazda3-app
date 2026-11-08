@@ -338,3 +338,163 @@ test('index.ts: parts stage mapped, config + rpc wired, still no live writes', (
   for (const s of ['parts: runParts', 'autopilot_user_agreement', 'autopilot_budget_left', 'min_pct', 'optional_floor_sar', 'dealer_price_urls']) assert.ok(src.includes(s), s);
   assert.equal(/\.(insert|update|upsert|delete)\(/.test(src), false);
 });
+
+/* ---- community + models jobs (04-08) ---- */
+const nhtsa = (n, components = 'POWER TRAIN') => JSON.stringify({ results: Array.from({ length: n }, (_, i) => ({ odiNumber: 1000 + i, components, summary: `Gearbox complaint number ${i} jerks badly` })) });
+const comm = (over = {}) => {
+  const fetched = [];
+  const f = partsFakes({ ...over, fetch: url => {
+    fetched.push(url);
+    if (/nhtsa\.gov/.test(url)) return over.nhtsa === false ? { ok: false, error: 'down' } : { ok: true, kind: 'json', body: nhtsa(over.nhtsaN ?? 4), finalUrl: '' };
+    return { ok: false, error: 'robots' };      // forum pages are unreadable: only snippets count
+  } });
+  f.fetched = fetched;
+  if (over.staged) f.deps.db.stagedFindings = async () => over.staged;
+  return f;
+};
+const searchOut = (claims, cites) => partsResp(claims, cites);
+const labels = items => ({ content: [{ type: 'text', text: JSON.stringify({ items }) }], usage: { input_tokens: 10, output_tokens: 10 } });
+const FD = { 'f1.com': 'approved', 'f2.com': 'approved', 'www.reddit.com': 'pending' };
+const failureRows = d => d.staged.find(s => s.kind === 'failure').rows;
+
+test('community: below the soft floor skips with no reserve', async () => {
+  const { deps, calls } = comm({ budget: 3 });
+  const r = await flow.runCommunity(JOB, deps);
+  assert.deepEqual(r.notes.skipped, ['budget']);
+  assert.equal(calls.some(c => ['reserve', 'llm', 'stage'].includes(c)), false);
+});
+
+test('community: 4 NHTSA + 2 forum snippets on 1 forum host stage a failure with 6 mentions', async () => {
+  const a = 'My gearbox started slipping badly after the warm up', b = 'Gearbox jerks between second and third gear';
+  const { deps, calls } = comm({ domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', a], ['https://f1.com/t/2', b]]),
+    labels([{ category: 'transmission', quote: a, km: null }, { category: 'transmission', quote: b, km: null }])] });
+  await flow.runCommunity(JOB, deps);
+  const row = failureRows(deps)[0];
+  assert.equal(row.target_key, 'transmission');
+  assert.equal(row.after.mentions, 6);
+  assert.equal(row.after.title, 'Transmission problems');
+  assert.equal(row.after.typical_km, null);
+  assert.ok(row.evidence.length <= 10 && row.evidence.every(e => e.tier === 'community'));
+  assert.ok(llmAfterReserve(calls));
+});
+
+test('community: NHTSA alone (one host) and 2 mentions on 2 hosts stage nothing', async () => {
+  const a = comm({ nhtsaN: 10, llmQueue: [searchOut([], [])] });
+  await flow.runCommunity(JOB, a.deps);
+  assert.equal(failureRows(a.deps).length, 0);
+  const x = 'Gearbox slips when warm', y = 'Gearbox jerks in third gear';
+  const b = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', x], ['https://f2.com/t/2', y]]),
+    labels([{ category: 'transmission', quote: x, km: null }, { category: 'transmission', quote: y, km: null }])] });
+  await flow.runCommunity(JOB, b.deps);
+  assert.equal(failureRows(b.deps).length, 0);
+});
+
+test('community: a label whose quote is not in the cited text is ignored', async () => {
+  const x = 'Gearbox slips when warm', y = 'Gearbox jerks in third gear';
+  const { deps } = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', x], ['https://f2.com/t/2', y], ['https://f2.com/t/3', 'Clutch feels heavy today']]),
+    labels([{ category: 'transmission', quote: x, km: null }, { category: 'transmission', quote: y, km: null }, { category: 'transmission', quote: 'invented sentence about gearbox', km: null }])] });
+  const r = await flow.runCommunity(JOB, deps);
+  assert.equal(r.notes.dropped.unverified_quote, 1);
+  assert.equal(failureRows(deps).length, 0);
+});
+
+test('community: reddit is only ever a citation; unapproved forum is held', async () => {
+  const x = 'Gearbox slips when warm', y = 'Gearbox jerks in third gear', z = 'Gearbox whines on cold mornings';
+  const { deps, fetched } = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://www.reddit.com/r/mazda/1', x], ['https://www.reddit.com/r/mazda/2', y], ['https://f1.com/t/3', z], ['https://new.com/t', 'x']]),
+    labels([{ category: 'transmission', quote: x, km: null }, { category: 'transmission', quote: y, km: null }, { category: 'transmission', quote: z, km: null }])] });
+  const r = await flow.runCommunity(JOB, deps);
+  assert.equal(fetched.some(u => /reddit/.test(u)), false);
+  assert.ok(r.notes.skipped.some(s => /new\.com: held/.test(s)));
+  assert.equal(failureRows(deps)[0].after.mentions, 3);       // reddit.com + f1.com = 2 hosts
+});
+
+test('community: typical_km only with 2+ verified km figures', async () => {
+  const x = 'Gearbox failed at 90,000 km for me', y = 'Gearbox died at 110,000 km on mine', z = 'Gearbox jerks when cold';
+  const run = async km => {
+    const { deps } = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut([], [['https://f1.com/t/1', x], ['https://f2.com/t/2', y], ['https://f2.com/t/3', z]]),
+      labels([{ category: 'transmission', quote: x, km: km[0] }, { category: 'transmission', quote: y, km: km[1] }, { category: 'transmission', quote: z, km: 5 }])] });
+    await flow.runCommunity(JOB, deps);
+    return failureRows(deps)[0].after.typical_km;
+  };
+  assert.equal(await run([90000, 110000]), 100000);
+  assert.equal(await run([90000, 50000]), null);               // 50,000 is not in the quote
+});
+
+test('community: NHTSA failure is a skipped note, job still ok', async () => {
+  const { deps } = comm({ nhtsa: false, llmQueue: [searchOut([], [])] });
+  const r = await flow.runCommunity(JOB, deps);
+  assert.ok(r.ok && r.notes.skipped.includes('nhtsa'));
+});
+
+test('community: forum alternative needs 2 hosts on brand + part number; unions with the runParts rows', async () => {
+  const claim = [{ part: 'Oil Filter', brand: 'Denso', part_no: '150-2010', price: null, url: 'https://f1.com/t/1' }];
+  const q1 = 'Mazda 3 2019 owners use Denso 150-2010 oil filter', q2 = 'Denso 150-2010 fits my Mazda 3 2020 perfectly';
+  const oem = { target_key: 'Oil Filter|oem', after: { tag: 'OEM' }, evidence: [], reason: '', verified: true };
+  const two = comm({ nhtsaN: 0, domains: FD, staged: [oem], llmQueue: [searchOut(claim, [['https://f1.com/t/1', q1], ['https://f2.com/t/2', q2]]), labels([])] });
+  await flow.runCommunity(JOB, two.deps);
+  const part = two.deps.staged.find(s => s.kind === 'part').rows;
+  assert.deepEqual(part.map(r => r.target_key), ['Oil Filter|oem', 'Oil Filter|alt:denso']);
+  assert.equal(part[1].evidence[0].tier, 'community');
+  assert.equal(part[1].after.price, null);
+  const one = comm({ nhtsaN: 0, domains: FD, llmQueue: [searchOut(claim, [['https://f1.com/t/1', q1], ['https://f1.com/t/9', q2]]), labels([])] });
+  const r = await flow.runCommunity(JOB, one.deps);
+  assert.equal(r.notes.dropped.single_source, 1);
+  assert.equal(one.deps.staged.some(s => s.kind === 'part'), false);
+});
+
+const GCC = { gccDomains: ['gcc.example'] };
+const MSENT = 'The all-new Mazda CX-70 3.3L Turbo 2025 takes 6.5 litres of engine oil and has a 5 years warranty.';
+const modelsResp = (over = {}) => ({ content: [{ type: 'text', text: JSON.stringify({ items: [{ model: 'CX-70', generation: null, years: [2025], markets: ['KSA'],
+  engines: [{ name: '3.3L Turbo', oil_l: 6.5, warranty_years: 5, warranty_km: 100000, quote: MSENT }], ...over }] }) }], usage: { input_tokens: 10, output_tokens: 10 } });
+function modelFakes(over = {}) {
+  const f = partsFakes({ cfg: GCC, domains: { 'gcc.example': 'approved' }, fetch: () => html(`<html><body><p>${MSENT}</p></body></html>`),
+    llmQueue: [searchResp(['https://gcc.example/models']), modelsResp(over.item)], ...over });
+  f.deps.db.loadCar = async () => { throw new Error('models job must not load a car'); };
+  f.deps.db.loadAllModels = async () => over.all || [];
+  return f;
+}
+
+test('models: no GCC domains skips with no reserve (no global fallback)', async () => {
+  const { deps, calls } = partsFakes({});
+  const r = await flow.runModels({ run_id: 1, car_model_id: null }, deps);
+  assert.deepEqual(r.notes.skipped, ['no GCC domains']);
+  assert.equal(calls.some(c => ['reserve', 'llm'].includes(c)), false);
+});
+
+test('models: below the soft floor skips', async () => {
+  const { deps, calls } = modelFakes({ budget: 3 });
+  const r = await flow.runModels({ run_id: 1, car_model_id: null }, deps);
+  assert.deepEqual(r.notes.skipped, ['budget']);
+  assert.equal(calls.includes('llm'), false);
+});
+
+test('models: stages a new GCC model, pass 1 only, unverified number nulled, null-car job', async () => {
+  const { deps, calls } = modelFakes();
+  const r = await flow.runModels({ run_id: 1, car_model_id: null }, deps);
+  const s = deps.staged[0];
+  assert.equal(s.kind, 'car_model');
+  const row = s.rows[0];
+  assert.equal(row.target_key, 'cx-70-2025:3.3l-turbo');
+  assert.deepEqual([row.after.oil_capacity_l, row.after.warranty_years, row.after.warranty_km], [6.5, 5, null]);
+  assert.deepEqual(row.after.markets, ['KSA']);
+  assert.equal(row.evidence[0].tier, 'official');
+  assert.equal(row.verified, false);
+  assert.equal(r.notes.dropped.unverified_warranty_km, 1);
+  assert.ok(deps.requests[0].tools[0].allowed_domains && !deps.requests[0].tools[0].blocked_domains);
+  assert.equal(calls.filter(c => c === 'llm').length, 2);
+  assert.ok(llmAfterReserve(calls));
+});
+
+test('models: an existing model (any status) or a non-GCC model is not staged', async () => {
+  const a = modelFakes({ all: [{ id: 'cx-70-2025:3.3l-turbo', model: 'CX-70', generation: null, engine: '3.3L Turbo', status: 'pending' }] });
+  await flow.runModels({ run_id: 1, car_model_id: null }, a.deps);
+  assert.equal(a.deps.staged[0].rows.length, 0);
+  const b = modelFakes({ item: { markets: [] } });
+  await flow.runModels({ run_id: 1, car_model_id: null }, b.deps);
+  assert.equal(b.deps.staged[0].rows.length, 0);
+});
+
+test('index.ts: community + models dispatched, read-only helpers wired', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'autopilot', 'index.ts'), 'utf8');
+  for (const s of ['community: runCommunity', 'models: runModels', 'loadAllModels', 'stagedFindings']) assert.ok(src.includes(s), s);
+});

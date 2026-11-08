@@ -9,9 +9,9 @@ import { DEFAULT_POLICY, safeFetch } from '../_shared/safe-fetch.mjs';
 import { resolveHostAddresses } from '../_shared/dns.ts';
 import { logEdgeError } from '../_shared/app-errors.mjs';
 import { safeEqual } from '../plan-intake/logic.mjs';
-import { runDiscover, runExtract, runParts, runPreview, runRecalls } from './flow.mjs';
+import { runCommunity, runDiscover, runExtract, runModels, runParts, runPreview, runRecalls } from './flow.mjs';
 
-const STAGES: Record<string, (job: any, deps: any) => Promise<any>> = { discover: runDiscover, extract: runExtract, recalls: runRecalls, parts: runParts };
+const STAGES: Record<string, (job: any, deps: any) => Promise<any>> = { discover: runDiscover, extract: runExtract, recalls: runRecalls, parts: runParts, community: runCommunity, models: runModels };
 
 const BUDGET_MS = 100_000;   // stop claiming new jobs after this; the 5-minute cron poke picks up the rest
 const LLM_TIMEOUT_MS = 90_000;   // under BUDGET_MS, so one slow call cannot run past the claim window
@@ -88,7 +88,7 @@ async function work(admin: any, deps: any, runId: number | null = null) {
       let notes: unknown = null;
       if (job.stage === 'publish') await rpc(admin, 'autopilot_publish_run', { p_run: job.run_id });
       else {
-        // community/models entries arrive with 04-08; an unmapped stage fails loudly rather than running the wrong job
+        // an unmapped stage fails loudly rather than running the wrong job
         const run = STAGES[job.stage];
         if (!run) throw new Error('unknown stage ' + job.stage);
         // the flow returns { stop } when the run ended, else { ok, notes }; the union is not narrowed by TS here
@@ -156,6 +156,16 @@ async function buildDeps(admin: any, apiKey: string) {
         return data ?? [];
       },
       loadCar: carRow,
+      // Read-only: every car_models row (any status) so a pending proposal is not re-proposed.
+      loadAllModels: async () => {
+        const { data } = await admin.from('car_models').select('id,model,generation,engine,status');
+        return data ?? [];
+      },
+      // Read-only: rows already staged this run (runCommunity restages the union with runParts rows).
+      stagedFindings: async (run: number, car: string, kind: string) => {
+        const { data } = await admin.from('autopilot_findings').select('target_key,after,evidence,reason,verified').eq('run_id', run).eq('car_model_id', car).eq('kind', kind);
+        return data ?? [];
+      },
       loadLive: async (car: string) => {
         const { data } = await admin.from('dealer_plan_items').select('service,interval_km,interval_months,severe_km,severe_months,note,parts').eq('car_model_id', car);
         return data ?? [];
