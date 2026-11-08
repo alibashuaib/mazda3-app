@@ -76,7 +76,7 @@ test('GENERIC_PARTS equals the part names sharedParts returns for an unknown mod
   assert.deepStrictEqual([...GENERIC_PARTS], sharedParts('no-such-model', '').map(p => p.name));
 });
 
-test('security: numeric model needs maker word; price dot is literal; shared hosts split', async () => {
+test('security: numeric model needs maker word; price dot is literal; shared-host subdomains are one source', async () => {
   const { checkFitment, priceFromCitation } = await load();
   const m3 = { model: '3', generation: null, engine: null };
   assert.strictEqual(checkFitment('CX-3 oil filter', m3).reason, 'model_missing');
@@ -86,6 +86,8 @@ test('security: numeric model needs maker word; price dot is literal; shared hos
   assert.strictEqual(priceFromCitation('SAR 2615', 26.5), false);
   assert.strictEqual(priceFromCitation('SAR 26.50', 26.5), true);
   const { registrableHost } = await import('../supabase/functions/autopilot/logic.mjs');
-  assert.notStrictEqual(registrableHost('a.blogspot.com'), registrableHost('b.blogspot.com'));
+  assert.strictEqual(registrableHost('a.blogspot.com'), registrableHost('b.blogspot.com'));
+  const { confirmParts } = await load();
+  assert.strictEqual(confirmParts([{ part_no: 'PE01-14-302B', host: 'a.blogspot.com' }, { part_no: 'PE01-14-302B', host: 'b.blogspot.com' }]).length, 0);
   assert.strictEqual(registrableHost('www.example.com.sa'), 'example.com.sa');
 });
