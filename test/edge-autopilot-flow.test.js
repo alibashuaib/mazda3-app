@@ -561,3 +561,12 @@ test('parts: a part-number-only change on a static-priced row is not proposed wi
   assert.equal(r.notes.dropped.no_price, 1);
   assert.equal(deps.staged[0].rows.length, 0);
 });
+
+test('parts: dealer price page redirected to another host is skipped, nothing hashed (WR-16)', async () => {
+  const dealer = { 'm3-bp': 'https://dealer.example/parts' };
+  const { deps } = partsFakes({ cfg: { dealerPriceUrls: dealer }, fetch: () => ({ ok: true, kind: 'text', body: '<p>Oil Filter 33 SAR</p>', finalUrl: 'https://evil.example/parts' }),
+    llmQueue: [partsResp([], [])] });
+  const r = await flow.runParts(JOB, deps);
+  assert.ok(r.notes.skipped.includes('https://dealer.example/parts: redirected to other host'));
+  assert.equal(deps.hashed.length, 0);
+});
