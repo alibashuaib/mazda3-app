@@ -122,7 +122,8 @@ export async function runExtract(job, deps) {
     toHash.push([url, hash]);
   }
   await db.stageFindings(job.run_id, job.car_model_id, 'schedule_item', [...rows.values()]);
-  for (const [url, hash] of toHash) await db.setSourceHash(job.car_model_id, url, hash);   // only after staging succeeded
+  // CR-01: only staged here; autopilot_publish_run promotes the hash after a successful publish (an ended run re-reads the page)
+  for (const [url, hash] of toHash) await db.stageSourceHash(job.run_id, job.car_model_id, url, hash);
   return { ok: true, notes: { dropped, skipped, unchanged: candidates.length > 0 && unchanged === candidates.length } };
 }
 
@@ -337,7 +338,7 @@ export async function runParts(job, deps) {
     });
   }
   await db.stageFindings(job.run_id, car.id, 'part', rows);
-  for (const [u, h] of toHash) await db.setSourceHash(car.id, u, h);      // only after staging succeeded
+  for (const [u, h] of toHash) await db.stageSourceHash(job.run_id, car.id, u, h);   // promoted by autopilot_publish_run (CR-01)
   return { ok: true, notes: { dropped, skipped } };
 }
 

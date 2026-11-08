@@ -10,7 +10,7 @@ Monthly catalogue autopilot worker. Claims queued jobs (discover, extract, recal
 
 ## Preview accuracy
 
-For a never-checked car there are no known sources (no `autopilot_sources` rows), so nothing can be skipped as unchanged. The preview then returns `basis: "worst-case"` and the full worst case (one discovery plus four extractions). Once a car has been run, `basis` is `known-sources` and unchanged pages are listed in `skipped` and cost nothing. Source hashes are written and read only through `autopilot_set_source_hash` / `autopilot_get_source_hash`; the function only lists known URLs with a read-only select.
+For a never-checked car there are no known sources (no `autopilot_sources` rows), so nothing can be skipped as unchanged. The preview then returns `basis: "worst-case"` and the full worst case (one discovery plus four extractions). Once a car has been run, `basis` is `known-sources` and unchanged pages are listed in `skipped` and cost nothing. Source hashes are read through `autopilot_get_source_hash` and staged with `autopilot_stage_hash`; `autopilot_publish_run` promotes them to `autopilot_sources` only after a successful publish (a capped, stopped or aborted run discards them); the function only lists known URLs with a read-only select.
 
 ## Deploy
 

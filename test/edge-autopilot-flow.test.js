@@ -36,7 +36,7 @@ function fakes(over = {}) {
       loadLive: async () => LIVE,
       getCandidates: async () => over.candidates || [],
       getSourceHash: async () => (over.hash === undefined ? null : over.hash),
-      setSourceHash: async (c, u, h) => { calls.push('sethash'); deps.hashed.push([u, h]); },
+      stageSourceHash: async (run, c, u, h) => { calls.push('sethash'); deps.hashed.push([u, h]); },
       stageFindings: async (run, car, kind, rows) => { calls.push('stage'); deps.staged.push({ kind, rows }); },
       knownSources: async () => over.known || [],
     },

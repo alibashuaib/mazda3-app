@@ -43,7 +43,7 @@ test('autopilot: worker functions are service_role only', () => {
   const worker = ['autopilot_reserve(bigint, numeric)', 'autopilot_settle(bigint, text, jsonb)',
     'autopilot_start_run(text, text)', 'autopilot_claim_job(bigint)', 'autopilot_finish_job(bigint, boolean, text, jsonb)',
     'autopilot_end_run(bigint, text)', 'autopilot_stage_findings(bigint, text, text, jsonb)',
-    'autopilot_get_source_hash(text, text)', 'autopilot_set_source_hash(text, text, text)',
+    'autopilot_get_source_hash(text, text)', 'autopilot_set_source_hash(text, text, text)', 'autopilot_stage_hash(bigint, text, text, text)',
     'autopilot_see_domain(text)', 'autopilot_publish_run(bigint)',
     'autopilot_budget_left()', 'autopilot_user_agreement(text)'];
   for (const sig of worker) {
@@ -142,4 +142,12 @@ test('autopilot phase 4: user agreement is aggregate-only, privacy-safe and serv
   assert.doesNotMatch(f, /from public\.price_observations/);
   assert.match(section, /revoke execute on function public\.autopilot_user_agreement\(text\) from public, anon, authenticated;/);
   assert.match(section, /grant execute on function public\.autopilot_user_agreement\(text\) to service_role;/);
+});
+
+test('autopilot: hashes are staged per run and promoted only by a successful publish (CR-01)', () => {
+  assert.match(fn('autopilot_stage_hash'), /autopilot_pending_hashes/);
+  const pub = fn('autopilot_publish_run');
+  assert.match(pub, /if st = 'done' then\s+insert into public\.autopilot_sources/);
+  assert.match(fn('autopilot_end_run'), /delete from public\.autopilot_pending_hashes/);
+  assert.match(fn('autopilot_abort_run'), /delete from public\.autopilot_pending_hashes/);
 });

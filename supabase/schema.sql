@@ -1722,6 +1722,16 @@ create table if not exists public.autopilot_sources (
   primary key (car_model_id, url)
 );
 
+-- Hashes seen this run, promoted to autopilot_sources only by autopilot_publish_run after a successful
+-- publish. A capped / stopped / aborted run discards them with its findings, so the page is re-read next time.
+create table if not exists public.autopilot_pending_hashes (
+  run_id       bigint not null references public.autopilot_runs on delete cascade,
+  car_model_id text not null references public.car_models on delete cascade,
+  url          text not null,
+  content_hash text not null,
+  primary key (run_id, car_model_id, url)
+);
+
 create table if not exists public.autopilot_item_status (
   car_model_id     text not null references public.car_models on delete cascade,
   kind             text not null default 'schedule_item',
@@ -1741,6 +1751,8 @@ alter table public.autopilot_findings enable row level security;
 alter table public.source_domains enable row level security;
 alter table public.autopilot_sources enable row level security;
 alter table public.autopilot_item_status enable row level security;
+alter table public.autopilot_pending_hashes enable row level security;
+revoke all on public.autopilot_pending_hashes from anon, authenticated;   -- service_role only, no policy
 revoke all on public.autopilot_config, public.autopilot_runs, public.autopilot_jobs, public.autopilot_spend,
   public.autopilot_findings, public.source_domains, public.autopilot_sources, public.autopilot_item_status
   from anon, authenticated;
@@ -1896,6 +1908,7 @@ begin
   update public.autopilot_runs set status = 'failed', finished_at = now(),
     report = public.autopilot_build_report(p_run, '{}'::jsonb) where id = p_run and status = 'running';
   delete from public.autopilot_findings where run_id = p_run;
+  delete from public.autopilot_pending_hashes where run_id = p_run;
 end $$;
 
 -- Returns the claimed job row (json) or null. publish waits for every other job of its
@@ -1974,6 +1987,7 @@ begin
   update public.autopilot_runs set status = p_status, finished_at = now() where id = p_run and status = 'running';
   if not found then return jsonb_build_object('ok', false, 'reason', 'not_running'); end if;
   delete from public.autopilot_findings where run_id = p_run;
+  delete from public.autopilot_pending_hashes where run_id = p_run;
   update public.autopilot_jobs set status = 'failed', claimed_at = null, last_error = 'skipped: run ' || p_status
    where run_id = p_run and status in ('queued', 'running');
   update public.autopilot_runs set report = public.autopilot_build_report(p_run, '{}'::jsonb) where id = p_run;
@@ -2012,6 +2026,17 @@ begin
   insert into public.autopilot_sources (car_model_id, url, host, content_hash)
     values (p_car, p_url, lower(substring(p_url from '^https://([^/:?#]+)')), p_hash)
   on conflict (car_model_id, url) do update set content_hash = excluded.content_hash, last_fetched_at = now();
+end $$;
+
+-- CR-01: a hash is only recorded as pending; autopilot_publish_run promotes it after a successful publish.
+create or replace function public.autopilot_stage_hash(p_run bigint, p_car text, p_url text, p_hash text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_url !~ '^https://[^/]+' or coalesce(p_hash, '') = '' then raise exception 'bad source'; end if;
+  if not exists (select 1 from public.autopilot_runs where id = p_run and status = 'running') then
+    raise exception 'run not running'; end if;
+  insert into public.autopilot_pending_hashes (run_id, car_model_id, url, content_hash) values (p_run, p_car, p_url, p_hash)
+  on conflict (run_id, car_model_id, url) do update set content_hash = excluded.content_hash;
 end $$;
 
 -- ---- source domains (ENG-06, D-07, D-08) ----
@@ -2173,6 +2198,14 @@ begin
              then 'failed' else 'done' end;
   rep := public.autopilot_build_report(p_run, counts);
   update public.autopilot_runs set status = st, finished_at = now(), report = rep where id = p_run;
+  -- CR-01: the pages were read and their findings queued: only now are their hashes the "last seen" ones
+  if st = 'done' then
+    insert into public.autopilot_sources (car_model_id, url, host, content_hash)
+      select h.car_model_id, h.url, lower(substring(h.url from '^https://([^/:?#]+)')), h.content_hash
+        from public.autopilot_pending_hashes h where h.run_id = p_run
+    on conflict (car_model_id, url) do update set content_hash = excluded.content_hash, last_fetched_at = now();
+  end if;
+  delete from public.autopilot_pending_hashes where run_id = p_run;
   delete from public.autopilot_findings where run_id = p_run;
   return jsonb_build_object('ok', true, 'status', st, 'report', rep);
 end $$;
@@ -2196,6 +2229,8 @@ revoke execute on function public.autopilot_get_source_hash(text, text) from pub
 grant execute on function public.autopilot_get_source_hash(text, text) to service_role;
 revoke execute on function public.autopilot_set_source_hash(text, text, text) from public, anon, authenticated;
 grant execute on function public.autopilot_set_source_hash(text, text, text) to service_role;
+revoke execute on function public.autopilot_stage_hash(bigint, text, text, text) from public, anon, authenticated;
+grant execute on function public.autopilot_stage_hash(bigint, text, text, text) to service_role;
 revoke execute on function public.autopilot_see_domain(text) from public, anon, authenticated;
 grant execute on function public.autopilot_see_domain(text) to service_role;
 revoke execute on function public.autopilot_publish_run(bigint) from public, anon, authenticated;

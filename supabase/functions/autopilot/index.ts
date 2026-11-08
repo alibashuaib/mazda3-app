@@ -147,7 +147,7 @@ async function buildDeps(admin: any, apiKey: string) {
       endRun: (run: number, status: string) => rpc(admin, 'autopilot_end_run', { p_run: run, p_status: status }),
       seeDomain: (host: string) => rpc(admin, 'autopilot_see_domain', { p_host: host }),
       getSourceHash: (car: string, u: string) => rpc(admin, 'autopilot_get_source_hash', { p_car: car, p_url: u }),
-      setSourceHash: (car: string, u: string, h: string) => rpc(admin, 'autopilot_set_source_hash', { p_car: car, p_url: u, p_hash: h }),
+      stageSourceHash: (run: number, car: string, u: string, h: string) => rpc(admin, 'autopilot_stage_hash', { p_run: run, p_car: car, p_url: u, p_hash: h }),
       stageFindings: (run: number, car: string, kind: string, rows: unknown) => rpc(admin, 'autopilot_stage_findings', { p_run: run, p_car: car, p_kind: kind, p_rows: rows }),
       budgetLeft: () => rpc(admin, 'autopilot_budget_left', {}),
       userAgreement: (car: string) => rpc(admin, 'autopilot_user_agreement', { p_car: car }),
