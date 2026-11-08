@@ -1086,6 +1086,7 @@ revoke execute on function public.proposal_live(text, text, text) from public, a
 -- Rule-based confidence (tunable weights): best source tier official 2 /
 -- secondary 1 / community 0; +1 for two or more distinct hosts; +1 when the
 -- change is small (<= 25%), -1 when large (> 50%). high >= 3, medium 2, else low.
+-- A part price backed by fewer than two hosts is capped at medium (WR-04).
 create or replace function public.proposal_confidence(p_before jsonb, p_after jsonb, p_evidence jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare e jsonb; k text; pts int; best int := 0; best_tier text := 'community'; doms int;
@@ -1111,6 +1112,8 @@ begin
   end if;
   score := best + case when doms >= 2 then 1 else 0 end
          + case when pct is null then 0 when pct <= 25 then 1 when pct > 50 then -1 else 0 end;
+  -- WR-04: a price (part proposal) read from a single page can be a mis-association; it never auto-qualifies as high
+  if p_after ? 'price' and doms < 2 then score := least(score, 2); end if;
   tier := case when score >= 3 then 'high' when score = 2 then 'medium' else 'low' end;
   return jsonb_build_object('tier', tier, 'factors', jsonb_build_object(
     'best_tier', best_tier, 'domains', doms, 'change_pct', round(pct, 1), 'score', score));

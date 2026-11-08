@@ -155,3 +155,7 @@ test('autopilot: hashes are staged per run and promoted only by a successful pub
 test('submit_proposal refuses a part without a price (CR-03)', () => {
   assert.match(schema, /raise exception 'part needs a price'/);
 });
+
+test('proposal_confidence caps a single-host part price at medium (WR-04)', () => {
+  assert.match(schema, /if p_after \? 'price' and doms < 2 then score := least\(score, 2\)/);
+});

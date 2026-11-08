@@ -537,3 +537,11 @@ test('models: identity fields not on the page are dropped; empty-slug names get 
   assert.notEqual(id, modelId({ model: 'سيارة', years: [2025] }, '2.0L', []));
   assert.equal(validModelId('x:'), false);
 });
+
+test('parts: a cited price whose quote names neither the part nor its number is not attached (WR-04)', async () => {
+  const { deps } = partsFakes({ domains: OK, llmQueue: [partsResp([{ part: 'Oil Filter', part_no: null, price: 45, url: 'https://a.com/x' }],
+    [['https://a.com/x', 'Mazda 3 2019 2.5L brake pads SAR 45']])] });
+  const r = await flow.runParts(JOB, deps);
+  assert.equal(r.notes.dropped.unverified_price, 1);
+  assert.equal(deps.staged[0].rows.length, 0);
+});

@@ -247,7 +247,8 @@ export async function runParts(job, deps) {
         else {
           for (const it of j.items.slice(0, 60)) {
             const name = byName.get(String(it && it.part).toLowerCase()), price = it && it.price;
-            if (!name || typeof price !== 'number' || !quoteHasNumber(text, it.quote, price, 'sar')) { bump(dropped, 'unverified_price'); continue; }
+            if (!name || typeof price !== 'number' || !quoteHasNumber(text, it.quote, price, 'sar')
+                || !namesPart(it.quote, name, (oemLive.get(name) || {}).part_no)) { bump(dropped, 'unverified_price'); continue; }
             setPrice(name, { price, basis: 'dealer', evidence: [{ url: dUrl, quote: String(it.quote).slice(0, 300), tier: 'official' }] });
           }
           toHash.push([dUrl, hash]);
@@ -290,7 +291,8 @@ export async function runParts(job, deps) {
         else if (cands.length) bump(dropped, 'single_source');
       }
       if (cl.price != null) {
-        const c = typeof cl.price === 'number' && ok.find(x => x.url === cl.url && priceFromCitation(x.quote, cl.price) && checkFitment(x.quote, car).ok);
+        const c = typeof cl.price === 'number' && ok.find(x => x.url === cl.url && priceFromCitation(x.quote, cl.price) && checkFitment(x.quote, car).ok
+          && namesPart(x.quote, name, cl.part_no, (oemLive.get(name) || {}).part_no));
         if (c) setPrice(name, { price: cl.price, basis: 'indicative', evidence: [{ url: c.url, quote: c.quote.slice(0, 300), tier: 'secondary' }] });
         else bump(dropped, 'unverified_price');
       }
@@ -363,6 +365,12 @@ async function readPage(url, deps, skipped) {
   if (res.kind !== 'text') { skipped.push(`${url}: ${res.kind}`); return null; }
   return htmlToText(res.body, TEXT_LIMIT);
 }
+// WR-04: a price only belongs to a part when its quote names the part (parenthetical dropped: "Spark Plugs (each)") or
+// carries one of the part's numbers. Without this a price printed beside another item could be attached to the part.
+const namesPart = (quote, name, ...nos) => {
+  const base = String(name).replace(/\(.*?\)/g, ' ').replace(/\s+/g, ' ').trim();
+  return (base.length > 0 && ciIncludes(quote, base)) || nos.some(n => n && hasPartNo(quote, n));
+};
 const isReddit = host => registrableHost(host) === 'reddit.com';   // search citations only, never fetched (D-10)
 const ciIncludes = (text, q) => { const n = normaliseForQuote(q); return n.length > 0 && normaliseForQuote(text).includes(n); };
 // Whole-token part number match (aftermarket numbers like "150-2010" do not fit PART_NO_RE): optional - or space between
@@ -471,7 +479,7 @@ export async function runCommunity(job, deps) {
     if (!conf) { if (cands.length) bump(dropped, 'single_source'); continue; }
     const slot = (liveRows.find(r => r.part_name === name && r.slot !== 'oem' && String(r.brand).toLowerCase() === brand.toLowerCase()) || {}).slot || altSlot(brand);
     if (!/^alt:[a-z0-9-]{1,40}$/.test(slot)) { bump(dropped, 'no_brand'); continue; }
-    const pc = typeof cl.price === 'number' ? ok.find(x => x.url === cl.url && priceFromCitation(x.quote, cl.price) && checkFitment(x.quote, car).ok) : null;
+    const pc = typeof cl.price === 'number' ? ok.find(x => x.url === cl.url && priceFromCitation(x.quote, cl.price) && checkFitment(x.quote, car).ok && namesPart(x.quote, name, pn)) : null;
     if (cl.price != null && !pc) bump(dropped, 'unverified_price');
     if (!pc) { bump(dropped, 'no_price'); continue; }   // a part proposal needs a verified price
     const evidence = [...conf.items, ...(pc ? [pc] : [])].filter((e, i, a) => a.findIndex(x => x.url === e.url) === i).slice(0, 10)
