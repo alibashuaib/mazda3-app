@@ -105,6 +105,9 @@ test('Phase 4 kinds are applied, bulk-refused and reverted (D-03, D-17)', () => 
   assert.match(code('apply_proposal'), /sources/);
   assert.ok(code('apply_proposals').includes("'not_bulk'"));
   assert.ok(code('revert_change').includes("'in_use'"));
+  // WR-13: recalls and known issues also cascade-delete with the car
+  assert.match(code('revert_change'), /from public\.recalls where car_model_id = c\.row_key/);
+  assert.match(code('revert_change'), /from public\.known_issues where car_model_id = c\.row_key/);
 });
 
 test('admin-proposals.js never uses raw()', () => {

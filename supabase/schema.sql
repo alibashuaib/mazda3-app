@@ -1551,7 +1551,9 @@ begin
   if c.kind = 'car_model' then
     -- Deleting the car would cascade to its plans and parts: refuse while any exist (T-04-04).
     if b is null and (exists (select 1 from public.dealer_plan_items where car_model_id = c.row_key)
-                      or exists (select 1 from public.catalogue_parts where car_model_id = c.row_key)) then
+                      or exists (select 1 from public.catalogue_parts where car_model_id = c.row_key)
+                      or exists (select 1 from public.recalls where car_model_id = c.row_key)
+                      or exists (select 1 from public.known_issues where car_model_id = c.row_key)) then
       return jsonb_build_object('ok', false, 'error', 'in_use');
     end if;
     if b is null then
