@@ -750,6 +750,8 @@ create policy admin_write_dealer_plan_items on public.dealer_plan_items for all 
   using (public.is_admin()) with check (public.is_admin());
 
 -- Explicit grants (see the vehicles/garage note above); RLS still enforces admin-only writes.
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.car_models, public.dealer_plan_items from anon, authenticated;
 grant select on public.car_models, public.dealer_plan_items to anon, authenticated;
 grant insert, update, delete on public.car_models, public.dealer_plan_items to authenticated;
 grant select on public.dealer_plan_changes to authenticated;
@@ -813,6 +815,8 @@ create policy read_recalls on public.recalls for select to anon, authenticated
 drop policy if exists admin_write_recalls on public.recalls;
 create policy admin_write_recalls on public.recalls for update to authenticated
   using (public.is_admin()) with check (public.is_admin());
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.recalls from anon, authenticated;
 grant select on public.recalls to anon, authenticated;
 grant update (status) on public.recalls to authenticated;
 grant select, insert, update, delete on public.schedule_sources, public.plan_drafts to authenticated;
@@ -963,6 +967,8 @@ create policy read_makers on public.makers for select to anon, authenticated usi
 drop policy if exists admin_write_makers on public.makers;
 create policy admin_write_makers on public.makers for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.makers from anon, authenticated;
 grant select on public.makers to anon, authenticated;
 grant insert, update, delete on public.makers to authenticated;
 
@@ -1127,7 +1133,7 @@ create or replace function public.submit_proposal(
   p_run_id bigint default null, p_reason text default '', p_maker_id text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare car public.car_models; ev jsonb; before_v jsonb; conf jsonb; new_id bigint; ah text; sh text; ex bigint;
-        mk text; slot text; pnm text; mpct numeric; msar numeric; lp numeric; np numeric; dp numeric; k text;
+        mk text; slot text; pnm text; mpct numeric; msar numeric; lp numeric; np numeric; dp numeric; sk text;
 begin
   if p_kind not in ('schedule_item', 'recall', 'part', 'failure', 'car_model') then raise exception 'unsupported kind'; end if;
   if p_kind = 'car_model' then
@@ -1191,15 +1197,15 @@ begin
   end if;
   if p_kind = 'schedule_item' then
     -- WR-11: bound what the extractor (untrusted) can put on a live schedule row. null / absent = "no value".
-    foreach k in array array['interval_km', 'severe_km'] loop
-      if jsonb_typeof(p_after->k) = 'number' and not ((p_after->>k) ~ '^[0-9]+$' and (p_after->>k)::numeric between 1 and 1000000) then
+    foreach sk in array array['interval_km', 'severe_km'] loop
+      if jsonb_typeof(p_after->sk) = 'number' and not ((p_after->>sk) ~ '^[0-9]+$' and (p_after->>sk)::numeric between 1 and 1000000) then
         raise exception 'bad schedule interval'; end if;
-      if p_after ? k and jsonb_typeof(p_after->k) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
+      if p_after ? sk and jsonb_typeof(p_after->sk) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
     end loop;
-    foreach k in array array['interval_months', 'severe_months'] loop
-      if jsonb_typeof(p_after->k) = 'number' and not ((p_after->>k) ~ '^[0-9]+$' and (p_after->>k)::numeric between 1 and 240) then
+    foreach sk in array array['interval_months', 'severe_months'] loop
+      if jsonb_typeof(p_after->sk) = 'number' and not ((p_after->>sk) ~ '^[0-9]+$' and (p_after->>sk)::numeric between 1 and 240) then
         raise exception 'bad schedule interval'; end if;
-      if p_after ? k and jsonb_typeof(p_after->k) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
+      if p_after ? sk and jsonb_typeof(p_after->sk) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
     end loop;
     if p_after ? 'parts' and jsonb_typeof(p_after->'parts') not in ('array', 'null') then raise exception 'bad schedule parts'; end if;
     if jsonb_typeof(p_after->'parts') = 'array' and jsonb_array_length(p_after->'parts') > 50 then
@@ -2333,7 +2339,8 @@ drop policy if exists read_known_issues on public.known_issues;
 create policy read_known_issues on public.known_issues for select to anon, authenticated
   using (exists (select 1 from public.car_models m
                  where m.id = car_model_id and (m.status = 'approved' or public.is_admin())));
-revoke insert, update, delete on public.catalogue_parts, public.known_issues from anon, authenticated;
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.catalogue_parts, public.known_issues from anon, authenticated;
 grant select on public.catalogue_parts, public.known_issues to anon, authenticated;
 
 -- Price materiality thresholds (D-07, CORE-06): a change under either floor is never queued.

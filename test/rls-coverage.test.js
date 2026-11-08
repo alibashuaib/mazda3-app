@@ -59,7 +59,7 @@ test('RLS: catalogue_parts and known_issues are read-only to browser roles', () 
     assert.match(schema, new RegExp('alter\\s+table\\s+public\\.' + name + '\\s+enable\\s+row\\s+level\\s+security'), name);
     assert.match(schema, new RegExp('create policy read_' + name + ' on public\\.' + name + ' for select to anon, authenticated'), name + ' lacks select policy');
     assert.doesNotMatch(schema, new RegExp('create policy \\w+ on public\\.' + name + ' for (insert|update|delete|all)'), name + ' has a write policy');
-    assert.match(schema, new RegExp('revoke insert, update, delete on [^;]*public\\.' + name + '[^;]* from anon, authenticated'), name + ' not revoked');
+    assert.match(schema, new RegExp('revoke all on [^;]*public\\.' + name + '[^;]* from anon, authenticated'), name + ' not revoked');
   }
 });
 
@@ -68,4 +68,12 @@ test('RLS: every create table has enable row level security', () => {
     const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
     assert.ok(re.test(schema), 'table ' + name + ' lacks enable row level security');
   }
+});
+
+// WR-12: default privileges (TRUNCATE etc.) are stripped before the minimal grants on every live catalogue table.
+test('RLS: live catalogue tables revoke all from browser roles, then grant only what is used', () => {
+  for (const name of ['catalogue_parts', 'known_issues', 'makers', 'recalls', 'car_models', 'dealer_plan_items']) {
+    assert.match(schema, new RegExp('revoke all on [^;]*public\\.' + name + '\\b[^;]* from anon, authenticated;'), name);
+  }
+  assert.doesNotMatch(schema, /grant (all|truncate|references|trigger)[^;]*on public\.(catalogue_parts|known_issues|makers|recalls|car_models|dealer_plan_items)\b/);
 });

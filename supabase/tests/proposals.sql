@@ -117,6 +117,9 @@ begin
   exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
 
   -- WR-11: schedule bounds (km 1..1000000, months 1..240, parts <= 50, note <= 300)
+  -- a valid schedule_item is accepted (guards the WR-11 block and the evidence-hash query against variable/column clashes)
+  if (public.submit_proposal('schedule_item', 'test:gate', 'V5ok', '{"interval_km":10000,"interval_months":12,"severe_km":5000,"severe_months":6,"note":"ok","parts":["a"]}'::jsonb, ok_ev)->>'action') <> 'inserted' then
+    raise exception 'FAIL: valid schedule_item not inserted'; end if;
   begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5a', '{"interval_km":2000000,"interval_months":12,"note":"","parts":[]}'::jsonb, ok_ev);
     raise exception 'FAIL: km over 1000000 accepted';
   exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
