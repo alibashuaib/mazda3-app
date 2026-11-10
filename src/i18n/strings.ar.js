@@ -597,6 +597,7 @@ const AR = {
   'Oil (L)': 'الزيت (لتر)',
   'Markets': 'الأسواق',
   'indicative': 'تقريبي',
+  'Search parts': 'ابحث عن قطع', 'No matching parts.': 'لا توجد قطع مطابقة.',
   'Id': 'المعرّف',
   '{n} app users agree (median SAR {m})': '{n} من مستخدمي التطبيق متفقون (الوسيط {m} ريال)',
   'Invalid id. Use lowercase letters, digits and hyphens: maker:model-year': 'معرّف غير صالح. استخدم أحرفاً صغيرة وأرقاماً وشرطات بصيغة maker:model-year'

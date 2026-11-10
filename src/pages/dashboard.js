@@ -317,7 +317,7 @@ function renderDashboard() {
       (Array.isArray(r.sources) ? r.sources : []).forEach(s => {
         const p = httpsHref(s && s.url); if (!p) return;
         const a = el('a'); a.href = p.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dir = 'ltr'; a.textContent = p.hostname;
-        a.classList.add('fs-12'); a.style.marginInlineEnd = '8px'; item.appendChild(a);
+        a.classList.add('fs-12', 'known-issue-link'); item.appendChild(a);
       });
       issuesBox.appendChild(item);
     });
@@ -327,7 +327,11 @@ function renderDashboard() {
   // New-model slice (D-18): a server-added car with no approved dealer plan or parts yet. Built-in cars and an unloaded cache never show it.
   { const c = session.current().car;
     if (isRegisteredModel(c.modelId) && remoteCatalog.loaded() && (!(remoteCatalog.dealerPlan(c.catalogId) || []).length || !remoteCatalog.parts(c.catalogId).length)) {
-      const p = el('p', 'muted'); p.textContent = t('Catalogue in progress: dealer schedule and parts for this car are still being checked.'); v.appendChild(p);
+      const noPlan = !(remoteCatalog.dealerPlan(c.catalogId) || []).length, noParts = !remoteCatalog.parts(c.catalogId).length;
+      const p = el('p', 'muted'); p.textContent = noPlan && noParts ? t('Catalogue in progress: dealer schedule and parts for this car are still being checked.')
+        : noPlan ? t('Catalogue in progress: dealer schedule for this car is still being checked.')
+        : t('Catalogue in progress: parts for this car are still being checked.');
+      v.appendChild(p);
     } }
 
   // tiles — each links to the page it summarizes

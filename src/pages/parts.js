@@ -25,6 +25,8 @@ function compatibleParts() {
 }
 // Math.min() of nothing is Infinity, which renders as a price — 0 reads as "unpriced".
 const partCheapest = p => (p.options && p.options.length) ? Math.min(...p.options.map(o => o.price)) : 0;
+// The headline price is indicative when every option at that price is indicative: it must say so, not read as verified.
+const partCheapestIndicative = p => { const c = partCheapest(p); return !!(p.options && p.options.length) && p.options.filter(o => o.price === c).every(o => o.indicative); };
 function partsForService(s) { return (SERVICE_PARTS[s.name] || []).map(n => compatibleParts().find(p => p.name === n)).filter(Boolean); }
 function servicesForPart(p) { return session.current().services.filter(s => (SERVICE_PARTS[s.name] || []).includes(p.name)); }
 
@@ -183,7 +185,7 @@ function partCard(p) {
       <div class="item-ic">${p.icon || '🔩'}</div>
       <h3>${t(p.name)}${icon ? html` <span title="${fitmentLabel}" class="ico-badge">${icon}</span>` : ''}</h3>
       <div class="text-right">
-        <div class="price-main">${t('from')} ${sar(cheapest)} <span class="muted fs-11">SAR</span></div>
+        <div class="price-main">${t('from')} ${sar(cheapest)} <span class="muted fs-11">SAR</span> ${partCheapestIndicative(p) ? html`<span class="pill warn fs-11">${t('indicative')}</span>` : ''}</div>
         <div class="muted fs-11">${p.options.length} ${t(p.options.length === 1 ? 'option' : 'options')}</div>
         <div class="muted fs-11 mt-4" id="avg_${p.id}"></div>
         <div class="muted fs-11 mt-4" id="life_${p.id}"></div>
@@ -272,7 +274,7 @@ function openEditPart(p) {
             <div class="field field-flush"><label>${t('Store')}</label><input data-k="store" value="${o.store || ''}"></div>
           </div>
           <div class="field field-flush"><label>${t('Note')}</label><input data-k="note" value="${o.note || ''}"></div>`;
-        box.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { o[inp.dataset.k] = inp.type === 'number' ? +inp.value : inp.value; });
+        box.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { o[inp.dataset.k] = inp.type === 'number' ? +inp.value : inp.value; if (inp.dataset.k === 'price') o.indicative = false; /* owner-typed price is verified, not an indicative estimate */ });
         if (opts.length > 1) {
           const rm = el('button', 'btn ghost', html`${t('Remove option')}`); rm.classList.add('opt-remove');
           rm.onclick = () => { opts.splice(i, 1); drawOpts(); };

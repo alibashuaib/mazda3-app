@@ -1107,7 +1107,7 @@ html { scroll-behavior: smooth; }
 .proposal-panel ul { padding-inline-start: 20px; }
 .proposal-panel a { color: var(--text); text-decoration: underline; text-decoration-color: var(--stroke-strong); text-underline-offset: 3px; }
 .proposal-panel a:hover { text-decoration-color: currentColor; }
-.proposal-row blockquote { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--stroke); }
+.proposal-row blockquote { margin: 0; padding: 4px 12px; border: 0; border-inline-start: 3px solid var(--stroke-strong); background: none; }
 .proposal-alert { padding: 16px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn); }
 .proposal-alert.fail { background: var(--danger-soft); border-color: var(--danger); }
 
@@ -1239,7 +1239,14 @@ html { scroll-behavior: smooth; }
 @media (min-width: 700px) { .admin-car-groups { display: block; column-count: 2; column-gap: 12px; } .admin-car-panel { break-inside: avoid; margin-bottom: 12px; } .admin-car-panel:last-child { margin-bottom: 0; } }
 /* 44px touch target for every Advanced action (kill switch, Preview, Confirm run, domain Approve/Ban). */
 .admin-view .btn { min-height: 44px; }
-.proposal-row .pill { font-weight: 600; }
+.proposal-row .pill { font-weight: 650; }
+/* Edit and reject forms: fields and buttons share one wrapping action row */
+.proposal-edit, .proposal-reject { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; }
+.proposal-edit > .field, .proposal-reject > .field { flex: 1 1 220px; }
+/* Known issues card (dashboard): one row per issue, links inline */
+.known-issues { margin-top: 12px; }
+.known-issue { padding: 8px 0; border-top: 1px solid var(--stroke); }
+.known-issue-link { margin-inline-end: 8px; }
 .btn.ghost.reject { color: var(--danger); border-color: var(--danger-soft); }
 
 /* ==== Inline-style replacements: utilities and page components (were style="" attributes) ==== */
