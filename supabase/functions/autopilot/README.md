@@ -65,8 +65,9 @@ CI is green on the commit being applied, every job: `test`, `browser`, `deno`, a
 Run each file in the Supabase SQL editor for the target project:
 
 1. `supabase/schema.sql` (re-runnable: `if not exists` / `create or replace` / `on conflict`).
-2. `supabase/seed-parts.sql` (catalogue parts; `on conflict do nothing`).
-3. `supabase/seed-sources.sql` is optional. It holds only comments and a host template; the owner chose `empty`, so there is nothing to apply. Fill the template and run it only to approve hosts in bulk; otherwise approve hosts later in the admin domain list.
+2. `supabase/seed-catalogue.sql` (car models; required before parts, or the parts FK fails with `catalogue_parts_car_model_id_fkey`).
+3. `supabase/seed-parts.sql` (catalogue parts).
+4. `supabase/seed-sources.sql` is optional. It holds only comments and a host template; the owner chose `empty`, so there is nothing to apply. Fill the template and run it only to approve hosts in bulk; otherwise approve hosts later in the admin domain list.
 
 Check: `select count(*) from catalogue_parts;` returns more than 0.
 
