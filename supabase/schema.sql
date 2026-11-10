@@ -1091,7 +1091,8 @@ end $$;
 revoke execute on function public.proposal_live(text, text, text) from public, anon, authenticated;
 
 -- Rule-based confidence (tunable weights): best source tier official 2 /
--- secondary 1 / community 0; +1 for two or more distinct hosts; +1 when the
+-- secondary 1 / community 1 (weakest, but not zero: community sources already need >= 3
+-- mentions from >= 2 hosts upstream, see community.mjs); +1 for two or more distinct hosts; +1 when the
 -- change is small (<= 25%), -1 when large (> 50%). high >= 3, medium 2, else low.
 -- A part price backed by fewer than two hosts is capped at medium (WR-04).
 create or replace function public.proposal_confidence(p_before jsonb, p_after jsonb, p_evidence jsonb) returns jsonb
@@ -1100,9 +1101,9 @@ declare e jsonb; k text; pts int; best int := 0; best_tier text := 'community'; 
         b numeric; a numeric; pct numeric; score int; tier text;
 begin
   for e in select value from jsonb_array_elements(p_evidence) loop
-    pts := case e->>'tier' when 'official' then 2 when 'secondary' then 1 else 0 end;
+    pts := case e->>'tier' when 'official' then 2 when 'secondary' then 1 when 'community' then 1 else 0 end;
     if pts > best then
-      best := pts; best_tier := case pts when 2 then 'official' else 'secondary' end;
+      best := pts; best_tier := coalesce(e->>'tier', 'community');
     end if;
   end loop;
   select count(distinct substring(x->>'url' from '^https://([^/:]+)')) into doms
@@ -1190,7 +1191,7 @@ begin
        or exists (select 1 from jsonb_array_elements(p_after->'markets') m
                   where jsonb_typeof(m) <> 'string' or (m #>> '{}') not in ('KSA', 'UAE', 'KW', 'QA', 'BH', 'OM'))) then
       raise exception 'bad markets'; end if;
-    if p_after ? 'years' and (jsonb_typeof(p_after->'years') <> 'array' or jsonb_array_length(p_after->'years') not between 1 and 15
+    if p_after ? 'years' and (jsonb_typeof(p_after->'years') <> 'array' or jsonb_array_length(p_after->'years') not between 0 and 15
        or exists (select 1 from jsonb_array_elements(p_after->'years') y
                   where jsonb_typeof(y) <> 'number' or (y #>> '{}') !~ '^[0-9]{4}$'
                      or (y #>> '{}')::int not between 1990 and 2100)) then
@@ -2445,7 +2446,7 @@ begin
       join public.qualified_users q on q.id = l.user_id
      cross join lateral (select lower(trim(c.item_key)) || '|' ||
               coalesce(nullif(upper(regexp_replace(coalesce(c.part_no, ''), '[^A-Za-z0-9]', '', 'g')), ''), lower(trim(coalesce(c.brand, '')))) as gk) k
-     where c.kind = 'part' and c.model_id = mdl and c.price > 0 and c.item_key is not null
+     where c.kind = 'part' and c.action = 'replaced' and c.model_id = mdl and c.price > 0 and c.item_key is not null
        and ((c.engine is not null and lower(trim(c.engine)) = lower(trim(eng))) or (c.engine is null and single))
      order by l.user_id, k.gk, c.created_at desc, c.id desc),
   med as (select gk, percentile_cont(0.5) within group (order by price) m from latest group by gk),

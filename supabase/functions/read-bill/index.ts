@@ -56,6 +56,8 @@ Deno.serve(async (req) => {
     if (!u?.user) return json(401, { error: 'auth' });
     // Throwaway sign-ups would otherwise multiply the per-user cap: require a confirmed email or phone.
     if (!u.user.email_confirmed_at && !u.user.phone_confirmed_at) return json(403, { error: 'unconfirmed' });
+    // Same anti-fake-account rule as qualified_users (schema.sql): account at least 7 days old.
+    if (Date.parse(u.user.created_at) > Date.now() - 7 * 24 * 3600 * 1000) return json(403, { error: 'too_new' });
     admin = createClient(url, serviceKey);
 
     // Count bytes as they arrive: content-length can be absent (chunked) or wrong.

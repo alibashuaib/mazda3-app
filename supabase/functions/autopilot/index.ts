@@ -61,6 +61,8 @@ Deno.serve(async (req) => {
     }
     if (action === 'preview') return json(200, await runPreview(car, deps));   // free: fetches + hash compare only
     if (action === 'run') {
+      // Monthly cap reached: refuse with 429 so the admin shows "cap reached" (the cap is also enforced per call in autopilot_reserve).
+      if (!(Number(await rpc(admin, 'autopilot_budget_left', {})) > 0)) return json(429, { error: 'limit' });
       const started = await rpc(admin, 'autopilot_start_run', { p_kind: 'manual', p_car: car });
       if (!started?.ok) return json(409, started ?? { error: 'start' });
       return json(200, await work(admin, deps, started.run_id));

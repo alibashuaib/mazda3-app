@@ -99,7 +99,8 @@ export function groupComplaints(json, apiUrl) {
     seen.add(odi);
     out.push({
       category: categoryOf(r.components), odi, quote, host: 'api.nhtsa.gov',
-      url: apiUrl ? `${apiUrl}#${odi}` : `https://www.nhtsa.gov/?nhtsaId=${encodeURIComponent(odi)}`,
+      // Human-readable ODI page, never the raw api.nhtsa.gov JSON endpoint (opening that shows JSON, not the complaint).
+      url: `https://www.nhtsa.gov/?nhtsaId=${encodeURIComponent(odi)}`,
     });
   }
   return out;

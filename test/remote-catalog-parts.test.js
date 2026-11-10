@@ -83,12 +83,13 @@ test('parts page shows the indicative pill only on indicative options', async ()
   } finally { app.cleanup(); }
 });
 
-test('applyParts skips a row with a null price instead of stamping 0 SAR', async () => {
+test('applyParts drops the catalogue OEM option when the admin blanks its price (never stamps 0 SAR, never keeps the stale price)', async () => {
   const nullPriced = PARTS.map(r => (r.slot === 'oem' ? { ...r, price: null } : r));
   rc.configure({ client: client(nullPriced) }); await rc.refresh();
   const d = data(10, 10);
   rc.applyParts(d);
-  assert.deepStrictEqual([d.parts[0].options[0].price, d.parts[0].options[0].partNo], [10, 'OLD']);
+  assert.ok(!d.parts[0].options.some(o => o.tag === 'OEM'), 'catalogue OEM option removed');
+  assert.ok(!d.parts[0].options.some(o => o.price === 0 || o.price === 10 && o.partNo === 'OLD'));
 });
 
 test('applyParts removes a catalogue-created ALT whose approved row is gone, keeps owner-priced and built-in ones (WR-09)', async () => {

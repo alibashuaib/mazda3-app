@@ -45,11 +45,14 @@ export function parseModels(text) {
   return raw.items.slice(0, MAX_MODELS).map(i => {
     const model = str(i && i.model, 60);
     if (!model) return null;
-    const years = (Array.isArray(i.years) ? i.years : []).filter(y => Number.isInteger(y) && y >= 1990 && y <= 2100).slice(0, 20);
+    // schema.sql allows at most 15 years: cap here so a long list is trimmed, not rejected whole at publish.
+    const years = (Array.isArray(i.years) ? i.years : []).filter(y => Number.isInteger(y) && y >= 1990 && y <= 2100).slice(0, 15);
     const markets = [...new Set((Array.isArray(i.markets) ? i.markets : []).filter(x => MARKETS.includes(x)))];
     const engines = (Array.isArray(i.engines) ? i.engines : []).slice(0, MAX_ENGINES).map(e => {
       const name = str(e && e.name, 60);
-      return name ? { name, oil_l: pos(e.oil_l, 20), warranty_years: pos(e.warranty_years, 20), warranty_km: pos(e.warranty_km, 1e6), quote: str(e.quote, 300) } : null;
+      // schema.sql requires whole warranty years and km: round here so a fractional value is not rejected at publish.
+      const whole = v => (v == null ? null : Math.round(v));
+      return name ? { name, oil_l: pos(e.oil_l, 20), warranty_years: whole(pos(e.warranty_years, 20)), warranty_km: whole(pos(e.warranty_km, 1e6)), quote: str(e.quote, 300) } : null;
     }).filter(Boolean);
     return { model, generation: str(i.generation, 60) || null, years, markets, engines };
   }).filter(Boolean);

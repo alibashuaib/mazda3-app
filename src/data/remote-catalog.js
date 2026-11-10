@@ -150,7 +150,14 @@
     parts(m.id).forEach(r => {
       const p = (data.parts || []).find(x => x.name === r.part_name);
       if (!p) return;
-      if (r.price == null) return;   // no verified price: Number(null) would stamp a 0 SAR price
+      if (r.price == null) {
+        // Admin blanked the price: drop the catalogue-owned option rather than keep the stale price on screen.
+        // Never stamp Number(null) (= 0 SAR) as a price.
+        const lbn = String(r.brand || '').toLowerCase(), isO = r.slot === 'oem', n0 = p.options.length;
+        p.options = p.options.filter(x => !(x.catPrice != null && (isO ? x.tag === 'OEM' : x.tag === 'ALT' && String(x.brand || '').toLowerCase() === lbn)));
+        if (p.options.length !== n0) changed = true;
+        return;
+      }
       p.options = p.options || [];
       const price = Number(r.price), indicative = r.price_basis === 'indicative';
       const vals = { brand: r.brand, partNo: r.part_no || '', price, note: r.note || '', catPrice: price, indicative };

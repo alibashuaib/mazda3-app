@@ -233,6 +233,7 @@ function contribute(rows) {
   if (!rows || !rows.length) return;
   insights.shareEnabled().then(on => on && account.enqueueContribution(rows)).then(kickSync).catch(() => {});
 }
+setContributeSink(contribute);   // explicit wiring for maintenance.js (see setContributeSink there)
 
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {

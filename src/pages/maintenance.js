@@ -117,6 +117,11 @@ function buildPlan(v) {
    catalogue part (OEM or Alternative) they actually used for each linked part.
    The picked option's price drives the cost; any labour baked into the service's
    estimate (est. cost − default parts) is preserved. */
+/* Where shared part prices go. Injected, not reached for as a global: main.js calls
+   setContributeSink(contribute) at boot. Until then the sink drops rows (nothing is sent). */
+let contributeSink = () => {};
+function setContributeSink(fn) { contributeSink = typeof fn === 'function' ? fn : () => {}; }
+
 /* Resolve the shop, share part prices tagged with it, then ask for feedback.
    Fire-and-forget: the save already succeeded, so shop features are optional. */
 async function afterPurchase(logged, shopIn, cur, vid, billReadId) {
@@ -124,7 +129,7 @@ async function afterPurchase(logged, shopIn, cur, vid, billReadId) {
     // Sharing off: nothing leaves the device (no shop row, no prices, no vote).
     if (!(await insights.shareEnabled())) return;
     const shop = shopIn ? await shops.findOrCreate(shopIn.name, shopIn.city, shopIn.area) : null;
-    contribute(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, engine: cur.car.engine, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
+    contributeSink(logged.flatMap(h => insights.partContributions({ modelId: cur.car.modelId, engine: cur.car.engine, vehicleId: vid, historyEntry: h, priorHistory: cur.history, shopId: shop && shop.id })));
     if (shop && shop.id && $('#modalHost').hidden) openShopFeedback(shop, billReadId || null);  // never stack on an open modal
   } catch (e) { /* shop features optional; save already succeeded */ }
 }
