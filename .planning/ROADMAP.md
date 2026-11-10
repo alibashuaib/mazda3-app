@@ -128,7 +128,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 04-10-PLAN.md — Owner applies schema/seeds, deploys, live smoke (checkpoint)
+- [ ] 04-10-PLAN.md — Owner applies schema/seeds, deploys, live smoke (checkpoint). Task 1 runbook done (72e9e8e); live checkpoint pending owner.
 **UI hint**: yes
 
 ## Progress

@@ -63,19 +63,19 @@
 
 ### Parts
 
-- [ ] **PRT-01**: Autopilot proposes dealer OEM parts per car (name, part number, fitment), each confirmed by at least 2 sources or an official catalogue
-- [ ] **PRT-02**: Autopilot proposes indicative SAR prices from search results and app users' price reports, labelled "indicative"; no scraping of marketplaces whose terms forbid it
-- [ ] **PRT-03**: Price changes below a materiality threshold (e.g. <10% or <5 SAR) are not proposed
+- [x] **PRT-01**: Autopilot proposes dealer OEM parts per car (name, part number, fitment), each confirmed by at least 2 sources or an official catalogue *(code-complete; the "official catalogue" path is not built, see 04-VERIFICATION W-02; live check pending 04-10)*
+- [x] **PRT-02**: Autopilot proposes indicative SAR prices from search results and app users' price reports, labelled "indicative"; no scraping of marketplaces whose terms forbid it *(code-complete; live check pending 04-10)*
+- [x] **PRT-03**: Price changes below a materiality threshold (e.g. <10% or <5 SAR) are not proposed *(code-complete; live check pending 04-10)*
 
 ### Community
 
-- [ ] **COM-01**: Autopilot proposes common failures per car from public owner forums/groups, with mention counts and sources
-- [ ] **COM-02**: Autopilot proposes cheaper alternative parts from forums and app users' submissions
-- [ ] **COM-03**: App users' submissions (bills, prices, shops, alternatives) become a proposal only when at least 3 distinct users agree; outliers are trimmed
+- [x] **COM-01**: Autopilot proposes common failures per car from public owner forums/groups, with mention counts and sources *(code-complete; live check pending 04-10)*
+- [x] **COM-02**: Autopilot proposes cheaper alternative parts from forums and app users' submissions *(code-complete; live check pending 04-10)*
+- [x] **COM-03**: App users' submissions (bills, prices, shops, alternatives) become a proposal only when at least 3 distinct users agree; outliers are trimmed *(code-complete; live check pending 04-10)*
 
 ### New Models
 
-- [ ] **NEW-01**: Autopilot flags new Mazda models/generations/engines as draft `car_models` proposals for approval
+- [x] **NEW-01**: Autopilot flags new Mazda models/generations/engines as draft `car_models` proposals for approval *(code-complete; live check pending 04-10)*
 
 ## v2 Requirements
 
@@ -151,13 +151,13 @@
 | SCH-05 | Phase 3 | Pending |
 | REV-07 | Phase 3 | Pending |
 | REV-08 | Phase 3 | Pending |
-| PRT-01 | Phase 4 | Pending |
-| PRT-02 | Phase 4 | Pending |
-| PRT-03 | Phase 4 | Pending |
-| COM-01 | Phase 4 | Pending |
-| COM-02 | Phase 4 | Pending |
-| COM-03 | Phase 4 | Pending |
-| NEW-01 | Phase 4 | Pending |
+| PRT-01 | Phase 4 | Complete (code; live pending 04-10) |
+| PRT-02 | Phase 4 | Complete (code; live pending 04-10) |
+| PRT-03 | Phase 4 | Complete (code; live pending 04-10) |
+| COM-01 | Phase 4 | Complete (code; live pending 04-10) |
+| COM-02 | Phase 4 | Complete (code; live pending 04-10) |
+| COM-03 | Phase 4 | Complete (code; live pending 04-10) |
+| NEW-01 | Phase 4 | Complete (code; live pending 04-10) |
 
 **Coverage:**
 - v1 requirements: 48 total
