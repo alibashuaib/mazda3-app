@@ -180,6 +180,8 @@ create policy delete_own_price_observations on public.price_observations for del
 grant select, insert on public.price_items to authenticated;
 grant select, insert, update, delete on public.price_observations to authenticated;
 grant select on public.price_item_averages to authenticated;
+-- The view is owner-run (not security_invoker), so it bypasses RLS: anon must not read it (same as store_prices).
+revoke all on public.price_item_averages from anon;
 
 -- Community insights. See docs/superpowers/specs/2026-10-16-community-insights-design.md.
 -- Neither table below grants anything to `authenticated`: users reach them only
