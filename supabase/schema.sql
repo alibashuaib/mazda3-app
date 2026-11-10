@@ -135,17 +135,16 @@ create index if not exists price_observations_item_idx
 -- observations are insert-only, so a plain default is enough — no update
 -- path exists that a client-supplied timestamp could smuggle a bad value
 -- through.
--- security_invoker: the view runs with the querying user's own RLS, not the
--- view owner's — without this a Postgres view is SECURITY DEFINER-like by
--- default and silently bypasses price_observations' RLS. Harmless today
--- (read_price_observations already grants select to every authenticated
--- user) but it makes the spec's "inherits that table's select policy"
--- claim actually enforced by the view, not just coincidentally true.
-create or replace view public.price_item_averages
-  with (security_invoker = true) as
-  select item_id, avg(price)::numeric(10,2) as avg_price, count(*) as sample_count
-  from public.price_observations
-  group by item_id;
+-- Aggregate-only, owner-run view (same pattern as store_prices). It is NOT security_invoker
+-- on purpose: it must read qualified_users, which clients cannot. Anti-fake-account rule:
+-- only qualified users count, and an item needs >= 3 distinct qualified users before any
+-- average is shown, so one user's own price can never be displayed back as an "average".
+create or replace view public.price_item_averages as
+  select o.item_id, avg(o.price)::numeric(10,2) as avg_price, count(*) as sample_count
+  from public.price_observations o
+  join public.qualified_users q on q.id = o.user_id
+  group by o.item_id
+  having count(distinct o.user_id) >= 3;
 
 alter table public.price_items enable row level security;
 alter table public.price_observations enable row level security;
@@ -1471,6 +1470,26 @@ begin
 end $$;
 revoke execute on function public.apply_proposal(bigint, jsonb, text) from public, anon;
 grant execute on function public.apply_proposal(bigint, jsonb, text) to authenticated;
+
+-- F11: the only way an admin approves a draft car_model from the app. Direct table update is not
+-- allowed: this writes the change_log row that revert_change needs, and it refuses non-admins.
+create or replace function public.approve_car_model(p_id text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare m public.car_models; new_id bigint;
+begin
+  if not public.is_admin() then raise exception 'not allowed'; end if;
+  select * into m from public.car_models where id = p_id for update;
+  if not found then raise exception 'unknown car'; end if;
+  if m.status = 'approved' then return jsonb_build_object('id', m.id, 'action', 'noop'); end if;
+  update public.car_models set status = 'approved' where id = p_id;
+  insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id)
+  values ('car_model', p_id, 'car_models', p_id, 'update', jsonb_build_object('status', m.status),
+          jsonb_build_object('status', 'approved'), null)
+  returning id into new_id;
+  return jsonb_build_object('id', p_id, 'action', 'approved', 'change_id', new_id);
+end $$;
+revoke execute on function public.approve_car_model(text) from public, anon;
+grant execute on function public.approve_car_model(text) to authenticated;
 
 -- Owner rejects a pending proposal (REV-05). after_hash and sources_hash stay
 -- as stored: submit_proposal uses them to keep the same value out of the queue.

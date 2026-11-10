@@ -93,7 +93,8 @@
     return Promise.resolve(env.client.from('dealer_plan_items').update(patch).eq('id', id)).then(data);
   }
   function approve(id) {
-    return Promise.resolve(env.client.from('car_models').update({ status: 'approved' }).eq('id', id)).then(data);
+    // Through the gate: approve_car_model is admin-only and writes change_log (no direct table update).
+    return Promise.resolve().then(() => env.client.rpc('approve_car_model', { p_id: id })).then(data);
   }
 
   /* Blank, negative or non-numeric input means "no value", not 0. */
