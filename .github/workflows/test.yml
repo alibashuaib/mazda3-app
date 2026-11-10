@@ -35,7 +35,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno check supabase/functions/autopilot/index.ts
+      - run: deno check --node-modules-dir=auto supabase/functions/autopilot/index.ts
 
   # A real browser, because the Node suite runs against linkedom and therefore
   # cannot load the app the way a user does, cannot reproduce the real HTML

@@ -1149,7 +1149,8 @@ begin
   if p_kind = 'part' then
     if p_target_key !~ '^[^|]{1,100}[|](oem|alt:[a-z0-9-]{1,40})$' then raise exception 'bad part target'; end if;
     pnm := split_part(p_target_key, '|', 1); slot := split_part(p_target_key, '|', 2);
-    if p_after ? 'tag' and p_after->>'tag' is distinct from case when slot = 'oem' then 'OEM' else 'ALT' end then
+    -- parentheses: plpgsql ends an IF condition at the first THEN token, which would be the CASE's own THEN
+    if p_after ? 'tag' and p_after->>'tag' is distinct from (case when slot = 'oem' then 'OEM' else 'ALT' end) then
       raise exception 'part tag does not match slot'; end if;
     if char_length(coalesce(p_after->>'brand', '')) > 120 or char_length(coalesce(p_after->>'part_no', '')) > 60
        or char_length(coalesce(p_after->>'note', '')) > 300 then raise exception 'part text too long'; end if;
