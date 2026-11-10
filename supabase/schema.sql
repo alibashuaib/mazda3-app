@@ -1122,6 +1122,8 @@ begin
          + case when pct is null then 0 when pct <= 25 then 1 when pct > 50 then -1 else 0 end;
   -- WR-04: a price (part proposal) read from a single page can be a mis-association; it never auto-qualifies as high
   if p_after ? 'price' and doms < 2 then score := least(score, 2); end if;
+  -- Community-only evidence never reaches high (bulk-approvable): capped at medium, as before the community weight.
+  if best_tier = 'community' then score := least(score, 2); end if;
   tier := case when score >= 3 then 'high' when score = 2 then 'medium' else 'low' end;
   return jsonb_build_object('tier', tier, 'factors', jsonb_build_object(
     'best_tier', best_tier, 'domains', doms, 'change_pct', round(pct, 1), 'score', score));
