@@ -148,7 +148,11 @@ async function buildDeps(admin: any, apiKey: string) {
       reserve: (run: number, sar: number) => rpc(admin, 'autopilot_reserve', { p_run: run, p_est_sar: sar }),
       settle: (id: number, model: string, usage: unknown) => rpc(admin, 'autopilot_settle', { p_reservation: id, p_model: model, p_usage: usage ?? {} }),
       endRun: (run: number, status: string) => rpc(admin, 'autopilot_end_run', { p_run: run, p_status: status }),
-      seeDomain: (host: string) => rpc(admin, 'autopilot_see_domain', { p_host: host }),
+      // CR-01: a host the SQL grammar rejects (underscore, IPv6 literal, ...) must not raise and fail the whole run.
+      // Same grammar as autopilot_see_domain; 'invalid' is neither approved nor pending, so callers drop it.
+      seeDomain: (host: string) => /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host) && host.length <= 253
+        ? rpc(admin, 'autopilot_see_domain', { p_host: host })
+        : Promise.resolve('invalid'),
       getSourceHash: (car: string, u: string) => rpc(admin, 'autopilot_get_source_hash', { p_car: car, p_url: u }),
       stageSourceHash: (run: number, car: string, u: string, h: string) => rpc(admin, 'autopilot_stage_hash', { p_run: run, p_car: car, p_url: u, p_hash: h }),
       stageFindings: (run: number, car: string, kind: string, rows: unknown) => rpc(admin, 'autopilot_stage_findings', { p_run: run, p_car: car, p_kind: kind, p_rows: rows }),

@@ -49,7 +49,11 @@ async function paid(job, deps, model, request, estSar) {
     await deps.db.settle(r.reservation_id, model, usage).catch(() => {});
     throw e;
   }
-  const s = await deps.db.settle(r.reservation_id, model, response && response.usage);
+  // CR-02: a success with no usage block must not settle at 0 (that undercounts the monthly cap): charge the worst case.
+  const tool0 = (request.tools || [])[0];
+  const usage = response && response.usage ? response.usage
+    : worstCaseUsage({ inputChars: JSON.stringify(request).length, maxTokens: request.max_tokens, maxSearches: (tool0 && tool0.max_uses) || 0 });
+  const s = await deps.db.settle(r.reservation_id, model, usage);
   if (!s || s.over) return stopRun(job, deps, 'cap');
   return { response };
 }
