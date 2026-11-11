@@ -136,7 +136,7 @@ test('autopilot phase 4: user agreement is aggregate-only, privacy-safe and serv
   const f = fn('autopilot_user_agreement');
   assert.match(f, /contribution_links/);
   assert.match(f, /percentile_cont/);
-  assert.match(f, /count\(\*\) >= 3/);
+  assert.match(f, /count\(\*\) >= 5/);   // WR-08 privacy floor
   assert.match(f, /med\.m \* 0\.7 and med\.m \* 1\.3/);
   assert.doesNotMatch(f, /jsonb_build_object\([^)]*user_id/);
   assert.doesNotMatch(f, /from public\.price_observations/);

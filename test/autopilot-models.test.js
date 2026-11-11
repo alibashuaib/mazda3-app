@@ -71,3 +71,16 @@ test('parseModels caps years at 15 and rounds fractional warranty values to whol
   assert.strictEqual(m.engines[0].warranty_years, 3);
   assert.strictEqual(m.engines[0].warranty_km, 60000);
 });
+
+// Review WR-07: model and year identity are whole tokens, so "3" must not ground against "2013" or "1.3".
+test('groundModels: model and year identity match whole tokens only', async () => {
+  const { groundModels } = await load();
+  const dropped = {};
+  const out = groundModels([{ model: '3', generation: null, years: [2013, 2019], markets: ['KSA'], engines: [] }],
+    'Engine 1.3 and model year 2013 only; Mazda3 2019 is elsewhere', dropped);
+  assert.strictEqual(out.length, 0);
+  assert.strictEqual(dropped.unverified_model, 1);
+  const ok = groundModels([{ model: 'Mazda3', generation: null, years: [2019, 2013], markets: ['KSA'], engines: [] }],
+    'Mazda3 2019 for KSA, not 2013', {});
+  assert.deepStrictEqual(ok[0].years, [2019, 2013]);
+});

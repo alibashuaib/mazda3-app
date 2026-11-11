@@ -9,7 +9,7 @@
    or proposals (publish is the SQL function autopilot_publish_run). */
 import { DEFAULT_POLICY, NHTSA_POLICY } from '../_shared/safe-fetch.mjs';
 import { htmlToText, parseRecalls, sha256Hex } from '../plan-intake/logic.mjs';
-import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, hostOf, registrableHost, worstCaseEstimate, worstCaseUsage, yearsOf } from './logic.mjs';
+import { buildSearchRequest, estimatePreview, extractCitations, extractSearchUrls, hostOf, isBanned, registrableHost, worstCaseEstimate, worstCaseUsage, yearsOf } from './logic.mjs';
 import { buildExtractPrompt, normaliseForQuote, parseExtraction, quoteHasNumber, validateItem } from './extract.mjs';
 import { buildFailurePrompt, countMentions, groupComplaints, parseFailures, typicalKm } from './community.mjs';
 import { buildModelsPrompt, diffModels, groundModels, modelId, parseModels, validModelId } from './models.mjs';
@@ -142,7 +142,9 @@ export async function runExtract(job, deps) {
   await db.stageFindings(job.run_id, job.car_model_id, 'schedule_item', [...rows.values()]);
   // CR-01: only staged here; autopilot_publish_run promotes the hash after a successful publish (an ended run re-reads the page)
   for (const [url, hash] of toHash) await db.stageSourceHash(job.run_id, job.car_model_id, url, hash);
-  return { ok: true, notes: { dropped, skipped, unchanged: candidates.length > 0 && unchanged === candidates.length } };
+  // WR-02: unchanged = at least one page matched its hash. Items from that page are not re-staged, so the car is
+  // neither verified nor missed (publish skips missed_runs for it). Only an all-changed car counts misses.
+  return { ok: true, notes: { dropped, skipped, unchanged: unchanged > 0 } };
 }
 
 // SCH-04: NHTSA is free (no reserve), still through safeFetch with the NHTSA policy.
@@ -171,7 +173,7 @@ export async function runRecalls(job, deps) {
     rows.push({
       target_key: f.campaign, verified: true, reason: '',
       after: { component: f.component, summary: f.summary, remedy: f.remedy, years: f.years.sort() },
-      evidence: [{ url: f.url, quote: f.summary.slice(0, 300), tier: 'official' }],
+      evidence: [{ url: `https://www.nhtsa.gov/recalls?nhtsaId=${encodeURIComponent(f.campaign)}`, quote: f.summary.slice(0, 300), tier: 'official' }],   // WR-09: human page, not JSON
     });
   }
   await deps.db.stageFindings(job.run_id, job.car_model_id, 'recall', rows);
@@ -231,7 +233,9 @@ export async function runParts(job, deps) {
     else if (res.kind !== 'text') skipped.push(`${dUrl}: ${res.kind}`);
     else {
       const text = htmlToText(res.body, TEXT_LIMIT), hash = await sha256Hex(text);
-      if (hash === await db.getSourceHash(car.id, dUrl)) skipped.push(`${dUrl}: unchanged`);
+      // WR-03: keyed separately from a schedule hash on the same URL (the fragment is not sent by fetch)
+      const hk = dUrl + '#parts';
+      if (hash === await db.getSourceHash(car.id, hk)) skipped.push(`${dUrl}: unchanged`);
       else {
         const request = {
           model: cfg.extractModel, max_tokens: EXTRACT_MAX_TOKENS, temperature: 0,
@@ -250,7 +254,7 @@ export async function runParts(job, deps) {
                 || !namesPart(it.quote, name, (oemLive.get(name) || {}).part_no)) { bump(dropped, 'unverified_price'); continue; }
             setPrice(name, { price, basis: 'dealer', evidence: [{ url: dUrl, quote: String(it.quote).slice(0, 300), tier: 'official' }] });
           }
-          toHash.push([dUrl, hash]);
+          toHash.push([hk, hash]);
         }
       }
     }
@@ -305,7 +309,7 @@ export async function runParts(job, deps) {
       const name = byName.get(String(u && u.item_key).toLowerCase());
       if (!name) { bump(dropped, 'unknown_part'); continue; }
       const median = Number(u.median_price);
-      if (!(Number(u.users) >= 3) || !(median > 0)) { bump(dropped, 'few_users'); continue; }
+      if (!(Number(u.users) >= 5) || !(median > 0)) { bump(dropped, 'few_users'); continue; }   // WR-08: privacy floor 5
       const ev = [{ type: 'users', tier: 'community', users: Number(u.users), median }];
       const oem = oemLive.get(name), brand = String(u.brand ?? '').trim();
       if (oem && ((u.part_no && normPart(u.part_no) === normPart(oem.part_no)) || (brand && brand.toLowerCase() === String(oem.brand).toLowerCase()))) {
@@ -527,7 +531,8 @@ export async function runModels(job, deps) {
     if (r.stop) return r;
     // an engine whose quote is not verbatim proves nothing: drop it before diffing
     const found = groundModels(parseModels(textOf(r.response)), text, dropped).map(f => ({ ...f, engines: f.engines.filter(e => ciIncludes(text, e.quote) || (bump(dropped, 'unverified_quote'), false)) }));
-    for (const d of diffModels(found, existing)) {
+    const pageSeen = new Set();   // WR-05: one proposal per model+generation+engine per page
+    for (const d of diffModels(found, existing).filter(d => { const k = [d.model, d.generation || '', d.engine.name].map(x => String(x).toLowerCase()).join('|'); if (pageSeen.has(k)) return false; pageSeen.add(k); return true; })) {
       const e = d.engine, bad = [];
       const chk = (field, v, unit) => { if (v == null) return null; if (quoteHasNumber(text, e.quote, v, unit)) return v; bad.push(field); bump(dropped, 'unverified_' + field); return null; };
       const after = {
@@ -553,7 +558,7 @@ export async function runModels(job, deps) {
 export async function runPreview(carId, deps) {
   const { cfg, db } = deps;
   const car = await db.loadCar(carId);
-  const known = await db.knownSources(carId);
+  const known = (await db.knownSources(carId)).filter(u => !isBanned(hostOf(u), cfg.banned));   // WR-04
   const probe = buildSearchRequest(cfg.gccDomains.length ? 1 : 2, car, { model: cfg.discoverModel, max_tokens: DISCOVER_MAX_TOKENS, max_uses: cfg.maxUses, gcc_domains: cfg.gccDomains, banned: cfg.banned });
   const est = {
     discover: { model: cfg.discoverModel, inputChars: JSON.stringify(probe || {}).length, maxTokens: DISCOVER_MAX_TOKENS, maxSearches: cfg.maxUses },
@@ -570,8 +575,11 @@ export async function runPreview(carId, deps) {
   const unknown = Array.from({ length: MAX_CANDIDATES }, (_, i) => ({ url: 'unknown:' + i, hash: 'x' }));
   const out = estimatePreview({ sources: known.length ? sources : unknown, hashes, prices: cfg.prices, cfg: est });
   // Check now also queues the parts job (04-04): one search, plus one extraction when a dealer price page is set.
-  const pe = [{ model: cfg.discoverModel, inputChars: 4000, maxTokens: PARTS_MAX_TOKENS, maxSearches: cfg.maxUses }];
-  if ((cfg.dealerPriceUrls || {})[carId]) pe.push({ model: cfg.extractModel, inputChars: TEXT_LIMIT + 4000, maxTokens: EXTRACT_MAX_TOKENS, maxSearches: 0 });
-  for (const c of pe) { out.sar += worstCaseEstimate(c, cfg.prices).sar; out.searches += c.maxSearches; out.llm_calls += 1; }
+  // WR-06: every optional stage the monthly run can spend on, not parts alone.
+  const search = { model: cfg.discoverModel, inputChars: 4000, maxTokens: PARTS_MAX_TOKENS, maxSearches: cfg.maxUses };
+  const page = { model: cfg.extractModel, inputChars: TEXT_LIMIT + 4000, maxTokens: EXTRACT_MAX_TOKENS, maxSearches: 0 };
+  const pe = [[search, 1], [{ ...search, maxTokens: DISCOVER_MAX_TOKENS }, 2], [page, 1 + 2 * MAX_CANDIDATES]];   // parts, community+models searches; parts dealer + community/models pages
+  if (!(cfg.dealerPriceUrls || {})[carId]) pe[2][1] -= 1;
+  for (const [c, n] of pe) for (let i = 0; i < n; i++) { out.sar += worstCaseEstimate(c, cfg.prices).sar; out.searches += c.maxSearches; out.llm_calls += 1; }
   return { ...out, basis };
 }

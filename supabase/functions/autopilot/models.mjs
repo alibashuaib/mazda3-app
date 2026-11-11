@@ -68,14 +68,17 @@ export const validModelId = id => /^[a-z0-9-]+:[a-z0-9.-]+$/.test(id);
 const MARKET_WORDS = { KSA: ['ksa', 'saudi', 'السعودية'], UAE: ['uae', 'emirates', 'الإمارات'], KW: ['kuwait', 'الكويت'], QA: ['qatar', 'قطر'], BH: ['bahrain', 'البحرين'], OM: ['oman', 'عمان'] };
 export function groundModels(found, text, dropped = {}) {
   const t = normaliseForQuote(text), has = s => { const n = normaliseForQuote(s); return n.length > 0 && t.includes(n); };
+  // WR-07: model and year identity must match as whole tokens ("3" must not match inside "2013" or "1.3")
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tok = s => { const n = normaliseForQuote(s); return n.length > 0 && new RegExp('(?<![\\p{L}\\p{N}.])' + esc(n) + '(?![\\p{L}\\p{N}]|\\.\\d)', 'u').test(t); };
   const bump = k => { dropped[k] = (dropped[k] || 0) + 1; };
   const out = [];
   for (const f of found || []) {
-    if (!has(f.model)) { bump('unverified_model'); continue; }
+    if (!tok(f.model)) { bump('unverified_model'); continue; }
     const engines = f.engines.filter(e => has(e.name) || (bump('unverified_engine'), false));
     out.push({ ...f, engines,
       generation: f.generation && has(f.generation) ? f.generation : null,
-      years: f.years.filter(y => has(String(y))),
+      years: f.years.filter(y => tok(String(y))),
       markets: f.markets.filter(m => (MARKET_WORDS[m] || [m]).some(has)) });
   }
   return out;

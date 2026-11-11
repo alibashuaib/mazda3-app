@@ -154,7 +154,7 @@ test('preview: zero paid calls; never-checked car is worst-case', async () => {
   const r = await flow.runPreview(CAR.id, deps);
   assert.equal(r.basis, 'worst-case');
   assert.ok(r.sar > 0);
-  assert.equal(r.llm_calls, 2 + flow.MAX_CANDIDATES);   // + the parts search
+  assert.equal(r.llm_calls, 4 + 3 * flow.MAX_CANDIDATES);   // discover + parts/community/models searches + community/models/parts pages (WR-06)
   assert.equal(calls.includes('llm'), false);
   assert.equal(calls.includes('reserve'), false);
 });
@@ -317,13 +317,13 @@ test('parts: dealer page price staged as dealer/official; fetch error is skipped
   assert.ok(r.notes.skipped.some(s => /robots/.test(s)));
 });
 
-test('parts: 3 agreeing users stage an ALT row with users evidence only; unknown part dropped', async () => {
+test('parts: 5 agreeing users stage an ALT row with users evidence only; unknown part dropped', async () => {
   const { deps } = partsFakes({ llmQueue: [partsResp([], [])], users: [
-    { item_key: 'oil filter', brand: 'Denso', part_no: '150-2010', users: 3, median_price: 27 },
+    { item_key: 'oil filter', brand: 'Denso', part_no: '150-2010', users: 5, median_price: 27 },
     { item_key: 'flux capacitor', brand: 'X', part_no: '', users: 5, median_price: 10 }] });
   const r = await flow.runParts(JOB, deps);
   const row = deps.staged[0].rows.find(x => x.target_key === 'Oil Filter|alt:denso');
-  assert.deepEqual(row.evidence, [{ type: 'users', tier: 'community', users: 3, median: 27 }]);
+  assert.deepEqual(row.evidence, [{ type: 'users', tier: 'community', users: 5, median: 27 }]);
   assert.equal(row.verified, false);   // WR-10: aggregates of app users are not quote-verified
   assert.equal(row.after.price, 27);
   assert.equal(r.notes.dropped.unknown_part, 1);

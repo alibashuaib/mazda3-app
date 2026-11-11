@@ -89,7 +89,11 @@ async function work(admin: any, deps: any, runId: number | null = null) {
     if (!job) break;
     try {
       let notes: unknown = null;
-      if (job.stage === 'publish') await rpc(admin, 'autopilot_publish_run', { p_run: job.run_id });
+      // WR-01: a refused publish (jobs_pending) must fail and retry, not mark the job done with the run left running
+      if (job.stage === 'publish') {
+        const pub = await rpc(admin, 'autopilot_publish_run', { p_run: job.run_id });
+        if (!pub?.ok && pub?.reason !== 'not_running') throw new Error('publish refused: ' + pub?.reason);
+      }
       else {
         // an unmapped stage fails loudly rather than running the wrong job
         const run = STAGES[job.stage];

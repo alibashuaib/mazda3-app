@@ -2149,6 +2149,9 @@ begin
       where public.evidence_host(e->>'url') = h
          or public.evidence_host(e->>'url') like '%.' || h);
   get diagnostics n = row_count;
+  -- WR-04: a host banned mid-run must not have its pending hash promoted into autopilot_sources
+  delete from public.autopilot_pending_hashes ph
+   where public.evidence_host(ph.url) = h or public.evidence_host(ph.url) like '%.' || h;
   delete from public.autopilot_findings f using public.autopilot_runs r
    where f.run_id = r.id and r.status = 'running' and exists (
      select 1 from jsonb_array_elements(f.evidence) e
@@ -2257,7 +2260,7 @@ begin
   if st = 'done' then
     insert into public.autopilot_sources (car_model_id, url, host, content_hash)
       select h.car_model_id, h.url, lower(substring(h.url from '^https://([^/:?#]+)')), h.content_hash
-        from public.autopilot_pending_hashes h where h.run_id = p_run
+        from public.autopilot_pending_hashes h where h.run_id = p_run and not public.host_banned(h.url)
     on conflict (car_model_id, url) do update set content_hash = excluded.content_hash, last_fetched_at = now();
   end if;
   delete from public.autopilot_pending_hashes where run_id = p_run;
@@ -2431,7 +2434,7 @@ grant execute on function public.autopilot_budget_left() to service_role;
 
 -- COM-03 / D-13: what app users agree on, as aggregates only. For one car: part rows from
 -- contributions (joined to links only to count DISTINCT users; user ids never leave), latest
--- price per user, then trimmed to +-30% of the median; 3+ users left = an agreement.
+-- price per user, then trimmed to +-30% of the median; 5+ users left = an agreement (privacy floor).
 -- price_observations is deliberately excluded: it has no car/engine link (research Q3).
 -- engine NULL rows count only when the model has a single engine (otherwise they are ambiguous).
 create or replace function public.autopilot_user_agreement(p_car text) returns jsonb
@@ -2455,7 +2458,7 @@ begin
   kept as (select l.* from latest l join med using (gk) where l.price between med.m * 0.7 and med.m * 1.3),
   agg as (select min(item_key) item_key, min(brand) brand, min(part_no) part_no, count(*) users,
                  round((percentile_cont(0.5) within group (order by price))::numeric, 2) median_price
-            from kept group by gk having count(*) >= 3)
+            from kept group by gk having count(*) >= 5)
   select coalesce(jsonb_agg(jsonb_build_object('item_key', item_key, 'brand', brand, 'part_no', part_no,
                                                'users', users, 'median_price', median_price) order by item_key), '[]'::jsonb)
     into res from agg;
