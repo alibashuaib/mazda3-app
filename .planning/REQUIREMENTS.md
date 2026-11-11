@@ -37,29 +37,29 @@
 - [x] **REV-04**: Owner can edit a proposed value before approving it
 - [x] **REV-05**: Owner can reject a proposal with a reason
 - [x] **REV-06**: Owner can revert an approved change in one click (recorded as a new audited change)
-- [ ] **REV-07**: Owner sees a report per monthly run: proposals found per kind, cost, errors, skipped sources
-- [ ] **REV-08**: `#admin` shows a banner when the monthly run is overdue or failed
+- [x] **REV-07**: Owner sees a report per monthly run: proposals found per kind, cost, errors, skipped sources
+- [x] **REV-08**: `#admin` shows a banner when the monthly run is overdue or failed
 - [x] **REV-09**: All scraped/LLM text in the admin UI is rendered through the escaping `html` template (tested with injection fixtures)
 
 ### Autopilot Engine
 
-- [ ] **ENG-01**: A monthly scheduled run reviews all 16 catalogue cars without owner action
-- [ ] **ENG-02**: Work is split into small per-car, per-stage jobs with retry, so no single function call exceeds Edge Function limits
-- [ ] **ENG-03**: A hard monthly cost cap is checked before every paid call; when reached, the run stops and nothing partial is published
-- [ ] **ENG-04**: Run has a kill switch the owner can flip from `#admin`
-- [ ] **ENG-05**: Autopilot finds official/dealer sources itself via web search, preferring Mazda Saudi/GCC sources over global and US ones
-- [ ] **ENG-06**: Owner can ban a source domain from `#admin` so it is never used again
-- [ ] **ENG-07**: Every extracted number and part number must appear verbatim in the fetched source text, otherwise the item is dropped
-- [ ] **ENG-08**: Sources whose content has not changed since the last run are skipped (no LLM cost)
-- [ ] **ENG-09**: Owner can run "check now" for one car with a cost preview (dry run)
+- [x] **ENG-01**: A monthly scheduled run reviews all 16 catalogue cars without owner action
+- [x] **ENG-02**: Work is split into small per-car, per-stage jobs with retry, so no single function call exceeds Edge Function limits
+- [x] **ENG-03**: A hard monthly cost cap is checked before every paid call; when reached, the run stops and nothing partial is published
+- [x] **ENG-04**: Run has a kill switch the owner can flip from `#admin`
+- [x] **ENG-05**: Autopilot finds official/dealer sources itself via web search, preferring Mazda Saudi/GCC sources over global and US ones
+- [x] **ENG-06**: Owner can ban a source domain from `#admin` so it is never used again
+- [x] **ENG-07**: Every extracted number and part number must appear verbatim in the fetched source text, otherwise the item is dropped
+- [x] **ENG-08**: Sources whose content has not changed since the last run are skipped (no LLM cost)
+- [x] **ENG-09**: Owner can run "check now" for one car with a cost preview (dry run)
 
 ### Schedules & Recalls
 
-- [ ] **SCH-01**: For each of the 16 cars, autopilot proposes corrections to service intervals (km and months) when official sources differ from the live plan
-- [ ] **SCH-02**: Each service carries a separate structured severe-condition (Jeddah) interval, proposed alongside the normal one
-- [ ] **SCH-03**: Proposals match the car's generation and engine; mismatches are rejected in code
-- [ ] **SCH-04**: Recalls for each car are fetched and queued for approval (existing NHTSA flow kept)
-- [ ] **SCH-05**: Each catalogue item shows when it was last verified; items not verified for 2+ runs are flagged in `#admin`
+- [x] **SCH-01**: For each of the 16 cars, autopilot proposes corrections to service intervals (km and months) when official sources differ from the live plan
+- [x] **SCH-02**: Each service carries a separate structured severe-condition (Jeddah) interval, proposed alongside the normal one
+- [x] **SCH-03**: Proposals match the car's generation and engine; mismatches are rejected in code
+- [x] **SCH-04**: Recalls for each car are fetched and queued for approval (existing NHTSA flow kept)
+- [x] **SCH-05**: Each catalogue item shows when it was last verified; items not verified for 2+ runs are flagged in `#admin`
 
 ### Parts
 
@@ -135,22 +135,22 @@
 | REV-05 | Phase 2 | Complete |
 | REV-06 | Phase 2 | Complete |
 | REV-09 | Phase 2 | Complete |
-| ENG-01 | Phase 3 | Pending |
-| ENG-02 | Phase 3 | Pending |
-| ENG-03 | Phase 3 | Pending |
-| ENG-04 | Phase 3 | Pending |
-| ENG-05 | Phase 3 | Pending |
-| ENG-06 | Phase 3 | Pending |
-| ENG-07 | Phase 3 | Pending |
-| ENG-08 | Phase 3 | Pending |
-| ENG-09 | Phase 3 | Pending |
-| SCH-01 | Phase 3 | Pending |
-| SCH-02 | Phase 3 | Pending |
-| SCH-03 | Phase 3 | Pending |
-| SCH-04 | Phase 3 | Pending |
-| SCH-05 | Phase 3 | Pending |
-| REV-07 | Phase 3 | Pending |
-| REV-08 | Phase 3 | Pending |
+| ENG-01 | Phase 3 | Complete |
+| ENG-02 | Phase 3 | Complete |
+| ENG-03 | Phase 3 | Complete |
+| ENG-04 | Phase 3 | Complete |
+| ENG-05 | Phase 3 | Complete (code; live smoke pending) |
+| ENG-06 | Phase 3 | Complete |
+| ENG-07 | Phase 3 | Complete |
+| ENG-08 | Phase 3 | Complete |
+| ENG-09 | Phase 3 | Complete |
+| SCH-01 | Phase 3 | Complete |
+| SCH-02 | Phase 3 | Complete |
+| SCH-03 | Phase 3 | Complete |
+| SCH-04 | Phase 3 | Complete |
+| SCH-05 | Phase 3 | Complete |
+| REV-07 | Phase 3 | Complete |
+| REV-08 | Phase 3 | Complete |
 | PRT-01 | Phase 4 | Complete (code; live pending 04-10) |
 | PRT-02 | Phase 4 | Complete (code; live pending 04-10) |
 | PRT-03 | Phase 4 | Complete (code; live pending 04-10) |

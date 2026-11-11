@@ -135,53 +135,6 @@ create index if not exists price_observations_item_idx
 -- observations are insert-only, so a plain default is enough — no update
 -- path exists that a client-supplied timestamp could smuggle a bad value
 -- through.
--- Aggregate-only, owner-run view (same pattern as store_prices). It is NOT security_invoker
--- on purpose: it must read qualified_users, which clients cannot. Anti-fake-account rule:
--- only qualified users count, and an item needs >= 3 distinct qualified users before any
--- average is shown, so one user's own price can never be displayed back as an "average".
-create or replace view public.price_item_averages as
-  select o.item_id, avg(o.price)::numeric(10,2) as avg_price, count(*) as sample_count
-  from public.price_observations o
-  join public.qualified_users q on q.id = o.user_id
-  group by o.item_id
-  having count(distinct o.user_id) >= 3;
-
-alter table public.price_items enable row level security;
-alter table public.price_observations enable row level security;
-
-drop policy if exists read_price_items on public.price_items;
-create policy read_price_items on public.price_items for select
-  using (auth.role() = 'authenticated');
-
-drop policy if exists insert_price_items on public.price_items;
-create policy insert_price_items on public.price_items for insert
-  with check (created_by = auth.uid());
-
--- No update/delete policy on price_items at all — deliberate, see spec's
--- "Immutable items, no moderation" decision. RLS defaults to deny when no
--- policy matches, so this alone is what makes items permanent.
-
-drop policy if exists read_price_observations on public.price_observations;
-create policy read_price_observations on public.price_observations for select
-  using (auth.role() = 'authenticated');
-
-drop policy if exists own_price_observations on public.price_observations;
-create policy own_price_observations on public.price_observations for insert
-  with check (user_id = auth.uid());
-
-drop policy if exists update_own_price_observations on public.price_observations;
-create policy update_own_price_observations on public.price_observations for update
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
-
-drop policy if exists delete_own_price_observations on public.price_observations;
-create policy delete_own_price_observations on public.price_observations for delete
-  using (user_id = auth.uid());
-
-grant select, insert on public.price_items to authenticated;
-grant select, insert, update, delete on public.price_observations to authenticated;
-grant select on public.price_item_averages to authenticated;
--- The view is owner-run (not security_invoker), so it bypasses RLS: anon must not read it (same as store_prices).
-revoke all on public.price_item_averages from anon;
 
 -- Community insights. See docs/superpowers/specs/2026-10-16-community-insights-design.md.
 -- Neither table below grants anything to `authenticated`: users reach them only
@@ -363,6 +316,54 @@ create or replace view public.qualified_users as
   where u.created_at <= now() - interval '7 days'
     and (u.email_confirmed_at is not null or u.phone_confirmed_at is not null);
 revoke all on public.qualified_users from public, anon, authenticated;
+
+-- Aggregate-only, owner-run view (same pattern as store_prices). It is NOT security_invoker
+-- on purpose: it must read qualified_users, which clients cannot. Anti-fake-account rule:
+-- only qualified users count, and an item needs >= 3 distinct qualified users before any
+-- average is shown, so one user's own price can never be displayed back as an "average".
+create or replace view public.price_item_averages as
+  select o.item_id, avg(o.price)::numeric(10,2) as avg_price, count(*) as sample_count
+  from public.price_observations o
+  join public.qualified_users q on q.id = o.user_id
+  group by o.item_id
+  having count(distinct o.user_id) >= 3;
+
+alter table public.price_items enable row level security;
+alter table public.price_observations enable row level security;
+
+drop policy if exists read_price_items on public.price_items;
+create policy read_price_items on public.price_items for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists insert_price_items on public.price_items;
+create policy insert_price_items on public.price_items for insert
+  with check (created_by = auth.uid());
+
+-- No update/delete policy on price_items at all — deliberate, see spec's
+-- "Immutable items, no moderation" decision. RLS defaults to deny when no
+-- policy matches, so this alone is what makes items permanent.
+
+drop policy if exists read_price_observations on public.price_observations;
+create policy read_price_observations on public.price_observations for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists own_price_observations on public.price_observations;
+create policy own_price_observations on public.price_observations for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists update_own_price_observations on public.price_observations;
+create policy update_own_price_observations on public.price_observations for update
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists delete_own_price_observations on public.price_observations;
+create policy delete_own_price_observations on public.price_observations for delete
+  using (user_id = auth.uid());
+
+grant select, insert on public.price_items to authenticated;
+grant select, insert, update, delete on public.price_observations to authenticated;
+grant select on public.price_item_averages to authenticated;
+-- The view is owner-run (not security_invoker), so it bypasses RLS: anon must not read it (same as store_prices).
+revoke all on public.price_item_averages from anon;
 
 -- Owner-run (not security_invoker): shop_feedback is own-rows-only under RLS, so
 -- the aggregate must bypass it. Safe because the view only emits shops with >= 5
