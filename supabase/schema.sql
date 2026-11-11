@@ -364,7 +364,8 @@ drop policy if exists delete_own_price_observations on public.price_observations
 create policy delete_own_price_observations on public.price_observations for delete
   using (user_id = auth.uid());
 
-grant select, insert on public.price_items to authenticated;
+-- Insert only: SELECT is column-granted above (created_by stays private).
+grant insert on public.price_items to authenticated;
 grant select, insert, update, delete on public.price_observations to authenticated;
 grant select on public.price_item_averages to authenticated;
 -- The view is owner-run (not security_invoker), so it bypasses RLS: anon must not read it (same as store_prices).

@@ -509,7 +509,8 @@ insert into _ag values
   -- only 2 users: no group
   (1, 'agmul', 'Alpha', 'Brake Pad', 'BP-1', 100), (2, 'agmul', 'Alpha', 'Brake Pad', 'BP-1', 101),
   -- single-engine model: NULL-engine rows count
-  (1, 'agone', null, 'Wiper', 'W-1', 10), (2, 'agone', 'Solo', 'Wiper', 'W-1', 20), (3, 'agone', null, 'Wiper', 'W-1', 30);
+  (1, 'agone', null, 'Wiper', 'W-1', 10), (2, 'agone', 'Solo', 'Wiper', 'W-1', 20), (3, 'agone', null, 'Wiper', 'W-1', 30),
+  (4, 'agone', null, 'Wiper', 'W-1', 25), (5, 'agone', 'Solo', 'Wiper', 'W-1', 25);   -- WR-08: 5 users
 create temp table _agc (id uuid, u int) on commit drop;
 with ins as (
   insert into public.contributions (kind, model_id, engine, odometer_band, month, item_key, brand, part_no, price)
@@ -537,7 +538,7 @@ do $$ declare r jsonb; g jsonb; begin
   -- single-engine model: NULL-engine rows count; user 1 counted once at the latest price 25: 25/20/30 -> median 25
   r := public.autopilot_user_agreement('agone:g1');
   select e into g from jsonb_array_elements(r) e where e->>'item_key' = 'Wiper';
-  if g is null or (g->>'users')::int <> 3 or (g->>'median_price')::numeric <> 25 then raise exception 'FAIL: single-engine Wiper %', r; end if;
+  if g is null or (g->>'users')::int <> 5 or (g->>'median_price')::numeric <> 25 then raise exception 'FAIL: single-engine Wiper %', r; end if;
   if jsonb_array_length(public.autopilot_user_agreement('no:such')) <> 0 then raise exception 'FAIL: unknown car'; end if;
 end $$;
 set local role authenticated;
