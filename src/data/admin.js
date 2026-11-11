@@ -215,6 +215,12 @@
       .then(res => (res && !res.error ? { ok: true } : { ok: false, error: 'failed' }))
       .catch(() => ({ ok: false, error: 'failed' }));
   }
+  // null is left alone by app_errors_before_update; the column grant covers it like resolve.
+  function reopenGroup(groupKey) {
+    return Promise.resolve().then(() => env.client.from('app_errors').update({ resolved_at: null }).eq('group_key', groupKey))
+      .then(res => (res && !res.error ? { ok: true } : { ok: false, error: 'failed' }))
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
 
   /* ---- Proposals tab: the approval gate (Phase 2). Writes go through the
      apply_proposal RPC only; the browser has no table write grants. ---- */
@@ -390,7 +396,7 @@
   return {
     autopilotStatus, listRuns, listDomains, listUnverified, setKillSwitch, banDomain, approveDomain, checkCar, bannerState,
     listProposals, listRecentChanges, revertChange, applyProposal, applyProposals, bulkSummary, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
-    listErrors, resolveGroup, groupErrors,
+    listErrors, resolveGroup, reopenGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount, startAdminSession,
     listModels, loadModel, saveWarranty, saveItem, approve,
     num, parseParts, formatParts, itemPatch, describeChange,

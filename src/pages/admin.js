@@ -34,12 +34,17 @@ function adminBundle() {
   if (!adminLoaded || adminLoaded.uid !== uid) {
     const p = (async () => {
       if (!(await catalogAdmin.isAdmin())) return { admin: false };
-      const [errs, props, changes, models, status, domains, unverified, drafts, recalls] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
-        catalogAdmin.listRecentChanges(), catalogAdmin.listModels().catch(() => []),
-        catalogAdmin.autopilotStatus(), catalogAdmin.listDomains(), catalogAdmin.listUnverified(),
+      // allSettled: one rejecting source must not blank the others (nor Errors blank them).
+      // A rejected source becomes its ok:false shape; the list-style ones fall back to [].
+      const fail = { ok: false, error: 'failed' };
+      const q = catalogAdmin;
+      const rep = e => { adminReport('admin: queue load failed', e); return []; };
+      const calls = [q.listErrors(), q.listProposals(), q.listRecentChanges(), Promise.resolve().then(() => q.listModels()).catch(() => []),
+        q.autopilotStatus(), q.listDomains(), q.listUnverified(),
         // The review queue's own lists: a failure here only empties that part, never the whole page.
-        catalogAdmin.listDrafts().catch(e => { adminReport('admin: queue load failed', e); return []; }),
-        catalogAdmin.listPendingRecalls().catch(e => { adminReport('admin: queue load failed', e); return []; })]);
+        Promise.resolve().then(() => q.listDrafts()).catch(rep), Promise.resolve().then(() => q.listPendingRecalls()).catch(rep)];
+      const [errs, props, changes, models, status, domains, unverified, drafts, recalls] =
+        (await Promise.allSettled(calls)).map(r => (r.status === 'fulfilled' ? r.value : fail));
       return { admin: true, errs, props, changes, models, status, domains, unverified, drafts, recalls };
     })();
     adminLoaded = { uid, p };
@@ -88,6 +93,8 @@ async function renderAdminBody(body) {
       try {
         // Two columns on wide screens (autopilot | proposals); a lone child spans both. See .admin-cols.
         const cols = el('div', 'admin-cols');
+        cols.id = 'admin-panel';
+        cols.setAttribute('role', 'tabpanel');
         if (adminTab === 'proposals') cols.appendChild(adminAutopilot({ status, domains, unverified, models }, refresh));
         cols.appendChild(adminTab === 'proposals' ? adminProposals(props, models, refresh, changes)
           : adminTab === 'errors' ? adminErrors(errs, () => adminReload()) : adminList(bundle));
@@ -110,8 +117,11 @@ function adminTabs(tabs, active, onPick) {
   tabs.forEach(tab => {
     const b = el('button', 'btn ' + (tab.id === active ? 'primary' : 'ghost'));
     b.type = 'button';
+    b.id = 'admin-tab-' + tab.id;
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', tab.id === active ? 'true' : 'false');
+    b.setAttribute('aria-controls', 'admin-panel');
+    b.setAttribute('tabindex', tab.id === active ? '0' : '-1');   // roving tabindex: one tab stop, arrows move within
     b.textContent = t(tab.label);
     if (tab.badge !== undefined && tab.badge !== null) {
       const sp = el('span', 'tab-badge');
@@ -123,8 +133,21 @@ function adminTabs(tabs, active, onPick) {
     b.onclick = () => onPick(tab.id);
     bar.appendChild(b);
   });
+  bar.onkeydown = e => {
+    const i = tabs.findIndex(x => x.id === active);
+    const to = { ArrowRight: (i + 1) % tabs.length, ArrowLeft: (i - 1 + tabs.length) % tabs.length, Home: 0, End: tabs.length - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    onPick(tabs[to].id);
+    // onPick re-renders and replaces the buttons, so refocus the new node by id.
+    const next = document.getElementById('admin-tab-' + tabs[to].id);
+    if (next) next.focus();
+  };
   return bar;
 }
+
+/* Date and time in the app's language (Arabic uses the app's Latin-digit gregorian locale). */
+const errDate = d => new Date(d).toLocaleString(lang === 'ar' ? AR_LOCALE : 'en');
 
 /* Errors tab. message and stack are untrusted: textContent only, no raw markup. */
 function adminErrors(res, refresh) {
@@ -137,8 +160,8 @@ function adminErrors(res, refresh) {
     const box = el('div', 'admin-item');
     const title = el('h4'); title.textContent = g.message;
     const meta = el('p', 'muted');
-    meta.textContent = [t('Count') + ': ' + g.count, t('First seen') + ': ' + new Date(g.firstSeen).toLocaleString(),
-      t('Last seen') + ': ' + new Date(g.lastSeen).toLocaleString(), t('Source') + ': ' + g.source].join(' · ');
+    meta.textContent = [t('Count') + ': ' + g.count, t('First seen') + ': ' + errDate(g.firstSeen),
+      t('Last seen') + ': ' + errDate(g.lastSeen), t('Source') + ': ' + g.source].join(' · ');
     box.append(title, meta);
     if (g.stacks.length) {
       const d = el('details');
@@ -159,6 +182,15 @@ function adminErrors(res, refresh) {
       box.appendChild(b);
     } else {
       const p = el('p', 'muted'); p.textContent = t('Resolved'); box.appendChild(p);
+      const b = el('button', 'btn ghost'); b.type = 'button'; b.textContent = t('Reopen');
+      let saveNote = null;
+      onAsyncClick(b, async () => {
+        const r = await catalogAdmin.reopenGroup(g.key);
+        if (r.ok) return refresh();
+        if (!saveNote) { saveNote = el('p', 'muted'); box.appendChild(saveNote); }
+        saveNote.textContent = t('Could not save');
+      });
+      box.appendChild(b);
     }
     card.appendChild(box);
   });
