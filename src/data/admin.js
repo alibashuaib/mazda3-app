@@ -93,7 +93,8 @@
     return Promise.resolve(env.client.from('dealer_plan_items').update(patch).eq('id', id)).then(data);
   }
   function approve(id) {
-    return Promise.resolve(env.client.from('car_models').update({ status: 'approved' }).eq('id', id)).then(data);
+    // Through the gate: approve_car_model is admin-only and writes change_log (no direct table update).
+    return Promise.resolve().then(() => env.client.rpc('approve_car_model', { p_id: id })).then(data);
   }
 
   /* Blank, negative or non-numeric input means "no value", not 0. */
@@ -211,6 +212,12 @@
     return Promise.resolve().then(() => env.client.from('app_errors')
       // Placeholder value: the app_errors_before_update trigger replaces it with server now().
       .update({ resolved_at: new Date().toISOString() }).eq('group_key', groupKey))
+      .then(res => (res && !res.error ? { ok: true } : { ok: false, error: 'failed' }))
+      .catch(() => ({ ok: false, error: 'failed' }));
+  }
+  // null is left alone by app_errors_before_update; the column grant covers it like resolve.
+  function reopenGroup(groupKey) {
+    return Promise.resolve().then(() => env.client.from('app_errors').update({ resolved_at: null }).eq('group_key', groupKey))
       .then(res => (res && !res.error ? { ok: true } : { ok: false, error: 'failed' }))
       .catch(() => ({ ok: false, error: 'failed' }));
   }
@@ -389,7 +396,7 @@
   return {
     autopilotStatus, listRuns, listDomains, listUnverified, setKillSwitch, banDomain, approveDomain, checkCar, bannerState,
     listProposals, listRecentChanges, revertChange, applyProposal, applyProposals, bulkSummary, rejectProposal, filterProposals, proposalFilterOptions, confidenceLabel, PROPOSAL_LIMIT,
-    listErrors, resolveGroup, groupErrors,
+    listErrors, resolveGroup, reopenGroup, groupErrors,
     configure, reset, available, isAdmin, knownAdmin, draftCount, startAdminSession,
     listModels, loadModel, saveWarranty, saveItem, approve,
     num, parseParts, formatParts, itemPatch, describeChange,

@@ -8,6 +8,25 @@ import { DAILY_CAP, SYSTEM_PROMPT, fingerprint, parseBill, sha256Hex, storeKey, 
 
 const MAX_BODY = 2_200_000;
 
+// Whole body as text, or null once it passes max bytes. The body is still buffered up to the cap.
+async function readCapped(req: Request, max: number): Promise<string | null> {
+  const reader = req.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) { await reader.cancel().catch(() => {}); return null; }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { all.set(c, off); off += c.byteLength; }
+  return new TextDecoder().decode(all);
+}
+
 Deno.serve(async (req) => {
   let admin: any = null;   // hoisted so the outer catch can log; logEdgeError tolerates null
   let corsHeaders: Record<string, string> = {};   // hoisted so the 500 response keeps CORS (json() is scoped to the try)
@@ -15,10 +34,12 @@ Deno.serve(async (req) => {
     // Origin gate first: foreign/null Origin never reaches OPTIONS, auth or the paid model (D-13/D-14/D-16).
     const cors = corsDecision(req.headers.get('Origin'), allowedOrigins(Deno.env.get('ALLOWED_ORIGINS')));
     if (!cors.ok) return new Response('forbidden', { status: 403 });
-    corsHeaders = cors.headers;
+    // corsDecision types its header values as possibly undefined; drop them, the Response API wants strings
+    const ch = Object.fromEntries(Object.entries(cors.headers).filter(([, v]) => v !== undefined)) as Record<string, string>;
+    corsHeaders = ch;
     const json = (status: number, body: unknown) =>
-      new Response(JSON.stringify(body), { status, headers: { ...cors.headers, 'Content-Type': 'application/json' } });
-    if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: cors.headers });
+      new Response(JSON.stringify(body), { status, headers: { ...ch, 'Content-Type': 'application/json' } });
+    if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers: ch });
     if (req.method !== 'POST') return json(405, { error: 'method' });
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
     const url = Deno.env.get('SUPABASE_URL');
@@ -35,11 +56,17 @@ Deno.serve(async (req) => {
     if (!u?.user) return json(401, { error: 'auth' });
     // Throwaway sign-ups would otherwise multiply the per-user cap: require a confirmed email or phone.
     if (!u.user.email_confirmed_at && !u.user.phone_confirmed_at) return json(403, { error: 'unconfirmed' });
+    // Same anti-fake-account rule as qualified_users (schema.sql): account at least 7 days old.
+    // Fail closed: an unparseable created_at (NaN) must not pass the age check.
+    const createdMs = Date.parse(u.user.created_at);
+    if (!(createdMs <= Date.now() - 7 * 24 * 3600 * 1000)) return json(403, { error: 'too_new' });
     admin = createClient(url, serviceKey);
 
-    if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY) return json(413, { error: 'image' });
+    // Count bytes as they arrive: content-length can be absent (chunked) or wrong.
+    const raw = await readCapped(req, MAX_BODY);
+    if (raw === null) return json(413, { error: 'image' });
     let image;
-    try { image = validateImage((await req.json()).image); } catch { image = null; }
+    try { image = validateImage(JSON.parse(raw).image); } catch { image = null; }
     if (!image) return json(413, { error: 'image' });
 
     // Insert the attempt first, then count (including it): parallel requests each see themselves,

@@ -28,7 +28,9 @@ test('vote_shop decides bill_backed on the server', () => {
   assert.match(sql, /grant execute on function public\.vote_shop\(uuid, smallint, text\[\], uuid\) to authenticated/);
 });
 
-test('opt-out also erases the caller\'s bill reads', () => {
+test('opt-out erases the caller\'s bill reads but keeps the cap count', () => {
   const f = sql.match(/create or replace function public\.delete_my_contributions[\s\S]*?\$\$;/)[0];
-  assert.match(f, /delete from bill_reads where user_id = auth\.uid\(\)/);
+  assert.match(f, /update bill_reads set store_key = null, city = null, fingerprint = null\s+where user_id = auth\.uid\(\) and created_at > now\(\) - interval '1 day'/);
+  assert.match(f, /delete from bill_reads where user_id = auth\.uid\(\) and created_at <= now\(\) - interval '1 day'/);
+  assert.doesNotMatch(f, /delete from bill_reads where user_id = auth\.uid\(\);/);
 });

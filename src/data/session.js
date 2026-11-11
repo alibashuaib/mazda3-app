@@ -196,9 +196,9 @@
   function failed(err) {
     const quota = dep.isQuotaError(err);
     report('save failed: ' + (quota ? 'quota' : 'failed'), err);
-    env.notify(quota
-      ? 'Storage is full — your change was NOT saved. Remove some receipt photos.'
-      : "Couldn't save. Your changes are still on screen.", 'warn', { retry: () => save() });
+    // Quota: Retry would just fail again until the user frees space, so no Retry button.
+    if (quota) env.notify('Storage is full — your change was NOT saved. Remove some receipt photos.', 'warn');
+    else env.notify("Couldn't save. Your changes are still on screen.", 'warn', { retry: () => save() });
     return false;
   }
 

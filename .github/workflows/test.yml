@@ -26,6 +26,17 @@ jobs:
       # app.js has twice passed a fully green suite.
       - run: find . \( -name '*.js' -o -name '*.mjs' \) -not -path './node_modules/*' -not -path './test/*' -print0 | xargs -0 -n1 node --check
 
+  # The autopilot Edge Function is TypeScript on Deno; nothing in the Node suite type-checks index.ts
+  # (its pure logic is .mjs, tested directly). A wrong import or type there only showed up on deploy.
+  deno:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check --node-modules-dir=auto supabase/functions/autopilot/index.ts
+
   # A real browser, because the Node suite runs against linkedom and therefore
   # cannot load the app the way a user does, cannot reproduce the real HTML
   # parser, and never touches IndexedDB. Separate job so unit-test feedback is
@@ -57,6 +68,7 @@ jobs:
         run: echo "DB_URL=$(supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/schema.sql
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/seed-catalogue.sql
+      - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/seed-parts.sql
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/app-errors-rls.sql
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/bills.sql
       - run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/guidance.sql

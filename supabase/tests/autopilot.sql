@@ -43,7 +43,7 @@ end $$;
 set local role anon;
 do $$ declare t text; begin
   foreach t in array array['autopilot_config', 'autopilot_runs', 'autopilot_jobs', 'autopilot_spend',
-                           'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status'] loop
+                           'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status', 'autopilot_due'] loop
     begin execute format('select 1 from public.%I', t); raise exception 'FAIL: anon selects %', t;
     exception when insufficient_privilege then null; end;
   end loop;
@@ -58,7 +58,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated"}', true);
 do $$ declare t text; n int; begin
   foreach t in array array['autopilot_config', 'autopilot_runs', 'autopilot_jobs', 'autopilot_spend',
-                           'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status'] loop
+                           'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status', 'autopilot_due'] loop
     execute format('select count(*) from public.%I', t) into n;
     if n <> 0 then raise exception 'FAIL: non-admin sees % rows in %', n, t; end if;
     begin execute format('delete from public.%I', t); raise exception 'FAIL: non-admin deletes from %', t;
@@ -163,7 +163,8 @@ do $$ declare r jsonb; cars int; n int; begin
   select count(*) into cars from public.car_models where status = 'approved';
   r := public.autopilot_start_run('monthly');
   select count(*) into n from public.autopilot_jobs where run_id = (r->>'run_id')::bigint;
-  if n <> cars * 3 + 1 then raise exception 'FAIL: expected % jobs, got %', cars * 3 + 1, n; end if;
+  -- core x3 per car + parts/community for the rotated cars + models + publish
+  if n <> cars * 3 + 2 * least(cars, 6) + 2 then raise exception 'FAIL: expected % jobs, got %', cars * 3 + 2 * least(cars, 6) + 2, n; end if;
   if (r->>'jobs')::int <> n then raise exception 'FAIL: start_run job count mismatch'; end if;
   if (select count(*) from public.autopilot_jobs where run_id = (r->>'run_id')::bigint and stage = 'publish') <> 1 then
     raise exception 'FAIL: one publish job expected'; end if;
@@ -179,6 +180,7 @@ delete from public.autopilot_runs;
 -- e) claim order, retry/backoff to 3 attempts, stale reclaim
 do $$ declare rid bigint; j jsonb; j2 jsonb; fin jsonb; jid bigint; begin
   rid := (public.autopilot_start_run('manual', 'test:ap')->>'run_id')::bigint;
+  update public.autopilot_jobs set status = 'done' where run_id = rid and stage in ('parts', 'community');   -- optional stages are covered in n)
   j := public.autopilot_claim_job();
   if j->>'stage' <> 'discover' then raise exception 'FAIL: first claim should be discover: %', j; end if;
   j2 := public.autopilot_claim_job();
@@ -207,9 +209,9 @@ do $$ declare rid bigint; j jsonb; j2 jsonb; fin jsonb; jid bigint; begin
     raise exception 'FAIL: third failure should mark failed: %', fin; end if;
   if (select last_error from public.autopilot_jobs where id = jid) <> 'boom 3' then raise exception 'FAIL: last_error'; end if;
 
-  -- stale: a running job older than 3 minutes is reclaimed (counts as an attempt) and claimable again
+  -- stale: a running job older than 15 minutes is reclaimed (counts as an attempt) and claimable again
   update public.autopilot_jobs set status = 'queued', attempts = 0, run_after = now() where stage = 'publish' and run_id = rid;
-  update public.autopilot_jobs set status = 'running', claimed_at = now() - interval '5 minutes', attempts = 0
+  update public.autopilot_jobs set status = 'running', claimed_at = now() - interval '20 minutes', attempts = 0
     where id = jid;
   j := public.autopilot_claim_job();
   if (j->>'id')::bigint <> jid then raise exception 'FAIL: stale job not reclaimed: %', j; end if;
@@ -385,5 +387,174 @@ reset role;
 do $$ begin
   if (select status from public.source_domains where host = 'new.example') <> 'approved' then raise exception 'FAIL: approve'; end if;
 end $$;
+
+-- n) Phase 4 rotation (D-19): optional stages for the N least-recently-done cars, after all core jobs
+delete from public.autopilot_runs;
+insert into public.car_models (id, model, generation, engine, status) values
+  ('rot:a', 'ROT', 'A', 'E', 'approved'), ('rot:b', 'ROT', 'B', 'E', 'approved'), ('rot:c', 'ROT', 'C', 'E', 'approved');
+update public.autopilot_config set optional_cars_per_run = 2;
+-- every other approved car is recent, so only the rot:* cars compete: rot:c never done (first), rot:a oldest, rot:b newest
+insert into public.autopilot_due (car_model_id, stage, last_done_at)
+  select id, v.s, now() from public.car_models, (values ('parts'), ('community')) v(s) where status = 'approved' and id not like 'rot:%';
+insert into public.autopilot_due values ('rot:a', 'parts', now() - interval '60 days'), ('rot:a', 'community', now() - interval '60 days'),
+  ('rot:b', 'parts', now() - interval '10 days'), ('rot:b', 'community', now() - interval '10 days');
+do $$ declare rid bigint; cars int; maxcore bigint; minopt bigint; j jsonb; pj bigint; begin
+  select count(*) into cars from public.car_models where status = 'approved';
+  rid := (public.autopilot_start_run('monthly')->>'run_id')::bigint;
+  if (select count(*) from public.autopilot_jobs where run_id = rid and stage in ('discover', 'extract', 'recalls')) <> cars * 3 then
+    raise exception 'FAIL: core jobs must still cover every car'; end if;
+  if (select count(*) from public.autopilot_jobs where run_id = rid and stage = 'parts') <> 2
+     or (select count(*) from public.autopilot_jobs where run_id = rid and stage = 'community') <> 2 then
+    raise exception 'FAIL: expected parts+community for exactly 2 cars'; end if;
+  if (select array_agg(distinct car_model_id order by car_model_id) from public.autopilot_jobs where run_id = rid and stage = 'parts') <> array['rot:a', 'rot:c'] then
+    raise exception 'FAIL: rotation should pick the never-done and the oldest car'; end if;
+  if (select count(*) from public.autopilot_jobs where run_id = rid and stage = 'models' and car_model_id is null) <> 1 then
+    raise exception 'FAIL: one models job (null car) expected'; end if;
+  select max(id) into maxcore from public.autopilot_jobs where run_id = rid and stage in ('discover', 'extract', 'recalls');
+  select min(id) into minopt from public.autopilot_jobs where run_id = rid and stage in ('parts', 'community', 'models');
+  if minopt <= maxcore then raise exception 'FAIL: optional jobs must queue after every core job'; end if;
+  if (select stage from public.autopilot_jobs where run_id = rid order by id desc limit 1) <> 'publish' then
+    raise exception 'FAIL: publish must be last'; end if;
+
+  -- community waits for the same car's parts job
+  update public.autopilot_jobs set status = 'done' where run_id = rid and stage in ('discover', 'extract', 'recalls');
+  j := public.autopilot_claim_job();
+  if j->>'stage' <> 'parts' or j->>'car_model_id' <> 'rot:c' then raise exception 'FAIL: first optional claim should be parts of rot:c: %', j; end if;
+  pj := (j->>'id')::bigint;
+  j := public.autopilot_claim_job();   -- rot:c community is blocked, rot:a parts is next
+  if j->>'stage' <> 'parts' or j->>'car_model_id' <> 'rot:a' then raise exception 'FAIL: community claimed before its parts job: %', j; end if;
+  -- finish ok stamps autopilot_due; a failed job leaves it unchanged
+  perform public.autopilot_finish_job(pj, true);
+  if (select last_done_at from public.autopilot_due where car_model_id = 'rot:c' and stage = 'parts') < now() - interval '1 minute' then
+    raise exception 'FAIL: finished parts job did not stamp autopilot_due'; end if;
+  update public.autopilot_jobs set attempts = 2 where id = (j->>'id')::bigint;
+  perform public.autopilot_finish_job((j->>'id')::bigint, false, 'boom');
+  if (select last_done_at from public.autopilot_due where car_model_id = 'rot:a' and stage = 'parts') > now() - interval '30 days' then
+    raise exception 'FAIL: failed parts job moved autopilot_due'; end if;
+  j := public.autopilot_claim_job();
+  if j->>'stage' <> 'community' then raise exception 'FAIL: community should follow a done or failed parts job: %', j; end if;
+end $$;
+delete from public.autopilot_runs;
+
+-- manual: that car regardless of rotation, no models job
+do $$ declare rid bigint; begin
+  rid := (public.autopilot_start_run('manual', 'rot:b')->>'run_id')::bigint;
+  if (select count(*) from public.autopilot_jobs where run_id = rid and stage in ('parts', 'community') and car_model_id = 'rot:b') <> 2 then
+    raise exception 'FAIL: manual run should queue parts+community for its car'; end if;
+  if exists (select 1 from public.autopilot_jobs where run_id = rid and stage = 'models') then raise exception 'FAIL: manual run queued a models job'; end if;
+end $$;
+delete from public.autopilot_runs;
+
+-- o) soft budget: cap minus month-to-date reserved+settled, no reservation made
+do $$ declare b numeric; begin
+  delete from public.autopilot_spend;
+  b := public.autopilot_budget_left();
+  if b <> (select monthly_cap_sar from public.autopilot_config) then raise exception 'FAIL: budget_left with no spend: %', b; end if;
+  insert into public.autopilot_spend (status, reserved_sar, cost_sar) values ('reserved', 1.5, 1.5), ('settled', 0, 2.25);
+  if public.autopilot_budget_left() <> b - 3.75 then raise exception 'FAIL: budget_left should subtract spend: %', public.autopilot_budget_left(); end if;
+  if (select count(*) from public.autopilot_spend) <> 2 then raise exception 'FAIL: budget_left must not reserve'; end if;
+end $$;
+
+-- p) null-car staging (car_model kind): replace on restage, dedupe, users evidence publishes, optional failure keeps the run done
+do $$ declare rid bigint; r jsonb; begin
+  rid := (public.autopilot_start_run('monthly')->>'run_id')::bigint;
+  update public.autopilot_jobs set status = 'done' where run_id = rid and stage <> 'publish';
+  update public.autopilot_jobs set status = 'failed', last_error = 'boom'
+   where id = (select min(id) from public.autopilot_jobs where run_id = rid and stage = 'parts');
+  perform public.autopilot_stage_findings(rid, null, 'car_model',
+    '[{"target_key":"newmodel:1","after":{"make":"Mazda","model":"N","generation":"1","engine":"E"},"evidence":[{"url":"https://a.example/x","tier":"official","quote":"q"}]}]');
+  perform public.autopilot_stage_findings(rid, null, 'car_model',
+    '[{"target_key":"newmodel:2","after":{"make":"Mazda","model":"N","generation":"2","engine":"E"},"evidence":[{"url":"https://a.example/x","tier":"official","quote":"q"}]}]');
+  if (select count(*) from public.autopilot_findings where run_id = rid and kind = 'car_model') <> 1
+     or (select target_key from public.autopilot_findings where run_id = rid and kind = 'car_model') <> 'newmodel:2' then
+    raise exception 'FAIL: restaging a null-car kind must replace, not append'; end if;
+  begin
+    perform public.autopilot_stage_findings(rid, null, 'car_model',
+      '[{"target_key":"dup","after":{},"evidence":[]},{"target_key":"dup","after":{},"evidence":[]}]');
+    raise exception 'FAIL: duplicate null-car target_key accepted';
+  exception when unique_violation then null; end;
+  begin perform public.autopilot_stage_findings(rid, 'rot:a', 'car_model', '[]'); raise exception 'FAIL: car_model with a car';
+  exception when raise_exception then if sqlerrm <> 'bad car for kind' then raise; end if; end;
+  begin perform public.autopilot_stage_findings(rid, null, 'part', '[]'); raise exception 'FAIL: part without a car';
+  exception when raise_exception then if sqlerrm <> 'bad car for kind' then raise; end if; end;
+  -- users-only evidence (no url) is not a banned host: the part finding publishes
+  perform public.autopilot_stage_findings(rid, 'rot:b', 'part',
+    '[{"target_key":"Oil Filter|oem","after":{"brand":"X","part_no":"1","price":40,"price_basis":"indicative"},"evidence":[{"type":"users","tier":"community","users":3,"median":40}]}]');
+  r := public.autopilot_publish_run(rid);
+  if (r->'report'->'proposals'->'part'->>'banned') is not null then raise exception 'FAIL: users evidence treated as banned: %', r->'report'; end if;
+  if (r->'report'->'proposals'->'part'->>'inserted')::int is distinct from 1 then raise exception 'FAIL: users-evidence part not inserted: %', r->'report'; end if;
+  if (r->'report'->'proposals'->'car_model'->>'inserted')::int is distinct from 1 then raise exception 'FAIL: car_model finding not published: %', r->'report'; end if;
+  if r->>'status' <> 'done' then raise exception 'FAIL: failed optional job must not fail the run: %', r->>'status'; end if;
+  if jsonb_array_length(r->'report'->'failed_jobs') <> 1 then raise exception 'FAIL: optional failure missing from report'; end if;
+end $$;
+
+-- q) user agreement: aggregates only, 3+ distinct users, trimmed median, engine matching
+-- qualified_users needs accounts >= 7 days old with a confirmed email
+insert into auth.users (id, created_at, email_confirmed_at)
+  select ('00000000-0000-0000-0000-0000000000a' || i)::uuid, now() - interval '8 days', now() - interval '8 days' from generate_series(1, 7) i on conflict (id) do nothing;
+insert into public.car_models (id, model, generation, engine, status) values
+  ('agone:g1', 'AG1', 'G', 'Solo', 'approved'),
+  ('agmul:g1', 'AGM', 'G', 'Alpha', 'approved'), ('agmul:g2', 'AGM', 'G', 'Beta', 'approved');
+-- one row per (user, price): the link join below keys on that, so every price is unique per item
+create temp table _ag (u int, model text, eng text, item text, partno text, price numeric) on commit drop;
+insert into _ag values
+  -- multi-engine, Alpha: 3 users 40/42/41 (part_no spelled three ways); NULL-engine and Beta rows must be ignored
+  (1, 'agmul', 'Alpha', 'Oil Filter', 'OF-1', 40), (2, 'agmul', 'ALPHA', 'Oil Filter', 'of 1', 42), (3, 'agmul', 'alpha', 'Oil Filter', 'OF1', 41),
+  (6, 'agmul', 'Alpha', 'Oil Filter', 'OF-1', 41), (7, 'agmul', 'Alpha', 'Oil Filter', 'OF1', 40),   -- WR-08: 5 users needed
+  (4, 'agmul', null, 'Oil Filter', 'OF-1', 1000), (5, 'agmul', 'Beta', 'Oil Filter', 'OF-1', 1001),
+  -- 4 users with an outlier: 40/41/42/100
+  (1, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 40), (2, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 41),
+  (3, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 42), (4, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 100),
+  (6, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 41), (7, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 41),   -- 6 users, outlier trimmed to 5
+  -- only 2 users: no group
+  (1, 'agmul', 'Alpha', 'Brake Pad', 'BP-1', 100), (2, 'agmul', 'Alpha', 'Brake Pad', 'BP-1', 101),
+  -- single-engine model: NULL-engine rows count
+  (1, 'agone', null, 'Wiper', 'W-1', 10), (2, 'agone', 'Solo', 'Wiper', 'W-1', 20), (3, 'agone', null, 'Wiper', 'W-1', 30),
+  (4, 'agone', null, 'Wiper', 'W-1', 25), (5, 'agone', 'Solo', 'Wiper', 'W-1', 25);   -- WR-08: 5 users
+create temp table _agc (id uuid, u int) on commit drop;
+with ins as (
+  insert into public.contributions (kind, model_id, engine, odometer_band, month, item_key, brand, part_no, price)
+    select 'part', model, eng, 0, '2026-01', item, 'B', partno, price from _ag returning id, model_id, engine, item_key, part_no, price)
+insert into _agc select ins.id, a.u from ins join _ag a
+  on a.model = ins.model_id and a.eng is not distinct from ins.engine and a.item = ins.item_key and a.partno = ins.part_no and a.price = ins.price;
+insert into public.contribution_links (user_id, source_key, contribution_id)
+  select ('00000000-0000-0000-0000-0000000000a' || u)::uuid, 'ag:' || id, id from _agc;
+-- user 1 re-submits the Wiper later at 25: only the latest counts, still one user
+do $$ declare cid uuid; begin
+  insert into public.contributions (kind, model_id, engine, odometer_band, month, item_key, brand, part_no, price, created_at)
+    values ('part', 'agone', null, 0, '2026-02', 'Wiper', 'B', 'W-1', 25, now() + interval '1 day') returning id into cid;
+  insert into public.contribution_links values ('00000000-0000-0000-0000-0000000000a1', 'ag:resubmit', cid);
+end $$;
+do $$ declare r jsonb; g jsonb; begin
+  r := public.autopilot_user_agreement('agmul:g1');
+  select e into g from jsonb_array_elements(r) e where e->>'item_key' = 'Oil Filter';
+  if g is null or (g->>'users')::int <> 5 or (g->>'median_price')::numeric <> 41 then raise exception 'FAIL: Oil Filter group %', r; end if;
+  select e into g from jsonb_array_elements(r) e where e->>'item_key' = 'Air Filter';
+  if g is null or (g->>'users')::int <> 5 or (g->>'median_price')::numeric <> 41 then raise exception 'FAIL: outlier not trimmed: %', r; end if;
+  if exists (select 1 from jsonb_array_elements(r) e where e->>'item_key' = 'Brake Pad') then raise exception 'FAIL: 2 users made a group'; end if;
+  if r::text ~ 'user_id' or r::text ~ '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' then raise exception 'FAIL: user identity in output: %', r; end if;
+  -- the Beta car has a single Beta row: no group
+  if jsonb_array_length(public.autopilot_user_agreement('agmul:g2')) <> 0 then raise exception 'FAIL: other engine leaked'; end if;
+  -- single-engine model: NULL-engine rows count; user 1 counted once at the latest price 25: 25/20/30 -> median 25
+  r := public.autopilot_user_agreement('agone:g1');
+  select e into g from jsonb_array_elements(r) e where e->>'item_key' = 'Wiper';
+  if g is null or (g->>'users')::int <> 5 or (g->>'median_price')::numeric <> 25 then raise exception 'FAIL: single-engine Wiper %', r; end if;
+  if jsonb_array_length(public.autopilot_user_agreement('no:such')) <> 0 then raise exception 'FAIL: unknown car'; end if;
+end $$;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"authenticated"}', true);
+do $$ begin
+  begin perform public.autopilot_user_agreement('agmul:g1'); raise exception 'FAIL: authenticated reads user agreement';
+  exception when insufficient_privilege then null; end;
+  begin perform public.autopilot_budget_left(); raise exception 'FAIL: authenticated reads budget';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role anon;
+do $$ begin
+  begin perform public.autopilot_user_agreement('agmul:g1'); raise exception 'FAIL: anon reads user agreement';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
 
 rollback;

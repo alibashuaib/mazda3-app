@@ -208,8 +208,37 @@
         if (sp.name !== 'Fuel System Cleaner (additive)' && !s.parts.some(p => p.name === sp.name)) s.parts.push(sp);
       });
     }
+    // A saved car keeps the parts list from the day it was added, so catalogue price updates (the
+    // Mazda KSA dealer prices, 2026-11-07) never reached existing garages. Refresh the genuine (OEM)
+    // option of these parts from the catalogue, but only while it still holds a catalogue value:
+    // its catPrice stamp when present, else (saves from before the stamp) a price some earlier
+    // catalogue build shipped for that part, taken from git history. A Mazda Genuine brand is also
+    // required. Any price the owner typed in is left alone. Engine oil, coolant and battery are
+    // rebuilt separately below.
+    const LEGACY_OEM = {
+      'Oil Filter': [15, 26, 29, 30, 33, 35, 45],
+      'Engine Air Filter': [56, 60, 85, 89, 90, 94, 97, 103, 114, 121, 132],
+      'Cabin A/C Filter': [80, 97, 103, 129, 132, 140],
+      'Spark Plugs (each)': [23, 33, 70, 91, 104, 115],
+      'Front Brake Pads': [300, 374, 378, 386, 391, 397, 437, 449, 495, 518, 610],
+      'Rear Brake Pads': [229, 242, 260, 293, 302, 322, 334, 374, 391, 403, 411, 414, 449, 736, 799],
+      'Serpentine Belt': [67, 101, 115, 121, 127, 132, 144, 150]
+    };
+    if (s.car.modelId) {
+      const fresh = dep.sharedParts(s.car.modelId, s.car.engine);
+      s.parts.forEach(p => {
+        if (!LEGACY_OEM[p.name]) return;
+        const sp = fresh.find(x => x.name === p.name), want = sp && sp.options.find(o => o.tag === 'OEM');
+        const o = want && (p.options || []).find(x => x.tag === 'OEM');
+        if (!o || !/^Mazda Genuine/.test(o.brand || '')) return;
+        const owned = o.catPrice != null ? o.price === o.catPrice : LEGACY_OEM[p.name].includes(o.price);
+        if (owned) Object.assign(o, { brand: want.brand, partNo: want.partNo, price: want.price, note: want.note, catPrice: want.price });
+      });
+    }
     // The oil filter's OEM number is PE01-14-302B in KSA (302A is not available). Saved garages keep their old number otherwise.
     s.parts.forEach(p => { if (p.name === 'Oil Filter') (p.options || []).forEach(o => { if (o.partNo === 'PE01-14-302A') o.partNo = 'PE01-14-302B'; }); });
+    // Coolant OEM number 0000-77-508E-20 was superseded by 508F-20 (1 US gal, FL22 55/45).
+    s.parts.forEach(p => { if (/^Coolant FL22/.test(p.name)) (p.options || []).forEach(o => { if (o.partNo === '0000-77-508E-20') o.partNo = '0000-77-508F-20'; }); });
     // Engine Oil and Coolant used to say the same fixed quantity for every
     // model (a flat "4L" oil bottle, a flat "~6.6L" coolant fill) regardless
     // of the actual engine — real oil capacity ranges 3.6-5.4 L across the
@@ -228,7 +257,9 @@
       }
       const wantCoolant = dep.coolantLitersFor(s.car.modelId, s.car.engine);
       const coolantIdx = s.parts.findIndex(p => p.name === 'Coolant FL22 (long-life)');
-      if (coolantIdx >= 0 && !new RegExp(`~${wantCoolant.liters}\\s*L`).test((s.parts[coolantIdx].options[0] || {}).note || '')) {
+      // 130 was the old catalogue price; the dealer sells it per gallon at 78.20. Owner-typed prices stay.
+      const oldCoolantPrice = coolantIdx >= 0 && (s.parts[coolantIdx].options[0] || {}).tag === 'OEM' && s.parts[coolantIdx].options[0].price === 130;
+      if (coolantIdx >= 0 && (oldCoolantPrice || !new RegExp(`~${wantCoolant.liters}\\s*L.*Buy ${Math.ceil(wantCoolant.liters / 3.785)} gal`).test((s.parts[coolantIdx].options[0] || {}).note || ''))) {
         s.parts[coolantIdx] = Object.assign(dep.coolantPart(s.car.modelId, s.car.engine), { id: s.parts[coolantIdx].id });
       }
       const wantAh = dep.batteryAhFor(s.car.modelId, s.car.engine).ah;

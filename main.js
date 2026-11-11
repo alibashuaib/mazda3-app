@@ -134,6 +134,7 @@ function openAddVehicle() {
       const m = CAR_MODELS[+modelSel.value];
       const data = normalizeData(buildProfile(m.id, +engSel.value, { odometer: +$('#av_odo').value || 0, year: +$('#av_year').value || '', color: colorSel.value }));
       remoteCatalog.applyDealerPlan(data, { force: true });   // a new car takes the current shared plan
+      remoteCatalog.applyParts(data, { force: true });        // ...and the approved parts/prices
       const v = { id: uid(), data };
       session.setVehicles(session.garage().vehicles.concat([v]), v.id);
       const res = await saveVehicle(v.id, v.data, session.garage().activeId, uid);
@@ -232,6 +233,7 @@ function contribute(rows) {
   if (!rows || !rows.length) return;
   insights.shareEnabled().then(on => on && account.enqueueContribution(rows)).then(kickSync).catch(() => {});
 }
+setContributeSink(contribute);   // explicit wiring for maintenance.js (see setContributeSink there)
 
 /* What is dragging the score down — a bare number is not actionable. */
 function openHealthBreakdown() {
@@ -538,7 +540,7 @@ function openSettings() {
       });
     })();
 
-    const ENGINES = ['1.6L SkyActiv-G', '2.0L SkyActiv-G'];
+    const ENGINES = ['1.6L MZR', '2.0L SkyActiv-G'];
     let engOpts = ENGINES.slice();
     let engSel = ENGINES.find(e => c.engine && ((c.engine.includes('1.6') && e.includes('1.6')) || (c.engine.includes('2.0') && e.includes('2.0'))));
     if (c.engine && !engSel) { engOpts = [c.engine, ...ENGINES]; engSel = c.engine; }
@@ -678,6 +680,7 @@ function connectBackend() {
   insights.configure({ client, metaGet, metaSet, signedIn });
   shops.configure({ client, signedIn });
   recalls.configure({ client });
+  knownIssues.configure({ client });
   bills.configure({ client });
   remoteCatalog.configure({ client });
   catalogAdmin.configure({ client });
@@ -726,7 +729,9 @@ if (canSignIn && typeof supabase !== 'undefined') connectBackend();
    fires the afterSave hook, so a signed-in change is queued for sync too.
    Returns applyDealerPlan's result: 'changed', 'stamped' or false. */
 function syncDealerPlan() {
-  const res = remoteCatalog.applyDealerPlan(session.current());
+  const d = remoteCatalog.applyDealerPlan(session.current());
+  const pr = remoteCatalog.applyParts(session.current());   // approved parts/prices (D-01)
+  const res = d === 'changed' || pr === 'changed' ? 'changed' : (d || pr);
   if (res) session.save();
   return res;
 }

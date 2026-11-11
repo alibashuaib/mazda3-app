@@ -439,7 +439,7 @@ async function saveWith(api, d, { share = true } = {}) {
   const contributed = [], votes = [], rpcs = [];
   api.insights.shareEnabled = () => Promise.resolve(share);
   api.shops.findOrCreate = () => Promise.resolve({ id: 's1', name: 'Al Salam Auto', city: 'Jeddah' });
-  api.contribute = rows => { contributed.push(...rows); };
+  api.setContributeSink(rows => { contributed.push(...rows); });   // main.js wires the real sink at boot
   api.shops.vote = (...a) => { votes.push(a); return Promise.resolve(true); };
   api.openShopFeedback = (shop, id) => { api.shops.vote(shop.id, true, [], id); };
   api.shops.configure({ client: { rpc: (...a) => { rpcs.push(a); return Promise.resolve({ error: null }); }, from: () => { rpcs.push('from'); throw new Error('no table write'); } } });

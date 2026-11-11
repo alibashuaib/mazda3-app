@@ -135,52 +135,6 @@ create index if not exists price_observations_item_idx
 -- observations are insert-only, so a plain default is enough — no update
 -- path exists that a client-supplied timestamp could smuggle a bad value
 -- through.
--- security_invoker: the view runs with the querying user's own RLS, not the
--- view owner's — without this a Postgres view is SECURITY DEFINER-like by
--- default and silently bypasses price_observations' RLS. Harmless today
--- (read_price_observations already grants select to every authenticated
--- user) but it makes the spec's "inherits that table's select policy"
--- claim actually enforced by the view, not just coincidentally true.
-create or replace view public.price_item_averages
-  with (security_invoker = true) as
-  select item_id, avg(price)::numeric(10,2) as avg_price, count(*) as sample_count
-  from public.price_observations
-  group by item_id;
-
-alter table public.price_items enable row level security;
-alter table public.price_observations enable row level security;
-
-drop policy if exists read_price_items on public.price_items;
-create policy read_price_items on public.price_items for select
-  using (auth.role() = 'authenticated');
-
-drop policy if exists insert_price_items on public.price_items;
-create policy insert_price_items on public.price_items for insert
-  with check (created_by = auth.uid());
-
--- No update/delete policy on price_items at all — deliberate, see spec's
--- "Immutable items, no moderation" decision. RLS defaults to deny when no
--- policy matches, so this alone is what makes items permanent.
-
-drop policy if exists read_price_observations on public.price_observations;
-create policy read_price_observations on public.price_observations for select
-  using (auth.role() = 'authenticated');
-
-drop policy if exists own_price_observations on public.price_observations;
-create policy own_price_observations on public.price_observations for insert
-  with check (user_id = auth.uid());
-
-drop policy if exists update_own_price_observations on public.price_observations;
-create policy update_own_price_observations on public.price_observations for update
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
-
-drop policy if exists delete_own_price_observations on public.price_observations;
-create policy delete_own_price_observations on public.price_observations for delete
-  using (user_id = auth.uid());
-
-grant select, insert on public.price_items to authenticated;
-grant select, insert, update, delete on public.price_observations to authenticated;
-grant select on public.price_item_averages to authenticated;
 
 -- Community insights. See docs/superpowers/specs/2026-10-16-community-insights-design.md.
 -- Neither table below grants anything to `authenticated`: users reach them only
@@ -363,6 +317,60 @@ create or replace view public.qualified_users as
     and (u.email_confirmed_at is not null or u.phone_confirmed_at is not null);
 revoke all on public.qualified_users from public, anon, authenticated;
 
+-- Aggregate-only, owner-run view (same pattern as store_prices). It is NOT security_invoker
+-- on purpose: it must read qualified_users, which clients cannot. Anti-fake-account rule:
+-- only qualified users count, and an item needs >= 3 distinct qualified users before any
+-- average is shown, so one user's own price can never be displayed back as an "average".
+create or replace view public.price_item_averages as
+  select o.item_id, avg(o.price)::numeric(10,2) as avg_price, count(*) as sample_count
+  from public.price_observations o
+  join public.qualified_users q on q.id = o.user_id
+  group by o.item_id
+  having count(distinct o.user_id) >= 3;
+
+alter table public.price_items enable row level security;
+alter table public.price_observations enable row level security;
+
+drop policy if exists read_price_items on public.price_items;
+create policy read_price_items on public.price_items for select
+  using (auth.role() = 'authenticated');
+-- Column-level: created_by (the uploader's user id) is never readable by clients.
+revoke select on public.price_items from authenticated;
+grant select (id, label, category, source_part_no, created_at) on public.price_items to authenticated;
+
+drop policy if exists insert_price_items on public.price_items;
+create policy insert_price_items on public.price_items for insert
+  with check (created_by = auth.uid());
+
+-- No update/delete policy on price_items at all — deliberate, see spec's
+-- "Immutable items, no moderation" decision. RLS defaults to deny when no
+-- policy matches, so this alone is what makes items permanent.
+
+drop policy if exists read_price_observations on public.price_observations;
+-- Own rows only: raw observations carry user_id and must not be readable by other users (anonymity).
+-- Aggregates reach clients only through price_item_averages (owner-run, qualified users, >= 3).
+create policy read_price_observations on public.price_observations for select
+  using (user_id = auth.uid());
+
+drop policy if exists own_price_observations on public.price_observations;
+create policy own_price_observations on public.price_observations for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists update_own_price_observations on public.price_observations;
+create policy update_own_price_observations on public.price_observations for update
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists delete_own_price_observations on public.price_observations;
+create policy delete_own_price_observations on public.price_observations for delete
+  using (user_id = auth.uid());
+
+-- Insert only: SELECT is column-granted above (created_by stays private).
+grant insert on public.price_items to authenticated;
+grant select, insert, update, delete on public.price_observations to authenticated;
+grant select on public.price_item_averages to authenticated;
+-- The view is owner-run (not security_invoker), so it bypasses RLS: anon must not read it (same as store_prices).
+revoke all on public.price_item_averages from anon;
+
 -- Owner-run (not security_invoker): shop_feedback is own-rows-only under RLS, so
 -- the aggregate must bypass it. Safe because the view only emits shops with >= 5
 -- qualified voters and exposes counts, never user ids. One row per user per shop, so
@@ -449,7 +457,13 @@ declare n int;
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
   delete from shop_feedback where user_id = auth.uid();
-  delete from bill_reads where user_id = auth.uid();
+  /* read-bill's daily caps count the last 24h of bill_reads rows. Deleting
+     those let a user reset their own cap by toggling sharing off and on, so
+     rows inside the window keep user_id + created_at (the count) and lose
+     only what describes the bill. Older rows no longer count and go. */
+  update bill_reads set store_key = null, city = null, fingerprint = null
+    where user_id = auth.uid() and created_at > now() - interval '1 day';
+  delete from bill_reads where user_id = auth.uid() and created_at <= now() - interval '1 day';
   with gone as (
     delete from contributions where id in
       (select contribution_id from contribution_links where user_id = auth.uid())
@@ -643,6 +657,12 @@ create table if not exists public.car_models (
   sources jsonb not null default '[]',
   plan_updated_at timestamptz not null default now()
 );
+-- Phase 4: parts version stamp (devices refetch parts) and markets a car is sold in.
+alter table public.car_models add column if not exists parts_updated_at timestamptz not null default now();
+alter table public.car_models add column if not exists markets text[] not null default '{KSA}';
+alter table public.car_models drop constraint if exists car_models_markets_check;
+alter table public.car_models add constraint car_models_markets_check
+  check (markets <@ array['KSA', 'UAE', 'KW', 'QA', 'BH', 'OM']);
 
 create table if not exists public.dealer_plan_items (
   id bigint generated always as identity primary key,
@@ -706,7 +726,8 @@ create trigger dealer_plan_item_change after insert or update or delete on publi
 create or replace function public.on_car_model_change() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if (to_jsonb(old) - 'plan_updated_at') is distinct from (to_jsonb(new) - 'plan_updated_at') then
+  -- parts_updated_at (Phase 4) is excluded for the same reason: a parts approval is not a car edit.
+  if (to_jsonb(old) - 'plan_updated_at' - 'parts_updated_at') is distinct from (to_jsonb(new) - 'plan_updated_at' - 'parts_updated_at') then
     insert into public.dealer_plan_changes (car_model_id, item_id, before, after)
     values (new.id, null, to_jsonb(old), to_jsonb(new));
   end if;
@@ -737,6 +758,8 @@ create policy admin_write_dealer_plan_items on public.dealer_plan_items for all 
   using (public.is_admin()) with check (public.is_admin());
 
 -- Explicit grants (see the vehicles/garage note above); RLS still enforces admin-only writes.
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.car_models, public.dealer_plan_items from anon, authenticated;
 grant select on public.car_models, public.dealer_plan_items to anon, authenticated;
 grant insert, update, delete on public.car_models, public.dealer_plan_items to authenticated;
 grant select on public.dealer_plan_changes to authenticated;
@@ -800,6 +823,8 @@ create policy read_recalls on public.recalls for select to anon, authenticated
 drop policy if exists admin_write_recalls on public.recalls;
 create policy admin_write_recalls on public.recalls for update to authenticated
   using (public.is_admin()) with check (public.is_admin());
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.recalls from anon, authenticated;
 grant select on public.recalls to anon, authenticated;
 grant update (status) on public.recalls to authenticated;
 grant select, insert, update, delete on public.schedule_sources, public.plan_drafts to authenticated;
@@ -950,6 +975,8 @@ create policy read_makers on public.makers for select to anon, authenticated usi
 drop policy if exists admin_write_makers on public.makers;
 create policy admin_write_makers on public.makers for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.makers from anon, authenticated;
 grant select on public.makers to anon, authenticated;
 grant insert, update, delete on public.makers to authenticated;
 
@@ -1040,6 +1067,27 @@ begin
       into r from public.recalls x where x.car_model_id = p_car and x.campaign = p_target;
     return r;
   end if;
+  -- Phase 4. price is cast to numeric(10,2) so the hash is stable whatever scale was stored.
+  if p_kind = 'part' then
+    select jsonb_build_object('tag', case when x.slot = 'oem' then 'OEM' else 'ALT' end, 'brand', x.brand,
+                              'part_no', x.part_no, 'price', x.price::numeric(10,2),
+                              'price_basis', x.price_basis, 'note', x.note)
+      into r from public.catalogue_parts x
+     where x.car_model_id = p_car and x.part_name = split_part(p_target, '|', 1) and x.slot = split_part(p_target, '|', 2);
+    return r;
+  end if;
+  if p_kind = 'failure' then
+    select jsonb_build_object('title', x.title, 'summary', x.summary, 'typical_km', x.typical_km, 'mentions', x.mentions)
+      into r from public.known_issues x where x.car_model_id = p_car and x.issue_key = p_target;
+    return r;
+  end if;
+  if p_kind = 'car_model' then
+    select jsonb_build_object('make', x.make, 'model', x.model, 'generation', x.generation, 'engine', x.engine,
+                              'oil_capacity_l', x.oil_capacity_l, 'warranty_years', x.warranty_years,
+                              'warranty_km', x.warranty_km, 'markets', to_jsonb(x.markets))
+      into r from public.car_models x where x.id = p_target;
+    return r;
+  end if;
   if p_kind <> 'schedule_item' then raise exception 'unsupported kind'; end if;
   select jsonb_build_object('interval_km', i.interval_km, 'interval_months', i.interval_months,
                             'severe_km', i.severe_km, 'severe_months', i.severe_months,
@@ -1050,23 +1098,26 @@ end $$;
 revoke execute on function public.proposal_live(text, text, text) from public, anon, authenticated;
 
 -- Rule-based confidence (tunable weights): best source tier official 2 /
--- secondary 1 / community 0; +1 for two or more distinct hosts; +1 when the
+-- secondary 1 / community 1 (weakest, but not zero: community sources already need >= 3
+-- mentions from >= 2 hosts upstream, see community.mjs); +1 for two or more distinct hosts; +1 when the
 -- change is small (<= 25%), -1 when large (> 50%). high >= 3, medium 2, else low.
+-- A part price backed by fewer than two hosts is capped at medium (WR-04).
 create or replace function public.proposal_confidence(p_before jsonb, p_after jsonb, p_evidence jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare e jsonb; k text; pts int; best int := 0; best_tier text := 'community'; doms int;
         b numeric; a numeric; pct numeric; score int; tier text;
 begin
   for e in select value from jsonb_array_elements(p_evidence) loop
-    pts := case e->>'tier' when 'official' then 2 when 'secondary' then 1 else 0 end;
+    pts := case e->>'tier' when 'official' then 2 when 'secondary' then 1 when 'community' then 1 else 0 end;
     if pts > best then
-      best := pts; best_tier := case pts when 2 then 'official' else 'secondary' end;
+      best := pts; best_tier := coalesce(e->>'tier', 'community');
     end if;
   end loop;
   select count(distinct substring(x->>'url' from '^https://([^/:]+)')) into doms
     from jsonb_array_elements(p_evidence) x;
   if p_before is not null then
-    foreach k in array array['interval_km', 'interval_months', 'severe_km', 'severe_months'] loop
+    -- 'price' (Phase 4 part proposals). users evidence has no url: count(distinct null) ignores it above.
+    foreach k in array array['interval_km', 'interval_months', 'severe_km', 'severe_months', 'price'] loop
       if jsonb_typeof(p_before->k) = 'number' and jsonb_typeof(p_after->k) = 'number'
          and (p_before->>k)::numeric > 0 then
         b := (p_before->>k)::numeric; a := (p_after->>k)::numeric;
@@ -1076,6 +1127,10 @@ begin
   end if;
   score := best + case when doms >= 2 then 1 else 0 end
          + case when pct is null then 0 when pct <= 25 then 1 when pct > 50 then -1 else 0 end;
+  -- WR-04: a price (part proposal) read from a single page can be a mis-association; it never auto-qualifies as high
+  if p_after ? 'price' and doms < 2 then score := least(score, 2); end if;
+  -- Community-only evidence never reaches high (bulk-approvable): capped at medium, as before the community weight.
+  if best_tier = 'community' then score := least(score, 2); end if;
   tier := case when score >= 3 then 'high' when score = 2 then 'medium' else 'low' end;
   return jsonb_build_object('tier', tier, 'factors', jsonb_build_object(
     'best_tier', best_tier, 'domains', doms, 'change_pct', round(pct, 1), 'score', score));
@@ -1089,12 +1144,86 @@ create or replace function public.submit_proposal(
   p_run_id bigint default null, p_reason text default '', p_maker_id text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare car public.car_models; ev jsonb; before_v jsonb; conf jsonb; new_id bigint; ah text; sh text; ex bigint;
+        mk text; slot text; pnm text; mpct numeric; msar numeric; lp numeric; np numeric; dp numeric; sk text;
 begin
-  if p_kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
-  select * into car from public.car_models where id = p_car_model_id;
-  if not found then raise exception 'unknown car'; end if;
+  if p_kind not in ('schedule_item', 'recall', 'part', 'failure', 'car_model') then raise exception 'unsupported kind'; end if;
+  if p_kind = 'car_model' then
+    -- A proposed car has no row yet; its id is the target key.
+    if p_car_model_id is not null then raise exception 'car_model proposals carry no car'; end if;
+  else
+    select * into car from public.car_models where id = p_car_model_id;
+    if not found then raise exception 'unknown car'; end if;
+    mk := coalesce(p_maker_id, car.maker_id);
+  end if;
   if p_after is null or jsonb_typeof(p_after) <> 'object' then raise exception 'after must be an object'; end if;
   if octet_length(p_after::text) > 8192 then raise exception 'after too large'; end if;
+  if p_kind = 'part' then
+    if p_target_key !~ '^[^|]{1,100}[|](oem|alt:[a-z0-9-]{1,40})$' then raise exception 'bad part target'; end if;
+    pnm := split_part(p_target_key, '|', 1); slot := split_part(p_target_key, '|', 2);
+    -- parentheses: plpgsql ends an IF condition at the first THEN token, which would be the CASE's own THEN
+    if p_after ? 'tag' and p_after->>'tag' is distinct from (case when slot = 'oem' then 'OEM' else 'ALT' end) then
+      raise exception 'part tag does not match slot'; end if;
+    if char_length(coalesce(p_after->>'brand', '')) > 120 or char_length(coalesce(p_after->>'part_no', '')) > 60
+       or char_length(coalesce(p_after->>'note', '')) > 300 then raise exception 'part text too long'; end if;
+    if coalesce(p_after->>'price_basis', '') not in ('dealer', 'indicative') then raise exception 'bad price_basis'; end if;
+    if p_after ? 'price' and jsonb_typeof(p_after->'price') not in ('number', 'null') then raise exception 'bad price'; end if;
+    if jsonb_typeof(p_after->'price') is distinct from 'number' then raise exception 'part needs a price'; end if;
+    if jsonb_typeof(p_after->'price') = 'number' and not ((p_after->>'price')::numeric > 0 and (p_after->>'price')::numeric < 100000) then
+      raise exception 'price out of range'; end if;
+    -- Research Q5: an alternative only makes sense next to a part the car already has.
+    if slot <> 'oem' and not exists (select 1 from public.catalogue_parts where car_model_id = p_car_model_id and part_name = pnm) then
+      raise exception 'alt part needs an existing part'; end if;
+  end if;
+  if p_kind = 'failure' then
+    if p_target_key !~ '^[a-z0-9-]{1,60}$' then raise exception 'bad failure key'; end if;
+    if char_length(btrim(coalesce(p_after->>'title', ''))) not between 1 and 120 then raise exception 'bad failure title'; end if;
+    if char_length(btrim(coalesce(p_after->>'summary', ''))) not between 1 and 1000 then raise exception 'bad failure summary'; end if;
+    if jsonb_typeof(p_after->'mentions') is distinct from 'number' or (p_after->>'mentions') !~ '^[0-9]+$'
+       or (p_after->>'mentions')::int < 3 then raise exception 'failure needs 3 or more mentions'; end if;
+    if p_after ? 'typical_km' and jsonb_typeof(p_after->'typical_km') not in ('number', 'null') then raise exception 'bad typical_km'; end if;
+    if jsonb_typeof(p_after->'typical_km') = 'number' and not ((p_after->>'typical_km') ~ '^[0-9]+$'
+       and (p_after->>'typical_km')::numeric between 1 and 1000000) then raise exception 'bad typical_km'; end if;
+  end if;
+  if p_kind = 'car_model' then
+    if p_target_key !~ '^[a-z0-9-]+:[a-z0-9.-]+$' then raise exception 'bad car_model id'; end if;
+    if char_length(btrim(coalesce(p_after->>'make', ''))) not between 1 and 60
+       or char_length(btrim(coalesce(p_after->>'model', ''))) not between 1 and 60
+       or char_length(btrim(coalesce(p_after->>'engine', ''))) not between 1 and 60
+       or char_length(coalesce(p_after->>'generation', '')) > 60 then raise exception 'bad car_model text'; end if;
+    if jsonb_typeof(p_after->'oil_capacity_l') = 'number' and not ((p_after->>'oil_capacity_l')::numeric > 0 and (p_after->>'oil_capacity_l')::numeric < 50) then
+      raise exception 'bad oil capacity'; end if;
+    if jsonb_typeof(p_after->'warranty_years') = 'number' and not ((p_after->>'warranty_years') ~ '^[0-9]+$' and (p_after->>'warranty_years')::int <= 30) then
+      raise exception 'bad warranty_years'; end if;
+    if jsonb_typeof(p_after->'warranty_km') = 'number' and not ((p_after->>'warranty_km') ~ '^[0-9]+$' and (p_after->>'warranty_km')::numeric <= 1000000) then
+      raise exception 'bad warranty_km'; end if;
+    if p_after ? 'markets' and (jsonb_typeof(p_after->'markets') <> 'array' or jsonb_array_length(p_after->'markets') not between 1 and 6
+       or exists (select 1 from jsonb_array_elements(p_after->'markets') m
+                  where jsonb_typeof(m) <> 'string' or (m #>> '{}') not in ('KSA', 'UAE', 'KW', 'QA', 'BH', 'OM'))) then
+      raise exception 'bad markets'; end if;
+    if p_after ? 'years' and (jsonb_typeof(p_after->'years') <> 'array' or jsonb_array_length(p_after->'years') not between 0 and 15
+       or exists (select 1 from jsonb_array_elements(p_after->'years') y
+                  where jsonb_typeof(y) <> 'number' or (y #>> '{}') !~ '^[0-9]{4}$'
+                     or (y #>> '{}')::int not between 1990 and 2100)) then
+      raise exception 'bad years'; end if;
+    mk := coalesce(p_maker_id, lower(btrim(p_after->>'make')));
+  end if;
+  if p_kind = 'schedule_item' then
+    -- WR-11: bound what the extractor (untrusted) can put on a live schedule row. null / absent = "no value".
+    foreach sk in array array['interval_km', 'severe_km'] loop
+      if jsonb_typeof(p_after->sk) = 'number' and not ((p_after->>sk) ~ '^[0-9]+$' and (p_after->>sk)::numeric between 1 and 1000000) then
+        raise exception 'bad schedule interval'; end if;
+      if p_after ? sk and jsonb_typeof(p_after->sk) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
+    end loop;
+    foreach sk in array array['interval_months', 'severe_months'] loop
+      if jsonb_typeof(p_after->sk) = 'number' and not ((p_after->>sk) ~ '^[0-9]+$' and (p_after->>sk)::numeric between 1 and 240) then
+        raise exception 'bad schedule interval'; end if;
+      if p_after ? sk and jsonb_typeof(p_after->sk) not in ('number', 'null') then raise exception 'bad schedule interval'; end if;
+    end loop;
+    if p_after ? 'parts' and jsonb_typeof(p_after->'parts') not in ('array', 'null') then raise exception 'bad schedule parts'; end if;
+    if jsonb_typeof(p_after->'parts') = 'array' and jsonb_array_length(p_after->'parts') > 50 then
+      raise exception 'too many schedule parts'; end if;
+    if char_length(coalesce(p_after->>'note', '')) > 300 then raise exception 'schedule note too long'; end if;
+  end if;
   if p_kind = 'recall' then
     if char_length(btrim(coalesce(p_after->>'component', ''))) not between 1 and 200 then raise exception 'bad recall component'; end if;
     if char_length(btrim(coalesce(p_after->>'summary', ''))) not between 1 and 1000 then raise exception 'bad recall summary'; end if;
@@ -1111,6 +1240,17 @@ begin
      or jsonb_array_length(p_evidence) not between 1 and 10 then
     raise exception 'evidence must have 1 to 10 items'; end if;
   for ev in select value from jsonb_array_elements(p_evidence) loop
+    if jsonb_typeof(ev) = 'object' and ev->>'type' = 'users' then
+      -- D-13 aggregate app-user evidence: a count and a median, never ids or urls (T-04-03).
+      if p_kind not in ('part', 'failure') then raise exception 'users evidence not allowed here'; end if;
+      if (ev - 'type' - 'tier' - 'users' - 'median') <> '{}'::jsonb then raise exception 'users evidence carries extra keys'; end if;
+      if ev->>'tier' is distinct from 'community' then raise exception 'users evidence is community tier'; end if;
+      if jsonb_typeof(ev->'users') is distinct from 'number' or (ev->>'users') !~ '^[0-9]+$' or (ev->>'users')::int < 3 then
+        raise exception 'users evidence needs 3 or more users'; end if;
+      if jsonb_typeof(ev->'median') is distinct from 'number' or (ev->>'median')::numeric <= 0 then
+        raise exception 'users evidence needs a median'; end if;
+      continue;
+    end if;
     if jsonb_typeof(ev) <> 'object' or coalesce(ev->>'url', '') !~ '^https://' then
       raise exception 'evidence url must be https'; end if;
     if char_length(coalesce(ev->>'quote', '')) > 500 then raise exception 'quote too long'; end if;
@@ -1127,14 +1267,31 @@ begin
   if p_kind = 'recall' then
     ah := md5(jsonb_build_object('component', p_after->'component', 'summary', p_after->'summary',
                                  'remedy', p_after->'remedy', 'years', p_after->'years')::text);
+  elsif p_kind = 'part' then
+    -- Same key set and normalisation as proposal_live (tag from slot, price as numeric(10,2), absent text = '').
+    ah := md5(jsonb_build_object('tag', case when slot = 'oem' then 'OEM' else 'ALT' end,
+                                 'brand', coalesce(p_after->>'brand', ''), 'part_no', coalesce(p_after->>'part_no', ''),
+                                 'price', (p_after->>'price')::numeric(10,2), 'price_basis', p_after->>'price_basis',
+                                 'note', coalesce(p_after->>'note', ''))::text);
+  elsif p_kind = 'failure' then
+    ah := md5(jsonb_build_object('title', btrim(p_after->>'title'), 'summary', btrim(p_after->>'summary'),
+                                 'typical_km', (p_after->>'typical_km')::int, 'mentions', (p_after->>'mentions')::int)::text);
+  elsif p_kind = 'car_model' then
+    ah := md5(jsonb_build_object('make', btrim(p_after->>'make'), 'model', btrim(p_after->>'model'),
+                                 'generation', coalesce(p_after->>'generation', ''), 'engine', btrim(p_after->>'engine'),
+                                 'oil_capacity_l', (p_after->>'oil_capacity_l')::numeric, 'warranty_years', (p_after->>'warranty_years')::int,
+                                 'warranty_km', (p_after->>'warranty_km')::int,
+                                 'markets', coalesce(p_after->'markets', '["KSA"]'::jsonb))::text);
   else
     ah := md5(jsonb_build_object('interval_km', p_after->'interval_km', 'interval_months', p_after->'interval_months',
                                  'severe_km', case when p_after ? 'severe_km' then p_after->'severe_km' else before_v->'severe_km' end,
                                  'severe_months', case when p_after ? 'severe_months' then p_after->'severe_months' else before_v->'severe_months' end,
                                  'note', p_after->'note', 'parts', p_after->'parts')::text);
   end if;
-  sh := (select md5(string_agg((x->>'url') || '|' || coalesce(x->>'content_hash', ''), ',' order by x->>'url'))
-           from jsonb_array_elements(p_evidence) x);
+  -- users evidence has no url: key it by its aggregate so it still takes part in the hash.
+  sh := (select md5(string_agg(k || '|' || coalesce(x->>'content_hash', ''), ',' order by k))
+           from (select value as x, coalesce(value->>'url', 'users:' || (value->>'users') || ':' || (value->>'median')) as k
+                   from jsonb_array_elements(p_evidence)) e);
   -- Queue hygiene (CORE-03, CORE-04): equal to live -> noop; same pending value -> duplicate;
   -- rejected with the same value AND sources -> suppressed (changed sources re-queue).
   -- A recall is only a noop when already approved (status is not part of the hash).
@@ -1143,6 +1300,19 @@ begin
        then before_v->>'status' = 'approved' and md5((before_v - 'status')::text) = ah
        else md5(before_v::text) = ah end) then
     return jsonb_build_object('id', null, 'action', 'noop'); end if;
+  -- Materiality (D-07, PRT-03): a price move under the configured percent OR SAR floor, same basis
+  -- and same part, is noise and never queued. A basis change or a new part number always queues.
+  if p_kind = 'part' and before_v is not null
+     and before_v->>'price_basis' = p_after->>'price_basis'
+     and before_v->>'part_no' = coalesce(p_after->>'part_no', '')
+     and before_v->>'brand' = coalesce(p_after->>'brand', '')
+     and jsonb_typeof(before_v->'price') = 'number' and jsonb_typeof(p_after->'price') = 'number' then
+    -- (no composite-typed variable: autopilot_config is created further down this file)
+    select min_pct, min_sar into mpct, msar from public.autopilot_config where id = 1;
+    lp := (before_v->>'price')::numeric; np := (p_after->>'price')::numeric; dp := abs(np - lp);
+    if not (dp >= coalesce(msar, 5) and dp / lp >= coalesce(mpct, 0.10)) then
+      return jsonb_build_object('id', null, 'action', 'immaterial'); end if;
+  end if;
   select id into ex from public.proposals where status = 'pending' and kind = p_kind
     and coalesce(car_model_id, '') = coalesce(p_car_model_id, '') and target_key = p_target_key and after_hash = ah;
   if found then return jsonb_build_object('id', ex, 'action', 'duplicate'); end if;
@@ -1156,7 +1326,7 @@ begin
       and coalesce(car_model_id, '') = coalesce(p_car_model_id, '') and target_key = p_target_key;
   insert into public.proposals (run_id, kind, maker_id, car_model_id, target_key, op, before, base_hash,
                                 after, after_hash, evidence, sources_hash, confidence_tier, confidence_factors, reason)
-  values (p_run_id, p_kind, coalesce(p_maker_id, car.maker_id), p_car_model_id, p_target_key,
+  values (p_run_id, p_kind, mk, p_car_model_id, p_target_key,
           case when before_v is null then 'insert' else 'update' end, before_v,
           md5(coalesce(before_v::text, 'null')), p_after, ah, p_evidence, sh,
           conf->>'tier', conf->'factors', left(coalesce(p_reason, ''), 300))
@@ -1175,13 +1345,23 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare p public.proposals; live jsonb; live_hash text; expected text; v jsonb; pj jsonb; el jsonb;
         nm text; parts jsonb := '[]'; change_id bigint; src text; sk int; sm int;
         comp text; summ text; tbl text;
+        cid text; rk text; nid text; gen text; y0 int; y1 int; rng text; srcs jsonb; pr numeric; pbasis text;
 begin
   if not public.is_admin() then raise exception 'admin only'; end if;
   select * into p from public.proposals where id = p_id and status = 'pending' for update;
   if not found then raise exception 'no pending proposal'; end if;
-  if p.kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
+  if p.kind not in ('schedule_item', 'recall', 'part', 'failure', 'car_model') then raise exception 'unsupported kind'; end if;
+  cid := p.car_model_id; rk := p.target_key;
   if p.kind = 'recall' then
     perform 1 from public.recalls where car_model_id = p.car_model_id and campaign = p.target_key for update;
+  elsif p.kind = 'part' then
+    perform 1 from public.catalogue_parts where car_model_id = p.car_model_id
+      and part_name = split_part(p.target_key, '|', 1) and slot = split_part(p.target_key, '|', 2) for update;
+  elsif p.kind = 'failure' then
+    perform 1 from public.known_issues where car_model_id = p.car_model_id and issue_key = p.target_key for update;
+  elsif p.kind = 'car_model' then
+    -- No row to lock yet: serialise on the proposed id instead.
+    perform pg_advisory_xact_lock(hashtext('car_model:' || p.target_key));
   else
     perform 1 from public.dealer_plan_items where car_model_id = p.car_model_id and service = p.target_key for update;
   end if;
@@ -1209,6 +1389,57 @@ begin
       years = excluded.years, component = excluded.component, summary = excluded.summary,
       remedy = excluded.remedy, status = 'approved', fetched_at = now();
     tbl := 'recalls';
+  elsif p.kind in ('part', 'failure') then
+    -- Only url evidence is stored as a source; aggregate users evidence has no url (D-13).
+    srcs := coalesce((select jsonb_agg(jsonb_build_object('url', e->>'url', 'host', public.evidence_host(e->>'url')))
+                        from jsonb_array_elements(p.evidence) e where e ? 'url'), '[]'::jsonb);
+    if p.kind = 'part' then
+      pr := case when jsonb_typeof(v->'price') = 'number' then (v->>'price')::numeric(10,2) end;
+      pbasis := coalesce(v->>'price_basis', 'indicative');
+      insert into public.catalogue_parts (car_model_id, part_name, slot, brand, part_no, price, price_basis, note, sources, updated_at)
+      values (p.car_model_id, split_part(p.target_key, '|', 1), split_part(p.target_key, '|', 2),
+              left(coalesce(v->>'brand', ''), 120), left(coalesce(v->>'part_no', ''), 60), pr, pbasis,
+              left(coalesce(v->>'note', ''), 300), srcs, now())
+      on conflict (car_model_id, part_name, slot) do update set
+        brand = excluded.brand, part_no = excluded.part_no, price = excluded.price,
+        price_basis = excluded.price_basis, note = excluded.note, sources = excluded.sources, updated_at = now();
+      update public.car_models set parts_updated_at = now() where id = p.car_model_id;
+      tbl := 'catalogue_parts';
+    else
+      comp := left(btrim(coalesce(v->>'title', '')), 120); summ := left(btrim(coalesce(v->>'summary', '')), 1000);
+      if comp = '' or summ = '' then raise exception 'failure needs title and summary'; end if;
+      insert into public.known_issues (car_model_id, issue_key, title, summary, typical_km, mentions, sources, updated_at)
+      values (p.car_model_id, p.target_key, comp, summ,
+              case when jsonb_typeof(v->'typical_km') = 'number' then (v->>'typical_km')::int end,
+              (v->>'mentions')::int, srcs, now())
+      on conflict (car_model_id, issue_key) do update set
+        title = excluded.title, summary = excluded.summary, typical_km = excluded.typical_km,
+        mentions = excluded.mentions, sources = excluded.sources, updated_at = now();
+      tbl := 'known_issues';
+    end if;
+  elsif p.kind = 'car_model' then
+    -- D-17: the owner may edit the id. The row (and its change_log key) use the edited id.
+    nid := coalesce(nullif(btrim(p_edit->>'id'), ''), p.target_key);
+    if nid !~ '^[a-z0-9-]+:[a-z0-9.-]+$' then raise exception 'bad car_model id'; end if;
+    if exists (select 1 from public.car_models where id = nid) then raise exception 'car_model id exists'; end if;
+    gen := btrim(coalesce(v->>'generation', ''));
+    -- D-16: no years column; fold the years into generation (flow.mjs yearsOf reads them from that text).
+    if jsonb_typeof(v->'years') = 'array' and jsonb_array_length(v->'years') between 1 and 15 and gen !~ '[0-9]{4}' then
+      select min(y::int), max(y::int) into y0, y1 from jsonb_array_elements_text(v->'years') y;
+      rng := case when y0 = y1 then y0::text else y0 || '-' || y1 end;
+      gen := case when gen = '' then rng else gen || ' (' || rng || ')' end;
+    end if;
+    srcs := coalesce((select jsonb_agg(jsonb_build_object('url', e->>'url', 'host', public.evidence_host(e->>'url')))
+                        from jsonb_array_elements(p.evidence) e where e ? 'url'), '[]'::jsonb);
+    insert into public.car_models (id, make, model, generation, engine, oil_capacity_l, paints, warranty_years, warranty_km,
+                                   status, sources, markets, maker_id)
+    values (nid, btrim(v->>'make'), btrim(v->>'model'), gen, btrim(v->>'engine'),
+            case when jsonb_typeof(v->'oil_capacity_l') = 'number' then (v->>'oil_capacity_l')::numeric end, '[]'::jsonb,
+            case when jsonb_typeof(v->'warranty_years') = 'number' then (v->>'warranty_years')::int end,
+            case when jsonb_typeof(v->'warranty_km') = 'number' then (v->>'warranty_km')::int end,
+            'approved', srcs,
+            case when jsonb_typeof(v->'markets') = 'array' then array(select jsonb_array_elements_text(v->'markets')) else '{KSA}'::text[] end, p.maker_id);
+    cid := nid; rk := nid; tbl := 'car_models';
   else
   pj := coalesce(v->'parts', '[]'::jsonb);
   if jsonb_typeof(pj) <> 'array' then raise exception 'parts must be an array'; end if;
@@ -1241,9 +1472,9 @@ begin
   end if;
 
   insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id)
-  values (p.kind, p.car_model_id, tbl, p.target_key,
+  values (p.kind, cid, tbl, rk,
           case when live is null then 'insert' else 'update' end, live,
-          public.proposal_live(p.kind, p.car_model_id, p.target_key), p.id)
+          public.proposal_live(p.kind, cid, rk), p.id)
   returning id into change_id;
   update public.proposals set status = 'approved', decided_by = auth.uid(), decided_at = now(),
          edited_after = p_edit where id = p.id;
@@ -1251,6 +1482,26 @@ begin
 end $$;
 revoke execute on function public.apply_proposal(bigint, jsonb, text) from public, anon;
 grant execute on function public.apply_proposal(bigint, jsonb, text) to authenticated;
+
+-- F11: the only way an admin approves a draft car_model from the app. Direct table update is not
+-- allowed: this writes the change_log row that revert_change needs, and it refuses non-admins.
+create or replace function public.approve_car_model(p_id text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare m public.car_models; new_id bigint;
+begin
+  if not public.is_admin() then raise exception 'not allowed'; end if;
+  select * into m from public.car_models where id = p_id for update;
+  if not found then raise exception 'unknown car'; end if;
+  if m.status = 'approved' then return jsonb_build_object('id', m.id, 'action', 'noop'); end if;
+  update public.car_models set status = 'approved' where id = p_id;
+  insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id)
+  values ('car_model', p_id, 'car_models', p_id, 'update', jsonb_build_object('status', m.status),
+          jsonb_build_object('status', 'approved'), null)
+  returning id into new_id;
+  return jsonb_build_object('id', p_id, 'action', 'approved', 'change_id', new_id);
+end $$;
+revoke execute on function public.approve_car_model(text) from public, anon;
+grant execute on function public.approve_car_model(text) to authenticated;
 
 -- Owner rejects a pending proposal (REV-05). after_hash and sources_hash stay
 -- as stored: submit_proposal uses them to keep the same value out of the queue.
@@ -1273,15 +1524,18 @@ grant execute on function public.reject_proposal(bigint, text) to authenticated;
 -- plpgsql exception block is a savepoint, so one failing item rolls back alone.
 create or replace function public.apply_proposals(p_ids bigint[], p_tier text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare pid bigint; st text; tr text; res jsonb; out jsonb := '[]';
+declare pid bigint; st text; tr text; kd text; res jsonb; out jsonb := '[]';
 begin
   if not public.is_admin() then raise exception 'admin only'; end if;
   if p_tier is distinct from 'high' then raise exception 'high tier only'; end if;
   if coalesce(array_length(p_ids, 1), 0) > 200 then raise exception 'too many'; end if;
   foreach pid in array coalesce(p_ids, '{}') loop
-    select status, confidence_tier into st, tr from public.proposals where id = pid;
+    select status, confidence_tier, kind into st, tr, kd from public.proposals where id = pid;
     if st is distinct from 'pending' or tr is distinct from p_tier then
       res := jsonb_build_object('ok', false, 'error', 'not_high');
+    elsif kd = 'car_model' then
+      -- A new car is never bulk-approved: the owner reviews identity and id one at a time (D-17).
+      res := jsonb_build_object('ok', false, 'error', 'not_bulk');
     else
       begin
         res := public.apply_proposal(pid, null, null);
@@ -1303,14 +1557,21 @@ grant execute on function public.apply_proposals(bigint[], text) to authenticate
 -- The revert is itself a change_log row (reverts_id), so it can be reverted too.
 create or replace function public.revert_change(p_change_id bigint)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare c public.change_log; live jsonb; b jsonb; new_id bigint;
+declare c public.change_log; live jsonb; b jsonb; new_id bigint; tn text;
 begin
   if not public.is_admin() then raise exception 'admin only'; end if;
   select * into c from public.change_log where id = p_change_id for update;
   if not found then raise exception 'no change'; end if;
-  if c.kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
+  if c.kind not in ('schedule_item', 'recall', 'part', 'failure', 'car_model') then raise exception 'unsupported kind'; end if;
   if c.kind = 'recall' then
     perform 1 from public.recalls where car_model_id = c.car_model_id and campaign = c.row_key for update;
+  elsif c.kind = 'part' then
+    perform 1 from public.catalogue_parts where car_model_id = c.car_model_id
+      and part_name = split_part(c.row_key, '|', 1) and slot = split_part(c.row_key, '|', 2) for update;
+  elsif c.kind = 'failure' then
+    perform 1 from public.known_issues where car_model_id = c.car_model_id and issue_key = c.row_key for update;
+  elsif c.kind = 'car_model' then
+    perform pg_advisory_xact_lock(hashtext('car_model:' || c.row_key));
   else
     perform 1 from public.dealer_plan_items where car_model_id = c.car_model_id and service = c.row_key for update;
   end if;
@@ -1319,7 +1580,50 @@ begin
     return jsonb_build_object('ok', false, 'error', 'drifted', 'live', live);
   end if;
   b := c.before;
-  if c.kind = 'recall' then
+  if c.kind = 'car_model' then
+    -- Deleting the car would cascade to its plans and parts: refuse while any exist (T-04-04).
+    if b is null and (exists (select 1 from public.dealer_plan_items where car_model_id = c.row_key)
+                      or exists (select 1 from public.catalogue_parts where car_model_id = c.row_key)
+                      or exists (select 1 from public.recalls where car_model_id = c.row_key)
+                      or exists (select 1 from public.known_issues where car_model_id = c.row_key)) then
+      return jsonb_build_object('ok', false, 'error', 'in_use');
+    end if;
+    if b is null then
+      delete from public.car_models where id = c.row_key;
+    else
+      insert into public.car_models (id, make, model, generation, engine, oil_capacity_l, warranty_years, warranty_km, status, markets)
+      values (c.row_key, b->>'make', b->>'model', b->>'generation', b->>'engine', (b->>'oil_capacity_l')::numeric,
+              (b->>'warranty_years')::int, (b->>'warranty_km')::int, 'approved',
+              case when jsonb_typeof(b->'markets') = 'array' then array(select jsonb_array_elements_text(b->'markets')) else '{KSA}'::text[] end)
+      on conflict (id) do update set make = excluded.make, model = excluded.model, generation = excluded.generation,
+        engine = excluded.engine, oil_capacity_l = excluded.oil_capacity_l, warranty_years = excluded.warranty_years,
+        warranty_km = excluded.warranty_km, markets = excluded.markets;
+    end if;
+  elsif c.kind = 'part' then
+    if b is null then
+      delete from public.catalogue_parts where car_model_id = c.car_model_id
+        and part_name = split_part(c.row_key, '|', 1) and slot = split_part(c.row_key, '|', 2);
+    else
+      insert into public.catalogue_parts (car_model_id, part_name, slot, brand, part_no, price, price_basis, note)
+      values (c.car_model_id, split_part(c.row_key, '|', 1), split_part(c.row_key, '|', 2),
+              coalesce(b->>'brand', ''), coalesce(b->>'part_no', ''), (b->>'price')::numeric(10,2),
+              b->>'price_basis', coalesce(b->>'note', ''))
+      on conflict (car_model_id, part_name, slot) do update set
+        brand = excluded.brand, part_no = excluded.part_no, price = excluded.price,
+        price_basis = excluded.price_basis, note = excluded.note, updated_at = now();
+    end if;
+    update public.car_models set parts_updated_at = now() where id = c.car_model_id;
+  elsif c.kind = 'failure' then
+    if b is null then
+      delete from public.known_issues where car_model_id = c.car_model_id and issue_key = c.row_key;
+    else
+      insert into public.known_issues (car_model_id, issue_key, title, summary, typical_km, mentions)
+      values (c.car_model_id, c.row_key, b->>'title', b->>'summary', (b->>'typical_km')::int, (b->>'mentions')::int)
+      on conflict (car_model_id, issue_key) do update set
+        title = excluded.title, summary = excluded.summary, typical_km = excluded.typical_km,
+        mentions = excluded.mentions, updated_at = now();
+    end if;
+  elsif c.kind = 'recall' then
     if b is null then
       delete from public.recalls where car_model_id = c.car_model_id and campaign = c.row_key;
     else
@@ -1343,8 +1647,18 @@ begin
       severe_km = excluded.severe_km, severe_months = excluded.severe_months,
       note = excluded.note, parts = excluded.parts;
   end if;
+  tn := case c.kind when 'recall' then 'recalls' when 'part' then 'catalogue_parts' when 'failure' then 'known_issues'
+                    when 'car_model' then 'car_models' else 'dealer_plan_items' end;
+  -- Deleting a car cascades away its change_log rows, including the one being reverted, so the
+  -- revert row of a car delete is stored without a car and without reverts_id.
+  if c.kind = 'car_model' and b is null then
+    insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id)
+    values (c.kind, null, tn, c.row_key, 'delete', live, null, c.proposal_id)
+    returning id into new_id;
+    return jsonb_build_object('ok', true, 'change_id', new_id);
+  end if;
   insert into public.change_log (kind, car_model_id, table_name, row_key, op, before, after, proposal_id, reverts_id)
-  values (c.kind, c.car_model_id, case c.kind when 'recall' then 'recalls' else 'dealer_plan_items' end, c.row_key,
+  values (c.kind, c.car_model_id, tn, c.row_key,
           case when b is null then 'delete' when live is null then 'insert' else 'update' end,
           live, public.proposal_live(c.kind, c.car_model_id, c.row_key), c.proposal_id, p_change_id)
   returning id into new_id;
@@ -1469,6 +1783,16 @@ create table if not exists public.autopilot_sources (
   primary key (car_model_id, url)
 );
 
+-- Hashes seen this run, promoted to autopilot_sources only by autopilot_publish_run after a successful
+-- publish. A capped / stopped / aborted run discards them with its findings, so the page is re-read next time.
+create table if not exists public.autopilot_pending_hashes (
+  run_id       bigint not null references public.autopilot_runs on delete cascade,
+  car_model_id text not null references public.car_models on delete cascade,
+  url          text not null,
+  content_hash text not null,
+  primary key (run_id, car_model_id, url)
+);
+
 create table if not exists public.autopilot_item_status (
   car_model_id     text not null references public.car_models on delete cascade,
   kind             text not null default 'schedule_item',
@@ -1488,6 +1812,8 @@ alter table public.autopilot_findings enable row level security;
 alter table public.source_domains enable row level security;
 alter table public.autopilot_sources enable row level security;
 alter table public.autopilot_item_status enable row level security;
+alter table public.autopilot_pending_hashes enable row level security;
+revoke all on public.autopilot_pending_hashes from anon, authenticated;   -- service_role only, no policy
 revoke all on public.autopilot_config, public.autopilot_runs, public.autopilot_jobs, public.autopilot_spend,
   public.autopilot_findings, public.source_domains, public.autopilot_sources, public.autopilot_item_status
   from anon, authenticated;
@@ -1596,7 +1922,7 @@ grant execute on function public.autopilot_set_enabled(boolean) to authenticated
 -- A monthly run refuses to start while one is still running this month.
 create or replace function public.autopilot_start_run(p_kind text, p_car text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare rid bigint; n int;
+declare rid bigint; n int; opt int;
 begin
   if p_kind not in ('monthly', 'manual') then raise exception 'bad kind'; end if;
   if p_kind = 'monthly' and p_car is not null then raise exception 'monthly runs cover every car'; end if;
@@ -1612,9 +1938,28 @@ begin
       cross join (values ('discover', 1), ('extract', 2), ('recalls', 3)) s(stage, ord)
      where c.status = 'approved' and (p_car is null or c.id = p_car)
      order by c.id, s.ord;
-  get diagnostics n = row_count;
+  -- Phase 4 optional stages (D-19), queued after every core job so a budget squeeze costs
+  -- parts/community first. Monthly: the optional_cars_per_run least-recently-done cars; a
+  -- car is "done" when BOTH stages succeeded (least of the two), so a failed stage stays due.
+  -- Manual Check-now: that car regardless of rotation, and no models job.
+  select optional_cars_per_run into opt from public.autopilot_config where id = 1;
+  insert into public.autopilot_jobs (run_id, car_model_id, stage)
+    select rid, x.id, s.stage
+      from (select c.id,
+                   least(coalesce((select d.last_done_at from public.autopilot_due d where d.car_model_id = c.id and d.stage = 'parts'), '-infinity'),
+                         coalesce((select d.last_done_at from public.autopilot_due d where d.car_model_id = c.id and d.stage = 'community'), '-infinity')) as done
+              from public.car_models c
+             where c.status = 'approved' and (p_car is null or c.id = p_car)
+             order by 2, c.id
+             limit case when p_car is null then coalesce(opt, 6) else 1 end) x
+      cross join (values ('parts', 1), ('community', 2)) s(stage, ord)
+     order by x.done, x.id, s.ord;
+  if p_kind = 'monthly' then
+    insert into public.autopilot_jobs (run_id, stage) values (rid, 'models');
+  end if;
   insert into public.autopilot_jobs (run_id, stage) values (rid, 'publish');
-  return jsonb_build_object('ok', true, 'run_id', rid, 'jobs', n + 1);
+  select count(*) into n from public.autopilot_jobs where run_id = rid;
+  return jsonb_build_object('ok', true, 'run_id', rid, 'jobs', n);
 end $$;
 
 -- Internal: a publish job that cannot finish ends the run failed with nothing published.
@@ -1624,32 +1969,43 @@ begin
   update public.autopilot_runs set status = 'failed', finished_at = now(),
     report = public.autopilot_build_report(p_run, '{}'::jsonb) where id = p_run and status = 'running';
   delete from public.autopilot_findings where run_id = p_run;
+  delete from public.autopilot_pending_hashes where run_id = p_run;
 end $$;
 
 -- Returns the claimed job row (json) or null. publish waits for every other job of its
 -- run; extract waits for its car's discover (so a discover retry is not overtaken).
-create or replace function public.autopilot_claim_job() returns jsonb
+-- p_run (optional) limits the claim to one run: a manual Check-now request drains only its own car's
+-- jobs, not the monthly queue, which the cron poke handles. The zero-arg version is dropped first,
+-- since a second overload would make the no-argument cron call ambiguous.
+drop function if exists public.autopilot_claim_job();
+create or replace function public.autopilot_claim_job(p_run bigint default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare j public.autopilot_jobs; dead bigint[]; rid bigint;
 begin
-  -- Reclaim jobs whose worker died. A reclaim counts as a failed attempt so a job that
+  -- Reclaim jobs whose worker died. 15 minutes: one job can make several 90 s LLM calls plus resends, and a
+  -- shorter window would hand a live job to a second worker (double spend, double staging). A reclaim counts as a failed attempt so a job that
   -- keeps killing its worker still ends failed after 3.
   with u as (
     update public.autopilot_jobs set attempts = attempts + 1,
       status = case when attempts + 1 >= 3 then 'failed' else 'queued' end,
       last_error = 'stale: worker lost', claimed_at = null
-     where status = 'running' and claimed_at < now() - interval '3 minutes'
+     where status = 'running' and claimed_at < now() - interval '15 minutes'
     returning run_id, stage, status)
   select array_agg(run_id) into dead from u where stage = 'publish' and status = 'failed';
   foreach rid in array coalesce(dead, '{}') loop perform public.autopilot_abort_run(rid); end loop;
 
   select q.* into j from public.autopilot_jobs q
    where q.status = 'queued' and q.run_after <= now()
+     and (p_run is null or q.run_id = p_run)
      and exists (select 1 from public.autopilot_runs r where r.id = q.run_id and r.status = 'running')
      and (q.stage <> 'publish' or not exists (select 1 from public.autopilot_jobs o
             where o.run_id = q.run_id and o.id <> q.id and o.status in ('queued', 'running')))
      and (q.stage <> 'extract' or not exists (select 1 from public.autopilot_jobs d
             where d.run_id = q.run_id and d.car_model_id = q.car_model_id and d.stage = 'discover'
+              and d.status in ('queued', 'running')))
+     -- community unions its alternatives with the rows parts staged, so it waits for parts (04-08)
+     and (q.stage <> 'community' or not exists (select 1 from public.autopilot_jobs d
+            where d.run_id = q.run_id and d.car_model_id = q.car_model_id and d.stage = 'parts'
               and d.status in ('queued', 'running')))
    order by q.id for update of q skip locked limit 1;
   if not found then return null; end if;
@@ -1668,6 +2024,11 @@ begin
   if p_ok then
     update public.autopilot_jobs set status = 'done', last_error = null, claimed_at = null,
       notes = coalesce(p_notes, notes) where id = p_id;
+    -- rotation bookkeeping (D-19): only a successful optional job moves the car back in the queue
+    if j.stage in ('parts', 'community') and j.car_model_id is not null then
+      insert into public.autopilot_due (car_model_id, stage, last_done_at) values (j.car_model_id, j.stage, now())
+        on conflict (car_model_id, stage) do update set last_done_at = now();
+    end if;
     return jsonb_build_object('ok', true, 'status', 'done');
   end if;
   att := j.attempts + 1;
@@ -1688,6 +2049,7 @@ begin
   update public.autopilot_runs set status = p_status, finished_at = now() where id = p_run and status = 'running';
   if not found then return jsonb_build_object('ok', false, 'reason', 'not_running'); end if;
   delete from public.autopilot_findings where run_id = p_run;
+  delete from public.autopilot_pending_hashes where run_id = p_run;
   update public.autopilot_jobs set status = 'failed', claimed_at = null, last_error = 'skipped: run ' || p_status
    where run_id = p_run and status in ('queued', 'running');
   update public.autopilot_runs set report = public.autopilot_build_report(p_run, '{}'::jsonb) where id = p_run;
@@ -1700,11 +2062,13 @@ create or replace function public.autopilot_stage_findings(p_run bigint, p_car t
 language plpgsql security definer set search_path = public as $$
 declare n int;
 begin
-  if p_kind not in ('schedule_item', 'recall') then raise exception 'unsupported kind'; end if;
+  if p_kind not in ('schedule_item', 'recall', 'part', 'failure', 'car_model') then raise exception 'unsupported kind'; end if;
+  -- a new model has no car yet; every other kind belongs to one
+  if (p_kind = 'car_model') <> (p_car is null) then raise exception 'bad car for kind'; end if;
   if p_rows is null or jsonb_typeof(p_rows) <> 'array' then raise exception 'rows must be an array'; end if;
   if not exists (select 1 from public.autopilot_runs where id = p_run and status = 'running') then
     raise exception 'run not running'; end if;
-  delete from public.autopilot_findings where run_id = p_run and car_model_id = p_car and kind = p_kind;
+  delete from public.autopilot_findings where run_id = p_run and car_model_id is not distinct from p_car and kind = p_kind;
   insert into public.autopilot_findings (run_id, car_model_id, kind, target_key, after, evidence, reason, verified)
     select p_run, p_car, p_kind, x.target_key, x.after, x.evidence, left(coalesce(x.reason, ''), 300), coalesce(x.verified, true)
       from jsonb_to_recordset(p_rows) as x(target_key text, after jsonb, evidence jsonb, reason text, verified boolean);
@@ -1724,6 +2088,17 @@ begin
   insert into public.autopilot_sources (car_model_id, url, host, content_hash)
     values (p_car, p_url, lower(substring(p_url from '^https://([^/:?#]+)')), p_hash)
   on conflict (car_model_id, url) do update set content_hash = excluded.content_hash, last_fetched_at = now();
+end $$;
+
+-- CR-01: a hash is only recorded as pending; autopilot_publish_run promotes it after a successful publish.
+create or replace function public.autopilot_stage_hash(p_run bigint, p_car text, p_url text, p_hash text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_url !~ '^https://[^/]+' or coalesce(p_hash, '') = '' then raise exception 'bad source'; end if;
+  if not exists (select 1 from public.autopilot_runs where id = p_run and status = 'running') then
+    raise exception 'run not running'; end if;
+  insert into public.autopilot_pending_hashes (run_id, car_model_id, url, content_hash) values (p_run, p_car, p_url, p_hash)
+  on conflict (run_id, car_model_id, url) do update set content_hash = excluded.content_hash;
 end $$;
 
 -- ---- source domains (ENG-06, D-07, D-08) ----
@@ -1781,6 +2156,9 @@ begin
       where public.evidence_host(e->>'url') = h
          or public.evidence_host(e->>'url') like '%.' || h);
   get diagnostics n = row_count;
+  -- WR-04: a host banned mid-run must not have its pending hash promoted into autopilot_sources
+  delete from public.autopilot_pending_hashes ph
+   where public.evidence_host(ph.url) = h or public.evidence_host(ph.url) like '%.' || h;
   delete from public.autopilot_findings f using public.autopilot_runs r
    where f.run_id = r.id and r.status = 'running' and exists (
      select 1 from jsonb_array_elements(f.evidence) e
@@ -1846,8 +2224,9 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'jobs_pending'); end if;
 
   for f in select * from public.autopilot_findings where run_id = p_run order by id loop
-    -- a source banned after staging must not reach the queue (TOCTOU with ban_source_domain)
-    if exists (select 1 from jsonb_array_elements(f.evidence) e where public.host_banned(e->>'url')) then
+    -- a source banned after staging must not reach the queue (TOCTOU with ban_source_domain).
+    -- Evidence without a url (e.g. {type:'users'} aggregates) has no host to ban.
+    if exists (select 1 from jsonb_array_elements(f.evidence) e where e->>'url' is not null and public.host_banned(e->>'url')) then
       act := 'banned';
     else
       begin
@@ -1878,10 +2257,20 @@ begin
       set missed_runs = public.autopilot_item_status.missed_runs + 1;
   end if;
 
-  st := case when exists (select 1 from public.autopilot_jobs where run_id = p_run and stage <> 'publish' and status = 'failed')
+  -- only core stages flip the run to failed; failed optional jobs show in the report's failed_jobs
+  st := case when exists (select 1 from public.autopilot_jobs where run_id = p_run
+                            and stage in ('discover', 'extract', 'recalls') and status = 'failed')
              then 'failed' else 'done' end;
   rep := public.autopilot_build_report(p_run, counts);
   update public.autopilot_runs set status = st, finished_at = now(), report = rep where id = p_run;
+  -- CR-01: the pages were read and their findings queued: only now are their hashes the "last seen" ones
+  if st = 'done' then
+    insert into public.autopilot_sources (car_model_id, url, host, content_hash)
+      select h.car_model_id, h.url, lower(substring(h.url from '^https://([^/:?#]+)')), h.content_hash
+        from public.autopilot_pending_hashes h where h.run_id = p_run and not public.host_banned(h.url)
+    on conflict (car_model_id, url) do update set content_hash = excluded.content_hash, last_fetched_at = now();
+  end if;
+  delete from public.autopilot_pending_hashes where run_id = p_run;
   delete from public.autopilot_findings where run_id = p_run;
   return jsonb_build_object('ok', true, 'status', st, 'report', rep);
 end $$;
@@ -1893,8 +2282,8 @@ revoke execute on function public.autopilot_settle(bigint, text, jsonb) from pub
 grant execute on function public.autopilot_settle(bigint, text, jsonb) to service_role;
 revoke execute on function public.autopilot_start_run(text, text) from public, anon, authenticated;
 grant execute on function public.autopilot_start_run(text, text) to service_role;
-revoke execute on function public.autopilot_claim_job() from public, anon, authenticated;
-grant execute on function public.autopilot_claim_job() to service_role;
+revoke execute on function public.autopilot_claim_job(bigint) from public, anon, authenticated;
+grant execute on function public.autopilot_claim_job(bigint) to service_role;
 revoke execute on function public.autopilot_finish_job(bigint, boolean, text, jsonb) from public, anon, authenticated;
 grant execute on function public.autopilot_finish_job(bigint, boolean, text, jsonb) to service_role;
 revoke execute on function public.autopilot_end_run(bigint, text) from public, anon, authenticated;
@@ -1905,6 +2294,8 @@ revoke execute on function public.autopilot_get_source_hash(text, text) from pub
 grant execute on function public.autopilot_get_source_hash(text, text) to service_role;
 revoke execute on function public.autopilot_set_source_hash(text, text, text) from public, anon, authenticated;
 grant execute on function public.autopilot_set_source_hash(text, text, text) to service_role;
+revoke execute on function public.autopilot_stage_hash(bigint, text, text, text) from public, anon, authenticated;
+grant execute on function public.autopilot_stage_hash(bigint, text, text, text) to service_role;
 revoke execute on function public.autopilot_see_domain(text) from public, anon, authenticated;
 grant execute on function public.autopilot_see_domain(text) to service_role;
 revoke execute on function public.autopilot_publish_run(bigint) from public, anon, authenticated;
@@ -1938,3 +2329,147 @@ do $$ begin
     end if;
   end if;
 end $$;
+
+-- ============================================================================
+-- Phase 4: parts, prices, community knowledge, new models (PRT-01, PRT-03, COM-01, COM-03, NEW-01)
+-- Live tables for the new proposal kinds (part, failure, car_model). Writes happen
+-- only inside apply_proposal / revert_change (security definer, is_admin()); browsers
+-- get select and nothing else. Re-runnable. Apply seed-parts.sql after seed-catalogue.sql.
+-- ============================================================================
+
+-- One row per car x part x slot. slot is 'oem' or 'alt:<brand-slug>' (single price each, D-09).
+create table if not exists public.catalogue_parts (
+  car_model_id text not null references public.car_models on delete cascade,
+  part_name    text not null check (char_length(part_name) between 1 and 100 and part_name not like '%|%'),
+  slot         text not null check (slot ~ '^(oem|alt:[a-z0-9-]{1,40})$'),
+  brand        text not null default '',
+  part_no      text not null default '',
+  price        numeric(10,2) check (price is null or (price > 0 and price < 100000)),
+  price_basis  text not null default 'static' check (price_basis in ('dealer', 'indicative', 'static')),
+  note         text not null default '',
+  sources      jsonb not null default '[]',
+  updated_at   timestamptz not null default now(),
+  primary key (car_model_id, part_name, slot)
+);
+
+-- Recurring failures reported by owners/forums (COM-01); mentions >= 3 keeps one-off anecdotes out.
+create table if not exists public.known_issues (
+  car_model_id text not null references public.car_models on delete cascade,
+  issue_key    text not null check (issue_key ~ '^[a-z0-9-]{1,60}$'),
+  title        text not null check (char_length(title) between 1 and 120),
+  summary      text not null check (char_length(summary) between 1 and 1000),
+  typical_km   int check (typical_km is null or typical_km > 0),
+  mentions     int not null check (mentions >= 3),
+  sources      jsonb not null default '[]',   -- [{url, host}]
+  updated_at   timestamptz not null default now(),
+  primary key (car_model_id, issue_key)
+);
+
+-- Same visibility as dealer_plan_items: approved cars (or the admin).
+alter table public.catalogue_parts enable row level security;
+drop policy if exists read_catalogue_parts on public.catalogue_parts;
+create policy read_catalogue_parts on public.catalogue_parts for select to anon, authenticated
+  using (exists (select 1 from public.car_models m
+                 where m.id = car_model_id and (m.status = 'approved' or public.is_admin())));
+alter table public.known_issues enable row level security;
+drop policy if exists read_known_issues on public.known_issues;
+create policy read_known_issues on public.known_issues for select to anon, authenticated
+  using (exists (select 1 from public.car_models m
+                 where m.id = car_model_id and (m.status = 'approved' or public.is_admin())));
+-- WR-12: Supabase default privileges grant ALL (incl. TRUNCATE/REFERENCES/TRIGGER, which RLS does not cover); strip, then grant only what is used.
+revoke all on public.catalogue_parts, public.known_issues from anon, authenticated;
+grant select on public.catalogue_parts, public.known_issues to anon, authenticated;
+
+-- Price materiality thresholds (D-07, CORE-06): a change under either floor is never queued.
+alter table public.autopilot_config add column if not exists min_pct numeric not null default 0.10;
+alter table public.autopilot_config add column if not exists min_sar numeric not null default 5;
+
+-- ---- Phase 4 autopilot additions: optional stages, rotation, soft budget (D-19, D-13) ----
+-- D-19 tunables live in config (CORE-06). optional_floor_sar is a SOFT floor: optional stages
+-- stop when autopilot_budget_left() drops under it, so a hard-cap hit (which wipes the whole
+-- run's staged findings) is not caused by parts/community spend.
+alter table public.autopilot_config add column if not exists optional_cars_per_run int not null default 6
+  check (optional_cars_per_run between 0 and 50);
+alter table public.autopilot_config add column if not exists optional_floor_sar numeric not null default 8
+  check (optional_floor_sar >= 0);
+alter table public.autopilot_config add column if not exists dealer_price_urls jsonb not null default '{}';
+
+-- New job stages and finding kinds. The old inline checks have generated names, so look them up.
+do $$ declare c record; begin
+  for c in select conname from pg_constraint
+            where conrelid = 'public.autopilot_jobs'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%discover%' loop
+    execute format('alter table public.autopilot_jobs drop constraint %I', c.conname);
+  end loop;
+  alter table public.autopilot_jobs add constraint autopilot_jobs_stage_check
+    check (stage in ('discover', 'extract', 'recalls', 'parts', 'community', 'models', 'publish'));
+  for c in select conname from pg_constraint
+            where conrelid = 'public.autopilot_findings'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%schedule_item%' loop
+    execute format('alter table public.autopilot_findings drop constraint %I', c.conname);
+  end loop;
+  alter table public.autopilot_findings add constraint autopilot_findings_kind_check
+    check (kind in ('schedule_item', 'recall', 'part', 'failure', 'car_model'));
+end $$;
+
+-- A new model (car_model kind) has no car row yet. nulls not distinct keeps the dedupe working for it.
+alter table public.autopilot_findings alter column car_model_id drop not null;
+drop index if exists public.autopilot_findings_key;
+create unique index autopilot_findings_key
+  on public.autopilot_findings (run_id, car_model_id, kind, target_key) nulls not distinct;
+
+-- Rotation state: when each car last finished an optional stage successfully.
+create table if not exists public.autopilot_due (
+  car_model_id text not null references public.car_models on delete cascade,
+  stage        text not null check (stage in ('parts', 'community')),
+  last_done_at timestamptz,
+  primary key (car_model_id, stage)
+);
+alter table public.autopilot_due enable row level security;
+revoke all on public.autopilot_due from anon, authenticated;
+grant select on public.autopilot_due to authenticated;
+drop policy if exists admin_read_autopilot_due on public.autopilot_due;
+create policy admin_read_autopilot_due on public.autopilot_due for select to authenticated using (public.is_admin());
+
+-- Remaining monthly budget, read-only (no reservation). Same spend expression as autopilot_reserve.
+create or replace function public.autopilot_budget_left() returns numeric
+language sql stable security definer set search_path = public as $$
+  select c.monthly_cap_sar - coalesce((select sum(cost_sar) from public.autopilot_spend
+                                        where created_at >= date_trunc('month', now())), 0)
+    from public.autopilot_config c where c.id = 1
+$$;
+revoke execute on function public.autopilot_budget_left() from public, anon, authenticated;
+grant execute on function public.autopilot_budget_left() to service_role;
+
+-- COM-03 / D-13: what app users agree on, as aggregates only. For one car: part rows from
+-- contributions (joined to links only to count DISTINCT users; user ids never leave), latest
+-- price per user, then trimmed to +-30% of the median; 5+ users left = an agreement (privacy floor).
+-- price_observations is deliberately excluded: it has no car/engine link (research Q3).
+-- engine NULL rows count only when the model has a single engine (otherwise they are ambiguous).
+create or replace function public.autopilot_user_agreement(p_car text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare mdl text := split_part(p_car, ':', 1); eng text; single boolean; res jsonb;
+begin
+  select engine into eng from public.car_models where id = p_car;
+  if not found then return '[]'::jsonb; end if;
+  single := (select count(*) from public.car_models where split_part(id, ':', 1) = mdl) = 1;
+  with latest as (
+    select distinct on (l.user_id, k.gk) l.user_id, k.gk, c.item_key, c.brand, c.part_no, c.price
+      from public.contributions c
+      join public.contribution_links l on l.contribution_id = c.id
+      join public.qualified_users q on q.id = l.user_id
+     cross join lateral (select lower(trim(c.item_key)) || '|' ||
+              coalesce(nullif(upper(regexp_replace(coalesce(c.part_no, ''), '[^A-Za-z0-9]', '', 'g')), ''), lower(trim(coalesce(c.brand, '')))) as gk) k
+     where c.kind = 'part' and c.action = 'replaced' and c.model_id = mdl and c.price > 0 and c.item_key is not null
+       and ((c.engine is not null and lower(trim(c.engine)) = lower(trim(eng))) or (c.engine is null and single))
+     order by l.user_id, k.gk, c.created_at desc, c.id desc),
+  med as (select gk, percentile_cont(0.5) within group (order by price) m from latest group by gk),
+  kept as (select l.* from latest l join med using (gk) where l.price between med.m * 0.7 and med.m * 1.3),
+  agg as (select min(item_key) item_key, min(brand) brand, min(part_no) part_no, count(*) users,
+                 round((percentile_cont(0.5) within group (order by price))::numeric, 2) median_price
+            from kept group by gk having count(*) >= 5)
+  select coalesce(jsonb_agg(jsonb_build_object('item_key', item_key, 'brand', brand, 'part_no', part_no,
+                                               'users', users, 'median_price', median_price) order by item_key), '[]'::jsonb)
+    into res from agg;
+  return res;
+end $$;
+revoke execute on function public.autopilot_user_agreement(text) from public, anon, authenticated;
+grant execute on function public.autopilot_user_agreement(text) to service_role;

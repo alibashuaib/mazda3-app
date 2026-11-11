@@ -62,7 +62,7 @@ const paints = (...names) => names;
 // { id, markets, model, generation, engines: [[code, oilLitresWithFilter], …] }
 const CAR_MODELS = [
   { id: 'mazda2', markets: ['OM'], model: '2', gen: 'DJ · 2015+', engines: [['1.5L SkyActiv-G', 3.6]], colors: paints('Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Machine Gray Metallic (Code 46G)', 'Ceramic Metallic (Code 47A)', 'Platinum Quartz Metallic (Code 47S)') },
-  { id: 'mazda3bm', markets: ['KSA','UAE'], model: '3', gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L SkyActiv-G', 3.9]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Liquid Silver Metallic (Code 38P)', 'Titanium Flash Mica (Code 42S)') },
+  { id: 'mazda3bm', markets: ['KSA','UAE'], model: '3', gen: 'BM/BN · 2014–18', engines: [['2.0L SkyActiv-G', 4.2], ['1.6L MZR', 3.9]], colors: paints(DEFAULT_COLOR, 'Soul Red Metallic (Code 41V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Liquid Silver Metallic (Code 38P)', 'Titanium Flash Mica (Code 42S)') },
   { id: 'mazda3bp', markets: ['KSA','UAE','KW','QA','BH','OM'], model: '3', gen: 'BP · 2019+', engines: [['2.0L SkyActiv-G', 4.2], ['1.5L SkyActiv-G', 3.6], ['2.5L SkyActiv-G', 4.5]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Polymetal Gray Metallic (Code 47C)', 'Platinum Quartz Metallic (Code 47S)', 'Ceramic Metallic (Code 47A)') },
   { id: 'mazda6', markets: ['KSA', 'UAE', 'KW', 'QA', 'BH', 'OM'], model: '6', gen: 'GJ/GL · 2013+', engines: [['2.5L SkyActiv-G', 4.5], ['2.0L SkyActiv-G', 4.3]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Metallic (Code 41V)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Blue Reflex Mica (Code 42B)', 'Sonic Silver Metallic (Code 45P)', 'Titanium Flash Mica (Code 42S)') },
   { id: 'cx3', markets: ['QA','BH','OM'], model: 'CX-3', gen: 'DK · 2015+', engines: [['2.0L SkyActiv-G', 4.2]], colors: paints('Machine Gray Metallic (Code 46G)', 'Soul Red Crystal Metallic (Code 46V)', 'Snowflake White Pearl Mica (Code 25D)', 'Jet Black Mica (Code 41W)', 'Deep Crystal Blue Mica (Code 42M)', 'Dynamic Blue Mica (Code 44J)', 'Ceramic Metallic (Code 47A)', 'Titanium Flash Mica (Code 42S)', 'Polymetal Gray Metallic (Code 47C)') },
@@ -87,9 +87,11 @@ const CAR_MODELS = [
    here rather than introducing a second, redundant flag to keep in sync. */
 function engineInfo(modelId, engineCode) {
   const m = CAR_MODELS.find(x => x.id === modelId);
-  const found = m && m.engines.find(e => e[0] === engineCode);
+  // Saved cars can carry an older label for the same engine: match on displacement ("1.6L …") when the exact code is gone.
+  const disp = s => (String(s || '').match(/^\d\.\dL/i) || [''])[0].toUpperCase();
+  const found = m && (m.engines.find(e => e[0] === engineCode) || m.engines.find(e => disp(e[0]) && disp(e[0]) === disp(engineCode)));
   return {
-    oilL: found ? found[1] : null,
+    oilL: found && found[1] > 0 ? found[1] : null,
     cylinders: (found && found[2]) || 4,
     fuel: /e-SkyActiv-D/i.test(engineCode || '') ? 'diesel' : 'gasoline'
   };
@@ -101,9 +103,10 @@ function sparkPlugService(cylinders) {
     note: `Iridium NGK ILKAR7L11 — every 120,000 km / 6 yr (Except-Europe schedule). Restores smooth idle & economy.${six ? ' Six-cylinder engine — six plugs, not four.' : ''}` };
 }
 function engineOilNote(oilL, fuel) {
+  const qty = oilL ? ` — ~${oilL} L with filter` : '';   // unknown capacity (server-added model): say nothing rather than "~null L"
   return fuel === 'diesel'
-    ? `0W-30 low-SAPS (ACEA C3, DPF-safe) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Never use a non-low-SAPS oil — the ash clogs the diesel particulate filter (DPF) over time. No fuel-system cleaner additive needed — this is compression-ignition, not the direct-injection gasoline SkyActiv-G.`
-    : `5W-30 (API SP / ILSAC GF-6A) full synthetic — ~${oilL} L with filter. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.`;
+    ? `0W-30 low-SAPS (ACEA C3, DPF-safe) full synthetic${qty}. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Never use a non-low-SAPS oil — the ash clogs the diesel particulate filter (DPF) over time. No fuel-system cleaner additive needed — this is compression-ignition, not the direct-injection gasoline SkyActiv-G.`
+    : `5W-30 (API SP / ILSAC GF-6A) full synthetic${qty}. Every 7,500 km / 6 mo (severe) for Jeddah heat, dust & city driving. Add a fuel-system cleaner each oil change — mandatory for the direct-injection SkyActiv-G to keep injectors & intake valves clean.`;
 }
 /* The oil PART (what you'd actually buy) used to say a flat "(4L)" for every
    model regardless of engine — real capacity ranges 3.6-5.4 L across the
@@ -147,6 +150,7 @@ function coolantLitersFor(modelId, engineCode) {
 }
 function coolantPart(modelId, engineCode) {
   const { liters, verified } = coolantLitersFor(modelId, engineCode);
+  const gal = Math.ceil(liters / 3.785);  // dealer sells FL22 by the US gallon; round up so the full fill is covered
   const note = verified
     ? `System holds ~${liters} L, per Mazda's capacities table for this engine. Replace every 5 years in KSA heat.`
     : `System holds an estimated ~${liters} L — no published capacity table found for this engine; confirm on your coolant reservoir or service sheet before buying. Replace every 5 years in KSA heat.`;
@@ -156,7 +160,7 @@ function coolantPart(modelId, engineCode) {
   return stampPartFitment({
     id: dep.uid(), name: 'Coolant FL22 (long-life)', icon: '🌡️', cat: 'Engine',
     options: [
-      { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508E-20', price: 130, store: 'Mazda Dealer (Alireza)', note },
+      { tag: 'OEM', brand: 'Mazda Genuine FL22 Long Life', partNo: '0000-77-508F-20', price: 78.2, store: 'Mazda Dealer (Alireza)', note: note + ` Buy ${gal} gal (1 gal = 3.78 L); price is per gallon from the Mazda KSA dealer price list (SAR incl. VAT).` },
       { tag: 'ALT', brand: 'Total Glacelf Auto Supra', partNo: '', price: 85, store: 'Local parts market', note: 'KSA-available compatible coolant (per 5-yr plan)' },
       { tag: 'ALT', brand: 'Zerex Asian Blue (P-HOAT)', partNo: '', price: 85, store: 'Amazon.sa', note: 'Compatible chemistry' }
     ]
@@ -344,6 +348,100 @@ function isLegacyUnverifiedPart(part, modelId) {
   return !!signature && String(brand || '').startsWith(signature);
 }
 
+/* OEM numbers confirmed against the PartSouq catalogue and price-checked against
+   miata-mazda.com (SAR incl. VAT, rounded) — [partNo, price, enginePrefix?], keyed by model
+   then part name. The price is always the miata-mazda.com one; where PartSouq's price was
+   more than 30% lower (cx5 cabin, cx5ke belt, cx9 air/belt) the owner chose miata anyway.
+   An optional engine prefix limits the entry to engines whose name starts with it; a part
+   can carry a list of such entries when each engine takes a different number.
+   cx3 / cx9 plugs, cx5 2.5L belt and cx9tb cabin / front pads were found by part-number search
+   on PartSouq (plus Mazda's CX-3 owner's manual for the plug), not a VIN diagram. */
+const OEM_CHECKED = {
+  // 1.6L is the Z-family MZR engine (as in the Mazda 2 DE), which takes B6Y1-14-302A; PartSouq
+  // lists PE01-14-302 as its substitute. Not checked on a BM 1.6 VIN diagram.
+  mazda3bm: { 'Oil Filter': [['PE01-14-302B', 29, '2.0L'], ['B6Y1-14-302A', 26, '1.6L']] },
+  // miata-mazda.com has no Mazda 2 DJ, so the air filter and belt carry PartSouq's price.
+  mazda2: { 'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['P501-13-3A0', 56, null, 'PartSouq'], 'Serpentine Belt': ['P51D-15-909', 67, null, 'PartSouq'] },
+  mazda6: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 60],
+    'Front Brake Pads': ['G4YA-33-28ZA', 378], 'Rear Brake Pads': ['GMY0-26-43ZB', 411]
+  },
+  cx3: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PEHH-13-3A0', 85], 'Cabin A/C Filter': ['D09W-61-J6X', 97], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['B6YS-33-28ZA', 374], 'Rear Brake Pads': ['DAY3-26-48ZA', 229]
+  },
+  cx5ke: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242],
+    'Cabin A/C Filter': ['KD45-61-J6X', 103], 'Serpentine Belt': [['PE08-15-909C', 115, '2.0L'], ['PY01-15-909A', 144, '2.5L']]
+  },
+  cx5kf: {
+    'Oil Filter': ['PE01-14-302B', 29], 'Engine Air Filter': ['PE07-13-3A0A', 89], 'Spark Plugs (each)': ['PE5R-18-110', 91],
+    'Front Brake Pads': ['K0Y1-33-28ZA', 386], 'Rear Brake Pads': ['KAY0-26-48Z', 242],
+    'Cabin A/C Filter': ['KD45-61-J6X', 103], 'Serpentine Belt': ['PY01-15-909A', 144, '2.5L'] // 2.0L not checked
+  },
+  // Checked on the 3.7L catalogue. CA02-14-302 supersedes YF09-14-302A (CX-9 from 2007);
+  // CY01-13-Z40B supersedes Z40A and CY01-15-908D is listed for 3.5L and 3.7L (mazdapartsnow).
+  cx9tb: {
+    'Oil Filter': ['CA02-14-302', 26], 'Engine Air Filter': ['CY01-13-Z40B', 97], 'Serpentine Belt': ['CY01-15-908D', 121],
+    'Cabin A/C Filter': ['L2Y6-61-P11', 97], 'Front Brake Pads': ['L2Y6-33-28ZB', 374], 'Rear Brake Pads': ['L2Y8-26-43ZA', 302]
+  },
+  cx9: {
+    'Oil Filter': ['PY8W-14-302', 29], 'Cabin A/C Filter': ['TK48-61-J6X', 103], 'Front Brake Pads': ['TKY8-33-28Z', 374], 'Rear Brake Pads': ['TKY8-26-48ZA', 374],
+    'Spark Plugs (each)': ['PY8V-18-110', 91],
+    'Engine Air Filter': ['PY8W-13-3A0', 103], 'Serpentine Belt': ['PY01-15-909A', 144]
+  }
+};
+/* Mazda KSA dealer prices (mazda.com.sa/ppl, SAR incl. VAT, rounded, 2026-11-07). These are the
+   dealer's genuine-part prices, so they replace every OEM price for the parts listed, also where
+   the OEM number came from PartSouq. The dealer list names parts but gives no numbers. A value can
+   be a list of [price, enginePrefix] when the dealer lists engines separately or only one engine is
+   known to match. Page per model: mazda3bm = Mazda 3 1.6L / 2.0L; mazda3bp = New Mazda 3 2.0
+   (also used for 1.5L / 2.5L); mazda6 = Mazda 6 Standard; cx5ke / cx5kf = CX-5; cx9 = CX-9 2.5L;
+   cx9tb = CX-9 3.7L (plug and belt kept to 3.7L, 3.5L fitment unconfirmed); cx60 = CX-60 (3.3L)
+   and CX-60 2.5L; cx90 = CX-90 (one page for both engines). Left out on purpose: coolant (the list
+   does not say how much the price buys); the CX-30 (23) and CX-90 (42.55) belts (look like a
+   different, small belt); the CX-5 KE belts (one dealer price, two engine-specific numbers); and
+   cars with no dealer page (mazda2, cx5gen3, cx50, cx70, cx80). */
+const DEALER_CX5 = { 'Oil Filter': 30, 'Engine Air Filter': 114, 'Cabin A/C Filter': 129, 'Spark Plugs (each)': 104, 'Front Brake Pads': 397, 'Rear Brake Pads': 293 };
+const DEALER_PRICE = {
+  mazda3bm: {
+    'Oil Filter': [[26, '1.6L'], [30, '2.0L']], 'Engine Air Filter': [[94, '1.6L'], [114, '2.0L']],
+    'Cabin A/C Filter': 129, 'Spark Plugs (each)': [[23, '1.6L'], [104, '2.0L']],
+    'Front Brake Pads': 397, 'Rear Brake Pads': 334, 'Serpentine Belt': [[150, '1.6L'], [127, '2.0L']]
+  },
+  mazda3bp: { 'Oil Filter': 30, 'Engine Air Filter': 114, 'Cabin A/C Filter': 132, 'Spark Plugs (each)': 104, 'Front Brake Pads': 437, 'Rear Brake Pads': 414, 'Serpentine Belt': 127 },
+  mazda6: { 'Oil Filter': 30, 'Engine Air Filter': 114, 'Cabin A/C Filter': 129, 'Spark Plugs (each)': 104, 'Front Brake Pads': 437, 'Rear Brake Pads': 449, 'Serpentine Belt': 127 },
+  cx3: { 'Oil Filter': 30, 'Engine Air Filter': 114, 'Cabin A/C Filter': 132, 'Spark Plugs (each)': 104, 'Front Brake Pads': 397, 'Rear Brake Pads': 322, 'Serpentine Belt': 127 },
+  cx30: { 'Oil Filter': 30, 'Engine Air Filter': 114, 'Cabin A/C Filter': 132, 'Spark Plugs (each)': 104, 'Front Brake Pads': 495, 'Rear Brake Pads': 414 },
+  cx5ke: DEALER_CX5,
+  cx5kf: Object.assign({ 'Serpentine Belt': [[127, '2.0L']] }, DEALER_CX5),
+  cx9: { 'Oil Filter': 33, 'Engine Air Filter': 121, 'Cabin A/C Filter': 140, 'Spark Plugs (each)': 104, 'Front Brake Pads': 449, 'Rear Brake Pads': 403, 'Serpentine Belt': 127 },
+  cx9tb: {
+    'Oil Filter': 30, 'Engine Air Filter': 121, 'Cabin A/C Filter': 129, 'Spark Plugs (each)': [[33, '3.7L']],
+    'Front Brake Pads': 391, 'Rear Brake Pads': 391, 'Serpentine Belt': [[132, '3.7L']]
+  },
+  cx60: {
+    'Oil Filter': 35, 'Engine Air Filter': 132, 'Cabin A/C Filter': 140, 'Spark Plugs (each)': 115,
+    'Front Brake Pads': [[518, '3.3L'], [610, '2.5L']], 'Rear Brake Pads': 799, 'Serpentine Belt': [[101, '3.3L'], [127, '2.5L']]
+  },
+  cx90: { 'Oil Filter': 35, 'Engine Air Filter': 132, 'Cabin A/C Filter': 140, 'Spark Plugs (each)': 115, 'Front Brake Pads': 518, 'Rear Brake Pads': 736 }
+};
+/* Front wiper lengths in inches [driver, passenger] (left-hand drive), from aftermarket
+   size charts (wipersizechart.com, UK wiper retailers). No OEM wiper price could be
+   checked, so the aftermarket option carries the size instead. cx5gen3 is from one source
+   (oximo.pl, CX-5 2025-09+).
+   Mazda 2 DJ is left out: the catalogue has one DJ entry for 2015+, and the 2022+ facelift
+   (24" + 16") differs from 2015-21 (17" passenger), so no single pair is right for it. */
+const WIPER_IN = {
+  mazda3bm: [24, 18], mazda3bp: [26, 17], mazda6: [24, 18], cx3: [22, 19], cx30: [26, 16],
+  cx5ke: [24, 18], cx5kf: [24, 18], cx5gen3: [26, 17], cx9tb: [26, 17], cx9: [24, 18], cx50: [26, 15], cx60: [26, 16],
+  cx70: [26, 17], cx80: [26, 16], cx90: [26, 17]
+};
+/* Cheapest Amazon.sa price (SAR, 2026-11-07) for a single Bosch Aerotwin hook-fit (AP/AR…U)
+   front blade, by inches; a pair is priced as two singles. No 15" listing, so cx50 keeps 95. */
+const BOSCH_SINGLE_SAR = { 16: 87, 17: 84, 18: 83, 19: 103, 22: 96, 24: 150, 26: 89 };
+
 /* Generic SkyActiv-G consumables — every model starts with these until its own
    OEM numbers are filled in. Numbers vary by model, so verify before buying.
 
@@ -368,7 +466,8 @@ function sharedParts(modelId, engineCode) {
   const m = CAR_MODELS.find(x => x.id === modelId);
   const code = engineCode || (m && m.engines[0] && m.engines[0][0]) || '';
   const oilL = engineInfo(modelId, code).oilL || 4.2;
-  return stampPartsFitment([
+  const checked = OEM_CHECKED[modelId] || {};
+  const parts = [
     P('Oil Filter', '🧽', 'Engine', [
       { tag: 'OEM', brand: 'Mazda Genuine (SkyActiv-G — commonly shared)', partNo: 'PE01-14-302B', price: 45, store: D, note: 'One filter fits most SkyActiv-G engines — verify' },
       { tag: 'ALT', brand: 'Denso 150-2010', partNo: '150-2010', price: 28, store: A }]),
@@ -400,7 +499,27 @@ function sharedParts(modelId, engineCode) {
       { tag: 'ALT', brand: 'Bosch Aerotwin', partNo: '', price: 95, store: A }]),
     P('Windshield Washer Fluid (~2L)', '💦', 'Exterior', [
       { tag: 'ALT', brand: 'Ready-mix washer fluid', partNo: '', price: 15, store: 'noon' }])
-  ], modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
+  ];
+  parts.forEach(p => {
+    const e = checked[p.name], c = e && (Array.isArray(e[0]) ? e : [e]).find(x => !x[2] || code.startsWith(x[2]));
+    const o = c && p.options.find(x => x.tag === 'OEM');
+    if (o) Object.assign(o, { brand: 'Mazda Genuine', partNo: c[0], price: c[1], note: c[3] === 'PartSouq'
+      ? 'OEM no. and price from PartSouq (USD converted to SAR)'
+      : 'OEM no. from PartSouq catalogue; price checked on miata-mazda.com (SAR incl. VAT)' });
+    const d = (DEALER_PRICE[modelId] || {})[p.name];
+    const price = Array.isArray(d) ? (d.find(x => code.startsWith(x[1])) || [])[0] : d;
+    const po = price && p.options.find(x => x.tag === 'OEM');
+    if (po) Object.assign(po, { price, note: po.partNo
+      ? 'OEM no. from PartSouq catalogue; price from the Mazda KSA dealer price list (SAR incl. VAT)'
+      : 'Price from the Mazda KSA dealer price list (SAR incl. VAT); no part number listed' });
+    // Remembers which price came from the catalogue, so normalizeData can refresh a saved car's
+    // OEM option later without overwriting a price the owner typed in.
+    p.options.forEach(x => { if (x.tag === 'OEM') x.catPrice = x.price; });
+  });
+  const w = WIPER_IN[modelId];
+  const wPrice = w && BOSCH_SINGLE_SAR[w[0]] && BOSCH_SINGLE_SAR[w[1]] ? BOSCH_SINGLE_SAR[w[0]] + BOSCH_SINGLE_SAR[w[1]] : 95;
+  if (w) Object.assign(parts.find(p => p.name === 'Wiper Blades (pair)').options[0], { brand: `Bosch Aerotwin ${w[0]}" + ${w[1]}"`, price: wPrice, note: `Driver ${w[0]}" (${Math.round(w[0] * 25.4)} mm) + passenger ${w[1]}" (${Math.round(w[1] * 25.4)} mm), from aftermarket size charts — check your blades before buying` });
+  return stampPartsFitment(parts, modelId).concat([engineOilPart(modelId, oilL), coolantPart(modelId, code), battery12VPart(modelId, code)]);
 }
 
 /* Every hatch/sedan takes a passenger-car tire the same way; only the
@@ -533,7 +652,37 @@ function fuelSystemCleanerPart(modelId) {
     return code ? CAR_MODELS.filter(m => m.markets.includes(code)) : CAR_MODELS.slice();
   }
 
+  /* Approved server car_models that the app does not ship (NEW-01). Rows are
+     per engine (id 'cx70x:3.3l-turbo'); CAR_MODELS is per model, so group by
+     the part before ':'. Append-only and idempotent: picker option values are
+     CAR_MODELS indices, so nothing may reorder or replace an existing entry,
+     and a static id from the shipped catalogue is never touched.
+     Each call REBUILDS the registered tail from the rows it is given: a model
+     the server no longer approves (or an engine it dropped) disappears instead
+     of lingering. Registered entries are only ever appended after the static
+     ones, so removing them cannot move a static index. */
+  const STATIC_IDS = new Set(CAR_MODELS.map(m => m.id));
+  const REGISTERED = new Set();
+  function registerModels(rows) {
+    for (let i = CAR_MODELS.length - 1; i >= 0; i--) if (REGISTERED.has(CAR_MODELS[i].id)) CAR_MODELS.splice(i, 1);
+    REGISTERED.clear();
+    (rows || []).forEach(r => {
+      const mid = String(r && r.id || '').split(':')[0];
+      if (!mid || STATIC_IDS.has(mid) || !r.engine) return;
+      let m = CAR_MODELS.find(x => x.id === mid);
+      if (!m) {
+        const paints = Array.isArray(r.paints) ? r.paints.filter(p => typeof p === 'string' && p) : [];
+        m = { id: mid, markets: Array.isArray(r.markets) ? r.markets.slice() : [], model: r.model, gen: r.generation, engines: [], colors: paints.length ? paints : [DEFAULT_COLOR] };
+        CAR_MODELS.push(m); REGISTERED.add(mid);
+      }
+      if (!m.engines.some(e => e[0] === r.engine)) m.engines.push([r.engine, Number(r.oil_capacity_l) > 0 ? Number(r.oil_capacity_l) : null]);   // unknown capacity stays null, never a 0 L oil change
+    });
+    _sharedMap = null;
+  }
+  function isRegisteredModel(modelId) { return REGISTERED.has(modelId); }
+
   return {
+    registerModels, isRegisteredModel,
     DEFAULT_COLOR, MAZDA_PAINTS, CAR_MODELS, modelsForMarket, NORMAL_SCHED, ATF_NOTE, catalogId,
     skyactivServices, sharedParts, partsForModel,
     ensurePartFitment, partFitsCar, isLegacyUnverifiedPart, modelUsesAtfFz,

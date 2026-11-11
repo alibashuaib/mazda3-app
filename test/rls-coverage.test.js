@@ -40,7 +40,7 @@ test('app_errors resolved_at is stamped by a server-side trigger', () => {
 
 // Phase 3 autopilot tables: admin-only select policy, and no write policy at all (RPC-only writes).
 const AUTOPILOT_TABLES = ['autopilot_config', 'autopilot_runs', 'autopilot_jobs', 'autopilot_spend',
-  'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status'];
+  'autopilot_findings', 'source_domains', 'autopilot_sources', 'autopilot_item_status', 'autopilot_due'];
 test('RLS: autopilot tables have RLS, an admin select policy and no write policy', () => {
   for (const name of AUTOPILOT_TABLES) {
     assert.ok(tables.includes(name), name + ' not created');
@@ -52,9 +52,28 @@ test('RLS: autopilot tables have RLS, an admin select policy and no write policy
   }
 });
 
+// Phase 4 live tables: public read policy, writes only through the security definer gate functions.
+test('RLS: catalogue_parts and known_issues are read-only to browser roles', () => {
+  for (const name of ['catalogue_parts', 'known_issues']) {
+    assert.ok(tables.includes(name), name + ' not created');
+    assert.match(schema, new RegExp('alter\\s+table\\s+public\\.' + name + '\\s+enable\\s+row\\s+level\\s+security'), name);
+    assert.match(schema, new RegExp('create policy read_' + name + ' on public\\.' + name + ' for select to anon, authenticated'), name + ' lacks select policy');
+    assert.doesNotMatch(schema, new RegExp('create policy \\w+ on public\\.' + name + ' for (insert|update|delete|all)'), name + ' has a write policy');
+    assert.match(schema, new RegExp('revoke all on [^;]*public\\.' + name + '[^;]* from anon, authenticated'), name + ' not revoked');
+  }
+});
+
 test('RLS: every create table has enable row level security', () => {
   for (const name of tables) {
     const re = new RegExp('alter\\s+table\\s+(public\\.)?' + name + '\\s+enable\\s+row\\s+level\\s+security');
     assert.ok(re.test(schema), 'table ' + name + ' lacks enable row level security');
   }
+});
+
+// WR-12: default privileges (TRUNCATE etc.) are stripped before the minimal grants on every live catalogue table.
+test('RLS: live catalogue tables revoke all from browser roles, then grant only what is used', () => {
+  for (const name of ['catalogue_parts', 'known_issues', 'makers', 'recalls', 'car_models', 'dealer_plan_items']) {
+    assert.match(schema, new RegExp('revoke all on [^;]*public\\.' + name + '\\b[^;]* from anon, authenticated;'), name);
+  }
+  assert.doesNotMatch(schema, /grant (all|truncate|references|trigger)[^;]*on public\.(catalogue_parts|known_issues|makers|recalls|car_models|dealer_plan_items)\b/);
 });

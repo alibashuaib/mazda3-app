@@ -70,3 +70,11 @@ do $$ begin
 end $$;
 
 rollback;
+
+-- price_items: clients read the public columns only; the uploader id (created_by) is never readable (review finding).
+do $$ begin
+  if has_column_privilege('authenticated', 'public.price_items', 'created_by', 'SELECT') then
+    raise exception 'FAIL: price_items.created_by readable by authenticated'; end if;
+  if not has_column_privilege('authenticated', 'public.price_items', 'label', 'SELECT') then
+    raise exception 'FAIL: price_items.label not readable by authenticated'; end if;
+end $$;

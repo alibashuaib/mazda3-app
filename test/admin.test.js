@@ -14,7 +14,8 @@ function fake(result) {
     ['select', 'eq', 'order', 'limit', 'maybeSingle'].forEach(k => { c[k] = (...a) => { calls.push([table, k, ...a]); return c; }; });
     c.update = patch => { calls.push([table, 'update', patch]); return c; };
     return c;
-  } };
+  },
+  rpc: (name, args) => { calls.push(['rpc', name, args]); return Promise.resolve(result); } };
   return { client, calls };
 }
 
@@ -76,11 +77,11 @@ test('isAdmin is false for a user role or an error', async () => {
   assert.strictEqual(await admin.isAdmin(), false);
 });
 
-test('approve sets status approved on that car only', async () => {
+test('approve goes through the admin-only approve_car_model RPC, never a direct table update', async () => {
   const f = fake({ data: null, error: null });
   admin.configure({ client: f.client });
   await admin.approve('cx5kf:2.5l');
-  assert.deepStrictEqual(f.calls, [['car_models', 'update', { status: 'approved' }], ['car_models', 'eq', 'id', 'cx5kf:2.5l']]);
+  assert.deepStrictEqual(f.calls, [['rpc', 'approve_car_model', { p_id: 'cx5kf:2.5l' }]]);
 });
 
 test('writes reject on a Supabase error', async () => {

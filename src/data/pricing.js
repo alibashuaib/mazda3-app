@@ -54,7 +54,7 @@
     return Promise.resolve(
       env.client.from('price_items')
         .insert({ label, category, source_part_no: sourcePartNo || null })
-        .select().single()
+        .select('id,label,category,source_part_no,created_at').single()   // never created_by (column grant)
     ).then(res => {
       if (res && res.error) {
         // Unique-violation means a concurrent submitter won the race for

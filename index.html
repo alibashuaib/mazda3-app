@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <!-- First in <head>: a meta CSP only covers what comes after it. Inline scripts are
+       allowed by hash; test/csp.test.js fails when one changes without updating its hash. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-QSbQQZOTaZrys67xOehDiHrqltMPzyBS1jDHEzq2rJ4=' 'sha256-W2VsMLV3oK6pkYp3z5IWy26Lh5mHrNjzPyA5rFceJZQ=' 'sha256-Sfd+XA1K4h3VbJueDJ94Q4kZ29h/6MixXEluXqTfl0M='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://nqozmlstxxsrlbremaoj.supabase.co wss://nqozmlstxxsrlbremaoj.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'" />
   <script>
     /* Set the theme before first paint — otherwise light-mode users see a dark flash. */
     (function () {
@@ -176,6 +179,7 @@
   <script src="src/data/repairable.js"></script>
   <script src="src/data/guidance.js"></script>
   <script src="src/data/recalls.js"></script>
+  <script src="src/data/known-issues.js"></script>
   <script src="src/data/remote-catalog.js"></script>
   <script src="src/data/admin.js"></script>
   <script src="src/core/async-click.js"></script>

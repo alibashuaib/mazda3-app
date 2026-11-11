@@ -121,14 +121,19 @@ do $$ begin
 end $$;
 reset role;
 
--- (g) opt-out erases the caller's bill reads only
+-- (g) opt-out scrubs the caller's last-24h reads (kept for the cap count), deletes older ones, touches no one else's
 select public.tmp_as_user(1);
 set local role authenticated;
 select public.delete_my_contributions();
 reset role;
 do $$ begin
-  if exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000001') then
-    raise exception 'FAIL: delete_my_contributions left bill_reads'; end if;
+  if exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000001'
+             and (store_key is not null or city is not null or fingerprint is not null)) then
+    raise exception 'FAIL: delete_my_contributions left bill details'; end if;
+  if exists (select 1 from public.bill_reads where id = 'bbbbbbbb-0000-0000-0000-000000000003') then
+    raise exception 'FAIL: delete_my_contributions left an old bill read'; end if;
+  if (select count(*) from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000001') <> 3 then
+    raise exception 'FAIL: delete_my_contributions changed the cap count'; end if;
   if not exists (select 1 from public.bill_reads where user_id = '00000000-0000-0000-0000-000000000002') then
     raise exception 'FAIL: delete_my_contributions removed another user''s bill_reads'; end if;
 end $$;

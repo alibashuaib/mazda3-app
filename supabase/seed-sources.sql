@@ -1,0 +1,16 @@
+-- Owner-approved source hosts for Phase 4 stages. Owner-run, apply AFTER schema.sql
+-- (needs autopilot_config.dealer_price_urls added by 04-04).
+-- Owner chose "empty" for now: nothing is seeded. Hosts can be approved later in the
+-- admin domain list, or by filling in the template below and running this file.
+--
+-- Rules: host literals must match ^[a-z0-9.-]+$ ; a seed must never un-ban a host.
+--
+-- insert into public.source_domains (host, status, decided_at) values
+--   ('example-forum.com', 'approved', now())
+-- on conflict (host) do update set status = 'approved', decided_at = now()
+--   where public.source_domains.status <> 'banned';
+--
+-- update public.autopilot_config set
+--   gcc_domains = array['mazda.com.sa'],
+--   dealer_price_urls = '{"<modelId>": "https://www.mazda.com.sa/ppl"}'::jsonb
+-- where id = 1;

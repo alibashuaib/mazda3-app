@@ -116,6 +116,23 @@ begin
     raise exception 'FAIL: miles accepted';
   exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
 
+  -- WR-11: schedule bounds (km 1..1000000, months 1..240, parts <= 50, note <= 300)
+  -- a valid schedule_item is accepted (guards the WR-11 block and the evidence-hash query against variable/column clashes)
+  if (public.submit_proposal('schedule_item', 'test:gate', 'V5ok', '{"interval_km":10000,"interval_months":12,"severe_km":5000,"severe_months":6,"note":"ok","parts":["a"]}'::jsonb, ok_ev)->>'action') <> 'inserted' then
+    raise exception 'FAIL: valid schedule_item not inserted'; end if;
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5a', '{"interval_km":2000000,"interval_months":12,"note":"","parts":[]}'::jsonb, ok_ev);
+    raise exception 'FAIL: km over 1000000 accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5b', '{"interval_km":10000,"interval_months":300,"note":"","parts":[]}'::jsonb, ok_ev);
+    raise exception 'FAIL: months over 240 accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5c', '{"interval_km":10.5,"interval_months":12,"note":"","parts":[]}'::jsonb, ok_ev);
+    raise exception 'FAIL: fractional km accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('schedule_item', 'test:gate', 'V5d', jsonb_build_object('interval_km', 10000, 'note', repeat('x', 301)), ok_ev);
+    raise exception 'FAIL: long schedule note accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+
   begin perform public.submit_proposal('nope', 'test:gate', 'V6', ok_after, ok_ev);
     raise exception 'FAIL: unknown kind accepted';
   exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
@@ -439,6 +456,221 @@ do $$ declare pid bigint; r jsonb; begin
   if (r->>'ok') is distinct from 'true'
      or exists (select 1 from public.recalls where campaign = 'TESTCAMP1' and car_model_id = 'test:gate') then
     raise exception 'FAIL: w) recall revert: %', r; end if;
+end $$;
+reset role;
+
+-- x) Phase 4 kinds: part, failure, car_model (D-03, D-07, D-13, D-16, D-17)
+insert into public.catalogue_parts (car_model_id, part_name, slot, brand, part_no, price, price_basis) values
+  ('test:gate', 'Oil Filter', 'oem', 'Mazda', 'P1', 100, 'dealer'),
+  ('test:gate', 'Revert Part', 'oem', 'Mazda', 'R1', 100, 'dealer');
+update public.car_models set parts_updated_at = '2000-01-01' where id = 'test:gate';
+
+-- x1) submit: materiality, slots, users evidence, validation
+do $$ declare ev constant jsonb := '[{"url":"https://a.example/x","tier":"official","quote":"q"}]'; r jsonb;
+  users_ev constant jsonb := '[{"type":"users","tier":"community","users":3,"median":40}]';
+begin
+  -- immaterial: under 5 SAR (103, 104) or under 10% (106) versus the live 100.00, same basis
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":103,"price_basis":"dealer"}'::jsonb, ev);
+  if r->>'action' <> 'immaterial' then raise exception 'FAIL: x) 3 SAR move not immaterial: %', r; end if;
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":104,"price_basis":"dealer"}'::jsonb, ev);
+  if r->>'action' <> 'immaterial' then raise exception 'FAIL: x) 4 SAR move not immaterial: %', r; end if;
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":106,"price_basis":"dealer"}'::jsonb, ev);
+  if r->>'action' <> 'immaterial' then raise exception 'FAIL: x) 6 percent move not immaterial: %', r; end if;
+  if exists (select 1 from public.proposals where kind = 'part' and target_key = 'Oil Filter|oem') then
+    raise exception 'FAIL: x) immaterial move was queued'; end if;
+  -- exactly 10% and 10 SAR is material
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":110,"price_basis":"dealer"}'::jsonb, ev);
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: x) 10 percent move not queued: %', r; end if;
+  -- a basis change and a part number change are always queued
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":101,"price_basis":"indicative"}'::jsonb, ev);
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: x) basis change not queued: %', r; end if;
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P2","price":101,"price_basis":"dealer"}'::jsonb, ev);
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: x) part_no change not queued: %', r; end if;
+  -- equal to live is a noop
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":100,"price_basis":"dealer"}'::jsonb, ev);
+  if r->>'action' <> 'noop' then raise exception 'FAIL: x) equal part not noop: %', r; end if;
+
+  -- a part proposal without a price is refused (CR-03)
+  begin perform public.submit_proposal('part', 'test:gate', 'Oil Filter|oem', '{"brand":"Mazda","part_no":"P1","price":null,"price_basis":"indicative"}'::jsonb, ev);
+    raise exception 'FAIL: x) part without a price accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  -- ALT needs an existing part name for the car
+  begin perform public.submit_proposal('part', 'test:gate', 'Nonexistent Part|alt:foo', '{"brand":"B","price":10,"price_basis":"indicative"}'::jsonb, ev);
+    raise exception 'FAIL: x) alt for a missing part accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|alt:denso', '{"brand":"Denso","price":50,"price_basis":"indicative"}'::jsonb, ev);
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: x) alt submit: %', r; end if;
+
+  -- users evidence (D-13): 3 users accepted, 2 refused, extra keys refused, not on car_model
+  r := public.submit_proposal('part', 'test:gate', 'Oil Filter|alt:denso', '{"brand":"Denso","price":60,"price_basis":"indicative"}'::jsonb, users_ev);
+  if r->>'action' <> 'inserted' then raise exception 'FAIL: x) users evidence part submit: %', r; end if;
+  begin perform public.submit_proposal('part', 'test:gate', 'Oil Filter|alt:denso', '{"brand":"Denso","price":70,"price_basis":"indicative"}'::jsonb,
+      '[{"type":"users","tier":"community","users":2,"median":40}]');
+    raise exception 'FAIL: x) users evidence with 2 users accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('part', 'test:gate', 'Oil Filter|alt:denso', '{"brand":"Denso","price":70,"price_basis":"indicative"}'::jsonb,
+      '[{"type":"users","tier":"community","users":5,"median":40,"user_ids":["a"]}]');
+    raise exception 'FAIL: x) users evidence carrying user ids accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('car_model', null, 'zzu-2024:1.5l', '{"make":"Mazda","model":"ZZU","generation":"","engine":"1.5L"}'::jsonb, users_ev);
+    raise exception 'FAIL: x) users evidence on car_model accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+
+  -- failure needs 3 or more mentions
+  begin perform public.submit_proposal('failure', 'test:gate', 'few-mentions', '{"title":"T","summary":"S","mentions":2}'::jsonb, ev);
+    raise exception 'FAIL: x) failure with 2 mentions accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+
+  -- car_model: no car needed; markets and years validated
+  begin perform public.submit_proposal('car_model', null, 'zzbad-2024:1.5l', '{"make":"Mazda","model":"ZZ","generation":"","engine":"1.5L","markets":["XX"]}'::jsonb, ev);
+    raise exception 'FAIL: x) markets outside the whitelist accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('car_model', null, 'zzbad-2024:1.5l', '{"make":"Mazda","model":"ZZ","generation":"","engine":"1.5L","years":"abc"}'::jsonb, ev);
+    raise exception 'FAIL: x) years not an array accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform public.submit_proposal('car_model', 'test:gate', 'zzbad-2024:1.5l', '{"make":"Mazda","model":"ZZ","generation":"","engine":"1.5L"}'::jsonb, ev);
+    raise exception 'FAIL: x) car_model proposal with a car accepted';
+  exception when raise_exception then if sqlerrm like 'FAIL:%' then raise; end if; end;
+end $$;
+
+-- x2) queue the apply/revert/stale/bulk fixtures (as owner)
+do $$ declare ev constant jsonb := '[{"url":"https://a.example/x","tier":"official","quote":"q"},{"type":"users","tier":"community","users":4,"median":210}]';
+  cev constant jsonb := '[{"url":"https://a.example/x","tier":"official","quote":"q"}]';
+begin
+  perform set_config('t.pnew', (public.submit_proposal('part', 'test:gate', 'Brake Pad|oem',
+    '{"brand":"Mazda","part_no":"BP1","price":200,"price_basis":"dealer"}'::jsonb, ev)->>'id'), true);
+  perform set_config('t.prev', (public.submit_proposal('part', 'test:gate', 'Revert Part|oem',
+    '{"brand":"Mazda","part_no":"R1","price":130,"price_basis":"dealer"}'::jsonb, ev)->>'id'), true);
+  perform set_config('t.pwipe', (public.submit_proposal('part', 'test:gate', 'Wiper Set|oem',
+    '{"brand":"Bosch","part_no":"W1","price":90,"price_basis":"dealer"}'::jsonb, ev)->>'id'), true);
+  perform set_config('t.fail', (public.submit_proposal('failure', 'test:gate', 'sticky-lifters',
+    '{"title":"Sticky lifters","summary":"Ticking at cold start","typical_km":90000,"mentions":5}'::jsonb, ev)->>'id'), true);
+  perform set_config('t.car1', (public.submit_proposal('car_model', null, 'zzcar-2024:3.3l-turbo',
+    '{"make":"Mazda","model":"ZZ Car","generation":"","engine":"3.3L Turbo","oil_capacity_l":6.1,"warranty_years":5,"warranty_km":100000,"markets":["KSA","UAE"],"years":[2024,2025]}'::jsonb, cev)->>'id'), true);
+  perform set_config('t.car2', (public.submit_proposal('car_model', null, 'zzcar2-2025:2.5l',
+    '{"make":"Mazda","model":"ZZ Car2","generation":"KL","engine":"2.5L","years":[2024,2025]}'::jsonb, cev)->>'id'), true);
+  perform set_config('t.car3', (public.submit_proposal('car_model', null, 'zzcar3-2025:2.0l',
+    '{"make":"Mazda","model":"ZZ Car3","generation":"","engine":"2.0L"}'::jsonb, cev)->>'id'), true);
+  -- stale fixture: proposed against "no row"; the row appears afterwards
+  perform set_config('t.pstale', (public.submit_proposal('part', 'test:gate', 'Stale Part|oem',
+    '{"brand":"Mazda","part_no":"S1","price":300,"price_basis":"dealer"}'::jsonb, ev)->>'id'), true);
+end $$;
+insert into public.catalogue_parts (car_model_id, part_name, slot, brand, part_no, price, price_basis) values
+  ('test:gate', 'Stale Part', 'oem', 'Mazda', 'S1', 200, 'dealer');
+
+-- x3) admin applies and reverts
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare r jsonb; begin
+  -- part insert: live row, change_log, parts_updated_at; not stale right after submit
+  r := public.apply_proposal(current_setting('t.pnew')::bigint);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: x) part apply: %', r; end if;
+  if (select price from public.catalogue_parts where car_model_id = 'test:gate' and part_name = 'Brake Pad' and slot = 'oem') <> 200 then
+    raise exception 'FAIL: x) part row not written'; end if;
+  if (select table_name from public.change_log where id = (r->>'change_id')::bigint) <> 'catalogue_parts' then
+    raise exception 'FAIL: x) part change_log table'; end if;
+  if (select parts_updated_at from public.car_models where id = 'test:gate') <= '2000-01-01' then
+    raise exception 'FAIL: x) parts_updated_at not advanced'; end if;
+  if (select jsonb_array_length(sources) from public.catalogue_parts where part_name = 'Brake Pad' and car_model_id = 'test:gate') <> 1 then
+    raise exception 'FAIL: x) part sources should hold the url evidence only'; end if;
+
+  -- stale refusal (D-03): the live row changed after the proposal was made
+  r := public.apply_proposal(current_setting('t.pstale')::bigint);
+  if r->>'error' is distinct from 'stale' then raise exception 'FAIL: x) expected stale, got %', r; end if;
+
+  -- update + revert restores the previous row
+  r := public.apply_proposal(current_setting('t.prev')::bigint);
+  if (select price from public.catalogue_parts where car_model_id = 'test:gate' and part_name = 'Revert Part') <> 130 then
+    raise exception 'FAIL: x) part update not applied'; end if;
+  r := public.revert_change((r->>'change_id')::bigint);
+  if (r->>'ok') is distinct from 'true'
+     or (select price from public.catalogue_parts where car_model_id = 'test:gate' and part_name = 'Revert Part') <> 100 then
+    raise exception 'FAIL: x) part revert: %', r; end if;
+  -- insert + revert deletes the row
+  r := public.apply_proposal(current_setting('t.pwipe')::bigint);
+  r := public.revert_change((r->>'change_id')::bigint);
+  if (r->>'ok') is distinct from 'true'
+     or exists (select 1 from public.catalogue_parts where car_model_id = 'test:gate' and part_name = 'Wiper Set') then
+    raise exception 'FAIL: x) part insert revert: %', r; end if;
+
+  -- failure: row with url-only sources, then revert deletes it
+  r := public.apply_proposal(current_setting('t.fail')::bigint);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: x) failure apply: %', r; end if;
+  if not exists (select 1 from public.known_issues where car_model_id = 'test:gate' and issue_key = 'sticky-lifters'
+                 and mentions = 5 and typical_km = 90000 and jsonb_array_length(sources) = 1 and sources->0->>'host' = 'a.example') then
+    raise exception 'FAIL: x) known_issues row or sources wrong'; end if;
+  r := public.revert_change((r->>'change_id')::bigint);
+  if (r->>'ok') is distinct from 'true' or exists (select 1 from public.known_issues where issue_key = 'sticky-lifters') then
+    raise exception 'FAIL: x) failure revert: %', r; end if;
+
+  -- car_model with an edited id (D-17): identity + basics, years folded into generation, url sources
+  r := public.apply_proposal(current_setting('t.car1')::bigint,
+    '{"id":"zzcar-edited-2024:3.3l-turbo","make":"Mazda","model":"ZZ Car","generation":"","engine":"3.3L Turbo","oil_capacity_l":6.1,"warranty_years":5,"warranty_km":100000,"markets":["KSA","UAE"],"years":[2024,2025]}'::jsonb);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: x) car_model apply: %', r; end if;
+  if not exists (select 1 from public.car_models where id = 'zzcar-edited-2024:3.3l-turbo' and status = 'approved'
+                 and generation = '2024-2025' and markets = '{KSA,UAE}' and oil_capacity_l = 6.1
+                 and sources->0->>'host' = 'a.example') then
+    raise exception 'FAIL: x) car_models row wrong (generation 2024-2025, markets, sources)'; end if;
+  if (select row_key from public.change_log where id = (r->>'change_id')::bigint) <> 'zzcar-edited-2024:3.3l-turbo' then
+    raise exception 'FAIL: x) change_log row_key is not the edited id'; end if;
+  -- revert with nothing attached deletes the car
+  r := public.revert_change((r->>'change_id')::bigint);
+  if (r->>'ok') is distinct from 'true' or exists (select 1 from public.car_models where id = 'zzcar-edited-2024:3.3l-turbo') then
+    raise exception 'FAIL: x) car_model revert: %', r; end if;
+
+  -- a generation without a year gets the range appended
+  r := public.apply_proposal(current_setting('t.car2')::bigint);
+  if (r->>'ok') is distinct from 'true' then raise exception 'FAIL: x) car2 apply: %', r; end if;
+  if (select generation from public.car_models where id = 'zzcar2-2025:2.5l') <> 'KL (2024-2025)' then
+    raise exception 'FAIL: x) generation fold, got %', (select generation from public.car_models where id = 'zzcar2-2025:2.5l'); end if;
+  perform set_config('t.car2change', r->>'change_id', true);
+end $$;
+reset role;
+
+-- in_use: an attached plan item blocks the car_model revert
+insert into public.dealer_plan_items (car_model_id, service, interval_km, interval_months, note)
+values ('zzcar2-2025:2.5l', 'Engine Oil', 10000, 12, '');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare r jsonb; begin
+  r := public.revert_change(current_setting('t.car2change')::bigint);
+  if r->>'error' is distinct from 'in_use' then raise exception 'FAIL: x) expected in_use, got %', r; end if;
+  if not exists (select 1 from public.car_models where id = 'zzcar2-2025:2.5l') then
+    raise exception 'FAIL: x) in_use refusal deleted the car'; end if;
+end $$;
+reset role;
+
+-- not_bulk: a high-tier car_model is refused, a high-tier part in the same call still applies
+do $$ begin
+  perform set_config('t.bulkpart', (public.submit_proposal('part', 'test:gate', 'Bulk Part|oem',
+    '{"brand":"Mazda","part_no":"B1","price":80,"price_basis":"dealer"}'::jsonb,
+    '[{"url":"https://a.example/x","tier":"official","quote":"q"}]')->>'id'), true);
+end $$;
+update public.proposals set confidence_tier = 'high' where id in (current_setting('t.car3')::bigint, current_setting('t.bulkpart')::bigint);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+do $$ declare r jsonb; x jsonb; begin
+  r := public.apply_proposals(array[current_setting('t.car3')::bigint, current_setting('t.bulkpart')::bigint], 'high');
+  for x in select value from jsonb_array_elements(r) loop
+    if (x->>'id')::bigint = current_setting('t.car3')::bigint and x->>'error' is distinct from 'not_bulk' then
+      raise exception 'FAIL: x) car_model in bulk not refused with not_bulk: %', x; end if;
+    if (x->>'id')::bigint = current_setting('t.bulkpart')::bigint and (x->>'ok') is distinct from 'true' then
+      raise exception 'FAIL: x) part in bulk not applied: %', x; end if;
+  end loop;
+  if exists (select 1 from public.car_models where id = 'zzcar3-2025:2.0l') then
+    raise exception 'FAIL: x) not_bulk car was created'; end if;
+end $$;
+reset role;
+
+-- x4) anon reads the approved parts and cannot write them
+set local role anon;
+do $$ begin
+  if (select price from public.catalogue_parts where car_model_id = 'test:gate' and part_name = 'Brake Pad' and slot = 'oem') is distinct from 200 then
+    raise exception 'FAIL: x) anon does not see the approved part'; end if;
+  begin update public.catalogue_parts set price = 1; raise exception 'FAIL: x) anon updates catalogue_parts';
+  exception when insufficient_privilege then null; end;
+  begin delete from public.known_issues; raise exception 'FAIL: x) anon deletes known_issues';
+  exception when insufficient_privilege then null; end;
 end $$;
 reset role;
 

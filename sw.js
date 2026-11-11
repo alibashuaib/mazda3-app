@@ -1,5 +1,5 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-afe755a2ade3';
+const CACHE = 'garage-6bf59be27316';
 /* Only the default car photo is precached. The others are ~600 KB each and a
    user drives one or two of them; the fetch handler below caches whichever
    one the dashboard actually shows, so it is still there offline. */
@@ -10,7 +10,7 @@ const ASSETS = [
   './src/ui/color.js', './src/ui/chrome.js', './src/data/catalog.js', './src/i18n/strings.ar.js',
   './src/i18n/lang.js', './src/core/schedule.js', './src/data/storage.js', './src/data/normalize.js',
   './src/data/error-log.js', './src/data/session.js','./src/data/status.js', './vendor/supabase.js', './src/data/account.js',
-  './src/data/pricing.js', './src/data/insights.js', './src/data/shops.js', './src/data/bills.js', './src/data/repairable.js', './src/data/guidance.js', './src/data/recalls.js', './src/data/remote-catalog.js', './src/data/admin.js', './src/core/async-click.js', './src/data/car-photos.js', './src/pages/dashboard.js',
+  './src/data/pricing.js', './src/data/insights.js', './src/data/shops.js', './src/data/bills.js', './src/data/repairable.js', './src/data/guidance.js', './src/data/recalls.js', './src/data/known-issues.js', './src/data/remote-catalog.js', './src/data/admin.js', './src/core/async-click.js', './src/data/car-photos.js', './src/pages/dashboard.js',
   './src/pages/maintenance.js', './src/pages/parts.js', './src/pages/fuel.js',
   './src/pages/budget.js', './src/pages/reports.js', './src/pages/documents.js', './src/pages/admin.js', './src/pages/admin-autopilot.js', './src/pages/admin-proposals.js', './src/pages/signin.js',
   './main.js', './manifest.webmanifest', './icon.svg'

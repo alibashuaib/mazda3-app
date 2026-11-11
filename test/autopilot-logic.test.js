@@ -71,12 +71,6 @@ test('extractSearchUrls: error block and empty give []; pause_turn flagged', asy
   assert.deepStrictEqual(p.urls, ['https://owners.example.sa/p2']);
 });
 
-test('backoffMs: 2 retries then give up (D-13)', async () => {
-  const { backoffMs } = await load();
-  assert.ok(backoffMs(1) > 0 && backoffMs(2) > backoffMs(1));
-  assert.strictEqual(backoffMs(3), null);
-});
-
 test('estimatePreview: unchanged sources skipped and not billed', async () => {
   const { estimatePreview, worstCaseEstimate } = await load();
   const cfg = {
@@ -110,10 +104,35 @@ test('costUsd: token class with no rate throws instead of billing NaN or 0', asy
   assert.throws(() => costUsd('claude-sonnet-5-5', { input_tokens: 1, server_tool_use: { web_search_requests: 1 } }, { ...prices, search_per_call: undefined }), /unpriced token class: web_search/);
 });
 
-test('worstCaseEstimate reserves 1 token per input char; reconcile flags an over-run', async () => {
-  const { worstCaseEstimate, reconcile } = await load();
+test('worstCaseEstimate reserves 1 token per input char', async () => {
+  const { worstCaseEstimate } = await load();
   const res = worstCaseEstimate({ model: 'claude-sonnet-5-5', inputChars: 60000, maxTokens: 0, maxSearches: 0 }, prices);
   assert.ok(Math.abs(res.usd - 60000 * 2 / 1e6) < 1e-12);
-  assert.strictEqual(reconcile(res, 'claude-sonnet-5-5', { input_tokens: 20000 }, prices).over, false);
-  assert.strictEqual(reconcile(res, 'claude-sonnet-5-5', { input_tokens: 70000 }, prices).over, true);
+});
+
+test('registrableHost: collapses subdomains, keeps country suffixes', async () => {
+  const { registrableHost } = await load();
+  assert.strictEqual(registrableHost('shop.partsouq.com'), 'partsouq.com');
+  assert.strictEqual(registrableHost('www.mazda.com.sa'), 'mazda.com.sa');
+  assert.strictEqual(registrableHost('a.b.co.uk'), 'b.co.uk');
+  assert.strictEqual(registrableHost('nhtsa.gov'), 'nhtsa.gov');
+});
+
+test('extractCitations: https, non-banned citations from text blocks only', async () => {
+  const { extractCitations, hostOf, isBanned } = await load();
+  const resp = { content: [
+    { type: 'text', text: 'no cites' },
+    { type: 'web_search_tool_result', content: [{ url: 'https://x.com' }] },
+    { type: 'text', text: 'a', citations: [
+      { type: 'web_search_result_location', url: 'https://shop.partsouq.com/a', cited_text: 'SAR 26' },
+      { type: 'web_search_result_location', url: 'http://plain.com/a', cited_text: 'SAR 26' },
+      { type: 'web_search_result_location', url: 'https://bad.com/a', cited_text: 'SAR 26' },
+      { type: 'web_search_result_location', url: 'not a url', cited_text: 'x' },
+      { url: 'https://nocite.com' },
+    ] },
+  ] };
+  assert.deepStrictEqual(extractCitations(resp, ['bad.com']), [{ url: 'https://shop.partsouq.com/a', host: 'shop.partsouq.com', quote: 'SAR 26' }]);
+  assert.deepStrictEqual(extractCitations(null, []), []);
+  assert.strictEqual(hostOf('https://A.com/x'), 'a.com');
+  assert.strictEqual(isBanned('sub.bad.com', ['bad.com']), true);
 });

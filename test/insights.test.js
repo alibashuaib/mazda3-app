@@ -50,12 +50,18 @@ test('partContributions computes km since previous replacement of same part', ()
   assert.strictEqual(rows[0].odometer_band, 60000);
 });
 
+test('partContributions carries the engine, null when omitted', () => {
+  const h = hist('h2', 60000, [{ part: 'Brake pads', price: 180 }]);
+  assert.strictEqual(ins.partContributions({ modelId: 'm', engine: '2.5L', vehicleId: 'v', historyEntry: h, priorHistory: [] })[0].engine, '2.5L');
+  assert.strictEqual(ins.partContributions({ modelId: 'm', vehicleId: 'v', historyEntry: h, priorHistory: [] })[0].engine, null);
+});
+
 test('partContributions: no earlier replacement -> km_since_prev null, still contributed', () => {
   const rows = ins.partContributions({ modelId: 'm', vehicleId: 'v',
     historyEntry: hist('h1', 30000, [{ part: 'Oil filter', price: 25 }]), priorHistory: [] });
   assert.strictEqual(rows.length, 1);
   assert.strictEqual(rows[0].km_since_prev, undefined);
-  assert.ok(!('engine' in rows[0]));
+  assert.strictEqual(rows[0].engine, null);
 });
 
 test('partContributions skips parts with no price and ignores prior entries at or after this odometer', () => {

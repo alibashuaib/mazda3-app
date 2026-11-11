@@ -186,6 +186,7 @@ test('normalizeData corrects a saved vehicle\'s oil and coolant quantities for i
   assert.ok(/~5\.1 L/.test(oil.options[0].note), 'CX-90\'s real 5.1 L oil capacity must appear');
   assert.strictEqual(coolant.id, 'c1');
   assert.ok(/estimated ~10\.5 L/.test(coolant.options[0].note));
+  assert.strictEqual(coolant.options[0].partNo, '0000-77-508F-20', 'superseded coolant number must be migrated');
   assert.ok(!coolant.fitment.shareable, 'coolant capacity is car-specific — must no longer be universally shareable');
 });
 
@@ -355,4 +356,22 @@ test('a saved garage with the old oil filter number is updated to PE01-14-302B',
   const nos = healed.parts.find(p => p.name === 'Oil Filter').options.map(o => o.partNo);
   assert.ok(nos.includes('PE01-14-302B'), 'new number present');
   assert.ok(!nos.includes('PE01-14-302A'), 'old number gone');
+});
+
+test('normalizeData refreshes catalogue OEM prices on a saved car but keeps prices the owner typed', () => {
+  const v = buildProfile('cx30', 0, { odometer: 0 });
+  const oem = name => v.parts.find(p => p.name === name).options.find(o => o.tag === 'OEM');
+  // Legacy save (no catPrice stamp) holding the old placeholder price: refreshed.
+  delete oem('Front Brake Pads').catPrice; oem('Front Brake Pads').price = 300;
+  // Stamped option the owner edited: left alone.
+  oem('Rear Brake Pads').price = 999;
+  // Legacy save with a price no catalogue ever shipped: left alone.
+  delete oem('Cabin A/C Filter').catPrice; oem('Cabin A/C Filter').price = 77;
+  normalizeData(v);
+  assert.strictEqual(oem('Front Brake Pads').price, 495);
+  assert.strictEqual(oem('Front Brake Pads').catPrice, 495);
+  assert.strictEqual(oem('Rear Brake Pads').price, 999);
+  assert.strictEqual(oem('Cabin A/C Filter').price, 77);
+  const again = JSON.stringify(v.parts); normalizeData(v);
+  assert.strictEqual(JSON.stringify(v.parts), again, 'idempotent');
 });

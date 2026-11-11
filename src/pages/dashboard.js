@@ -289,7 +289,7 @@ function renderDashboard() {
   // Approved recalls for this model (NHTSA, US market): a pointer to the dealer, never a verdict.
   const recallBox = el('div', 'card recall-banner'); recallBox.classList.add('recall-box'); recallBox.hidden = true;
   v.appendChild(recallBox);
-  recalls.forModel(session.current().car.modelId).then(rows => {
+  recalls.forModel(session.current().car.catalogId).then(rows => {   // recalls.car_model_id is the full car_models.id, not the short model id
     if (!rows || !rows.length || !recallBox.isConnected) return;
     const head = el('strong');
     head.textContent = `⚠️ ${rows.length} ${t(rows.length === 1 ? 'recall' : 'recalls')} ${t('found for this model year in the US — confirm with your Mazda dealer')}`;
@@ -297,6 +297,42 @@ function renderDashboard() {
     rows.forEach(r => { const line = el('div', 'muted'); line.classList.add('fs-12'); line.textContent = `${r.campaign} · ${r.component}`; recallBox.appendChild(line); });
     recallBox.hidden = false;
   }).catch(() => {});
+
+  // Approved known issues for this model:engine (COM-01, D-04/D-12). Scraped text: textContent only; links https-only.
+  const httpsHref = u => { try { const p = new URL(String(u)); return p.protocol === 'https:' ? p : null; } catch (e) { return null; } };
+  const issuesBox = el('div', 'card known-issues'); issuesBox.hidden = true;
+  v.appendChild(issuesBox);
+  knownIssues.forCar(session.current().car.catalogId).then(rows => {
+    if (!rows || !rows.length || !issuesBox.isConnected) return;
+    const head = el('strong'); head.textContent = t('Known issues');
+    const note = el('p', 'muted'); note.classList.add('fs-12'); note.textContent = t('Reported by owners online; check with your Mazda dealer');
+    issuesBox.replaceChildren(head, note);
+    rows.forEach(r => {
+      const item = el('div'); item.classList.add('known-issue');
+      const title = el('div'); title.textContent = r.title; item.appendChild(title);
+      const meta = [];
+      if (r.typical_km) meta.push(`${t('Typical km')}: ${fmt(r.typical_km)}`);
+      if (r.mentions) meta.push(`${r.mentions} ${t('mentions')}`);
+      if (meta.length) { const m = el('div', 'muted'); m.classList.add('fs-12'); m.textContent = meta.join(' · '); item.appendChild(m); }
+      (Array.isArray(r.sources) ? r.sources : []).forEach(s => {
+        const p = httpsHref(s && s.url); if (!p) return;
+        const a = el('a'); a.href = p.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dir = 'ltr'; a.textContent = p.hostname;
+        a.classList.add('fs-12', 'known-issue-link'); item.appendChild(a);
+      });
+      issuesBox.appendChild(item);
+    });
+    issuesBox.hidden = false;
+  }).catch(() => {});
+
+  // New-model slice (D-18): a server-added car with no approved dealer plan or parts yet. Built-in cars and an unloaded cache never show it.
+  { const c = session.current().car;
+    const noPlan = !(remoteCatalog.dealerPlan(c.catalogId) || []).length, noParts = !remoteCatalog.parts(c.catalogId).length;
+    if (isRegisteredModel(c.modelId) && remoteCatalog.loaded() && (noPlan || noParts)) {
+      const p = el('p', 'muted'); p.textContent = noPlan && noParts ? t('Catalogue in progress: dealer schedule and parts for this car are still being checked.')
+        : noPlan ? t('Catalogue in progress: dealer schedule for this car is still being checked.')
+        : t('Catalogue in progress: parts for this car are still being checked.');
+      v.appendChild(p);
+    } }
 
   // tiles — each links to the page it summarizes
   const tiles = el('div', 'tiles');

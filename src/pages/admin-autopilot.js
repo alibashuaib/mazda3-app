@@ -66,7 +66,10 @@ function apReport(run) {
     const n = c && typeof c === 'object' ? c : {};
     apLine(box, `${apKindLabel(kind)}: ${Number(n.inserted) || 0} ${t('new')}, ${Number(n.noop) || 0} ${t('unchanged')}`);
   });
-  (Array.isArray(rep.failed_jobs) ? rep.failed_jobs : []).forEach(j => apLine(box, `${t('Error')}: ${j.car} ${j.stage} ${j.error}`, 'muted save-error'));
+  (Array.isArray(rep.failed_jobs) ? rep.failed_jobs : []).forEach(j => {
+    const f = j || {};   // a null entry in the stored report must not throw and blank the whole card
+    apLine(box, `${t('Error')}: ${f.car} ${f.stage} ${f.error}`, 'muted save-error');
+  });
   const sk = Array.isArray(rep.skipped_sources) ? rep.skipped_sources : [];
   if (sk.length) {
     const d = el('details'); const sm = el('summary'); sm.textContent = `${t('Skipped sources')} (${sk.length})`; d.appendChild(sm);
@@ -151,7 +154,8 @@ function apCheckNow(models, refresh) {
   const note = msg => { out.hidden = false; out.textContent = ''; const p = apLine(out, msg, 'ap-error'); p.setAttribute('role', 'status'); };
   const preview = apButton(t('Preview'), 'btn ghost', async () => {
     if (!sel.value) return;
-    const r = await catalogAdmin.checkCar(sel.value, 'preview');
+    const carId = sel.value;   // pinned here: the Confirm button must run the car that was previewed, not whatever is selected later
+    const r = await catalogAdmin.checkCar(carId, 'preview');
     if (!r.ok) return note(t('Could not preview. Try again.'));
     const e = r.estimate || r;
     out.hidden = false;
@@ -171,7 +175,7 @@ function apCheckNow(models, refresh) {
         row.appendChild(c);
       });
     const confirm = apButton(t('Confirm run'), 'btn primary block ap-confirm', async () => {
-      const g = await catalogAdmin.checkCar(sel.value, 'run');
+      const g = await catalogAdmin.checkCar(carId, 'run');
       if (g.ok) { toast(t('Run started')); return refresh(); }
       note(t(g.error === 'limit' ? 'Monthly cost cap reached.' : 'Could not start the run.'));
     });

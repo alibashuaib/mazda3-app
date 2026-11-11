@@ -3,8 +3,8 @@
    (autopilot_config), never literals here (CORE-06, D-04). Unknown model => throw (fail closed). */
 
 const M = 1e6;
-const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
-const isBanned = (host, banned) => (banned || []).some(b => { b = String(b).toLowerCase(); return host === b || host.endsWith('.' + b); });
+export const hostOf = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
+export const isBanned = (host, banned) => (banned || []).some(b => { b = String(b).toLowerCase(); return host === b || host.endsWith('.' + b); });
 
 // A token or search class with no configured rate throws instead of billing NaN or 0 (fail closed).
 const need = (rate, key) => { if (rate == null) throw new Error(`unpriced token class: ${key}`); return rate; };
@@ -30,20 +30,15 @@ export const costSar = (model, usage, prices) => costUsd(model, usage, prices) *
 
 // D-01/ENG-03: reservation is a ceiling: 1 token per input char (no tokenizer assumption), full max_tokens out,
 // full max_uses searches. Assumes no prompt caching in the run; cache writes are not reserved.
+export const worstCaseUsage = ({ inputChars, maxTokens, maxSearches }) => ({
+  input_tokens: Math.ceil(inputChars || 0),
+  output_tokens: maxTokens || 0,
+  server_tool_use: { web_search_requests: maxSearches || 0 },
+});
 export function worstCaseEstimate({ model, inputChars, maxTokens, maxSearches }, prices) {
-  const usage = {
-    input_tokens: Math.ceil(inputChars || 0),
-    output_tokens: maxTokens || 0,
-    server_tool_use: { web_search_requests: maxSearches || 0 },
-  };
+  const usage = worstCaseUsage({ inputChars, maxTokens, maxSearches });
   const usd = costUsd(model, usage, prices);
   return { usd, sar: usd * prices.usd_sar };
-}
-
-// Post-call check: actual spend against the reservation made before the call. over=true => stop the run.
-export function reconcile(reservation, model, usage, prices) {
-  const sar = costSar(model, usage, prices);
-  return { sar, over: sar > reservation.sar };
 }
 
 // D-05/D-06. Pass 1 = GCC allowed_domains only (null when none: go to pass 2). Pass 2 = blocked_domains only.
@@ -81,8 +76,33 @@ export function extractSearchUrls(response, bannedHosts) {
   return { urls, pause_turn: !!(response && response.stop_reason === 'pause_turn') };
 }
 
-// D-13: 3 attempts total. Attempt 1 and 2 failing retry after a growing delay; attempt 3 failing => null (give up).
-export const backoffMs = attempt => (attempt === 1 ? 30000 : attempt === 2 ? 120000 : null);
+// Registrable host: last two labels, last three under com/co/net/org/gov/edu/ac + 2-letter TLD (x.com.sa).
+// Used for source INDEPENDENCE: shared-hosting platforms (blogspot.com, github.io, ...) deliberately collapse
+// to the platform, because anyone can mint free subdomains there; splitting them (as a public-suffix list
+// would) lets one person pose as many sources. Do not swap in a PSL here.
+// ponytail: no public-suffix list; exotic suffixes (e.g. .gov.uk handled, .ltd.uk not) may collapse wrongly.
+export const registrableHost = host => {
+  const l = String(host || '').toLowerCase().split('.').filter(Boolean);
+  if (l.length <= 2) return l.join('.');
+  const n = (/^(com|co|net|org|gov|edu|ac)$/.test(l[l.length - 2]) && l[l.length - 1].length === 2) ? 3 : 2;
+  return l.slice(-n).join('.');
+};
+
+// Citations on text blocks (web search): [{url, host, quote}] — https only, banned hosts removed.
+// quote = the API's cited_text, the only readable proof for snippet-only sources.
+export function extractCitations(response, bannedHosts) {
+  const out = [];
+  for (const b of (response && Array.isArray(response.content) ? response.content : [])) {
+    if (!b || b.type !== 'text' || !Array.isArray(b.citations)) continue;
+    for (const c of b.citations) {
+      if (!c || typeof c.url !== 'string' || typeof c.cited_text !== 'string') continue;
+      let u; try { u = new URL(c.url); } catch (e) { continue; }
+      if (u.protocol !== 'https:' || isBanned(u.hostname.toLowerCase(), bannedHosts)) continue;
+      out.push({ url: c.url, host: u.hostname.toLowerCase(), quote: c.cited_text });
+    }
+  }
+  return out;
+}
 
 // D-03: pure preview. sources [{url, hash}] = just fetched (free); hashes = {url: storedHash}.
 // cfg: {discover:{model,inputChars,maxTokens,maxSearches}, extract:{model,inputChars,maxTokens}}
@@ -94,4 +114,14 @@ export function estimatePreview({ sources, hashes, prices, cfg }) {
   add(cfg.discover, 1);
   if (changed.length) add(cfg.extract, changed.length);
   return { sar, searches, llm_calls: llm, skipped };
+}
+
+// "BM/BN · 2014–18", "BP · 2019+" -> model years (open-ended capped at the current year).
+export function yearsOf(gen, nowYear = new Date().getFullYear()) {
+  const m = String(gen ?? '').match(/(\d{4})\s*([-–]\s*(\d{2,4})|\+)/);
+  if (!m) return [];
+  const a = Number(m[1]);
+  let b = nowYear;
+  if (m[3]) b = m[3].length === 2 ? Number(String(a).slice(0, 2) + m[3]) : Number(m[3]);
+  return Array.from({ length: Math.max(0, Math.min(b - a + 1, 15)) }, (_, i) => a + i);
 }

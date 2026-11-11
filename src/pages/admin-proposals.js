@@ -27,8 +27,19 @@ function proposalSafeUrl(url) {
   try { const u = new URL(url); return u.protocol === 'https:' ? u : null; } catch (e) { return null; }
 }
 
+/* Phase 4 kinds. KIND_LABELS feeds the row sub-line and the kind filter. */
+const KIND_LABELS = { schedule_item: 'Schedule item', recall: 'Recall', part: 'Part', failure: 'Known issue', car_model: 'New model' };
+const NEW_KINDS = ['part', 'failure', 'car_model'];
+const MODEL_ID_RE = /^[a-z0-9-]+:[a-z0-9.-]+$/; // same shape apply_proposal enforces (04-01)
+
 function proposalSource(ev) {
   const box = el('div');
+  if (ev.type === 'users') { // app-user price evidence has no quote or link (D-13)
+    const u = el('p', 'muted');
+    u.textContent = t('{n} app users agree (median SAR {m})').replace('{n}', String(Number(ev.users) || 0)).replace('{m}', String(Number(ev.median) || 0));
+    box.appendChild(u);
+    return box;
+  }
   const q = el('blockquote');
   q.setAttribute('dir', 'auto');
   q.textContent = String(ev.quote || '').slice(0, 500);
@@ -52,7 +63,57 @@ function proposalSource(ev) {
 /* Severe km/months are separate rows via draftDiff + DIFF_LABELS (D-09). A recall
    proposal has no plan fields: show its campaign, component and summary instead. */
 const RECALL_LABELS = { campaign: 'Campaign', component: 'Component', summary: 'Summary' };
+const priceTxt = x => x && x.price != null && x.price !== '' ? x.price + ' SAR' : '';
+const listTxt = v => Array.isArray(v) ? v.join(', ') : v == null ? '' : String(v);
+const strTxt = v => v == null ? '' : String(v);
+/* [label, before, after, indicativePill] rows for the Phase 4 kinds; all untrusted text. */
+function newKindRows(kind, key, before, after) {
+  const b = before || {}, a = after || {};
+  if (kind === 'part') {
+    const slot = x => x.tag ? (x.tag === 'OEM' ? 'OEM' : 'Alternative') : '';
+    const rows = [['Part', '', String(key || '').split('|')[0]], ['Slot', '', slot(a)], ['Brand', strTxt(b.brand), strTxt(a.brand)],
+      ['Part number', strTxt(b.part_no), strTxt(a.part_no)], ['Price', priceTxt(b), priceTxt(a), a.price_basis === 'indicative']];
+    if (a.fitment) rows.push(['Fitment', '', listTxt(a.fitment)]);
+    return rows;
+  }
+  if (kind === 'failure') return [['Title', strTxt(b.title), strTxt(a.title)], ['Summary', strTxt(b.summary), strTxt(a.summary)],
+    ['Typical km', strTxt(b.typical_km), strTxt(a.typical_km)], ['Mentions', strTxt(b.mentions), strTxt(a.mentions)]];
+  const wt = x => x.warranty_years != null || x.warranty_km != null ? strTxt(x.warranty_years) + ' / ' + strTxt(x.warranty_km) : '';
+  return [['Model', strTxt(b.model), strTxt(a.model)], ['Generation', strTxt(b.generation), strTxt(a.generation)], ['Years', listTxt(b.years), listTxt(a.years)],
+    ['Engine', strTxt(b.engine), strTxt(a.engine)], ['Oil (L)', strTxt(b.oil_capacity_l), strTxt(a.oil_capacity_l)],
+    ['Warranty', wt(b), wt(a)], ['Markets', listTxt(b.markets), listTxt(a.markets)]];
+}
+function proposalSummaryLine(p, arrow) {
+  if (p.kind === 'part') { const b = priceTxt(p.before), a = priceTxt(p.after); return (b || '—') + ' ' + arrow + ' ' + (a || '—'); }
+  if (p.kind === 'failure') return t('Mentions') + ': ' + strTxt((p.after || {}).mentions);
+  if (p.kind === 'car_model') return [(p.after || {}).model, (p.after || {}).engine].filter(Boolean).join(' · ');
+  const first = catalogAdmin.draftDiff(p.before, p.after)[0];
+  return first ? (first.before || '—') + ' ' + arrow + ' ' + (first.after || '—') : '';
+}
 function proposalDiffLines(p, arrow) {
+  if (NEW_KINDS.includes(p.kind)) {
+    const out = newKindRows(p.kind, p.target_key, p.before, p.after).filter(r => r[1] || r[2]).map(r => {
+      const line = el('div');
+      line.appendChild(document.createTextNode(t(r[0]) + ': '));
+      if (r[1]) {
+        const b = el('span', 'muted'); b.setAttribute('dir', 'auto'); b.textContent = r[1];
+        const ar = el('span'); ar.setAttribute('aria-hidden', 'true'); ar.textContent = ' ' + arrow + ' ';
+        line.append(b, ar);
+      }
+      const a = el('strong'); a.setAttribute('dir', 'auto'); a.textContent = r[2] || '—';
+      line.appendChild(a);
+      if (r[3]) { const pill = el('span', 'pill warn'); pill.textContent = t('indicative'); line.append(document.createTextNode(' '), pill); }
+      return line;
+    });
+    if (p.kind === 'failure') {
+      const hosts = [...new Set((Array.isArray(p.evidence) ? p.evidence : []).map(e => { const u = proposalSafeUrl((e || {}).url); return u ? u.hostname : null; }).filter(Boolean))];
+      if (hosts.length) {
+        const line = el('div'); const h = el('strong'); h.setAttribute('dir', 'ltr'); h.textContent = hosts.join(', ');
+        line.append(document.createTextNode(t('Hosts') + ': '), h); out.push(line);
+      }
+    }
+    return out;
+  }
   if (p.kind === 'recall') {
     // the campaign id is the proposal's target_key (apply_proposal writes it there), not a field of after
     const a = Object.assign({}, p.after, p.target_key ? { campaign: p.target_key } : {});
@@ -79,7 +140,6 @@ function proposalRow(p, models, refresh) {
   const arrow = rtl ? '←' : '→';
   const row = el('div', 'item proposal-row');
   const panelId = 'proposal-panel-' + p.id;
-  const first = catalogAdmin.draftDiff(p.before, p.after)[0];
 
   const sum = el('div');
   sum.classList.add('proposal-sum');
@@ -92,7 +152,7 @@ function proposalRow(p, models, refresh) {
   h.textContent = `${proposalCarLabel(models, p.car_model_id)} · ${p.target_key}`;
   const sub = el('p');
   // FSI…PDI isolates the kind: an untranslated Latin kind ("part") otherwise turns the whole line LTR in Arabic and flips before/after.
-  sub.textContent = `⁨${t(p.kind === 'schedule_item' ? 'Schedule item' : p.kind)}⁩ · ${first ? (first.before || '—') + ' ' + arrow + ' ' + (first.after || '—') : ''}`;
+  sub.textContent = `⁨${t(KIND_LABELS[p.kind] || p.kind)}⁩ · ${proposalSummaryLine(p, arrow)}`;
   main.append(h, sub);
   const side = el('div', 'item-side');
   const conf = catalogAdmin.confidenceLabel(p.confidence_tier);
@@ -137,7 +197,9 @@ function proposalRow(p, models, refresh) {
   const stale = r => {
     state.seenHash = r.live_hash || null;
     state.prefill = r.live || {};
-    const live = catalogAdmin.draftDiff(null, r.live).map(d => t(DIFF_LABELS[d.field]) + ' ' + d.after).join(', ') || '—';
+    const live = (NEW_KINDS.includes(p.kind)
+      ? newKindRows(p.kind, p.target_key, null, r.live).filter(d => d[2]).map(d => t(d[0]) + ' ' + d[2])
+      : catalogAdmin.draftDiff(null, r.live).map(d => t(DIFF_LABELS[d.field]) + ' ' + d.after)).join(', ') || '—';
     const al = el('div', 'proposal-alert save-error'); al.setAttribute('role', 'alert');
     const ah = el('strong'); ah.textContent = t('Live value changed');
     const ap = el('p', 'muted'); ap.setAttribute('dir', 'auto');
@@ -170,13 +232,39 @@ function proposalRow(p, models, refresh) {
 
   const form = el('div', 'proposal-edit');
   form.hidden = true;
-  edit.onclick = () => {
-    const v = state.prefill || {};
-    form.textContent = '';
+  const numF = x => { const n = parseFloat(x); return Number.isFinite(n) && n >= 0 ? n : null; }; // SAR prices keep decimals
+  // Per-kind edit fields and the p_edit value they produce; schedule_item and recall keep the original form.
+  const editSpec = v => {
+    if (p.kind === 'part') return {
+      rows: [field('Brand', html`<input data-k="brand" value="${v.brand ?? ''}">`),
+        field('Part number', html`<input data-k="part_no" value="${v.part_no ?? ''}">`),
+        field('Price (SAR)', html`<input data-k="price" type="number" min="0" step="any" value="${v.price ?? ''}">`)],
+      val: f => Object.assign({}, v, { brand: String(f.brand || '').trim(), part_no: String(f.part_no || '').trim(), price: numF(f.price) }) };
+    if (p.kind === 'failure') return {
+      rows: [field('Title', html`<input data-k="title" value="${v.title ?? ''}">`),
+        field('Summary', html`<textarea data-k="summary" rows="2">${v.summary || ''}</textarea>`),
+        field('Typical km', html`<input data-k="typical_km" type="number" min="0" value="${v.typical_km ?? ''}">`)],
+      val: f => Object.assign({}, v, { title: String(f.title || '').trim(), summary: String(f.summary || '').trim(), typical_km: catalogAdmin.num(f.typical_km) }) };
+    if (p.kind === 'car_model') return {
+      rows: [field('Id', html`<input data-k="id" dir="ltr" value="${p.target_key ?? ''}">`),
+        field('Generation', html`<input data-k="generation" value="${v.generation ?? ''}">`),
+        field('Markets', html`<input data-k="markets" value="${listTxt(v.markets)}">`)],
+      val: f => Object.assign({}, v, { id: String(f.id || '').trim(), generation: String(f.generation || '').trim(),
+        markets: String(f.markets || '').split(',').map(x => x.trim()).filter(Boolean) }),
+      check: val => MODEL_ID_RE.test(val.id) };
     const r = el('div', 'field-row');
-    r.append(
-      field('Dealer interval (km)', html`<input data-k="interval_km" type="number" min="0" value="${v.interval_km ?? ''}">`),
+    r.append(field('Dealer interval (km)', html`<input data-k="interval_km" type="number" min="0" value="${v.interval_km ?? ''}">`),
       field('Dealer interval (mo)', html`<input data-k="interval_months" type="number" min="0" value="${v.interval_months ?? ''}">`));
+    return {
+      rows: [r,
+        field('Note', html`<textarea data-k="note" rows="2">${v.note || ''}</textarea>`),
+        field('Parts (name | part number | qty, one per line)', html`<textarea data-k="parts" rows="2">${catalogAdmin.formatParts(v.parts)}</textarea>`)],
+      val: f => ({ interval_km: catalogAdmin.num(f.interval_km), interval_months: catalogAdmin.num(f.interval_months),
+        note: String(f.note || '').trim(), parts: catalogAdmin.parseParts(f.parts) }) };
+  };
+  edit.onclick = () => {
+    const spec = editSpec(state.prefill || {});
+    form.textContent = '';
     const go = el('button', 'btn primary'); go.type = 'button'; go.textContent = t('Approve edited value');
     const cancel = el('button', 'btn ghost'); cancel.type = 'button'; cancel.textContent = t('Cancel');
     cancel.onclick = () => { form.hidden = true; };
@@ -184,14 +272,16 @@ function proposalRow(p, models, refresh) {
       clearMsgs();
       const f = {};
       form.querySelectorAll('[data-k]').forEach(i => { f[i.dataset.k] = i.value; });
-      const val = { interval_km: catalogAdmin.num(f.interval_km), interval_months: catalogAdmin.num(f.interval_months),
-        note: String(f.note || '').trim(), parts: catalogAdmin.parseParts(f.parts) };
+      const val = spec.val(f);
+      if (spec.check && !spec.check(val)) {
+        const err = el('p', 'muted save-error'); err.setAttribute('role', 'alert');
+        err.textContent = t('Invalid id. Use lowercase letters, digits and hyphens: maker:model-year');
+        panel.appendChild(err);
+        return;
+      }
       settle(await catalogAdmin.applyProposal(p.id, val, state.seenHash));
     });
-    form.append(r,
-      field('Note', html`<textarea data-k="note" rows="2">${v.note || ''}</textarea>`),
-      field('Parts (name | part number | qty, one per line)', html`<textarea data-k="parts" rows="2">${catalogAdmin.formatParts(v.parts)}</textarea>`),
-      go, cancel);
+    form.append(...spec.rows, go, cancel);
     form.hidden = false;
   };
 
@@ -310,7 +400,7 @@ function adminProposalsQueue(res, models, refresh) {
   };
   frow.append(
     sel('car', 'Car', opts.cars, v => proposalCarLabel(models, v)),
-    sel('kind', 'Kind', opts.kinds, v => t(v === 'schedule_item' ? 'Schedule item' : v)),
+    sel('kind', 'Kind', opts.kinds, v => t(KIND_LABELS[v] || v)),
     sel('tier', 'Confidence', opts.tiers, v => t(catalogAdmin.confidenceLabel(v).text)),
     sel('run', 'Run', opts.runs, v => t('Run {n}').replace('{n}', v)));
   fcard.appendChild(frow);

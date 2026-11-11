@@ -34,12 +34,17 @@ function adminBundle() {
   if (!adminLoaded || adminLoaded.uid !== uid) {
     const p = (async () => {
       if (!(await catalogAdmin.isAdmin())) return { admin: false };
-      const [errs, props, changes, models, status, domains, unverified, drafts, recalls] = await Promise.all([catalogAdmin.listErrors(), catalogAdmin.listProposals(),
-        catalogAdmin.listRecentChanges(), catalogAdmin.listModels().catch(() => []),
-        catalogAdmin.autopilotStatus(), catalogAdmin.listDomains(), catalogAdmin.listUnverified(),
+      // allSettled: one rejecting source must not blank the others (nor Errors blank them).
+      // A rejected source becomes its ok:false shape; the list-style ones fall back to [].
+      const fail = { ok: false, error: 'failed' };
+      const q = catalogAdmin;
+      const rep = e => { adminReport('admin: queue load failed', e); return []; };
+      const calls = [q.listErrors(), q.listProposals(), q.listRecentChanges(), Promise.resolve().then(() => q.listModels()).catch(() => []),
+        q.autopilotStatus(), q.listDomains(), q.listUnverified(),
         // The review queue's own lists: a failure here only empties that part, never the whole page.
-        catalogAdmin.listDrafts().catch(e => { adminReport('admin: queue load failed', e); return []; }),
-        catalogAdmin.listPendingRecalls().catch(e => { adminReport('admin: queue load failed', e); return []; })]);
+        Promise.resolve().then(() => q.listDrafts()).catch(rep), Promise.resolve().then(() => q.listPendingRecalls()).catch(rep)];
+      const [errs, props, changes, models, status, domains, unverified, drafts, recalls] =
+        (await Promise.allSettled(calls)).map(r => (r.status === 'fulfilled' ? r.value : fail));
       return { admin: true, errs, props, changes, models, status, domains, unverified, drafts, recalls };
     })();
     adminLoaded = { uid, p };
@@ -82,12 +87,14 @@ async function renderAdminBody(body) {
       // With a banner, Refresh sits beside it on the same row; without one it keeps its own row.
       if (banner) { toolbar.classList.add('with-banner'); toolbar.insertBefore(banner, refreshBtn); }
       body.appendChild(toolbar);
-      body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : 0 },
-        { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
+      body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : '!', title: props.ok ? '' : 'Could not load' },
+        { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: errs.ok ? open : '!' }], adminTab,
         id => { adminTab = id; show(); }));
       try {
         // Two columns on wide screens (autopilot | proposals); a lone child spans both. See .admin-cols.
         const cols = el('div', 'admin-cols');
+        cols.id = 'admin-panel';
+        cols.setAttribute('role', 'tabpanel');
         if (adminTab === 'proposals') cols.appendChild(adminAutopilot({ status, domains, unverified, models }, refresh));
         cols.appendChild(adminTab === 'proposals' ? adminProposals(props, models, refresh, changes)
           : adminTab === 'errors' ? adminErrors(errs, () => adminReload()) : adminList(bundle));
@@ -110,14 +117,37 @@ function adminTabs(tabs, active, onPick) {
   tabs.forEach(tab => {
     const b = el('button', 'btn ' + (tab.id === active ? 'primary' : 'ghost'));
     b.type = 'button';
+    b.id = 'admin-tab-' + tab.id;
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', tab.id === active ? 'true' : 'false');
-    b.textContent = t(tab.label) + (tab.badge ? ' (' + tab.badge + ')' : '');
+    b.setAttribute('aria-controls', 'admin-panel');
+    b.setAttribute('tabindex', tab.id === active ? '0' : '-1');   // roving tabindex: one tab stop, arrows move within
+    b.textContent = t(tab.label);
+    if (tab.badge !== undefined && tab.badge !== null) {
+      const sp = el('span', 'tab-badge');
+      sp.textContent = String(tab.badge);
+      sp.setAttribute('aria-label', t(tab.label) + ': ' + tab.badge);
+      b.appendChild(sp);
+    }
+    if (tab.title) b.title = t(tab.title);
     b.onclick = () => onPick(tab.id);
     bar.appendChild(b);
   });
+  bar.onkeydown = e => {
+    const i = tabs.findIndex(x => x.id === active);
+    const to = { ArrowRight: (i + 1) % tabs.length, ArrowLeft: (i - 1 + tabs.length) % tabs.length, Home: 0, End: tabs.length - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    onPick(tabs[to].id);
+    // onPick re-renders and replaces the buttons, so refocus the new node by id.
+    const next = document.getElementById('admin-tab-' + tabs[to].id);
+    if (next) next.focus();
+  };
   return bar;
 }
+
+/* Date and time in the app's language (Arabic uses the app's Latin-digit gregorian locale). */
+const errDate = d => new Date(d).toLocaleString(lang === 'ar' ? AR_LOCALE : 'en');
 
 /* Errors tab. message and stack are untrusted: textContent only, no raw markup. */
 function adminErrors(res, refresh) {
@@ -125,13 +155,13 @@ function adminErrors(res, refresh) {
   card.classList.add('pad-16');
   const note = txt => { const p = el('p', 'muted'); p.textContent = t(txt); card.appendChild(p); };
   if (!res.ok) { note('Could not load errors.'); return card; }
-  if (!res.groups.length) { note('No errors logged'); return card; }
+  if (!res.groups.length) { note('No errors logged.'); return card; }
   res.groups.forEach(g => {
     const box = el('div', 'admin-item');
     const title = el('h4'); title.textContent = g.message;
     const meta = el('p', 'muted');
-    meta.textContent = [t('Count') + ': ' + g.count, t('First seen') + ': ' + new Date(g.firstSeen).toLocaleString(),
-      t('Last seen') + ': ' + new Date(g.lastSeen).toLocaleString(), t('Source') + ': ' + g.source].join(' · ');
+    meta.textContent = [t('Count') + ': ' + g.count, t('First seen') + ': ' + errDate(g.firstSeen),
+      t('Last seen') + ': ' + errDate(g.lastSeen), t('Source') + ': ' + g.source].join(' · ');
     box.append(title, meta);
     if (g.stacks.length) {
       const d = el('details');
@@ -142,14 +172,25 @@ function adminErrors(res, refresh) {
     }
     if (g.open) {
       const b = el('button', 'btn ghost'); b.type = 'button'; b.textContent = t('Resolve');
+      let saveNote = null; // reused so repeated failures do not stack paragraphs
       onAsyncClick(b, async () => {
         const r = await catalogAdmin.resolveGroup(g.key);
         if (r.ok) return refresh();
-        const p = el('p', 'muted'); p.textContent = t('Could not save'); box.appendChild(p);
+        if (!saveNote) { saveNote = el('p', 'muted'); box.appendChild(saveNote); }
+        saveNote.textContent = t('Could not save');
       });
       box.appendChild(b);
     } else {
       const p = el('p', 'muted'); p.textContent = t('Resolved'); box.appendChild(p);
+      const b = el('button', 'btn ghost'); b.type = 'button'; b.textContent = t('Reopen');
+      let saveNote = null;
+      onAsyncClick(b, async () => {
+        const r = await catalogAdmin.reopenGroup(g.key);
+        if (r.ok) return refresh();
+        if (!saveNote) { saveNote = el('p', 'muted'); box.appendChild(saveNote); }
+        saveNote.textContent = t('Could not save');
+      });
+      box.appendChild(b);
     }
     card.appendChild(box);
   });
@@ -234,25 +275,28 @@ function adminList(bundle) {
   both.append(adminQueue(bundle.drafts, bundle.recalls));
   if (ordered.length) both.appendChild(wrap);
 
-  const toggle = el('button', 'btn ghost admin-cars-toggle');
+  // The toggle is the header of its own card; expanding opens the car list inside that same card.
+  const cars = el('div', 'card admin-cars');
+  const toggle = el('button', 'admin-cars-toggle');
   toggle.type = 'button';
   toggle.textContent = t(adminShowCars ? 'Hide all cars' : 'Show all cars');
   toggle.setAttribute('aria-expanded', adminShowCars ? 'true' : 'false');
   toggle.onclick = () => { adminShowCars = !adminShowCars; go('admin'); };
-  both.appendChild(toggle);
+  cars.appendChild(toggle);
+  both.appendChild(cars);
   if (adminShowCars) {
-    // One card per model (Mazda3, CX-5, ...), in catalogue order.
+    // One panel per model (Mazda3, CX-5, ...), in catalogue order.
     const byModel = new Map();
     models.forEach(m => { if (!byModel.has(m.model)) byModel.set(m.model, []); byModel.get(m.model).push(m); });
     const groups = el('div', 'admin-car-groups');
     byModel.forEach((list, name) => {
-      const g = el('div', 'card');
+      const g = el('div', 'admin-car-panel');
       // Model names already carry the brand for some (Mazda3), not for others (CX-5).
       g.innerHTML = html`<h4 class="admin-car-group">${/^mazda/i.test(name) ? name : 'Mazda ' + name}</h4>`;
       list.forEach(m => g.appendChild(adminCarItem(m, true)));
       groups.appendChild(g);
     });
-    both.appendChild(groups);
+    cars.appendChild(groups);
   }
   return both;
 }
