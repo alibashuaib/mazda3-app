@@ -334,6 +334,9 @@ alter table public.price_observations enable row level security;
 drop policy if exists read_price_items on public.price_items;
 create policy read_price_items on public.price_items for select
   using (auth.role() = 'authenticated');
+-- Column-level: created_by (the uploader's user id) is never readable by clients.
+revoke select on public.price_items from authenticated;
+grant select (id, label, category, source_part_no, created_at) on public.price_items to authenticated;
 
 drop policy if exists insert_price_items on public.price_items;
 create policy insert_price_items on public.price_items for insert
@@ -344,8 +347,10 @@ create policy insert_price_items on public.price_items for insert
 -- policy matches, so this alone is what makes items permanent.
 
 drop policy if exists read_price_observations on public.price_observations;
+-- Own rows only: raw observations carry user_id and must not be readable by other users (anonymity).
+-- Aggregates reach clients only through price_item_averages (owner-run, qualified users, >= 3).
 create policy read_price_observations on public.price_observations for select
-  using (auth.role() = 'authenticated');
+  using (user_id = auth.uid());
 
 drop policy if exists own_price_observations on public.price_observations;
 create policy own_price_observations on public.price_observations for insert

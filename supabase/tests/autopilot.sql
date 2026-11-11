@@ -491,7 +491,7 @@ end $$;
 -- q) user agreement: aggregates only, 3+ distinct users, trimmed median, engine matching
 -- qualified_users needs accounts >= 7 days old with a confirmed email
 insert into auth.users (id, created_at, email_confirmed_at)
-  select ('00000000-0000-0000-0000-0000000000a' || i)::uuid, now() - interval '8 days', now() - interval '8 days' from generate_series(1, 5) i on conflict (id) do nothing;
+  select ('00000000-0000-0000-0000-0000000000a' || i)::uuid, now() - interval '8 days', now() - interval '8 days' from generate_series(1, 7) i on conflict (id) do nothing;
 insert into public.car_models (id, model, generation, engine, status) values
   ('agone:g1', 'AG1', 'G', 'Solo', 'approved'),
   ('agmul:g1', 'AGM', 'G', 'Alpha', 'approved'), ('agmul:g2', 'AGM', 'G', 'Beta', 'approved');
@@ -500,10 +500,12 @@ create temp table _ag (u int, model text, eng text, item text, partno text, pric
 insert into _ag values
   -- multi-engine, Alpha: 3 users 40/42/41 (part_no spelled three ways); NULL-engine and Beta rows must be ignored
   (1, 'agmul', 'Alpha', 'Oil Filter', 'OF-1', 40), (2, 'agmul', 'ALPHA', 'Oil Filter', 'of 1', 42), (3, 'agmul', 'alpha', 'Oil Filter', 'OF1', 41),
+  (6, 'agmul', 'Alpha', 'Oil Filter', 'OF-1', 41), (7, 'agmul', 'Alpha', 'Oil Filter', 'OF1', 40),   -- WR-08: 5 users needed
   (4, 'agmul', null, 'Oil Filter', 'OF-1', 1000), (5, 'agmul', 'Beta', 'Oil Filter', 'OF-1', 1001),
   -- 4 users with an outlier: 40/41/42/100
   (1, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 40), (2, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 41),
   (3, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 42), (4, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 100),
+  (6, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 41), (7, 'agmul', 'Alpha', 'Air Filter', 'AF-1', 41),   -- 6 users, outlier trimmed to 5
   -- only 2 users: no group
   (1, 'agmul', 'Alpha', 'Brake Pad', 'BP-1', 100), (2, 'agmul', 'Alpha', 'Brake Pad', 'BP-1', 101),
   -- single-engine model: NULL-engine rows count
@@ -525,9 +527,9 @@ end $$;
 do $$ declare r jsonb; g jsonb; begin
   r := public.autopilot_user_agreement('agmul:g1');
   select e into g from jsonb_array_elements(r) e where e->>'item_key' = 'Oil Filter';
-  if g is null or (g->>'users')::int <> 3 or (g->>'median_price')::numeric <> 41 then raise exception 'FAIL: Oil Filter group %', r; end if;
+  if g is null or (g->>'users')::int <> 5 or (g->>'median_price')::numeric <> 41 then raise exception 'FAIL: Oil Filter group %', r; end if;
   select e into g from jsonb_array_elements(r) e where e->>'item_key' = 'Air Filter';
-  if g is null or (g->>'users')::int <> 3 or (g->>'median_price')::numeric <> 41 then raise exception 'FAIL: outlier not trimmed: %', r; end if;
+  if g is null or (g->>'users')::int <> 5 or (g->>'median_price')::numeric <> 41 then raise exception 'FAIL: outlier not trimmed: %', r; end if;
   if exists (select 1 from jsonb_array_elements(r) e where e->>'item_key' = 'Brake Pad') then raise exception 'FAIL: 2 users made a group'; end if;
   if r::text ~ 'user_id' or r::text ~ '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' then raise exception 'FAIL: user identity in output: %', r; end if;
   -- the Beta car has a single Beta row: no group
