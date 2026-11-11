@@ -408,7 +408,7 @@ export async function runCommunity(job, deps) {
     if (!res.ok || hostOf(res.finalUrl || url) !== hostOf(url)) continue;
     nhtsaOk++;
     let j = null; try { j = JSON.parse(res.body); } catch (e) { /* unparseable = no complaints */ }
-    for (const r of groupComplaints(j, url)) if (!odis.has(r.odi)) { odis.add(r.odi); mentions.push(r); }
+    for (const r of groupComplaints(j)) if (!odis.has(r.odi)) { odis.add(r.odi); mentions.push(r); }
   }
   if (years.length && !nhtsaOk) skipped.push('nhtsa');
 

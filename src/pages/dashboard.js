@@ -326,8 +326,8 @@ function renderDashboard() {
 
   // New-model slice (D-18): a server-added car with no approved dealer plan or parts yet. Built-in cars and an unloaded cache never show it.
   { const c = session.current().car;
-    if (isRegisteredModel(c.modelId) && remoteCatalog.loaded() && (!(remoteCatalog.dealerPlan(c.catalogId) || []).length || !remoteCatalog.parts(c.catalogId).length)) {
-      const noPlan = !(remoteCatalog.dealerPlan(c.catalogId) || []).length, noParts = !remoteCatalog.parts(c.catalogId).length;
+    const noPlan = !(remoteCatalog.dealerPlan(c.catalogId) || []).length, noParts = !remoteCatalog.parts(c.catalogId).length;
+    if (isRegisteredModel(c.modelId) && remoteCatalog.loaded() && (noPlan || noParts)) {
       const p = el('p', 'muted'); p.textContent = noPlan && noParts ? t('Catalogue in progress: dealer schedule and parts for this car are still being checked.')
         : noPlan ? t('Catalogue in progress: dealer schedule for this car is still being checked.')
         : t('Catalogue in progress: parts for this car are still being checked.');

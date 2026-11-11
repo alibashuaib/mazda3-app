@@ -147,7 +147,8 @@
     if (!m || !m.parts_updated_at || car.partsVersion === m.parts_updated_at) return false;
     if (!force && car.partsVersion && Date.parse(car.partsVersion) >= Date.parse(m.parts_updated_at)) return false;
     let changed = false;
-    parts(m.id).forEach(r => {
+    const partRows = parts(m.id);   // one filter over the cache, not two
+    partRows.forEach(r => {
       const p = (data.parts || []).find(x => x.name === r.part_name);
       if (!p) return;
       if (r.price == null) {
@@ -172,7 +173,7 @@
         p.options.push(Object.assign({ tag: 'ALT', store: '' }, vals)); changed = true;
       }
     });
-    const rows = parts(m.id);
+    const rows = partRows;
     (data.parts || []).forEach(p => {
       const before = (p.options || []).length;
       if (!before) return;

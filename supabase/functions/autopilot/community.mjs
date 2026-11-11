@@ -89,7 +89,7 @@ const categoryOf = components => {
 
 // NHTSA complaints JSON -> one row per odiNumber: {category, url, host, quote, odi}. NHTSA is ONE host (D-11).
 // url is unique per complaint so countMentions counts complaints; the fragment keeps it a plain https link.
-export function groupComplaints(json, apiUrl) {
+export function groupComplaints(json) {
   const results = json && Array.isArray(json.results) ? json.results.slice(0, 500) : [];
   const seen = new Set(), out = [];
   for (const r of results) {

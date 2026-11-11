@@ -44,7 +44,7 @@ test('groupComplaints: one row per odiNumber, component mapped to enum, NHTSA is
     { odiNumber: 3, components: 'WEIRD THING', summary: 'odd' },
     { components: 'ENGINE', summary: 'no id' },
   ] };
-  const out = groupComplaints(json, 'https://api.nhtsa.gov/complaints/complaintsByVehicle?make=Mazda');
+  const out = groupComplaints(json);
   assert.deepStrictEqual(out.map(r => r.category), ['transmission', 'fuel-system', 'other']);
   assert.ok(out.every(r => FAILURE_CATEGORIES.includes(r.category) && r.host === 'api.nhtsa.gov'));
   assert.strictEqual(out[0].quote.length, 300);
