@@ -70,3 +70,17 @@ All 11 IDs appear in PLAN frontmatter and REQUIREMENTS.md. No orphans. REQUIREME
 
 ## Gaps summary
 None blocking in code. Phase cannot be called passed until the human items above are done, mainly CI/RLS, staging model+NHTSA, and the browser checks.
+
+## Agent-run human checks (2026-11-11)
+Run without the owner. Ad-hoc Playwright spec (http project, Chromium) was deleted afterwards; the commands are in this list.
+
+| # | Check | Result | Evidence |
+|---|-------|--------|----------|
+| 1 | CI `rls` job runs all SQL tests | DONE | CI fully green on 2b1fd61 (rls, test, deno, browser). Proof that a broken policy turns it red: rls failed on the single-engine Wiper assertion before 2b1fd61 fixed it |
+| 3 | Browser: break a save | DONE (toast) | `enqueueVehicle` patched to throw via route; `session.save()` resolved true and the warn toast "Saved on this device, but sync failed" was visible |
+| 4 | SW install with a precache 404, then offline | DONE | `assets/mazda3-studio.webp` served 404: install completed, `garage-meta` held `/__precache-report`. Offline reload booted from SW cache (controller present). After a reload with the backend client loaded (Supabase stubbed locally), `POST /rest/v1/app_errors` sent `precache missing: ./assets/mazda3-studio.webp, ./vendor/supabase.js`, and the report was deleted. The relay runs only inside `connectBackend()`, so the report stays queued until a client exists |
+| 6 | Deployed CORS with a foreign Origin | DONE | garage-staging, anon key: `plan-intake`, `read-bill`, `autopilot` give OPTIONS 403 and POST 403 for `https://evil.example`. `https://alibashuaib.github.io` gets OPTIONS 200 with a matching `Access-Control-Allow-Origin` |
+
+Still owner-only:
+- #2: fund the Anthropic account and run plan-intake live.
+- #5: open `#admin` Errors tab as owner. Real staging rows, owner RLS read path.
