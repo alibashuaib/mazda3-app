@@ -12,6 +12,7 @@ function stub(state) {
     from: table => {
       let isUpdate = null;
       const p = () => {
+        if (table === 'app_errors' && isUpdate && state.resolveFail) return Promise.resolve({ data: null, error: { message: 'x' } });
         if (table === 'app_errors') return state.errFail ? Promise.resolve({ data: null, error: { message: 'x' } }) : Promise.resolve({ data: state.errors, error: null });
         return Promise.resolve({ data: ({ profiles: { role: 'admin' }, car_models: [], dealer_plan_items: [], plan_drafts: [], schedule_sources: [], recalls: [] })[table], error: null });
       };
@@ -64,12 +65,29 @@ test('errors tab: Resolve updates the group_key', async () => {
   } finally { app.cleanup(); }
 });
 
+test('errors tab: repeated Resolve failures reuse one note', async () => {
+  const state = { errors: [err()], resolved: [], resolveFail: true };
+  const app = await open(state);
+  try {
+    assert.ok(await until(() => tab(app, 'Errors')));
+    tab(app, 'Errors').onclick();
+    const btn = () => [...app.document.querySelectorAll('#view button')].find(b => b.textContent === 'Resolve');
+    assert.ok(await until(btn));
+    for (let n = 1; n <= 2; n++) {
+      btn().onclick();
+      assert.ok(await until(() => state.resolved.length === n && !btn().disabled));
+    }
+    const notes = [...app.document.querySelectorAll('#view .admin-item p')].filter(p => p.textContent === 'Could not save');
+    assert.strictEqual(notes.length, 1);
+  } finally { app.cleanup(); }
+});
+
 test('errors tab: empty state', async () => {
   const app = await open({});
   try {
     assert.ok(await until(() => tab(app, 'Errors')));
     tab(app, 'Errors').onclick();
-    assert.ok(await until(() => /No errors logged/.test(text(app.document))), text(app.document));
+    assert.ok(await until(() => /No errors logged\./.test(text(app.document))), text(app.document));
   } finally { app.cleanup(); }
 });
 

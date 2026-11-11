@@ -537,7 +537,7 @@ const AR = {
   'of owners repaired this instead of replacing it': 'من المالكين أصلحوها بدل تبديلها', 'median SAR': 'الوسيط ريال', 'repaired vs': 'للإصلاح مقابل', 'replaced': 'للتبديل',
   'a repaired one lasts about': 'القطعة المُصلَحة تدوم نحو', 'before replacement': 'قبل تبديلها',
   'Inspections found a problem': 'الفحص وجد مشكلة في', 'of the time': 'من الحالات',
-  'Errors': 'الأخطاء', 'Could not load errors.': 'تعذّر تحميل الأخطاء.', 'No errors logged': 'لا توجد أخطاء مسجّلة',
+  'Errors': 'الأخطاء', 'Could not load errors.': 'تعذّر تحميل الأخطاء.', 'No errors logged.': 'لا توجد أخطاء مسجّلة.',
   'Count': 'العدد', 'First seen': 'أول ظهور', 'Last seen': 'آخر ظهور', 'Source': 'المصدر',
   'Resolve': 'تعيين كمحلول', 'Resolved': 'تم الحل', 'Show stacks': 'عرض التفاصيل', 'Hide stacks': 'إخفاء التفاصيل',
   'Proposals': 'المقترحات', 'No proposals waiting': 'لا توجد مقترحات بانتظارك',

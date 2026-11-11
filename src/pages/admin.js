@@ -132,7 +132,7 @@ function adminErrors(res, refresh) {
   card.classList.add('pad-16');
   const note = txt => { const p = el('p', 'muted'); p.textContent = t(txt); card.appendChild(p); };
   if (!res.ok) { note('Could not load errors.'); return card; }
-  if (!res.groups.length) { note('No errors logged'); return card; }
+  if (!res.groups.length) { note('No errors logged.'); return card; }
   res.groups.forEach(g => {
     const box = el('div', 'admin-item');
     const title = el('h4'); title.textContent = g.message;
@@ -149,10 +149,12 @@ function adminErrors(res, refresh) {
     }
     if (g.open) {
       const b = el('button', 'btn ghost'); b.type = 'button'; b.textContent = t('Resolve');
+      let saveNote = null; // reused so repeated failures do not stack paragraphs
       onAsyncClick(b, async () => {
         const r = await catalogAdmin.resolveGroup(g.key);
         if (r.ok) return refresh();
-        const p = el('p', 'muted'); p.textContent = t('Could not save'); box.appendChild(p);
+        if (!saveNote) { saveNote = el('p', 'muted'); box.appendChild(saveNote); }
+        saveNote.textContent = t('Could not save');
       });
       box.appendChild(b);
     } else {

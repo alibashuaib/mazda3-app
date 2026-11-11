@@ -1,5 +1,5 @@
 /* Garage — service worker: network-first (fresh online, cache offline) */
-const CACHE = 'garage-b4117ec2457e';
+const CACHE = 'garage-ccc39d6c1986';
 /* Only the default car photo is precached. The others are ~600 KB each and a
    user drives one or two of them; the fetch handler below caches whichever
    one the dashboard actually shows, so it is still there offline. */
