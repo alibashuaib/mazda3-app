@@ -58,7 +58,8 @@ test('proposals tab is the default, badge counts pending, row shows car, kind, d
   const { app } = await open({ proposals: [prop(), prop({ id: 8, target_key: 'Cabin Filter' })] });
   try {
     assert.ok(await until(() => tab(app, 'Proposals')), text(app.document));
-    assert.strictEqual(tab(app, 'Proposals').textContent, 'Proposals (2)');
+    assert.strictEqual(tab(app, 'Proposals').querySelector('.tab-badge').textContent, '2');
+    assert.ok(!/\(\d+\)/.test(tab(app, 'Proposals').textContent), 'no (N) text');
     assert.strictEqual(tab(app, 'Proposals').getAttribute('aria-selected'), 'true');
     assert.ok(await until(() => /Engine Oil/.test(text(app.document))), text(app.document));
     const t = text(app.document);

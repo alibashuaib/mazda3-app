@@ -180,7 +180,6 @@ function retryToast(msg, onRetry) {
     try { ok = await onRetry(); } catch (e) {}
     if (ok) fadeToast(node); else btn.disabled = false;
   };
-  if (typeof btn.focus === 'function') btn.focus();
   return node;
 }
 

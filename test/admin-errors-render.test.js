@@ -42,7 +42,8 @@ test('errors tab: injected markup renders as inert text, badge counts open group
   const app = await open({ errors: [err({ message: EVIL, stack: EVIL }), err({ id: 2, message: 'other', group_key: 'g2' })] });
   try {
     assert.ok(await until(() => tab(app, 'Errors')), text(app.document));
-    assert.strictEqual(tab(app, 'Errors').textContent, 'Errors (2)');
+    assert.strictEqual(tab(app, 'Errors').querySelector('.tab-badge').textContent, '2');
+    assert.ok(!/\(\d+\)/.test(tab(app, 'Errors').textContent), 'no (N) text');
     tab(app, 'Errors').onclick();
     assert.ok(await until(() => text(app.document).includes(EVIL)), text(app.document));
     assert.strictEqual(app.document.querySelector('#view img'), null);

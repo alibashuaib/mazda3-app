@@ -1127,6 +1127,8 @@ html { scroll-behavior: smooth; }
 /* One segmented control: a single track, the active tab is the only filled segment */
 .admin-tabs { display: flex; flex-wrap: nowrap; gap: 4px; margin-bottom: 16px; padding: 4px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--stroke); }
 .admin-tabs .btn { flex: 1 1 0; min-width: 0; min-height: 40px; padding-inline: 12px; border: 0; box-shadow: none; background: transparent; color: var(--text-2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-tabs .tab-badge { display: inline-block; margin-inline-start: 6px; min-width: 1.5em; padding: 0 6px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--stroke); color: var(--text-2); font-size: 12px; line-height: 1.5; text-align: center; }
+.admin-tabs .btn.primary .tab-badge { color: var(--text); }
 .admin-tabs .btn.primary, .admin-view .admin-tabs .btn.primary { background: var(--surface-solid); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 
 /* Admin page: work-tool look (flat surfaces, hairline borders, one accent, no glow).
@@ -1279,6 +1281,8 @@ html { scroll-behavior: smooth; }
 .clickable { cursor: pointer; }
 .invisible { visibility: hidden; }
 .pre-wrap { white-space: pre-wrap; }
+/* Error stacks are code: keep LTR in Arabic (as .rpt-paper does) and bound the height. */
+.admin-item pre { direction: ltr; text-align: left; max-height: 16rem; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 body.no-scroll { overflow: hidden; }
 .toast .dot.dot-warn { background: var(--warn); }
 .toast .dot.dot-ok { background: var(--ok); }

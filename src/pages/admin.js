@@ -82,8 +82,8 @@ async function renderAdminBody(body) {
       // With a banner, Refresh sits beside it on the same row; without one it keeps its own row.
       if (banner) { toolbar.classList.add('with-banner'); toolbar.insertBefore(banner, refreshBtn); }
       body.appendChild(toolbar);
-      body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : 0 },
-        { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: open }], adminTab,
+      body.appendChild(adminTabs([{ id: 'proposals', label: 'Proposals', badge: props.ok ? props.rows.length : '!', title: props.ok ? '' : 'Could not load' },
+        { id: 'queue', label: 'Review queue' }, { id: 'errors', label: 'Errors', badge: errs.ok ? open : '!' }], adminTab,
         id => { adminTab = id; show(); }));
       try {
         // Two columns on wide screens (autopilot | proposals); a lone child spans both. See .admin-cols.
@@ -112,7 +112,14 @@ function adminTabs(tabs, active, onPick) {
     b.type = 'button';
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', tab.id === active ? 'true' : 'false');
-    b.textContent = t(tab.label) + (tab.badge ? ' (' + tab.badge + ')' : '');
+    b.textContent = t(tab.label);
+    if (tab.badge !== undefined && tab.badge !== null) {
+      const sp = el('span', 'tab-badge');
+      sp.textContent = String(tab.badge);
+      sp.setAttribute('aria-label', t(tab.label) + ': ' + tab.badge);
+      b.appendChild(sp);
+    }
+    if (tab.title) b.title = t(tab.title);
     b.onclick = () => onPick(tab.id);
     bar.appendChild(b);
   });
